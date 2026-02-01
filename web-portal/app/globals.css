@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+@theme inline {
+  /* Premium Fonts */
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-outfit);
+
+  /* Brand Colors - Gold Palette (from logo) */
+  --color-brand-50: #fefce8;
+  --color-brand-100: #fef9c3;
+  --color-brand-200: #fef08a;
+  --color-brand-300: #fde047;
+  --color-brand-400: #facc15;
+  --color-brand-500: #D4AF37;
+  --color-brand-600: #C9A227;
+  --color-brand-700: #A78B1F;
+  --color-brand-800: #854d0e;
+  --color-brand-900: #713f12;
+  --color-brand-950: #422006;
+
+  /* Primary - Rich Black (from logo) */
+  --color-primary: #1A1A1A;
+  --color-primary-light: #2D2D2D;
+  --color-primary-dark: #0D0D0D;
+
+  /* Surface - Light Backgrounds */
+  --color-surface-50: #fafafa;
+  --color-surface-100: #f5f5f5;
+  --color-surface-200: #e5e5e5;
+
+  /* Gold accent */
+  --color-gold: #C9A227;
+  --color-gold-light: #E8D48A;
+  --color-gold-dark: #8B7019;
+
+  /* Base Colors */
+  --color-background: var(--color-surface-50);
+  --color-foreground: var(--color-primary);
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+/* Print styles for Price List */
+@media print {
+  /* Hide everything except print content */
+  body > * {
+    visibility: hidden;
+  }
+
+  /* Show only the modal content */
+  .print-content,
+  .print-content * {
+    visibility: visible !important;
+  }
+
+  /* Reset positioning for print */
+  .print-content {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    background: white !important;
+  }
+
+  /* Optimize for print */
+  @page {
+    size: letter;
+    margin: 0.4in;
+  }
+
+  /* Ensure tables don't break */
+  table {
+    page-break-inside: avoid;
+  }
+
+  /* Print-specific typography */
+  .print-content h1 {
+    font-size: 18pt !important;
+  }
+
+  .print-content h2 {
+    font-size: 14pt !important;
+  }
+
+  .print-content h3 {
+    font-size: 11pt !important;
+  }
+
+  .print-content table {
+    font-size: 9pt !important;
+  }
+
+  /* Remove shadows and effects */
+  * {
+    box-shadow: none !important;
+  }
+}
+
+/* Hide scrollbar but keep scroll functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

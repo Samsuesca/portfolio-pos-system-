@@ -1,0 +1,8 @@
+{
+  "system": "2.4.4",
+  "apps": {
+    "frontend": "2.4.4",
+    "webPortal": "1.1.2",
+    "adminPortal": "1.2.1"
+  }
+}

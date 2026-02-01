@@ -1,0 +1,160 @@
+@import "tailwindcss";
+
+@theme inline {
+  /* Fonts */
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-outfit);
+
+  /* Brand Colors - Gold Palette (consistent with main system) */
+  --color-brand-50: #fefce8;
+  --color-brand-100: #fef9c3;
+  --color-brand-200: #fef08a;
+  --color-brand-300: #fde047;
+  --color-brand-400: #facc15;
+  --color-brand-500: #D4AF37;
+  --color-brand-600: #C9A227;
+  --color-brand-700: #A78B1F;
+  --color-brand-800: #854d0e;
+  --color-brand-900: #713f12;
+  --color-brand-950: #422006;
+
+  /* Primary - Dark theme for admin */
+  --color-primary: #1A1A1A;
+  --color-primary-light: #2D2D2D;
+  --color-primary-dark: #0D0D0D;
+
+  /* Surface - Light Backgrounds */
+  --color-surface-50: #fafafa;
+  --color-surface-100: #f5f5f5;
+  --color-surface-200: #e5e5e5;
+
+  /* Admin accent colors */
+  --color-admin-sidebar: #1e293b;
+  --color-admin-sidebar-hover: #334155;
+
+  /* Status colors */
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+
+  /* Base */
+  --color-background: var(--color-surface-50);
+  --color-foreground: var(--color-primary);
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+/* Custom scrollbar for admin */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Table styles */
+.admin-table {
+  @apply w-full text-sm;
+}
+
+.admin-table th {
+  @apply px-4 py-3 text-left font-semibold text-slate-700 bg-slate-50 border-b border-slate-200;
+}
+
+.admin-table td {
+  @apply px-4 py-3 border-b border-slate-100;
+}
+
+.admin-table tr:hover td {
+  @apply bg-slate-50;
+}
+
+/* Form input styles */
+.admin-input {
+  @apply w-full py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all;
+  padding-left: 0.75rem !important;
+  padding-right: 0.75rem !important;
+}
+
+/* Override padding when icon is present */
+.admin-input.pl-10 {
+  padding-left: 2.5rem !important;
+}
+
+.admin-input.pr-10 {
+  padding-right: 2.5rem !important;
+}
+
+.admin-label {
+  @apply block text-sm font-medium text-slate-700 mb-1;
+}
+
+/* Button styles */
+.btn-primary {
+  @apply px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors font-medium;
+}
+
+.btn-secondary {
+  @apply px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium;
+}
+
+.btn-danger {
+  @apply px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium;
+}
+
+/* Badge styles */
+.badge {
+  @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+}
+
+.badge-success {
+  @apply bg-green-100 text-green-800;
+}
+
+.badge-warning {
+  @apply bg-yellow-100 text-yellow-800;
+}
+
+.badge-error {
+  @apply bg-red-100 text-red-800;
+}
+
+.badge-info {
+  @apply bg-blue-100 text-blue-800;
+}
+
+.badge-default {
+  @apply bg-slate-100 text-slate-800;
+}

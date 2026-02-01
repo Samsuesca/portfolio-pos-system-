@@ -1,0 +1,57 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+  "productName": "Uniformes Consuelo Rios",
+  "version": "2.4.4",
+  "identifier": "com.uniformes.system",
+  "build": {
+    "beforeBuildCommand": "npm run build",
+    "beforeDevCommand": "npm run dev",
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Uniformes Consuelo Rios",
+        "width": 1400,
+        "height": 900,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true,
+        "devtools": true,
+        "url": "index.html"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' http://localhost:* http://127.0.0.1:* http://192.168.*.* http://104.156.247.226 http://104.156.247.226:* https://* https://uniformesconsuelo.com https://*.uniformesconsuelo.com; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://104.156.247.226 http://104.156.247.226:* https://uniformesconsuelo.com https://*.uniformesconsuelo.com http://* https://*",
+      "capabilities": [
+        "default"
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Business",
+    "shortDescription": "Sistema de gestión de uniformes escolares",
+    "longDescription": "Uniformes System es un sistema profesional para la gestión de inventario, ventas y pedidos de uniformes escolares. Diseñado para tiendas y distribuidores de uniformes.",
+    "macOS": {
+      "minimumSystemVersion": "10.13"
+    },
+    "windows": {
+      "wix": null,
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "installMode": "currentUser"
+      }
+    }
+  }
+}

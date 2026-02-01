@@ -1,0 +1,81 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: uniformes-postgres
+    environment:
+      POSTGRES_DB: uniformes_db
+      POSTGRES_USER: uniformes_user
+      POSTGRES_PASSWORD: dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uniformes_user -d uniformes_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Base de datos dedicada para tests - aislada de desarrollo
+  # Usa tmpfs para ejecucion rapida (datos en memoria, se pierden al reiniciar)
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: uniformes-postgres-test
+    environment:
+      POSTGRES_DB: uniformes_test
+      POSTGRES_USER: uniformes_test
+      POSTGRES_PASSWORD: test_password
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uniformes_test -d uniformes_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    # tmpfs for faster test execution (data in memory)
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: uniformes-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.dev
+    container_name: uniformes-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://uniformes_user:dev_password@postgres:5432/uniformes_db
+      - TEST_DATABASE_URL=postgresql+asyncpg://uniformes_test:test_password@postgres-test:5432/uniformes_test
+      - REDIS_URL=redis://redis:6379
+      - SECRET_KEY=uniformes-production-secret-key-2025-very-secure-random-string
+      - ENV=development
+      - DEBUG=true
+      # Email (Resend) - Use .env file or pass via environment
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - EMAIL_FROM=Uniformes Consuelo <noreply@yourdomain.com>
+      - FRONTEND_URL=https://yourdomain.com
+    volumes:
+      - ../backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres-test:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  postgres_data:
