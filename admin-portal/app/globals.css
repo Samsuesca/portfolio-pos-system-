@@ -90,15 +90,38 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .admin-table th {
-  @apply px-4 py-3 text-left font-semibold text-slate-700 bg-slate-50 border-b border-slate-200;
+  @apply px-4 py-3 text-left font-semibold text-slate-600 bg-gradient-to-r from-slate-50 to-slate-100/50 border-b border-slate-200;
+  @apply text-xs uppercase tracking-wider;
 }
 
 .admin-table td {
-  @apply px-4 py-3 border-b border-slate-100;
+  @apply px-4 py-3.5 border-b border-slate-100;
+  @apply transition-colors duration-150;
 }
 
-.admin-table tr:hover td {
-  @apply bg-slate-50;
+.admin-table tbody tr {
+  @apply transition-all duration-150;
+}
+
+.admin-table tbody tr:hover {
+  @apply bg-gradient-to-r from-slate-50 to-transparent;
+}
+
+.admin-table tbody tr:hover td {
+  @apply text-slate-900;
+}
+
+/* Clickable table rows */
+.admin-table tbody tr.clickable {
+  @apply cursor-pointer;
+}
+
+.admin-table tbody tr.clickable:hover {
+  @apply bg-gradient-to-r from-brand-50/50 to-transparent;
+}
+
+.admin-table tbody tr.clickable:active {
+  @apply bg-brand-50;
 }
 
 /* Form input styles */
@@ -121,17 +144,79 @@ h1, h2, h3, h4, h5, h6 {
   @apply block text-sm font-medium text-slate-700 mb-1;
 }
 
-/* Button styles */
+/* Button styles with micro-interactions */
 .btn-primary {
-  @apply px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors font-medium;
+  @apply px-4 py-2 bg-brand-500 text-white rounded-lg font-medium;
+  @apply transition-all duration-200;
+  @apply hover:bg-brand-600 hover:shadow-md hover:scale-[1.02];
+  @apply active:scale-[0.98] active:shadow-sm;
 }
 
 .btn-secondary {
-  @apply px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium;
+  @apply px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium;
+  @apply transition-all duration-200;
+  @apply hover:bg-slate-200 hover:shadow-sm hover:scale-[1.02];
+  @apply active:scale-[0.98];
 }
 
 .btn-danger {
-  @apply px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium;
+  @apply px-4 py-2 bg-red-500 text-white rounded-lg font-medium;
+  @apply transition-all duration-200;
+  @apply hover:bg-red-600 hover:shadow-md hover:scale-[1.02];
+  @apply active:scale-[0.98] active:shadow-sm;
+}
+
+.btn-success {
+  @apply px-4 py-2 bg-green-600 text-white rounded-lg font-medium;
+  @apply transition-all duration-200;
+  @apply hover:bg-green-700 hover:shadow-md hover:scale-[1.02];
+  @apply active:scale-[0.98] active:shadow-sm;
+}
+
+/* Card styles with shadows */
+.admin-card {
+  @apply bg-white rounded-xl border border-slate-200 shadow-sm;
+  @apply transition-shadow duration-200;
+}
+
+.admin-card-hover {
+  @apply bg-white rounded-xl border border-slate-200 shadow-sm;
+  @apply transition-all duration-200;
+  @apply hover:shadow-lg hover:border-slate-300;
+}
+
+.admin-card-interactive {
+  @apply bg-white rounded-xl border border-slate-200 shadow-sm;
+  @apply transition-all duration-200;
+  @apply hover:shadow-lg hover:border-slate-300 hover:-translate-y-0.5;
+}
+
+/* Stat card with gradient background */
+.stat-card {
+  @apply bg-white rounded-xl border border-slate-200 shadow-sm p-6;
+  @apply transition-all duration-200;
+  @apply hover:shadow-md;
+}
+
+.stat-card-brand {
+  @apply rounded-xl p-6 shadow-sm;
+  @apply bg-gradient-to-br from-brand-500 to-brand-600 text-white;
+  @apply transition-all duration-200;
+  @apply hover:shadow-lg hover:scale-[1.01];
+}
+
+.stat-card-success {
+  @apply rounded-xl p-6 shadow-sm;
+  @apply bg-gradient-to-br from-green-500 to-green-600 text-white;
+  @apply transition-all duration-200;
+  @apply hover:shadow-lg;
+}
+
+.stat-card-info {
+  @apply rounded-xl p-6 shadow-sm;
+  @apply bg-gradient-to-br from-blue-500 to-blue-600 text-white;
+  @apply transition-all duration-200;
+  @apply hover:shadow-lg;
 }
 
 /* Badge styles */
@@ -157,4 +242,151 @@ h1, h2, h3, h4, h5, h6 {
 
 .badge-default {
   @apply bg-slate-100 text-slate-800;
+}
+
+/* Toast animations */
+@keyframes slide-in {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-from-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out forwards;
+}
+
+.animate-in {
+  animation-fill-mode: both;
+}
+
+.slide-in-from-right {
+  animation-name: slide-in-from-right;
+}
+
+.duration-300 {
+  animation-duration: 300ms;
+}
+
+.ease-out {
+  animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+}
+
+/* Shimmer animation for skeletons */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Gradient backgrounds */
+.bg-gradient-brand {
+  @apply bg-gradient-to-r from-brand-500 to-brand-600;
+}
+
+.bg-gradient-dark {
+  @apply bg-gradient-to-r from-slate-800 to-slate-900;
+}
+
+.bg-gradient-subtle {
+  @apply bg-gradient-to-br from-slate-50 to-white;
+}
+
+.bg-gradient-page {
+  @apply bg-gradient-to-b from-slate-100 via-white to-white;
+}
+
+/* Page header with gradient */
+.page-header {
+  @apply bg-gradient-to-r from-white to-slate-50 border-b border-slate-200;
+  @apply px-6 py-4;
+}
+
+/* Improved focus states */
+.admin-input:focus {
+  @apply ring-2 ring-brand-500/30 border-brand-500;
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
+}
+
+/* Interactive list items */
+.list-item-interactive {
+  @apply px-4 py-3 rounded-lg;
+  @apply transition-all duration-150;
+  @apply hover:bg-slate-50 hover:shadow-sm;
+  @apply active:bg-slate-100;
+}
+
+/* Fade-in animation for page content */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+/* Stagger animation for lists */
+.stagger-item {
+  opacity: 0;
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+.stagger-item:nth-child(1) { animation-delay: 0.05s; }
+.stagger-item:nth-child(2) { animation-delay: 0.1s; }
+.stagger-item:nth-child(3) { animation-delay: 0.15s; }
+.stagger-item:nth-child(4) { animation-delay: 0.2s; }
+.stagger-item:nth-child(5) { animation-delay: 0.25s; }
+.stagger-item:nth-child(6) { animation-delay: 0.3s; }
+
+/* Modal backdrop with blur */
+.modal-backdrop {
+  @apply fixed inset-0 bg-black/50 backdrop-blur-sm;
+  @apply transition-opacity duration-200;
+}
+
+/* Modal content animation */
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-modal-in {
+  animation: modal-in 0.2s ease-out forwards;
 }

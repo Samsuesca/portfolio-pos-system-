@@ -18,6 +18,7 @@ import {
 import salesService from '@/lib/services/salesService';
 import schoolService from '@/lib/services/schoolService';
 import SaleModal from '@/components/vendor/SaleModal';
+import { formatCurrency, formatDateTime, getErrorMessage } from '@/lib/utils';
 import type {
   Sale,
   SaleWithItems,
@@ -69,37 +70,6 @@ const CHANGE_STATUS_COLORS: Record<ChangeStatus, string> = {
   pending_stock: 'badge-warning',
   approved: 'badge-success',
   rejected: 'badge-error',
-};
-
-// Helper to extract error message from API response
-const getErrorMessage = (err: any, fallback: string): string => {
-  const detail = err?.response?.data?.detail;
-  if (typeof detail === 'string') return detail;
-  if (Array.isArray(detail) && detail.length > 0) {
-    return detail.map((d: any) => d.msg || d.message || JSON.stringify(d)).join(', ');
-  }
-  if (typeof detail === 'object' && detail !== null) {
-    return detail.msg || detail.message || JSON.stringify(detail);
-  }
-  return fallback;
-};
-
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    minimumFractionDigits: 0,
-  }).format(value);
-};
-
-const formatDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleDateString('es-CO', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 };
 
 export default function SalesPage() {
@@ -430,7 +400,7 @@ export default function SalesPage() {
                         {STATUS_LABELS[sale.status]}
                       </span>
                     </td>
-                    <td className="text-sm text-slate-500">{formatDate(sale.sale_date)}</td>
+                    <td className="text-sm text-slate-500">{formatDateTime(sale.sale_date)}</td>
                     <td>
                       <div className="flex items-center gap-1">
                         <button
@@ -566,7 +536,7 @@ export default function SalesPage() {
                             </span>
                           </div>
                           <span className="text-sm text-slate-500">
-                            {formatDate(payment.created_at)}
+                            {formatDateTime(payment.created_at)}
                           </span>
                         </div>
                       ))}

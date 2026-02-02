@@ -31,13 +31,10 @@ import reportsService, {
 import schoolService from '@/lib/services/schoolService';
 import type { School } from '@/lib/api';
 import DatePicker from '@/components/ui/DatePicker';
+import { formatCurrency, formatDateForAPI } from '@/lib/utils';
 
 type DatePreset = 'today' | 'week' | 'month' | 'year' | 'custom' | 'all';
 type ReportTab = 'sales' | 'products' | 'clients';
-
-const formatDateForAPI = (date: Date): string => {
-  return date.toISOString().split('T')[0];
-};
 
 const getPresetDates = (preset: DatePreset): DateFilters => {
   const today = new Date();
@@ -75,14 +72,6 @@ const getPresetDates = (preset: DatePreset): DateFilters => {
     default:
       return {};
   }
-};
-
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    minimumFractionDigits: 0,
-  }).format(value);
 };
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {

@@ -2,6 +2,7 @@ import AuthGuard from '@/components/AuthGuard';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import DashboardWrapper from '@/components/DashboardWrapper';
+import { ToastContainer } from '@/components/ui/Toast';
 
 export default function DashboardLayout({
   children,
@@ -18,6 +19,7 @@ export default function DashboardLayout({
             <main className="p-6">{children}</main>
           </DashboardWrapper>
         </div>
+        <ToastContainer />
       </div>
     </AuthGuard>
   );

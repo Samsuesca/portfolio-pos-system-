@@ -4,14 +4,17 @@ on:
   # Ejecutar manualmente desde GitHub
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version number (e.g., 2.0.1)'
+      version_override:
+        description: 'Override version (leave empty to use version.json)'
         required: false
         default: ''
   # O cuando creas un tag de release
   push:
     tags:
       - 'v*'
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -22,15 +25,54 @@ jobs:
           - platform: 'windows-latest'
             args: ''
             artifact_name: 'windows'
+            rust_target: ''
           - platform: 'macos-latest'
             args: '--target aarch64-apple-darwin'
             artifact_name: 'macos'
+            rust_target: 'aarch64-apple-darwin'
 
     runs-on: ${{ matrix.platform }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Read version from version.json
+        id: version
+        shell: bash
+        run: |
+          if [ -n "${{ github.event.inputs.version_override }}" ]; then
+            VERSION="${{ github.event.inputs.version_override }}"
+          elif [ -n "${{ github.ref_name }}" ] && [[ "${{ github.ref_name }}" == v* ]]; then
+            # Extract version from tag (v2.5.0 -> 2.5.0)
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"
+          else
+            # Read from version.json
+            VERSION=$(cat version.json | jq -r '.apps.frontend // .system')
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Building version: $VERSION"
+
+      - name: Update tauri.conf.json version
+        shell: bash
+        run: |
+          cd frontend/src-tauri
+          # Update version in tauri.conf.json using jq
+          jq --arg v "${{ steps.version.outputs.VERSION }}" '.version = $v' tauri.conf.json > tauri.conf.json.tmp
+          mv tauri.conf.json.tmp tauri.conf.json
+          echo "✅ Updated tauri.conf.json to version ${{ steps.version.outputs.VERSION }}"
+          cat tauri.conf.json | jq '.version'
+
+      - name: Update Cargo.toml version
+        shell: bash
+        run: |
+          cd frontend/src-tauri
+          # Update version in Cargo.toml using sed
+          sed -i.bak 's/^version = ".*"/version = "${{ steps.version.outputs.VERSION }}"/' Cargo.toml
+          rm -f Cargo.toml.bak
+          echo "✅ Updated Cargo.toml to version ${{ steps.version.outputs.VERSION }}"
+          grep "^version" Cargo.toml
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -41,10 +83,14 @@ jobs:
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
 
-      - name: Install Apple Silicon target
-        if: matrix.platform == 'macos-latest'
-        run: rustup target add aarch64-apple-darwin
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: frontend/src-tauri
+          cache-on-failure: true
 
       - name: Install frontend dependencies
         working-directory: frontend
@@ -59,12 +105,25 @@ jobs:
         with:
           projectPath: frontend
           args: ${{ matrix.args }}
+          tagName: v${{ steps.version.outputs.VERSION }}
+          releaseName: 'Uniformes Desktop v${{ steps.version.outputs.VERSION }}'
+          releaseBody: |
+            ## Uniformes Desktop v${{ steps.version.outputs.VERSION }}
+
+            ### Instalación
+            - **Windows**: Descarga el archivo `.exe` (instalador NSIS) o `.msi`
+            - **macOS (Apple Silicon)**: Descarga el archivo `.dmg`
+
+            ### Notas
+            Ver el [CHANGELOG](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) para detalles de los cambios.
+          releaseDraft: true
+          prerelease: false
 
       - name: Upload artifacts (Windows)
         if: matrix.platform == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: uniformes-desktop-${{ matrix.artifact_name }}
+          name: uniformes-desktop-${{ matrix.artifact_name }}-v${{ steps.version.outputs.VERSION }}
           path: |
             frontend/src-tauri/target/release/bundle/msi/*.msi
             frontend/src-tauri/target/release/bundle/nsis/*.exe
@@ -74,7 +133,7 @@ jobs:
         if: matrix.platform == 'macos-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: uniformes-desktop-${{ matrix.artifact_name }}
+          name: uniformes-desktop-${{ matrix.artifact_name }}-v${{ steps.version.outputs.VERSION }}
           path: |
             frontend/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
           retention-days: 30

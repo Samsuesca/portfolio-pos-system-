@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import deliveryZoneService from '@/lib/services/deliveryZoneService';
 import type { DeliveryZone } from '@/lib/api';
+import { formatCurrency } from '@/lib/utils';
 
 export default function DeliveryZonesPage() {
   const [zones, setZones] = useState<DeliveryZone[]>([]);
@@ -114,14 +115,6 @@ export default function DeliveryZonesPage() {
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Error al eliminar');
     }
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0,
-    }).format(value);
   };
 
   return (

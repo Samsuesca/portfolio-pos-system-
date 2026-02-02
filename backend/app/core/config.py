@@ -1,30 +1,47 @@
 from pydantic_settings import BaseSettings
 from typing import List, Optional
 import os
+import json
+from pathlib import Path
+
+
+def _load_version_from_file() -> str:
+    """Load version from version.json in project root."""
+    try:
+        # Navigate from backend/app/core/config.py to project root
+        project_root = Path(__file__).parent.parent.parent.parent
+        version_file = project_root / "version.json"
+        if version_file.exists():
+            with open(version_file, "r") as f:
+                data = json.load(f)
+                return data.get("apps", {}).get("backend", data.get("system", "2.5.0"))
+    except Exception:
+        pass
+    return "2.5.0"  # Fallback version
 
 
 class Settings(BaseSettings):
     # Project
     PROJECT_NAME: str = "Uniformes System API"
-    VERSION: str = "2.0.0"
+    VERSION: str = _load_version_from_file()
     API_V1_STR: str = "/api/v1"
 
     # Environment
     ENV: str = "development"
     DEBUG: bool = True
     TESTING: bool = False  # Set to True during pytest runs to disable rate limiting
-    
+
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://uniformes_user:dev_password@localhost:5432/uniformes_db"
-    
+
     # Redis
     REDIS_URL: str = "redis://localhost:6379"
-    
+
     # Security
     SECRET_KEY: str = "your-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    
+
     # Server
     BACKEND_HOST: str = "0.0.0.0"  # Listen on all interfaces
     BACKEND_PORT: int = 8000

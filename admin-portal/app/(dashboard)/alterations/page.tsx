@@ -37,6 +37,7 @@ import alterationService, {
 import clientService from '@/lib/services/clientService';
 import type { Client, PaymentMethod } from '@/lib/api';
 import DatePicker from '@/components/ui/DatePicker';
+import { formatCurrency, formatDate } from '@/lib/utils';
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'cash', label: 'Efectivo' },
@@ -44,22 +45,6 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'transfer', label: 'Transferencia' },
   { value: 'card', label: 'Tarjeta' },
 ];
-
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    minimumFractionDigits: 0,
-  }).format(value);
-};
-
-const formatDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleDateString('es-CO', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-};
 
 export default function AlterationsPage() {
   const router = useRouter();

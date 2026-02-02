@@ -19,6 +19,7 @@ import schoolService from '@/lib/services/schoolService';
 import productService from '@/lib/services/productService';
 import { useAdminAuth } from '@/lib/adminAuth';
 import type { School, Product, GarmentType, GlobalProduct, GlobalGarmentType } from '@/lib/api';
+import { formatCurrency } from '@/lib/utils';
 
 // Import modals
 import GarmentTypeModal from '@/components/products/GarmentTypeModal';
@@ -189,14 +190,6 @@ export default function ProductsPage() {
     if (!schoolId) return '-';
     const school = schools.find((s) => s.id === schoolId);
     return school?.name || 'Desconocido';
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0,
-    }).format(value);
   };
 
   const clearFilters = () => {

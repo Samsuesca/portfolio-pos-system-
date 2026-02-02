@@ -12,6 +12,12 @@ import ProductDetailModal from '@/components/ProductDetailModal';
 import PriceListModal from '@/components/PriceListModal';
 import QuotationBanner from '@/components/QuotationBanner';
 import FloatingCartSummary from '@/components/FloatingCartSummary';
+import { useSearchHistory } from './hooks/useSearchHistory';
+import {
+    extractCategories,
+    extractSizes,
+    productMatchesCategory,
+} from './utils/categorization';
 
 export default function CatalogPage() {
     const params = useParams();
@@ -36,8 +42,10 @@ export default function CatalogPage() {
     const [priceRange, setPriceRange] = useState<[number, number]>([0, 100000]);
     const [showInStock, setShowInStock] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
-    const [searchHistory, setSearchHistory] = useState<string[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+
+    // Search history from localStorage (uses extracted hook)
+    const { history: searchHistory, addToHistory } = useSearchHistory(schoolSlug);
     const [priceStats, setPriceStats] = useState<{ min_price: number; max_price: number } | null>(null);
     const [showSizeDropdown, setShowSizeDropdown] = useState(false);
     const [searchFocused, setSearchFocused] = useState(false);
@@ -88,18 +96,6 @@ export default function CatalogPage() {
         loadAllProducts();
     }, [schoolSlug]);
 
-    // Load search history from localStorage on mount
-    useEffect(() => {
-        const history = localStorage.getItem(`search_history_${schoolSlug}`);
-        if (history) {
-            try {
-                setSearchHistory(JSON.parse(history));
-            } catch (e) {
-                console.error('Failed to load search history:', e);
-            }
-        }
-    }, [schoolSlug]);
-
     // Load price stats when school is loaded
     useEffect(() => {
         if (school) {
@@ -134,10 +130,8 @@ export default function CatalogPage() {
                     setProducts(results);
                     setGlobalProducts([]); // Clear global products when searching
 
-                    // Save to search history
-                    const newHistory = [searchQuery, ...searchHistory.filter(q => q !== searchQuery)].slice(0, 10);
-                    setSearchHistory(newHistory);
-                    localStorage.setItem(`search_history_${schoolSlug}`, JSON.stringify(newHistory));
+                    // Save to search history (using extracted hook)
+                    addToHistory(searchQuery);
                 } catch (error) {
                     console.error('Search error:', error);
                 } finally {
@@ -209,67 +203,15 @@ export default function CatalogPage() {
     };
 
     const updateCategoriesAndSizes = (schoolProds: Product[], globalProds: Product[]) => {
-        // Combine both product lists for categorization
-        const allProducts = [...schoolProds, ...globalProds];
-
-        // Extract unique categories from products
-        const uniqueCategories = new Set<string>();
-        const uniqueSizes = new Set<string>();
-
-        // Categorize ONLY school products (not global)
-        schoolProds.forEach(p => {
-            const name = p.name.toLowerCase();
-
-            // Categorize products
-            if (name.includes('camisa') || name.includes('blusa') || name.includes('camiseta')) {
-                uniqueCategories.add('Camisas');
-            } else if (name.includes('chompa')) {
-                uniqueCategories.add('Chompas');
-            } else if (name.includes('pantalon') || name.includes('falda')) {
-                uniqueCategories.add('Pantalones');
-            } else if (name.includes('sudadera') || name.includes('buzo') || name.includes('chaqueta')) {
-                uniqueCategories.add('Sudaderas');
-            } else if (name.includes('yomber')) {
-                uniqueCategories.add('Yomber');
-            } else if (name.includes('zapato') || name.includes('tennis') || name.includes('media') || name.includes('jean')) {
-                uniqueCategories.add('Calzado');
-            }
-        });
-
-        // Add "Otros" category if there are global products
-        if (globalProds.length > 0) {
-            uniqueCategories.add('Otros');
-        }
-
-        // Extract sizes from ALL products (school + global)
-        allProducts.forEach(p => {
-            if (p.size && p.size !== 'Única') {
-                uniqueSizes.add(p.size);
-            }
-        });
-
-        setCategories(['all', ...Array.from(uniqueCategories).sort()]);
-
-        // Sort sizes: numbers first, then letters
-        const sortedSizes = Array.from(uniqueSizes).sort((a, b) => {
-            const aIsNum = /^\d+$/.test(a);
-            const bIsNum = /^\d+$/.test(b);
-            if (aIsNum && bIsNum) return parseInt(a) - parseInt(b);
-            if (aIsNum) return -1;
-            if (bIsNum) return 1;
-            return a.localeCompare(b);
-        });
-        setSizes(sortedSizes);
+        // Use centralized categorization utilities
+        setCategories(extractCategories(schoolProds, globalProds));
+        setSizes(extractSizes([...schoolProds, ...globalProds]));
     };
 
     // Combine school products and global products
     const allProducts = [...products, ...globalProducts];
 
     const filteredProducts = allProducts.filter(p => {
-        const name = p.name.toLowerCase();
-        const description = (p.description || '').toLowerCase();
-        const filterLower = filter.toLowerCase();
-
         // Check if product is global (exists in globalProducts array)
         const isGlobalProduct = globalProducts.some(gp => gp.id === p.id);
 
@@ -277,27 +219,13 @@ export default function CatalogPage() {
         let searchMatch = true;
         if (searchQuery.trim().length > 0) {
             const query = searchQuery.toLowerCase();
+            const name = p.name.toLowerCase();
+            const description = (p.description || '').toLowerCase();
             searchMatch = name.includes(query) || description.includes(query) || (p.code || '').toLowerCase().includes(query);
         }
 
-        // Filter by category
-        let categoryMatch = true;
-        if (filter !== 'all') {
-            if (filterLower === 'otros') {
-                // "Otros" category shows ONLY global products
-                categoryMatch = isGlobalProduct;
-            } else {
-                // For other categories, exclude global products and match by name
-                categoryMatch = !isGlobalProduct && (
-                    (filterLower === 'camisas' && (name.includes('camisa') || name.includes('blusa') || name.includes('camiseta'))) ||
-                    (filterLower === 'chompas' && name.includes('chompa')) ||
-                    (filterLower === 'pantalones' && (name.includes('pantalon') || name.includes('falda'))) ||
-                    (filterLower === 'sudaderas' && (name.includes('sudadera') || name.includes('buzo') || name.includes('chaqueta'))) ||
-                    (filterLower === 'yomber' && name.includes('yomber')) ||
-                    (filterLower === 'calzado' && (name.includes('zapato') || name.includes('tennis') || name.includes('media') || name.includes('jean')))
-                );
-            }
-        }
+        // Filter by category using centralized utility
+        const categoryMatch = productMatchesCategory(p.name, filter, isGlobalProduct);
 
         // Filter by size
         const sizeMatch = sizeFilter === 'all' || p.size === sizeFilter;
@@ -320,32 +248,15 @@ export default function CatalogPage() {
 
     // Filter product groups (similar logic but for groups)
     const filteredGroups = productGroups.filter(group => {
-        const name = group.name.toLowerCase();
-        const filterLower = filter.toLowerCase();
-
         // Filter by search query
         let searchMatch = true;
         if (searchQuery.trim().length > 0) {
             const query = searchQuery.toLowerCase();
-            searchMatch = name.includes(query);
+            searchMatch = group.name.toLowerCase().includes(query);
         }
 
-        // Filter by category
-        let categoryMatch = true;
-        if (filter !== 'all') {
-            if (filterLower === 'otros') {
-                categoryMatch = group.isGlobal;
-            } else {
-                categoryMatch = !group.isGlobal && (
-                    (filterLower === 'camisas' && (name.includes('camisa') || name.includes('blusa') || name.includes('camiseta'))) ||
-                    (filterLower === 'chompas' && name.includes('chompa')) ||
-                    (filterLower === 'pantalones' && (name.includes('pantalon') || name.includes('falda'))) ||
-                    (filterLower === 'sudaderas' && (name.includes('sudadera') || name.includes('buzo') || name.includes('chaqueta'))) ||
-                    (filterLower === 'yomber' && name.includes('yomber')) ||
-                    (filterLower === 'calzado' && (name.includes('zapato') || name.includes('tennis') || name.includes('media') || name.includes('jean')))
-                );
-            }
-        }
+        // Filter by category using centralized utility
+        const categoryMatch = productMatchesCategory(group.name, filter, group.isGlobal);
 
         // Filter by size - check if any variant matches the size filter
         const sizeMatch = sizeFilter === 'all' || group.variants.some(v => v.size === sizeFilter);

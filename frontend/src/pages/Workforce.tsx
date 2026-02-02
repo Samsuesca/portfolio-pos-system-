@@ -837,9 +837,9 @@ function AttendanceTab({ employees }: { employees: EmployeeListItem[] }) {
         employee_id: attendanceForm.employee_id,
         record_date: attendanceForm.record_date,
         status: attendanceForm.status,
-        check_in_time: attendanceForm.check_in_time || null,
-        check_out_time: attendanceForm.check_out_time || null,
-        notes: attendanceForm.notes || null,
+        check_in_time: attendanceForm.check_in_time || undefined,
+        check_out_time: attendanceForm.check_out_time || undefined,
+        notes: attendanceForm.notes || undefined,
       };
       if (editingAttendance) {
         await workforceService.updateAttendance(editingAttendance.id, {
@@ -1530,7 +1530,7 @@ function ChecklistsTab({ employees: _employees }: { employees: EmployeeListItem[
       setTemplateError('El nombre es obligatorio.');
       return;
     }
-    if (!templateForm.position.trim()) {
+    if (!templateForm.position?.trim()) {
       setTemplateError('El cargo es obligatorio.');
       return;
     }
@@ -1550,7 +1550,7 @@ function ChecklistsTab({ employees: _employees }: { employees: EmployeeListItem[
 
   const handleEditTemplateOpen = (t: ChecklistTemplate) => {
     setEditingTemplate(t);
-    setEditTemplateForm({ name: t.name, position: t.position, is_active: t.is_active });
+    setEditTemplateForm({ name: t.name, position: t.position || '', is_active: t.is_active });
   };
 
   const handleEditTemplateSave = async () => {
@@ -2571,8 +2571,8 @@ function ResponsibilitiesTab() {
     loadResponsibilities();
   }, [loadResponsibilities]);
 
-  // Unique positions for filter dropdown
-  const uniquePositions = Array.from(new Set(responsibilities.map((r) => r.position))).sort();
+  // Unique positions for filter dropdown (filter out nulls)
+  const uniquePositions = Array.from(new Set(responsibilities.map((r) => r.position).filter((p): p is string => p !== null))).sort();
 
   // Group by position, then by category
   const filtered = respPositionFilter
@@ -2581,8 +2581,9 @@ function ResponsibilitiesTab() {
 
   const groupedByPosition: Record<string, PositionResponsibility[]> = {};
   for (const r of filtered) {
-    if (!groupedByPosition[r.position]) groupedByPosition[r.position] = [];
-    groupedByPosition[r.position].push(r);
+    const pos = r.position || 'Sin cargo';
+    if (!groupedByPosition[pos]) groupedByPosition[pos] = [];
+    groupedByPosition[pos].push(r);
   }
 
   // Sort within each position group by category then sort_order
@@ -2605,7 +2606,7 @@ function ResponsibilitiesTab() {
   const openEditModal = (resp: PositionResponsibility) => {
     setEditingResp(resp);
     setRespForm({
-      position: resp.position,
+      position: resp.position || '',
       title: resp.title,
       description: resp.description || '',
       category: resp.category,

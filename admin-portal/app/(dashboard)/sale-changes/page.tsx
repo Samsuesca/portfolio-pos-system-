@@ -174,6 +174,9 @@ export default function SaleChangesPage() {
 
       if (activeTab === 'sales') {
         const saleChange = selectedChange as SaleChangeListItem;
+        if (!saleChange.school_id) {
+          throw new Error('school_id es requerido para aprobar cambio de venta');
+        }
         await salesService.approveChange(
           saleChange.school_id,
           saleChange.sale_id,
@@ -183,6 +186,9 @@ export default function SaleChangesPage() {
         loadSaleChanges();
       } else {
         const orderChange = selectedChange as OrderChangeListItem;
+        if (!orderChange.school_id) {
+          throw new Error('school_id es requerido para aprobar cambio de pedido');
+        }
         await orderChangesService.approveChange(
           orderChange.school_id,
           orderChange.order_id,
@@ -220,6 +226,9 @@ export default function SaleChangesPage() {
 
       if (activeTab === 'sales') {
         const saleChange = selectedChange as SaleChangeListItem;
+        if (!saleChange.school_id) {
+          throw new Error('school_id es requerido para rechazar cambio de venta');
+        }
         await salesService.rejectChange(
           saleChange.school_id,
           saleChange.sale_id,
@@ -229,6 +238,9 @@ export default function SaleChangesPage() {
         loadSaleChanges();
       } else {
         const orderChange = selectedChange as OrderChangeListItem;
+        if (!orderChange.school_id) {
+          throw new Error('school_id es requerido para rechazar cambio de pedido');
+        }
         await orderChangesService.rejectChange(
           orderChange.school_id,
           orderChange.order_id,

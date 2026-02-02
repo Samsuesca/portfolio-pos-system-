@@ -44,40 +44,10 @@ import payrollService, {
 } from '@/lib/services/payrollService';
 import DatePicker from '@/components/ui/DatePicker';
 import CurrencyInput from '@/components/ui/CurrencyInput';
+import { formatCurrency, formatDate, getErrorMessage } from '@/lib/utils';
 
 // Tabs
 type TabType = 'employees' | 'payroll';
-
-// Helper to format currency
-const formatCurrency = (amount: number | string | null | undefined) => {
-  const num = typeof amount === 'string' ? parseFloat(amount) : (amount || 0);
-  return new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    minimumFractionDigits: 0,
-  }).format(num);
-};
-
-// Helper to format date
-const formatDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleDateString('es-CO', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-};
-
-// Helper to extract error message
-const getErrorMessage = (err: any, defaultMsg: string): string => {
-  const detail = err.response?.data?.detail;
-  if (!detail) return defaultMsg;
-  if (typeof detail === 'string') return detail;
-  if (Array.isArray(detail)) {
-    return detail.map((e: any) => e.msg || e.message || JSON.stringify(e)).join(', ');
-  }
-  if (typeof detail === 'object' && detail.msg) return detail.msg;
-  return defaultMsg;
-};
 
 export default function PayrollPage() {
   const { user } = useAdminAuth();

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import ordersService from '@/lib/services/ordersService';
 import schoolService from '@/lib/services/schoolService';
+import { formatCurrency, formatDate, formatDateTime, getErrorMessage } from '@/lib/utils';
 import type {
   Order,
   OrderWithItems,
@@ -57,45 +58,6 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
 };
 
 const STATUS_FLOW: OrderStatus[] = ['pending', 'in_production', 'ready', 'delivered'];
-
-// Helper to extract error message from API response
-const getErrorMessage = (err: any, fallback: string): string => {
-  const detail = err?.response?.data?.detail;
-  if (typeof detail === 'string') return detail;
-  if (Array.isArray(detail) && detail.length > 0) {
-    return detail.map((d: any) => d.msg || d.message || JSON.stringify(d)).join(', ');
-  }
-  if (typeof detail === 'object' && detail !== null) {
-    return detail.msg || detail.message || JSON.stringify(detail);
-  }
-  return fallback;
-};
-
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    minimumFractionDigits: 0,
-  }).format(value);
-};
-
-const formatDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleDateString('es-CO', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-};
-
-const formatDateTime = (dateStr: string) => {
-  return new Date(dateStr).toLocaleDateString('es-CO', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
 
 export default function OrdersPage() {
   const { user } = useAdminAuth();

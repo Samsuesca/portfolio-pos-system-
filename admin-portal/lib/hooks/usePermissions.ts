@@ -238,71 +238,113 @@ export function usePermissions(): UsePermissionsResult {
       };
     }
 
-    // Find user's role for current school (if school selected)
-    const schoolRole = currentSchool
-      ? user.school_roles?.find((r) => r.school_id === currentSchool.id)
-      : null;
+    // Helper to build full permissions result for owner role
+    const buildOwnerResult = (): UsePermissionsResult => ({
+      hasPermission: () => true,
+      hasAnyPermission: () => true,
+      hasAllPermissions: () => true,
+      permissions: new Set(['*']), // Symbolic "all"
+      maxDiscountPercent: 100,
+      canManageSchoolUsers: true,
+      canViewCosts: true,
+      canCancelSales: true,
+      canApplyDiscount: true,
+      canAdjustInventory: true,
+      canManageAccounting: true,
+      canApproveChanges: true,
+      canManageProducts: true,
+      canExportReports: true,
+      canManageWorkforce: true,
+      canViewCash: true,
+      canViewBank: true,
+      canViewExpenses: true,
+      canCreateExpense: true,
+      canPayExpense: true,
+      canViewReceivables: true,
+      canManageReceivables: true,
+      canViewPayables: true,
+      canManagePayables: true,
+      canViewTransactions: true,
+      canViewDailyFlow: true,
+      canViewGlobalBalances: true,
+      canCloseRegister: true,
+      canOpenRegister: true,
+      canAdjustBalance: true,
+      canLiquidateCajaMenor: true,
+      canViewCajaMenor: true,
+      canViewTransfers: true,
+      canTransferBetweenAccounts: true,
+      canAccessAccounting: true,
+      canAccessFinance: true,
+      isSuperuser: false,
+    });
 
-    // Owner gets all permissions
-    if (schoolRole?.role === 'owner') {
-      return {
-        hasPermission: () => true,
-        hasAnyPermission: () => true,
-        hasAllPermissions: () => true,
-        permissions: new Set(['*']), // Symbolic "all"
-        maxDiscountPercent: 100,
-        canManageSchoolUsers: true,
-        canViewCosts: true,
-        canCancelSales: true,
-        canApplyDiscount: true,
-        canAdjustInventory: true,
-        canManageAccounting: true,
-        canApproveChanges: true,
-        canManageProducts: true,
-        canExportReports: true,
-        canManageWorkforce: true,
-        // Accounting granular - all true for owner
-        canViewCash: true,
-        canViewBank: true,
-        canViewExpenses: true,
-        canCreateExpense: true,
-        canPayExpense: true,
-        canViewReceivables: true,
-        canManageReceivables: true,
-        canViewPayables: true,
-        canManagePayables: true,
-        canViewTransactions: true,
-        canViewDailyFlow: true,
-        canViewGlobalBalances: true,
-        canCloseRegister: true,
-        canOpenRegister: true,
-        canAdjustBalance: true,
-        canLiquidateCajaMenor: true,
-        canViewCajaMenor: true,
-        canViewTransfers: true,
-        canTransferBetweenAccounts: true,
-        canAccessAccounting: true,
-        canAccessFinance: true,
-        isSuperuser: false,
-      };
-    }
-
-    // Determine permissions
+    // Determine permissions based on school selection
     let permissions: Set<string>;
-    let maxDiscountPercent: number;
+    let maxDiscountPercent: number = 0;
 
-    // Priority 1: Use backend-provided permissions if available
-    if (schoolRole?.permissions && Array.isArray(schoolRole.permissions) && schoolRole.permissions.length > 0) {
-      permissions = new Set(schoolRole.permissions);
-      maxDiscountPercent = schoolRole.max_discount_percent ?? SYSTEM_ROLE_MAX_DISCOUNT[schoolRole.role as UserRole] ?? 0;
-    }
-    // Priority 2: Fallback to local system role defaults
-    else if (schoolRole?.role) {
-      permissions = SYSTEM_ROLE_PERMISSIONS[schoolRole.role as UserRole] || new Set();
-      maxDiscountPercent = SYSTEM_ROLE_MAX_DISCOUNT[schoolRole.role as UserRole] || 0;
+    if (currentSchool) {
+      // School selected - use that school's specific role
+      const schoolRole = user.school_roles?.find((r) => r.school_id === currentSchool.id);
+
+      if (!schoolRole) {
+        return defaultResult;
+      }
+
+      // Owner gets all permissions
+      if (schoolRole.role === 'owner') {
+        return buildOwnerResult();
+      }
+
+      // Use backend-provided permissions if available
+      if (schoolRole.permissions && Array.isArray(schoolRole.permissions) && schoolRole.permissions.length > 0) {
+        permissions = new Set(schoolRole.permissions);
+        maxDiscountPercent = schoolRole.max_discount_percent ?? SYSTEM_ROLE_MAX_DISCOUNT[schoolRole.role as UserRole] ?? 0;
+      }
+      // Fallback to local system role defaults
+      else if (schoolRole.role) {
+        permissions = SYSTEM_ROLE_PERMISSIONS[schoolRole.role as UserRole] || new Set();
+        maxDiscountPercent = SYSTEM_ROLE_MAX_DISCOUNT[schoolRole.role as UserRole] || 0;
+      } else {
+        return defaultResult;
+      }
     } else {
-      // No role = no permissions
-      return defaultResult;
+      // No school selected - aggregate permissions from ALL roles
+      // This allows the dashboard/sidebar to show all available options
+      const schoolRoles = user.school_roles || [];
+
+      if (schoolRoles.length === 0) {
+        return defaultResult;
+      }
+
+      permissions = new Set<string>();
+
+      for (const role of schoolRoles) {
+        // Owner in any school = all permissions
+        if (role.role === 'owner') {
+          return buildOwnerResult();
+        }
+
+        // Add backend-provided permissions
+        if (role.permissions && Array.isArray(role.permissions) && role.permissions.length > 0) {
+          role.permissions.forEach((p: string) => permissions.add(p));
+          const roleDiscount = role.max_discount_percent ?? SYSTEM_ROLE_MAX_DISCOUNT[role.role as UserRole] ?? 0;
+          maxDiscountPercent = Math.max(maxDiscountPercent, roleDiscount);
+        }
+        // Fallback to system role defaults
+        else if (role.role) {
+          const systemPerms = SYSTEM_ROLE_PERMISSIONS[role.role as UserRole];
+          if (systemPerms) {
+            systemPerms.forEach((p: string) => permissions.add(p));
+          }
+          const roleDiscount = SYSTEM_ROLE_MAX_DISCOUNT[role.role as UserRole] || 0;
+          maxDiscountPercent = Math.max(maxDiscountPercent, roleDiscount);
+        }
+      }
+
+      if (permissions.size === 0) {
+        return defaultResult;
+      }
     }
 
     const hasPermission = (code: string) => permissions.has(code);

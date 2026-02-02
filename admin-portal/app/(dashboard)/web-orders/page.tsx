@@ -46,6 +46,7 @@ import type {
   PaymentMethod,
 } from '@/lib/api';
 import { useAdminAuth } from '@/lib/adminAuth';
+import { formatCurrency, formatDate } from '@/lib/utils';
 
 const STATUS_CONFIG: Record<
   OrderStatus,
@@ -89,22 +90,6 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'transfer', label: 'Transferencia' },
   { value: 'card', label: 'Tarjeta' },
 ];
-
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    minimumFractionDigits: 0,
-  }).format(value);
-};
-
-const formatDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleDateString('es-CO', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-};
 
 export default function WebOrdersPage() {
   const { user } = useAdminAuth();
