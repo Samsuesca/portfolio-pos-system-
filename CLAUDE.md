@@ -1,3 +1,561 @@
+<!-- AUTO-GENERATED GIT WORKFLOW HEADER -->
+<!-- Version: 1.0.0 | Template: GIT_WORKFLOW_BUSINESS.md | Last Updated: 2026-02-16 -->
+<!-- DO NOT EDIT MANUALLY - Run: ~/.claude/scripts/sync-git-workflow.sh -->
+
+---
+
+# Git Workflow & Commit Standards
+
+**Version:** 1.0.0
+**Last Updated:** 2026-02-15
+**Template Type:** Business Applications
+
+---
+
+## Branch Strategy
+
+### Main Branches
+
+- **`main`** - Production-ready code. Protected branch.
+  - Only merge via Pull Requests
+  - All commits must be tested and reviewed
+  - Deployments happen from this branch
+
+- **`develop`** - Integration branch for features
+  - Merge feature branches here first
+  - Run full test suite before merging to main
+  - Base branch for new features
+
+### Supporting Branches
+
+- **`feature/*`** - New functionality
+  - Branch from: `develop`
+  - Merge into: `develop`
+  - Naming: `feature/user-authentication`, `feature/export-reports`
+
+- **`bugfix/*`** - Non-critical bug fixes
+  - Branch from: `develop`
+  - Merge into: `develop`
+  - Naming: `bugfix/login-validation`, `bugfix/ui-alignment`
+
+- **`hotfix/*`** - Critical production fixes
+  - Branch from: `main`
+  - Merge into: `main` AND `develop`
+  - Naming: `hotfix/security-patch`, `hotfix/payment-crash`
+
+- **`refactor/*`** - Code improvements without changing behavior
+  - Branch from: `develop`
+  - Merge into: `develop`
+  - Naming: `refactor/auth-service`, `refactor/database-queries`
+
+---
+
+## Commit Convention
+
+### Format
+
+```
+<emoji> <type>: <description>
+
+[optional body]
+
+[optional footer]
+```
+
+### Commit Types with Emojis
+
+```bash
+✨ feat:       New feature or significant functionality
+🐛 fix:        Bug fix
+♻️ refactor:   Code restructuring without behavior change
+📚 docs:       Documentation updates (README, comments, guides)
+✅ test:       Adding or updating tests
+🔒 security:   Security fixes or improvements
+⚡ perf:       Performance optimization
+🚀 chore:      Dependencies, build config, tooling
+🎨 style:      Formatting, whitespace (no logic change)
+🔧 config:     Configuration files
+🗑️ remove:     Removing code or files
+🔀 merge:      Merge branches
+```
+
+### Examples
+
+**Good commits:**
+```bash
+✨ feat: add OAuth Google integration to login flow
+🐛 fix: resolve timezone inconsistency in sales reports
+♻️ refactor: simplify accounting service business logic
+📚 docs: update API endpoints documentation
+✅ test: add unit tests for inventory service
+🔒 security: patch JWT token expiration vulnerability
+⚡ perf: optimize database queries with indexes
+🚀 chore: upgrade FastAPI to 0.115.0
+```
+
+**Bad commits (avoid):**
+```bash
+❌ "fixed stuff"
+❌ "WIP"
+❌ "changes"
+❌ "updated files"
+❌ "feat: add feature" (redundant)
+```
+
+---
+
+## Standard Workflows
+
+### 1. Feature Development
+
+```bash
+# 1. Start from develop
+git checkout develop
+git pull origin develop
+
+# 2. Create feature branch
+git checkout -b feature/user-notifications
+
+# 3. Make changes and commit
+git add src/services/notifications.ts
+git commit -m "✨ feat: implement push notification service"
+
+# 4. Push to remote
+git push -u origin feature/user-notifications
+
+# 5. Create Pull Request (via GitHub/GitLab)
+# - Target: develop
+# - Add description, link issues
+# - Request reviews
+
+# 6. After approval, merge and delete branch
+git checkout develop
+git pull origin develop
+git branch -d feature/user-notifications
+```
+
+### 2. Hotfix (Critical Production Issue)
+
+```bash
+# 1. Start from main
+git checkout main
+git pull origin main
+
+# 2. Create hotfix branch
+git checkout -b hotfix/payment-gateway-timeout
+
+# 3. Fix the issue
+git add src/services/payment.ts
+git commit -m "🐛 fix: increase payment gateway timeout to 30s"
+
+# 4. Push and create PR to main
+git push -u origin hotfix/payment-gateway-timeout
+
+# 5. After merging to main, also merge to develop
+git checkout develop
+git pull origin develop
+git merge hotfix/payment-gateway-timeout
+git push origin develop
+
+# 6. Delete branch
+git branch -d hotfix/payment-gateway-timeout
+```
+
+### 3. Bugfix (Non-Critical)
+
+```bash
+# 1. Start from develop
+git checkout develop
+git pull origin develop
+
+# 2. Create bugfix branch
+git checkout -b bugfix/form-validation-error
+
+# 3. Fix and commit
+git add src/components/LoginForm.tsx
+git commit -m "🐛 fix: validate email format before submission"
+
+# 4. Push and create PR to develop
+git push -u origin bugfix/form-validation-error
+```
+
+---
+
+## Database Migration Workflow
+
+### Creating Migrations (Alembic)
+
+```bash
+# 1. Create feature branch first
+git checkout -b feature/add-user-preferences
+
+# 2. Modify SQLAlchemy models
+# Edit: backend/app/models/user.py
+
+# 3. Generate migration
+alembic revision --autogenerate -m "add user preferences table"
+
+# 4. Review generated migration
+# Check: alembic/versions/xxxxx_add_user_preferences_table.py
+
+# 5. Test migration locally
+alembic upgrade head
+alembic downgrade -1  # Test rollback
+alembic upgrade head  # Re-apply
+
+# 6. Commit migration with model changes
+git add backend/app/models/user.py alembic/versions/xxxxx_*.py
+git commit -m "✨ feat: add user preferences model and migration"
+
+# 7. Push and create PR
+git push -u origin feature/add-user-preferences
+```
+
+### Migration Checklist
+
+Before committing migrations:
+
+- [ ] **Reviewed auto-generated code** - Alembic can make mistakes
+- [ ] **Added indexes** - For foreign keys and frequently queried columns
+- [ ] **Tested upgrade** - `alembic upgrade head` succeeds
+- [ ] **Tested downgrade** - `alembic downgrade -1` works
+- [ ] **No data loss** - If altering columns, preserve existing data
+- [ ] **Updated models** - SQLAlchemy models match migration
+
+### Production Migration Deployment
+
+```bash
+# On production server (VPS)
+cd /opt/your-app
+git pull origin main
+
+# Backup database first
+pg_dump -U user db_name > backup_$(date +%Y%m%d_%H%M%S).sql
+
+# Run migration
+docker compose exec backend alembic upgrade head
+
+# Verify
+docker compose logs -f backend
+
+# If issues, rollback
+docker compose exec backend alembic downgrade -1
+```
+
+---
+
+## Deployment Checklist
+
+### Before Deploying to Production
+
+- [ ] **All tests pass** - Unit, integration, E2E
+- [ ] **Code reviewed** - At least 1 approval
+- [ ] **Environment variables updated** - Add new vars to .env.example
+- [ ] **Database migrations ready** - Tested locally
+- [ ] **Dependencies updated** - `requirements.txt` or `package.json`
+- [ ] **Documentation updated** - README, API docs, CHANGELOG
+- [ ] **Rollback plan** - Know how to revert if issues
+- [ ] **Monitoring ready** - Sentry, logs configured
+
+### Deployment Workflow (VPS)
+
+```bash
+# 1. SSH to production server
+ssh user@104.156.247.226
+
+# 2. Navigate to app directory
+cd /opt/your-app
+
+# 3. Backup database
+./scripts/backup-db.sh
+
+# 4. Pull latest code
+git fetch origin
+git checkout main
+git pull origin main
+
+# 5. Update dependencies
+docker compose build backend
+
+# 6. Run migrations
+docker compose exec backend alembic upgrade head
+
+# 7. Restart services
+docker compose up -d --force-recreate backend
+
+# 8. Verify deployment
+docker compose logs -f backend
+curl https://your-api.com/health
+
+# 9. Monitor for errors
+tail -f logs/app.log
+```
+
+### Rollback Procedure
+
+If deployment fails:
+
+```bash
+# 1. Revert to previous commit
+git log --oneline  # Find previous working commit
+git checkout <previous-commit-hash>
+
+# 2. Rebuild and restart
+docker compose build backend
+docker compose up -d --force-recreate backend
+
+# 3. Rollback migrations (if needed)
+docker compose exec backend alembic downgrade -1
+
+# 4. Restore database (if critical)
+psql -U user db_name < backup_YYYYMMDD_HHMMSS.sql
+```
+
+---
+
+## Production Branch Protection
+
+For business applications, **main** branch MUST have:
+
+- ✅ Require 1-2 pull request reviews
+- ✅ Require status checks to pass (CI/CD)
+- ✅ Require branches to be up to date before merging
+- ✅ Prohibit force pushes
+- ✅ Prohibit deletions
+- ✅ Require conversation resolution before merge
+- ❌ Allow bypassing (only for emergencies with approval)
+
+---
+
+## Commit Best Practices
+
+### DO ✅
+
+- **Write clear, descriptive messages** - Explain WHAT changed and WHY
+- **Use imperative mood** - "add feature" not "added feature"
+- **Keep commits atomic** - One logical change per commit
+- **Reference issues** - Include `#123` or `fixes #456` in commit body
+- **Test before committing** - Run tests locally
+- **Use emojis consistently** - Follow the table above
+
+### DON'T ❌
+
+- **Commit commented-out code** - Delete it or document why it's kept
+- **Commit secrets** - API keys, passwords, tokens (use .env)
+- **Make huge commits** - Break down large changes into logical steps
+- **Use vague messages** - "fix bug" tells nothing
+- **Skip the emoji** - Helps quickly identify commit type
+- **Commit directly to main** - Always use PRs
+
+---
+
+## Pre-Commit Checklist
+
+Before every commit, verify:
+
+- [ ] **Tests pass** - `npm test` / `pytest`
+- [ ] **Linter passes** - `npm run lint` / `flake8`
+- [ ] **No console.log/debug statements** - Remove or comment out
+- [ ] **No secrets in code** - Check for API keys, passwords
+- [ ] **Formatted code** - `npm run format` / `black .`
+- [ ] **Updated dependencies** - If you added new packages
+- [ ] **Documentation updated** - If API changed or new features
+- [ ] **Migrations tested** - If database changes
+
+---
+
+## Pull Request Process
+
+### Creating a PR
+
+1. **Push your branch** to remote repository
+2. **Navigate to GitHub/GitLab** and create Pull Request
+3. **Fill out template:**
+   - Title: Same as main commit (with emoji)
+   - Description: What changed, why, how to test
+   - Link related issues: `Closes #123`
+4. **Request reviewers** - Team members or maintainers
+5. **Add labels** - `feature`, `bugfix`, `hotfix`, `documentation`
+
+### PR Description Template
+
+```markdown
+## Summary
+Brief description of changes (1-3 sentences)
+
+## Changes
+- Added X feature
+- Fixed Y bug
+- Refactored Z module
+
+## Database Changes
+- [ ] New migrations added
+- [ ] Migrations tested locally
+- [ ] No breaking changes
+
+## Testing
+- [ ] Unit tests added/updated
+- [ ] Integration tests pass
+- [ ] Manual testing completed
+- [ ] Edge cases covered
+
+## Deployment Notes
+- [ ] Environment variables updated
+- [ ] Dependencies added
+- [ ] Requires manual steps (describe below)
+
+## Screenshots (if UI changes)
+[Add images or GIFs]
+
+## Related Issues
+Closes #123
+Fixes #456
+```
+
+### Review Process
+
+1. **Wait for CI/CD** - All checks must pass
+2. **Address feedback** - Make requested changes
+3. **Re-request review** - After updates
+4. **Squash or merge** - Follow project convention
+5. **Delete branch** - After merge
+
+---
+
+## .gitignore Essentials
+
+**Always ignore:**
+
+```bash
+# Secrets
+.env
+.env.local
+.env.*.local
+.env.production
+*.pem
+*.key
+credentials.json
+secrets/
+
+# Dependencies
+node_modules/
+venv/
+env/
+__pycache__/
+*.pyc
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+.next/
+out/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+.pytest_cache/
+
+# Database
+*.sqlite
+*.db
+backups/
+dump_*.sql
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+```
+
+---
+
+## Emergency Commands
+
+### Undo Last Commit (Keep Changes)
+
+```bash
+git reset --soft HEAD~1
+```
+
+### Undo Last Commit (Discard Changes)
+
+```bash
+git reset --hard HEAD~1
+```
+
+### Discard All Local Changes
+
+```bash
+git checkout .
+git clean -fd
+```
+
+### Stash Changes (Save for Later)
+
+```bash
+git stash save "WIP: feature description"
+git stash list
+git stash apply stash@{0}
+```
+
+### Amend Last Commit (Before Push)
+
+```bash
+git add forgotten-file.ts
+git commit --amend --no-edit
+```
+
+### Revert a Pushed Commit
+
+```bash
+git revert <commit-hash>
+git push origin <branch>
+```
+
+### Update Branch with Latest Develop
+
+```bash
+git checkout feature/my-branch
+git fetch origin
+git rebase origin/develop
+git push --force-with-lease origin feature/my-branch
+```
+
+### Cherry-Pick a Commit
+
+```bash
+git cherry-pick <commit-hash>
+```
+
+---
+
+## Resources
+
+- **Conventional Commits:** https://www.conventionalcommits.org
+- **Git Best Practices:** https://git-scm.com/book/en/v2
+- **Alembic Docs:** https://alembic.sqlalchemy.org
+- **FastAPI Deployment:** https://fastapi.tiangolo.com/deployment/
+
+---
+
+**Note:** This workflow header is auto-generated from `~/.claude/templates/GIT_WORKFLOW_BUSINESS.md`.
+To update across all projects, run: `~/.claude/scripts/sync-git-workflow.sh`
+
+---
+
+<!-- END AUTO-GENERATED GIT WORKFLOW HEADER -->
 # Claude AI - Contexto del Proyecto
 
 > **ESTADO: EN PRODUCCION** | VPS: 104.156.247.226 | Dominio: yourdomain.com
