@@ -10,14 +10,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Run tests before deploying
-  tests:
-    uses: ./.github/workflows/tests.yml
-
+  # Tests already run on push to main/develop.
+  # Tags are always created from commits that passed those checks.
   deploy:
     name: Deploy to Production
     runs-on: ubuntu-latest
-    needs: [tests]
     if: ${{ vars.DEPLOY_ENABLED == 'true' }}
 
     steps:
@@ -60,7 +57,7 @@ jobs:
             # (uploads/) into the stash and lose them. uploads/ is gitignored so
             # git checkout will never touch it; a plain stash covers only tracked file changes.
             git stash || true
-            git fetch origin --tags
+            git fetch origin --tags --force
             git checkout ${TAG}
 
             # 3. Verify uploads survived checkout (git shouldn't touch .gitignored dirs)

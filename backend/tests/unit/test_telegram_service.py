@@ -46,22 +46,20 @@ def _reset_telegram_module():
     tg_mod._cooldowns.clear()
 
 
-def _force_enabled_service() -> "TelegramService":
-    """Create an enabled TelegramService by directly setting module attrs.
+def _make_enabled_service() -> "TelegramService":
+    """Create a TelegramService with _enabled=True, bypassing settings.
 
     In CI (ENV=testing), the constructor sets _enabled=False.
-    We directly swap the module-level settings before constructing, then
-    restore afterwards. This avoids unittest.mock.patch() which has
-    inconsistent behavior in CI with reusable workflows.
+    For tests that need an enabled service, we set attributes directly.
+    The constructor logic is tested in TestTelegramServiceInit.
     """
-    import app.services.telegram as tg_mod
+    from app.services.telegram import TelegramService
 
-    original = tg_mod.settings
-    tg_mod.settings = _make_settings()
-    try:
-        svc = tg_mod.TelegramService()
-    finally:
-        tg_mod.settings = original
+    svc = TelegramService.__new__(TelegramService)
+    svc._enabled = True
+    svc._token = "123456:ABC-FAKE-TOKEN"
+    svc._chat_id = "-1001234567890"
+    svc._url = f"https://api.telegram.org/bot{svc._token}/sendMessage"
     return svc
 
 
@@ -179,122 +177,101 @@ class TestTelegramServiceInit:
 
 
 class TestSendAlert:
-    """Test TelegramService.send_alert method.
-
-    Uses direct module attribute assignment instead of unittest.mock.patch()
-    to avoid CI inconsistencies with reusable workflow contexts.
-    """
-
-    @staticmethod
-    def _setup(mock_post):
-        """Set up an enabled service with mocked httpx, return (svc, cleanup)."""
-        import app.services.telegram as tg_mod
-
-        _reset_telegram_module()
-        mock_client_class = _mock_httpx_client(mock_post)
-
-        # Save originals
-        orig_settings = tg_mod.settings
-        orig_httpx = tg_mod.httpx
-
-        # Create a fake httpx module with mocked AsyncClient
-        fake_httpx = MagicMock()
-        fake_httpx.AsyncClient = mock_client_class
-
-        # Swap
-        tg_mod.settings = _make_settings()
-        tg_mod.httpx = fake_httpx
-
-        svc = tg_mod.TelegramService()
-
-        def cleanup():
-            tg_mod.settings = orig_settings
-            tg_mod.httpx = orig_httpx
-
-        return svc, cleanup
+    """Test TelegramService.send_alert method."""
 
     @pytest.mark.unit
     async def test_send_alert_success_returns_true(self):
         """send_alert returns True and posts to Telegram API on success."""
+        _reset_telegram_module()
+
         mock_response = MagicMock()
         mock_response.raise_for_status = MagicMock()
         mock_post = AsyncMock(return_value=mock_response)
+        mock_client_class = _mock_httpx_client(mock_post)
 
-        svc, cleanup = self._setup(mock_post)
-        try:
+        with patch("app.services.telegram.httpx.AsyncClient", mock_client_class):
+            svc = _make_enabled_service()
             result = await svc.send_alert("Test message", alert_type="test_ok")
+
             assert result is True
             mock_post.assert_called_once()
-        finally:
-            cleanup()
 
     @pytest.mark.unit
     async def test_send_alert_disabled_returns_false(self):
         """send_alert returns False immediately when service is disabled."""
-        import app.services.telegram as tg_mod
+        with patch(
+            "app.services.telegram.settings",
+            _make_settings(ENV="development"),
+        ):
+            _reset_telegram_module()
+            from app.services.telegram import TelegramService
 
-        _reset_telegram_module()
-        orig = tg_mod.settings
-        tg_mod.settings = _make_settings(ENV="development")
-        try:
-            svc = tg_mod.TelegramService()
+            svc = TelegramService()
             result = await svc.send_alert("Should not send")
             assert result is False
-        finally:
-            tg_mod.settings = orig
 
     @pytest.mark.unit
     async def test_send_alert_cooldown_prevents_resend(self):
         """Same alert_type within cooldown window returns False."""
+        _reset_telegram_module()
+
         mock_response = MagicMock()
         mock_response.raise_for_status = MagicMock()
         mock_post = AsyncMock(return_value=mock_response)
+        mock_client_class = _mock_httpx_client(mock_post)
 
-        svc, cleanup = self._setup(mock_post)
-        try:
+        with patch("app.services.telegram.httpx.AsyncClient", mock_client_class):
+            svc = _make_enabled_service()
+
+            # First call succeeds
             result1 = await svc.send_alert("msg1", alert_type="cd_test", cooldown=300)
             assert result1 is True
 
+            # Second call within cooldown is blocked
             result2 = await svc.send_alert("msg2", alert_type="cd_test", cooldown=300)
             assert result2 is False
-        finally:
-            cleanup()
 
     @pytest.mark.unit
     async def test_send_alert_different_types_bypass_cooldown(self):
         """Different alert_type values have independent cooldowns."""
+        _reset_telegram_module()
+
         mock_response = MagicMock()
         mock_response.raise_for_status = MagicMock()
         mock_post = AsyncMock(return_value=mock_response)
+        mock_client_class = _mock_httpx_client(mock_post)
 
-        svc, cleanup = self._setup(mock_post)
-        try:
+        with patch("app.services.telegram.httpx.AsyncClient", mock_client_class):
+            svc = _make_enabled_service()
+
             r1 = await svc.send_alert("msg1", alert_type="type_a", cooldown=300)
             r2 = await svc.send_alert("msg2", alert_type="type_b", cooldown=300)
             assert r1 is True
             assert r2 is True
-        finally:
-            cleanup()
 
     @pytest.mark.unit
     async def test_send_alert_zero_cooldown_always_sends(self):
         """cooldown=0 effectively disables cooldown gating."""
+        _reset_telegram_module()
+
         mock_response = MagicMock()
         mock_response.raise_for_status = MagicMock()
         mock_post = AsyncMock(return_value=mock_response)
+        mock_client_class = _mock_httpx_client(mock_post)
 
-        svc, cleanup = self._setup(mock_post)
-        try:
+        with patch("app.services.telegram.httpx.AsyncClient", mock_client_class):
+            svc = _make_enabled_service()
+
             r1 = await svc.send_alert("msg1", alert_type="zero_cd", cooldown=0)
             r2 = await svc.send_alert("msg2", alert_type="zero_cd", cooldown=0)
             assert r1 is True
             assert r2 is True
-        finally:
-            cleanup()
 
     @pytest.mark.unit
     async def test_send_alert_http_error_returns_false(self):
         """send_alert returns False when Telegram API returns an HTTP error."""
+        _reset_telegram_module()
+
         mock_post = AsyncMock(
             side_effect=httpx.HTTPStatusError(
                 "Bad Request",
@@ -302,37 +279,40 @@ class TestSendAlert:
                 response=MagicMock(status_code=400),
             )
         )
+        mock_client_class = _mock_httpx_client(mock_post)
 
-        svc, cleanup = self._setup(mock_post)
-        try:
+        with patch("app.services.telegram.httpx.AsyncClient", mock_client_class):
+            svc = _make_enabled_service()
             result = await svc.send_alert("fail", alert_type="http_err")
             assert result is False
-        finally:
-            cleanup()
 
     @pytest.mark.unit
     async def test_send_alert_network_error_returns_false(self):
         """send_alert returns False on network connectivity issues."""
+        _reset_telegram_module()
+
         mock_post = AsyncMock(
             side_effect=httpx.ConnectError("Connection refused")
         )
+        mock_client_class = _mock_httpx_client(mock_post)
 
-        svc, cleanup = self._setup(mock_post)
-        try:
+        with patch("app.services.telegram.httpx.AsyncClient", mock_client_class):
+            svc = _make_enabled_service()
             result = await svc.send_alert("fail", alert_type="net_err")
             assert result is False
-        finally:
-            cleanup()
 
     @pytest.mark.unit
     async def test_send_alert_passes_correct_payload(self):
         """send_alert sends the correct JSON payload to Telegram."""
+        _reset_telegram_module()
+
         mock_response = MagicMock()
         mock_response.raise_for_status = MagicMock()
         mock_post = AsyncMock(return_value=mock_response)
+        mock_client_class = _mock_httpx_client(mock_post)
 
-        svc, cleanup = self._setup(mock_post)
-        try:
+        with patch("app.services.telegram.httpx.AsyncClient", mock_client_class):
+            svc = _make_enabled_service()
             await svc.send_alert("<b>Hello</b>", alert_type="payload_test")
 
             mock_post.assert_called_once()
@@ -342,8 +322,6 @@ class TestSendAlert:
             assert payload["text"] == "<b>Hello</b>"
             assert payload["parse_mode"] == "HTML"
             assert payload["disable_web_page_preview"] is True
-        finally:
-            cleanup()
 
 
 # ---------------------------------------------------------------------------
