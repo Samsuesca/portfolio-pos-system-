@@ -6,6 +6,7 @@ import {
   X, Save, Loader2, AlertCircle, Upload,
   Building2, Palette, Settings as SettingsIcon
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { schoolService, type School, type SchoolCreate, type SchoolUpdate, type SchoolSettings } from '../services/schoolService';
 import { useConfigStore } from '../stores/configStore';
 
@@ -188,10 +189,13 @@ export default function SchoolModal({ isOpen, school, onClose, onSaved }: School
         await schoolService.deleteLogo(schoolId);
       }
 
+      toast.success(isEditing ? 'Colegio actualizado exitosamente' : 'Colegio creado exitosamente');
       onSaved();
       onClose();
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Error al guardar el colegio');
+      const msg = err.response?.data?.detail || 'Error al guardar el colegio';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
       setUploadingLogo(false);

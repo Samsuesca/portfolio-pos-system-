@@ -12,9 +12,50 @@ concurrency:
 jobs:
   # Tests already run on push to main/develop.
   # Tags are always created from commits that passed those checks.
+  # This gate verifies the commit has green checks before deploying.
+  verify-checks:
+    name: Verify CI Passed
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for commit checks to pass
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          COMMIT_SHA="${{ github.sha }}"
+          echo "Verifying checks for commit $COMMIT_SHA..."
+
+          # Wait up to 10 minutes for checks to complete
+          for i in $(seq 1 20); do
+            STATUS=$(gh api repos/${{ github.repository }}/commits/$COMMIT_SHA/status --jq '.state' 2>/dev/null || echo "unknown")
+            CHECK_RUNS=$(gh api repos/${{ github.repository }}/commits/$COMMIT_SHA/check-runs --jq '[.check_runs[] | select(.name != "Deploy to Production" and .name != "Verify CI Passed")] | {total: length, success: [.[] | select(.conclusion == "success")] | length, pending: [.[] | select(.status != "completed")] | length}' 2>/dev/null || echo '{"total":0,"success":0,"pending":1}')
+
+            PENDING=$(echo "$CHECK_RUNS" | jq -r '.pending')
+            SUCCESS=$(echo "$CHECK_RUNS" | jq -r '.success')
+            TOTAL=$(echo "$CHECK_RUNS" | jq -r '.total')
+
+            echo "Attempt $i/20: $SUCCESS/$TOTAL checks passed, $PENDING pending"
+
+            if [ "$PENDING" = "0" ] && [ "$TOTAL" -gt "0" ]; then
+              FAILED=$((TOTAL - SUCCESS))
+              if [ "$FAILED" -gt "0" ]; then
+                echo "❌ $FAILED check(s) failed. Aborting deploy."
+                gh api repos/${{ github.repository }}/commits/$COMMIT_SHA/check-runs --jq '.check_runs[] | select(.conclusion != "success" and .name != "Deploy to Production" and .name != "Verify CI Passed") | "\(.name): \(.conclusion)"'
+                exit 1
+              fi
+              echo "✅ All $TOTAL checks passed."
+              exit 0
+            fi
+
+            sleep 30
+          done
+
+          echo "⏰ Timed out waiting for checks. Aborting deploy."
+          exit 1
+
   deploy:
     name: Deploy to Production
     runs-on: ubuntu-latest
+    needs: [verify-checks]
     if: ${{ vars.DEPLOY_ENABLED == 'true' }}
 
     steps:

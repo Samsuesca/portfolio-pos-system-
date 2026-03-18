@@ -4,6 +4,7 @@
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, Plus, Edit2, CheckCircle, XCircle, Loader2, School } from 'lucide-react';
+import toast from 'react-hot-toast';
 import SchoolModal from '../../components/SchoolModal';
 import { schoolService, type School as SchoolType } from '../../services/schoolService';
 import { useConfigStore } from '../../stores/configStore';
@@ -62,12 +63,14 @@ const ManageSchoolsModal: React.FC<ManageSchoolsModalProps> = ({ isOpen, onClose
     try {
       if (school.is_active) {
         await schoolService.deleteSchool(school.id);
+        toast.success(`${school.name} desactivado`);
       } else {
         await schoolService.activateSchool(school.id);
+        toast.success(`${school.name} activado`);
       }
       await loadSchools();
     } catch (err: any) {
-      console.error('Error toggling school:', err);
+      toast.error(err.response?.data?.detail || 'Error al cambiar estado del colegio');
     }
   };
 
