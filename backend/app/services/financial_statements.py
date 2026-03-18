@@ -756,7 +756,15 @@ class FinancialStatementsService:
             Decimal(str(acc["net_value"])) for acc in fixed_assets
         )
 
-        # 3. OTHER ASSETS
+        # 3. INTANGIBLE ASSETS
+        intangible_assets = await self._get_balance_accounts_by_type(
+            [AccountType.ASSET_INTANGIBLE]
+        )
+        total_intangible_assets = sum(
+            Decimal(str(acc["net_value"])) for acc in intangible_assets
+        )
+
+        # 4. OTHER ASSETS
         other_assets = await self._get_balance_accounts_by_type(
             [AccountType.ASSET_OTHER]
         )
@@ -764,7 +772,7 @@ class FinancialStatementsService:
             Decimal(str(acc["balance"])) for acc in other_assets
         )
 
-        total_assets = total_current_assets + total_fixed_assets + total_other_assets
+        total_assets = total_current_assets + total_fixed_assets + total_intangible_assets + total_other_assets
 
         # 4. CURRENT LIABILITIES
         # Accounts Payable (filtered by as_of_date)
@@ -876,6 +884,18 @@ class FinancialStatementsService:
                 for acc in fixed_assets
             ],
             "total_fixed_assets": float(total_fixed_assets),
+            # Intangible Assets
+            "intangible_assets": [
+                {
+                    "id": acc["id"],
+                    "name": acc["name"],
+                    "code": acc.get("code"),
+                    "balance": float(acc["balance"]),
+                    "net_value": float(acc["net_value"])
+                }
+                for acc in intangible_assets
+            ],
+            "total_intangible_assets": float(total_intangible_assets),
             # Other Assets
             "other_assets": [
                 {

@@ -36,8 +36,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   if (!isOpen || !item) return null;
 
   const isReceivable = type === 'receivable';
-  const bgColor = isReceivable ? 'bg-blue-50' : 'bg-red-50';
-  const textColor = isReceivable ? 'text-blue-600' : 'text-red-600';
+  const bgColor = isReceivable ? 'bg-brand-50' : 'bg-red-50';
+  const textColor = isReceivable ? 'text-brand-600' : 'text-red-600';
   const buttonColor = 'bg-green-600 hover:bg-green-700';
 
   return (
@@ -72,7 +72,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
               value={paymentAmount}
               onChange={(e) => onAmountChange(parseFloat(e.target.value) || 0)}
               max={item.balance}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
             />
           </div>
           <div>
@@ -80,7 +80,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
             <select
               value={paymentMethod}
               onChange={(e) => onMethodChange(e.target.value as AccPaymentMethod)}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent ${
                 !paymentMethod ? 'border-red-300 text-gray-400' : 'border-gray-300'
               }`}
             >

@@ -11,7 +11,7 @@ export default function DashboardLayout({
 }) {
   return (
     <AuthGuard>
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-surface-100">
         <Sidebar />
         <div className="lg:pl-64">
           <Header />

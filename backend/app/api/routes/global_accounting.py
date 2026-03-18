@@ -374,6 +374,7 @@ async def create_global_balance_account(
         type_prefix = {
             AccountType.ASSET_CURRENT: "11",
             AccountType.ASSET_FIXED: "12",
+            AccountType.ASSET_INTANGIBLE: "13",
             AccountType.ASSET_OTHER: "19",
             AccountType.LIABILITY_CURRENT: "21",
             AccountType.LIABILITY_LONG: "22",
@@ -664,6 +665,7 @@ async def get_global_balance_general_summary(
         totals.get(at, 0) for at in [
             AccountType.ASSET_CURRENT,
             AccountType.ASSET_FIXED,
+            AccountType.ASSET_INTANGIBLE,
             AccountType.ASSET_OTHER
         ]
     )
@@ -686,6 +688,7 @@ async def get_global_balance_general_summary(
         "assets": {
             "current": totals.get(AccountType.ASSET_CURRENT, 0),
             "fixed": totals.get(AccountType.ASSET_FIXED, 0),
+            "intangible": totals.get(AccountType.ASSET_INTANGIBLE, 0),
             "other": totals.get(AccountType.ASSET_OTHER, 0),
             "total": total_assets
         },
@@ -1597,6 +1600,7 @@ async def get_global_patrimony_summary(
     total_assets = (
         current_assets +
         totals_by_type.get(AccountType.ASSET_FIXED, 0) +
+        totals_by_type.get(AccountType.ASSET_INTANGIBLE, 0) +
         totals_by_type.get(AccountType.ASSET_OTHER, 0)
     )
 
@@ -1623,6 +1627,7 @@ async def get_global_patrimony_summary(
             "receivables": pending_receivables,
             "current_assets": current_assets,
             "fixed_assets": totals_by_type.get(AccountType.ASSET_FIXED, 0),
+            "intangible_assets": totals_by_type.get(AccountType.ASSET_INTANGIBLE, 0),
             "other_assets": totals_by_type.get(AccountType.ASSET_OTHER, 0),
             "total": total_assets
         },
@@ -2492,10 +2497,20 @@ async def get_planning_dashboard(
     - Quick 3-month projection
     - Current season info
     """
+    from app.utils.cache import cache_get, cache_set, TTL_SHORT
+    from app.utils.timezone import get_colombia_date
+
+    cache_key = f"dashboard:planning:{get_colombia_date()}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     from app.services.planning import PlanningService
 
     service = PlanningService(db)
-    return await service.get_planning_dashboard()
+    result = await service.get_planning_dashboard()
+    await cache_set(cache_key, result, TTL_SHORT)
+    return result
 
 
 @router.get(
@@ -2932,12 +2947,18 @@ async def get_income_statement(
         - Includes coverage percentage indicator
     """
     from app.services.financial_statements import FinancialStatementsService
+    from app.utils.cache import cache_get, cache_set, TTL_MEDIUM
 
     if end_date < start_date:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="end_date debe ser mayor o igual a start_date"
         )
+
+    cache_key = f"financial:income:{start_date}:{end_date}:{compare_previous}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return cached
 
     service = FinancialStatementsService(db)
     result = await service.get_income_statement(
@@ -2946,6 +2967,7 @@ async def get_income_statement(
         compare_previous=compare_previous
     )
 
+    await cache_set(cache_key, result, TTL_MEDIUM)
     return result
 
 
@@ -2975,10 +2997,17 @@ async def get_balance_sheet(
     Includes validation that Assets = Liabilities + Equity.
     """
     from app.services.financial_statements import FinancialStatementsService
+    from app.utils.cache import cache_get, cache_set, TTL_MEDIUM
+
+    cache_key = f"financial:balance:{as_of_date}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return cached
 
     service = FinancialStatementsService(db)
     result = await service.get_balance_sheet(as_of_date=as_of_date)
 
+    await cache_set(cache_key, result, TTL_MEDIUM)
     return result
 
 

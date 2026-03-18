@@ -27,20 +27,21 @@ export default function Login() {
     setTestingServer(url);
     setServerStatus(prev => ({ ...prev, [url]: 'testing' }));
 
-    // Timeout manual de 3 segundos
-    const timeoutId = setTimeout(() => {
-      setServerStatus(prev => ({ ...prev, [url]: 'error' }));
-      setTestingServer(null);
-    }, 3000);
-
     try {
       const isDevMode = import.meta.env.DEV;
       let isHealthy = false;
 
       if (isDevMode) {
-        // Dev mode: use fetch directly (Rust IPC has issues with localhost)
-        const response = await fetch(`${url}/health`, { signal: AbortSignal.timeout(3000) });
-        isHealthy = response.ok;
+        // Dev mode: use XMLHttpRequest (same as api-client, avoids fetch issues in Tauri WebView)
+        isHealthy = await new Promise<boolean>((resolve) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('GET', `${url}/health`);
+          xhr.timeout = 3000;
+          xhr.onload = () => resolve(xhr.status >= 200 && xhr.status < 300);
+          xhr.onerror = () => resolve(false);
+          xhr.ontimeout = () => resolve(false);
+          xhr.send();
+        });
       } else {
         // Production build: use Rust IPC (avoids Windows WebView2 bugs)
         const response = await invoke<{ status: number; body: string }>('http_request', {
@@ -54,7 +55,6 @@ export default function Login() {
         isHealthy = response.status >= 200 && response.status < 300;
       }
 
-      clearTimeout(timeoutId);
       if (isHealthy) {
         setServerStatus(prev => ({ ...prev, [url]: 'success' }));
         setApiUrl(url);
@@ -62,7 +62,6 @@ export default function Login() {
         setServerStatus(prev => ({ ...prev, [url]: 'error' }));
       }
     } catch {
-      clearTimeout(timeoutId);
       setServerStatus(prev => ({ ...prev, [url]: 'error' }));
     }
     setTestingServer(null);
@@ -120,6 +119,7 @@ export default function Login() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
+              autoComplete="username"
               className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all duration-200 bg-surface-50 focus:bg-white text-slate-800 placeholder-slate-400"
               placeholder="admin"
               disabled={isLoading}
@@ -137,6 +137,7 @@ export default function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              autoComplete="current-password"
               className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all duration-200 bg-surface-50 focus:bg-white text-slate-800 placeholder-slate-400"
               placeholder="••••••••"
               disabled={isLoading}

@@ -1,7 +1,8 @@
 /**
  * PaymentSection - Advance payment input and calculation with cash change tracking
  */
-import { DollarSign } from 'lucide-react';
+import PaymentMethodSelector from '../PaymentMethodSelector';
+import CashChangeTracker from '../CashChangeTracker';
 import type { PaymentSectionProps } from './types';
 
 export default function PaymentSection({
@@ -14,9 +15,6 @@ export default function PaymentSection({
   onAmountReceivedChange,
 }: PaymentSectionProps) {
   const balance = total - advancePayment;
-  const changeGiven = advanceAmountReceived && advanceAmountReceived >= advancePayment
-    ? advanceAmountReceived - advancePayment
-    : 0;
 
   return (
     <div className="bg-gray-50 rounded-lg p-4 mb-6">
@@ -73,62 +71,21 @@ export default function PaymentSection({
         {/* Payment Method - only show when advance payment > 0 */}
         {advancePayment > 0 && (
           <div className="mt-3 pt-3 border-t border-gray-200">
-            <label className="block text-xs text-gray-600 mb-2">Metodo de Pago del Anticipo:</label>
-            <select
+            <PaymentMethodSelector
               value={advancePaymentMethod}
-              onChange={(e) => onPaymentMethodChange(e.target.value as '' | 'cash' | 'nequi' | 'transfer' | 'card')}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none ${
-                !advancePaymentMethod ? 'border-red-300 text-gray-400' : 'border-gray-300'
-              }`}
-            >
-              <option value="" disabled>-- Seleccione metodo --</option>
-              <option value="cash">Efectivo</option>
-              <option value="nequi">Nequi</option>
-              <option value="transfer">Transferencia</option>
-              <option value="card">Tarjeta</option>
-            </select>
-            {!advancePaymentMethod && (
-              <p className="text-xs text-red-500 mt-1">Debe seleccionar un metodo de pago</p>
-            )}
+              onChange={(method) => onPaymentMethodChange(method as '' | 'cash' | 'nequi' | 'transfer' | 'card')}
+              label="Metodo de Pago del Anticipo:"
+              accentColor="blue"
+              error={!advancePaymentMethod}
+            />
 
-            {/* Cash change tracking - Only for cash payments */}
+            {/* Cash change tracking */}
             {advancePaymentMethod === 'cash' && (
-              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                <div className="flex items-center gap-4">
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium text-amber-800 mb-1">
-                      Monto Recibido del Cliente
-                    </label>
-                    <div className="relative">
-                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-600" />
-                      <input
-                        type="number"
-                        value={advanceAmountReceived || ''}
-                        onChange={(e) => onAmountReceivedChange(Number(e.target.value) || 0)}
-                        placeholder={`Min: $${advancePayment.toLocaleString()}`}
-                        className="w-full pl-9 pr-3 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none bg-white"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Show calculated change */}
-                  {advanceAmountReceived > 0 && advanceAmountReceived >= advancePayment && (
-                    <div className="text-right min-w-[100px]">
-                      <span className="text-xs text-amber-700">Devueltas:</span>
-                      <p className="text-xl font-bold text-amber-800">
-                        ${changeGiven.toLocaleString()}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Error: insufficient amount */}
-                {advanceAmountReceived > 0 && advanceAmountReceived < advancePayment && (
-                  <p className="text-xs text-red-600 mt-2">
-                    Monto insuficiente. Minimo: ${advancePayment.toLocaleString()}
-                  </p>
-                )}
-              </div>
+              <CashChangeTracker
+                amountDue={advancePayment}
+                amountReceived={advanceAmountReceived}
+                onAmountReceivedChange={onAmountReceivedChange}
+              />
             )}
           </div>
         )}

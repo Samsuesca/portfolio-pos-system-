@@ -893,6 +893,15 @@ export interface GlobalPatrimonySummary {
         net_value: number;
       }>;
     };
+    intangible_assets: {
+      total_value: number;
+      count: number;
+      breakdown: Array<{
+        id: string;
+        name: string;
+        net_value: number;
+      }>;
+    };
     current_assets: number;
     total: number;
   };
@@ -1572,6 +1581,9 @@ export interface BalanceSheetResponse {
   // Fixed Assets
   fixed_assets: AccountDetail[];
   total_fixed_assets: number;
+  // Intangible Assets
+  intangible_assets: AccountDetail[];
+  total_intangible_assets: number;
   // Other Assets
   other_assets: AccountDetail[];
   total_other_assets: number;

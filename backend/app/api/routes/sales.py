@@ -669,6 +669,11 @@ async def create_sale(
     try:
         sale = await sale_service.create_sale(sale_data, user_id=current_user.id)
         await db.commit()
+
+        # Invalidate accounting caches after new sale
+        from app.utils.cache import invalidate_accounting_caches
+        await invalidate_accounting_caches()
+
         return SaleResponse.model_validate(sale)
 
     except ValueError as e:

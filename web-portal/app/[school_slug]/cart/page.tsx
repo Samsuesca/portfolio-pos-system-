@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Trash2, Plus, Minus, ShoppingBag, School as SchoolIcon, Package, Share2, Copy, Check, Clock, Calculator } from 'lucide-react';
 import { useCartStore } from '@/lib/store';
-import { getProductImage } from '@/lib/api';
+import GarmentIcon from '@/components/GarmentIcon';
 import { formatNumber } from '@/lib/utils';
 
 export default function CartPage() {
@@ -192,7 +192,7 @@ export default function CartPage() {
                             ? 'bg-gradient-to-br from-orange-100 to-orange-50'
                             : 'bg-gradient-to-br from-brand-50 to-surface-100'
                         }`}>
-                          <span className="text-3xl">{getProductImage(item.product.name)}</span>
+                          <GarmentIcon productName={item.product.name} className="w-10 h-10 text-stone-400" />
                         </div>
 
                         {/* Product Info */}

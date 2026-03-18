@@ -23,7 +23,7 @@ const StatCard: React.FC<{
   <button
     onClick={onClick}
     className={`${bgColor} rounded-xl p-5 text-left w-full transition-all hover:shadow-md ${
-      isActive ? 'ring-2 ring-blue-500 ring-offset-2' : ''
+      isActive ? 'ring-2 ring-brand-500 ring-offset-2' : ''
     } ${onClick ? 'cursor-pointer' : ''}`}
   >
     <div className={`flex items-center gap-2 ${textColor} mb-2`}>
@@ -79,8 +79,8 @@ const ExpenseStats: React.FC<ExpenseStatsProps> = ({
         value={formatCurrency(stats.averageAmount)}
         subValue="por gasto"
         icon={<TrendingUp className="w-5 h-5" />}
-        bgColor="bg-blue-50 border border-blue-200"
-        textColor="text-blue-600"
+        bgColor="bg-brand-50 border border-brand-200"
+        textColor="text-brand-600"
       />
     </div>
   );

@@ -8,6 +8,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import date, timedelta
 from decimal import Decimal
+from app.utils.timezone import get_colombia_date
 from uuid import uuid4
 
 from app.services.alteration import AlterationService
@@ -136,7 +137,7 @@ async def test_update_status_to_delivered_sets_date(mock_db_session, alteration_
     )
 
     assert mock_alteration.status == AlterationStatus.DELIVERED
-    assert mock_alteration.delivered_date == date.today()
+    assert mock_alteration.delivered_date == get_colombia_date()
 
 
 @pytest.mark.asyncio

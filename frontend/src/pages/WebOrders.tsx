@@ -35,7 +35,9 @@ import Layout from '../components/Layout';
 import { formatDateSpanish } from '../components/DatePicker';
 import { useSchoolStore } from '../stores/schoolStore';
 import { orderService, OrderStockVerification, OrderItemStockInfo } from '../services/orderService';
+import { saleService } from '../services/saleService';
 import type { OrderListItem, OrderStatus, OrderWithItems } from '../types/api';
+import { Ban } from 'lucide-react';
 
 // Status configuration
 const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; icon: typeof Clock; bgColor: string }> = {
@@ -83,6 +85,12 @@ export default function WebOrders() {
   const [showPaymentProofModal, setShowPaymentProofModal] = useState(false);
   const [paymentProofUrl, setPaymentProofUrl] = useState<string | null>(null);
   const [processingPaymentProof, setProcessingPaymentProof] = useState(false);
+
+  // Resolve duplicate modal
+  const [showResolveDuplicateModal, setShowResolveDuplicateModal] = useState(false);
+  const [resolvingSaleCode, setResolvingSaleCode] = useState('');
+  const [resolvingDuplicate, setResolvingDuplicate] = useState(false);
+  const [resolveError, setResolveError] = useState<string | null>(null);
 
   useEffect(() => {
     if (availableSchools.length > 0) {
@@ -311,6 +319,33 @@ export default function WebOrders() {
       setError('Error al rechazar el pago');
     } finally {
       setProcessingPaymentProof(false);
+    }
+  };
+
+  const handleResolveDuplicate = async () => {
+    if (!selectedOrder || !selectedOrderSchoolId || !resolvingSaleCode.trim()) return;
+
+    setResolvingDuplicate(true);
+    setResolveError(null);
+    try {
+      const sales = await saleService.getAllSales({ search: resolvingSaleCode.trim(), limit: 5 });
+      const sale = sales.find(s => s.code === resolvingSaleCode.trim());
+      if (!sale) {
+        setResolveError(`No se encontro una venta con codigo "${resolvingSaleCode.trim()}"`);
+        return;
+      }
+
+      await orderService.resolveDuplicate(selectedOrderSchoolId, selectedOrder.id, sale.id);
+      setShowResolveDuplicateModal(false);
+      setResolvingSaleCode('');
+      setShowDetailModal(false);
+      setSelectedOrder(null);
+      await loadOrders();
+    } catch (err: any) {
+      console.error('Error resolving duplicate:', err);
+      setResolveError(err?.response?.data?.detail || 'Error al resolver duplicado');
+    } finally {
+      setResolvingDuplicate(false);
     }
   };
 
@@ -1022,6 +1057,14 @@ export default function WebOrders() {
                           Entregar
                         </button>
                       )}
+                      <button
+                        onClick={() => setShowResolveDuplicateModal(true)}
+                        className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition flex items-center text-sm"
+                        title="El cliente ya compro en punto fisico"
+                      >
+                        <Ban className="w-4 h-4 mr-1" />
+                        Duplicado
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1241,6 +1284,84 @@ export default function WebOrders() {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Resolve Duplicate Modal */}
+      {showResolveDuplicateModal && selectedOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Resolver Pedido Duplicado</h3>
+              <button
+                onClick={() => { setShowResolveDuplicateModal(false); setResolvingSaleCode(''); setResolveError(null); }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+              <div className="flex items-start">
+                <AlertCircle className="w-4 h-4 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" />
+                <div className="text-xs text-yellow-800">
+                  <p className="font-medium mb-1">Esta accion cancelara el pedido web {selectedOrder.code}:</p>
+                  <ul className="list-disc list-inside space-y-0.5">
+                    <li>Se liberara el stock reservado ({selectedOrder.items?.length || 0} item(s))</li>
+                    {Number(selectedOrder.paid_amount) > 0 && <li>Se revertiran anticipos por ${Number(selectedOrder.paid_amount).toLocaleString()}</li>}
+                    {Number(selectedOrder.balance) > 0 && <li>Se cancelaran cuentas por cobrar por ${Number(selectedOrder.balance).toLocaleString()}</li>}
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Codigo de la venta fisica que reemplaza este pedido
+              </label>
+              <input
+                type="text"
+                value={resolvingSaleCode}
+                onChange={(e) => { setResolvingSaleCode(e.target.value.toUpperCase()); setResolveError(null); }}
+                placeholder="Ej: VEN-0042"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 font-mono"
+                disabled={resolvingDuplicate}
+              />
+            </div>
+
+            {resolveError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-sm text-red-700">
+                {resolveError}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => { setShowResolveDuplicateModal(false); setResolvingSaleCode(''); setResolveError(null); }}
+                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
+                disabled={resolvingDuplicate}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleResolveDuplicate}
+                disabled={!resolvingSaleCode.trim() || resolvingDuplicate}
+                className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg transition flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {resolvingDuplicate ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Resolviendo...
+                  </>
+                ) : (
+                  <>
+                    <Ban className="w-4 h-4 mr-2" />
+                    Resolver Duplicado
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>

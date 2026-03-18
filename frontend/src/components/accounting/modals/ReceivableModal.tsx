@@ -41,7 +41,7 @@ const ReceivableModal: React.FC<ReceivableModalProps> = ({
               type="text"
               value={form.description || ''}
               onChange={(e) => onFormChange({ ...form, description: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
               placeholder="Ej: Venta a credito a Juan Perez"
             />
           </div>
@@ -52,7 +52,7 @@ const ReceivableModal: React.FC<ReceivableModalProps> = ({
                 type="number"
                 value={form.amount || ''}
                 onChange={(e) => onFormChange({ ...form, amount: parseFloat(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                 min="0"
               />
             </div>
@@ -77,7 +77,7 @@ const ReceivableModal: React.FC<ReceivableModalProps> = ({
             <textarea
               value={form.notes || ''}
               onChange={(e) => onFormChange({ ...form, notes: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
               rows={2}
             />
           </div>
@@ -89,7 +89,7 @@ const ReceivableModal: React.FC<ReceivableModalProps> = ({
           <button
             onClick={onSubmit}
             disabled={submitting || !form.description || !form.amount}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
             Crear Cuenta

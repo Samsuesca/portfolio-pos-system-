@@ -220,7 +220,8 @@ class BalanceIntegrationService:
     async def apply_transaction_to_balance(
         self,
         transaction: Transaction,
-        created_by: UUID | None = None
+        created_by: UUID | None = None,
+        force_income_map: bool = False
     ) -> BalanceEntry | None:
         """
         Aplica el efecto de una transacción a la cuenta de balance global.
@@ -234,6 +235,9 @@ class BalanceIntegrationService:
         Args:
             transaction: La transacción a aplicar
             created_by: ID del usuario
+            force_income_map: Si True, usa INCOME_ACCOUNT_MAP incluso para EXPENSE
+                (para reversals de ventas que deben restar de la misma cuenta
+                donde entró el dinero original)
 
         Returns:
             BalanceEntry creado, o None si no aplica
@@ -242,22 +246,35 @@ class BalanceIntegrationService:
         if transaction.payment_method == AccPaymentMethod.CREDIT:
             return None
 
-        # Obtener cuenta global destino
-        account_id = await self.get_account_for_payment_method(
-            transaction.payment_method
-        )
-
-        if not account_id:
+        # Determinar cuenta destino según tipo de transacción y mapeo
+        # Para reversals de venta (force_income_map=True), restar de la misma
+        # cuenta donde entró el dinero (INCOME_ACCOUNT_MAP)
+        if transaction.type == TransactionType.INCOME or force_income_map:
+            account_key = INCOME_ACCOUNT_MAP.get(transaction.payment_method)
+        elif transaction.type == TransactionType.EXPENSE:
+            account_key = EXPENSE_ACCOUNT_MAP.get(transaction.payment_method)
+        else:
             return None
 
-        # Obtener cuenta
-        result = await self.db.execute(
-            select(BalanceAccount).where(BalanceAccount.id == account_id)
-        )
-        account = result.scalar_one_or_none()
+        if account_key is None:
+            return None
+
+        account_code = DEFAULT_ACCOUNTS[account_key]["code"]
+        account = await self.get_global_account(account_code)
+        if not account:
+            accounts_map = await self.get_or_create_global_accounts()
+            account_id = accounts_map.get(account_key)
+            if not account_id:
+                return None
+            result = await self.db.execute(
+                select(BalanceAccount).where(BalanceAccount.id == account_id)
+            )
+            account = result.scalar_one_or_none()
 
         if not account:
             return None
+
+        account_id = account.id
 
         # Calcular delta según tipo de transacción
         # INCOME = +amount (dinero entra)

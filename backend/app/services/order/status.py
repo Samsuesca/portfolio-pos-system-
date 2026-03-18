@@ -77,6 +77,30 @@ class OrderStatusMixin:
                     new_status_label=STATUS_LABELS.get(new_status_str, new_status_str),
                 )
 
+        # === TELEGRAM ALERT ===
+        if order and old_status and old_status != new_status.value:
+            try:
+                from app.services.telegram import fire_and_forget_routed_alert
+                from app.services.telegram_messages import TelegramMessageBuilder
+                from app.models.school import School
+
+                school_result = await self.db.execute(
+                    select(School).where(School.id == order.school_id)
+                )
+                school = school_result.scalar_one_or_none()
+                school_name = school.name if school else "N/A"
+
+                msg = TelegramMessageBuilder.order_status_changed(
+                    code=order.code,
+                    old_status=old_status,
+                    new_status=new_status.value,
+                    school_name=school_name,
+                )
+                fire_and_forget_routed_alert("order_status_changed", msg)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"Telegram alert failed for order status change: {e}")
+
         return order
 
     async def update_item_status(

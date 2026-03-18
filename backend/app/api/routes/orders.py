@@ -31,7 +31,7 @@ from app.schemas.order import (
 from app.services.order import OrderService
 from app.services.receipt import ReceiptService
 from app.services.email import send_order_confirmation_email
-from app.models.sale import SaleSource, ChangeStatus, ChangeType
+from app.models.sale import Sale, SaleSource, ChangeStatus, ChangeType
 from app.models.order import OrderChange
 from fastapi.responses import HTMLResponse
 
@@ -57,6 +57,7 @@ async def list_all_orders(
     status_filter: OrderStatus | None = Query(None, alias="status", description="Filter by status"),
     search: str | None = Query(None, description="Search by code or client name"),
     source_filter: str | None = Query(None, description="Source filter: 'exclude_web_portal' to exclude web orders"),
+    client_id: UUID | None = Query(None, description="Filter by client ID"),
     start_date: date | None = Query(None, description="Filter from date (YYYY-MM-DD)"),
     end_date: date | None = Query(None, description="Filter until date (YYYY-MM-DD)")
 ):
@@ -116,6 +117,10 @@ async def list_all_orders(
                 Order.client.has(Client.name.ilike(search_term))
             )
         )
+
+    # Filter by client
+    if client_id:
+        query = query.where(Order.client_id == client_id)
 
     # Filter by source (exclude web portal orders if requested)
     if source_filter == "exclude_web_portal":
@@ -1033,6 +1038,63 @@ async def cancel_order(
         HTTPException: 404 if order not found
         HTTPException: 400 if order cannot be cancelled
     """
+    order_service = OrderService(db)
+
+    try:
+        order = await order_service.cancel_order(
+            order_id=order_id,
+            school_id=school_id,
+            user_id=current_user.id,
+            reason=reason
+        )
+
+        await db.commit()
+        return OrderResponse.model_validate(order)
+
+    except ValueError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@school_router.post(
+    "/{order_id}/resolve-duplicate",
+    response_model=OrderResponse,
+    dependencies=[Depends(require_school_access(UserRole.SELLER))]
+)
+async def resolve_duplicate_order(
+    school_id: UUID,
+    order_id: UUID,
+    db: DatabaseSession,
+    current_user: CurrentUser,
+    sale_id: UUID = Query(..., description="Sale ID that replaces this order"),
+    notes: str | None = Query(None, description="Additional notes")
+):
+    """
+    Resolve a duplicate order that was already fulfilled by a physical sale.
+
+    Cancels the order (reverting inventory reservations, advance payment transactions,
+    and accounts receivable) while keeping the sale intact.
+
+    Requires SELLER role.
+    """
+    # Validate sale exists
+    sale_result = await db.execute(
+        select(Sale).where(Sale.id == sale_id)
+    )
+    sale = sale_result.scalar_one_or_none()
+    if not sale:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Venta no encontrada"
+        )
+
+    reason = f"Duplicado con venta {sale.code} — Cliente compro en punto fisico"
+    if notes:
+        reason += f". {notes}"
+
     order_service = OrderService(db)
 
     try:

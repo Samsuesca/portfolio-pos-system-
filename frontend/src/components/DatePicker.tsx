@@ -29,12 +29,22 @@ function formatToSpanish(isoDate: string): string {
 
 /**
  * Convierte fecha español (DD/MM/YYYY) a ISO (YYYY-MM-DD)
+ * Retorna '' si la fecha es inválida (ej: 31/04/2026)
  */
 function parseSpanishDate(spanishDate: string): string {
   if (!spanishDate) return '';
   const parts = spanishDate.split('/');
   if (parts.length !== 3) return '';
   const [day, month, year] = parts;
+  const d = parseInt(day, 10);
+  const m = parseInt(month, 10);
+  const y = parseInt(year, 10);
+  if (isNaN(d) || isNaN(m) || isNaN(y)) return '';
+  // Validar que la fecha realmente existe (ej: abril no tiene día 31)
+  const date = new Date(y, m - 1, d);
+  if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) {
+    return '';
+  }
   return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 }
 
@@ -102,8 +112,8 @@ export default function DatePicker({
     // Validar y enviar si es fecha completa
     if (val.length === 10) {
       const isoDate = parseSpanishDate(val);
-      const date = new Date(isoDate);
-      if (!isNaN(date.getTime())) {
+      if (isoDate && (!minDate || isoDate >= minDate) && (!maxDate || isoDate <= maxDate)) {
+        const date = new Date(isoDate);
         onChange(isoDate);
         setCurrentMonth(new Date(date.getFullYear(), date.getMonth(), 1));
       }
@@ -114,10 +124,10 @@ export default function DatePicker({
   const handleInputBlur = () => {
     if (inputValue && inputValue.length === 10) {
       const isoDate = parseSpanishDate(inputValue);
-      const date = new Date(isoDate);
-      if (!isNaN(date.getTime())) {
+      if (isoDate && (!minDate || isoDate >= minDate) && (!maxDate || isoDate <= maxDate)) {
         onChange(isoDate);
       } else {
+        // Fecha inválida o fuera de rango — revertir al valor anterior
         setInputValue(formatToSpanish(value));
       }
     } else if (inputValue && inputValue.length > 0) {

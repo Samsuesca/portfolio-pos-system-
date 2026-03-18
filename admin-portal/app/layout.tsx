@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Outfit, Inter } from "next/font/google";
+import { Outfit, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -10,6 +10,12 @@ const outfit = Outfit({
 
 const inter = Inter({
   variable: "--font-inter",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
   display: "swap",
 });
@@ -26,7 +32,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className={`${outfit.variable} ${inter.variable} antialiased`}>
+      <body className={`${outfit.variable} ${inter.variable} ${jetbrainsMono.variable} antialiased`}>
         {children}
       </body>
     </html>

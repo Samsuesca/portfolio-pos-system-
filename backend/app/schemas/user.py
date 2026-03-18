@@ -59,6 +59,7 @@ class UserInDB(UserBase, IDModelSchema, TimestampSchema):
     is_active: bool
     is_superuser: bool
     last_login: datetime | None = None
+    telegram_chat_id: str | None = None
 
 
 class UserResponse(UserInDB):

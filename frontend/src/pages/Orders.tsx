@@ -259,40 +259,46 @@ export default function Orders() {
         o.status === 'pending' || o.status === 'in_production' || o.status === 'ready'
       );
 
-      for (const order of activeOrders) {
-        try {
-          const fullOrder = await orderService.getOrder(order.school_id || '', order.id);
-          for (const item of fullOrder.items) {
-            // Only include items with custom measurements (Yombers) that are not delivered/cancelled
-            if (item.custom_measurements &&
-                typeof item.custom_measurements === 'object' &&
-                Object.keys(item.custom_measurements).length > 0 &&
-                !['delivered', 'cancelled'].includes(item.item_status)) {
-              yombers.push({
-                id: item.id,
-                order_id: order.id,
-                order_code: order.code,
-                order_status: order.status,
-                item_status: item.item_status,
-                school_id: order.school_id || '',
-                client_name: fullOrder.client_name || 'Sin cliente',
-                student_name: fullOrder.student_name,
-                delivery_date: order.delivery_date,
-                garment_type_name: item.garment_type_name,
-                quantity: item.quantity,
-                size: item.size,
-                color: item.color,
-                gender: item.gender,
-                custom_measurements: item.custom_measurements as Record<string, number>,
-                notes: item.notes,
-                created_at: order.created_at,
-              });
-            }
-          }
-        } catch (err) {
-          console.error(`Error loading order ${order.id}:`, err);
+      // Fetch all order details in parallel instead of sequentially (N+1 fix)
+      const results = await Promise.allSettled(
+        activeOrders.map(order => orderService.getOrderDetails(order.id))
+      );
+
+      results.forEach((result, idx) => {
+        if (result.status !== 'fulfilled') {
+          console.error(`Error loading order ${activeOrders[idx].id}:`, result.reason);
+          return;
         }
-      }
+        const fullOrder = result.value;
+        const order = activeOrders[idx];
+        for (const item of fullOrder.items) {
+          // Only include items with custom measurements (Yombers) that are not delivered/cancelled
+          if (item.custom_measurements &&
+              typeof item.custom_measurements === 'object' &&
+              Object.keys(item.custom_measurements).length > 0 &&
+              !['delivered', 'cancelled'].includes(item.item_status)) {
+            yombers.push({
+              id: item.id,
+              order_id: order.id,
+              order_code: order.code,
+              order_status: order.status,
+              item_status: item.item_status,
+              school_id: order.school_id || '',
+              client_name: fullOrder.client_name || 'Sin cliente',
+              student_name: fullOrder.student_name,
+              delivery_date: order.delivery_date,
+              garment_type_name: item.garment_type_name,
+              quantity: item.quantity,
+              size: item.size,
+              color: item.color,
+              gender: item.gender,
+              custom_measurements: item.custom_measurements as Record<string, number>,
+              notes: item.notes,
+              created_at: order.created_at,
+            });
+          }
+        }
+      });
 
       // Sort by item_status (pending first), then by delivery date, then by created date
       yombers.sort((a, b) => {

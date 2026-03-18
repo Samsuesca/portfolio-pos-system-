@@ -62,6 +62,13 @@ async def list_schools(
     """
     List all schools with pagination
     """
+    from app.utils.cache import cache_get, cache_set, TTL_MEDIUM
+
+    cache_key = f"schools:list:{skip}:{limit}:{active_only}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     school_service = SchoolService(db)
 
     if active_only:
@@ -69,7 +76,9 @@ async def list_schools(
     else:
         schools = await school_service.get_multi(skip=skip, limit=limit)
 
-    return [SchoolListResponse.model_validate(s) for s in schools]
+    result = [SchoolListResponse.model_validate(s).model_dump() for s in schools]
+    await cache_set(cache_key, result, TTL_MEDIUM)
+    return result
 
 
 @router.get("/{school_id}", response_model=SchoolResponse)

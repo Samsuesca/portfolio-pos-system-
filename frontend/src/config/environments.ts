@@ -8,7 +8,7 @@
  */
 
 export const ENVIRONMENTS = {
-  LOCAL: 'http://127.0.0.1:8000',  // Use IP instead of localhost for Tauri compatibility
+  LOCAL: 'http://127.0.0.1:8001',  // Use IP instead of localhost for Tauri compatibility
   LAN: 'http://192.168.18.48:8000',  // Mac's IP on local network
   CLOUD: 'https://api.yourdomain.com',   // Production API
 } as const;

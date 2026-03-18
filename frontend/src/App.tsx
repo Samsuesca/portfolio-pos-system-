@@ -1,34 +1,40 @@
 /**
  * App Component - Main application with routing
+ *
+ * All page components are lazy-loaded via React.lazy() for code splitting.
+ * Each page is bundled as a separate chunk and fetched on demand.
  */
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import Products from './pages/Products';
-import Clients from './pages/Clients';
-import Sales from './pages/Sales';
-import SaleDetail from './pages/SaleDetail';
-import SaleChanges from './pages/SaleChanges';
-import Orders from './pages/Orders';
-import OrderDetail from './pages/OrderDetail';
-import WebOrders from './pages/WebOrders';
-import Accounting from './pages/Accounting';
-import Reports from './pages/Reports';
-import Settings from './pages/Settings';
-import Admin from './pages/Admin';
-import ContactsManagement from './pages/ContactsManagement';
-import PaymentAccounts from './pages/PaymentAccounts';
-import Documents from './pages/Documents';
-import Payroll from './pages/Payroll';
-import Alterations from './pages/Alterations';
-import AlterationDetail from './pages/AlterationDetail';
-import VerifyEmail from './pages/VerifyEmail';
-import EmailLogs from './pages/EmailLogs';
-import CFODashboard from './pages/CFODashboard';
-import Workforce from './pages/Workforce';
-import MyProfile from './pages/MyProfile';
+import LoadingSpinner from './components/LoadingSpinner';
+
+// Lazy-loaded page components (code-split per route)
+const Login = lazy(() => import('./pages/Login'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Products = lazy(() => import('./pages/products'));
+const Clients = lazy(() => import('./pages/Clients'));
+const Sales = lazy(() => import('./pages/Sales'));
+const SaleDetail = lazy(() => import('./pages/SaleDetail'));
+const SaleChanges = lazy(() => import('./pages/SaleChanges'));
+const Orders = lazy(() => import('./pages/Orders'));
+const OrderDetail = lazy(() => import('./pages/OrderDetail'));
+const WebOrders = lazy(() => import('./pages/WebOrders'));
+const Accounting = lazy(() => import('./pages/Accounting'));
+const Reports = lazy(() => import('./pages/Reports'));
+const Settings = lazy(() => import('./pages/settings'));
+const Admin = lazy(() => import('./pages/Admin'));
+const ContactsManagement = lazy(() => import('./pages/ContactsManagement'));
+const PaymentAccounts = lazy(() => import('./pages/PaymentAccounts'));
+const Documents = lazy(() => import('./pages/Documents'));
+const Payroll = lazy(() => import('./pages/payroll'));
+const Alterations = lazy(() => import('./pages/Alterations'));
+const AlterationDetail = lazy(() => import('./pages/AlterationDetail'));
+const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
+const EmailLogs = lazy(() => import('./pages/EmailLogs'));
+const CFODashboard = lazy(() => import('./pages/CFODashboard'));
+const Workforce = lazy(() => import('./pages/workforce'));
+const MyProfile = lazy(() => import('./pages/MyProfile'));
 
 // Protected Route component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -80,6 +86,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <Suspense fallback={<LoadingSpinner />}>
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
@@ -280,6 +287,7 @@ function App() {
         {/* 404 */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

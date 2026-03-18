@@ -42,7 +42,7 @@ interface GlobalDashboardSummary {
 }
 
 // Type for balance account modal
-type BalanceAccountModalType = 'asset_fixed' | 'liability_current' | 'liability_long';
+type BalanceAccountModalType = 'asset_fixed' | 'asset_intangible' | 'liability_current' | 'liability_long';
 
 // Return type for the hook
 interface UseAccountingDataReturn {

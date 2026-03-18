@@ -57,7 +57,7 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({
     return (
       <div className="bg-white rounded-xl border border-gray-200 p-12">
         <div className="flex flex-col items-center justify-center">
-          <Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-3" />
+          <Loader2 className="w-10 h-10 text-brand-600 animate-spin mb-3" />
           <p className="text-gray-500">Cargando gastos...</p>
         </div>
       </div>
@@ -72,7 +72,7 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({
           <p className="text-red-600 mb-3">{error}</p>
           <button
             onClick={onRetry}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+            className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition"
           >
             Reintentar
           </button>
@@ -90,7 +90,7 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({
           {hasActiveFilters && onClearFilters && (
             <button
               onClick={onClearFilters}
-              className="text-blue-600 hover:text-blue-800 font-medium"
+              className="text-brand-600 hover:text-brand-800 font-medium"
             >
               Limpiar filtros
             </button>
@@ -288,7 +288,7 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({
                     {expense.is_paid && onAdjust && (
                       <button
                         onClick={(e) => { e.stopPropagation(); onAdjust(expense); }}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-200 transition"
+                        className="flex items-center gap-1.5 px-4 py-2 bg-brand-100 text-brand-700 rounded-lg text-sm font-medium hover:bg-brand-200 transition"
                       >
                         <Settings className="w-4 h-4" />
                         Ajustar
@@ -328,7 +328,7 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({
           <button
             onClick={onLoadMore}
             disabled={loadingMore}
-            className="w-full flex items-center justify-center gap-2 py-2.5 text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 py-2.5 text-brand-600 hover:text-brand-800 font-medium disabled:opacity-50"
           >
             {loadingMore ? (
               <>

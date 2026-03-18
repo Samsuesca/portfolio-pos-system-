@@ -1,9 +1,12 @@
 import type { NextConfig } from "next";
 import { readFileSync } from "fs";
-import { resolve } from "path";
+import { fileURLToPath } from "url";
+import { dirname, resolve } from "path";
 
-// Load version from version.json
-const versionFile = resolve(__dirname, "../version.json");
+// Load version from version.json (ESM-compatible __dirname)
+const __filename = fileURLToPath(import.meta.url);
+const __dirnameSafe = dirname(__filename);
+const versionFile = resolve(__dirnameSafe, "../version.json");
 const versionData = JSON.parse(readFileSync(versionFile, "utf-8"));
 
 const nextConfig: NextConfig = {
@@ -21,7 +24,7 @@ const nextConfig: NextConfig = {
       {
         protocol: 'http',
         hostname: 'localhost',
-        port: '8000',
+        port: '8001',
         pathname: '/uploads/**',
       },
     ],

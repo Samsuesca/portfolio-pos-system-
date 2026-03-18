@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.sale import Sale, SaleItem, SalePayment, SaleStatus, PaymentMethod
-from app.models.product import Product, GlobalProduct
+from app.models.product import Product, GlobalProduct, Inventory, GlobalInventory
 from app.models.accounting import Transaction, TransactionType, AccPaymentMethod, AccountsReceivable
 from app.models.inventory_log import InventoryMovementType
 from app.schemas.sale import SaleCreate
@@ -63,23 +63,69 @@ class SaleCreationMixin:
         items_data = []
         subtotal = Decimal("0")
 
+        # Batch-load all products to avoid N+1 queries
+        global_product_ids = [i.product_id for i in sale_data.items if i.is_global]
+        school_product_ids = [i.product_id for i in sale_data.items if not i.is_global]
+
+        global_products_map: dict = {}
+        school_products_map: dict = {}
+
+        if global_product_ids:
+            result = await self.db.execute(
+                select(GlobalProduct).where(
+                    GlobalProduct.id.in_(global_product_ids),
+                    GlobalProduct.is_active == True
+                )
+            )
+            global_products_map = {p.id: p for p in result.scalars().all()}
+
+        if school_product_ids:
+            result = await self.db.execute(
+                select(Product).where(
+                    Product.id.in_(school_product_ids),
+                    Product.school_id == sale_data.school_id,
+                    Product.is_active == True
+                )
+            )
+            school_products_map = {p.id: p for p in result.scalars().all()}
+
+        # Batch-load all inventory records to avoid N+1 queries during validation
+        global_inventory_map: dict[UUID, GlobalInventory] = {}
+        school_inventory_map: dict[UUID, Inventory] = {}
+
+        if not is_historical:
+            if global_product_ids:
+                result = await self.db.execute(
+                    select(GlobalInventory).where(
+                        GlobalInventory.product_id.in_(global_product_ids)
+                    )
+                )
+                global_inventory_map = {
+                    inv.product_id: inv for inv in result.scalars().all()
+                }
+
+            if school_product_ids:
+                result = await self.db.execute(
+                    select(Inventory).where(
+                        Inventory.product_id.in_(school_product_ids),
+                        Inventory.school_id == sale_data.school_id
+                    )
+                )
+                school_inventory_map = {
+                    inv.product_id: inv for inv in result.scalars().all()
+                }
+
         for item_data in sale_data.items:
             if item_data.is_global:
                 # Handle global product
-                result = await self.db.execute(
-                    select(GlobalProduct).where(
-                        GlobalProduct.id == item_data.product_id,
-                        GlobalProduct.is_active == True
-                    )
-                )
-                global_product = result.scalar_one_or_none()
+                global_product = global_products_map.get(item_data.product_id)
 
                 if not global_product:
                     raise ValueError(f"Producto global {item_data.product_id} no encontrado")
 
                 # Check global inventory ONLY for non-historical sales
                 if not is_historical:
-                    global_inv = await global_inv_service.get_by_product(global_product.id)
+                    global_inv = global_inventory_map.get(global_product.id)
                     if not global_inv or global_inv.quantity < item_data.quantity:
                         raise ValueError(
                             f"Stock insuficiente para el producto global {global_product.code}"
@@ -100,28 +146,16 @@ class SaleCreationMixin:
 
                 subtotal += item_subtotal
             else:
-                # Handle school product (original logic)
-                result = await self.db.execute(
-                    select(Product).where(
-                        Product.id == item_data.product_id,
-                        Product.school_id == sale_data.school_id,
-                        Product.is_active == True
-                    )
-                )
-                product = result.scalar_one_or_none()
+                # Handle school product
+                product = school_products_map.get(item_data.product_id)
 
                 if not product:
                     raise ValueError(f"Producto {item_data.product_id} no encontrado")
 
                 # Check inventory ONLY for non-historical sales
                 if not is_historical:
-                    has_stock = await inv_service.check_availability(
-                        product.id,
-                        sale_data.school_id,
-                        item_data.quantity
-                    )
-
-                    if not has_stock:
+                    school_inv = school_inventory_map.get(product.id)
+                    if not school_inv or school_inv.quantity < item_data.quantity:
                         raise ValueError(
                             f"Stock insuficiente para el producto {product.code}"
                         )
@@ -422,5 +456,28 @@ class SaleCreationMixin:
                 except Exception as e:
                     # Log but don't fail the sale
                     logger.error(f"Print queue enqueue failed for sale {sale.code}: {e}")
+
+        # === TELEGRAM ALERT ===
+        if not is_historical:
+            try:
+                from app.services.telegram import fire_and_forget_routed_alert
+                from app.services.telegram_messages import TelegramMessageBuilder
+                from app.models.school import School
+
+                school_result = await self.db.execute(
+                    select(School).where(School.id == sale.school_id)
+                )
+                school = school_result.scalar_one_or_none()
+                school_name = school.name if school else "N/A"
+
+                msg = TelegramMessageBuilder.sale_created(
+                    code=sale.code,
+                    total=sale.total,
+                    school_name=school_name,
+                    payment_method=sale.payment_method.value if sale.payment_method else None,
+                )
+                fire_and_forget_routed_alert("sale_created", msg)
+            except Exception as e:
+                logger.error(f"Telegram alert failed for sale {sale.code}: {e}")
 
         return sale

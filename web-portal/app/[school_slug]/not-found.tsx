@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { School as SchoolIcon, ArrowRight, Home, AlertTriangle } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -37,7 +38,7 @@ export default async function SchoolNotFound() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center gap-4">
             <Link href="/" className="flex items-center gap-4 hover:opacity-80 transition-opacity">
-              <img src="/logo.png" alt="Uniformes Consuelo Rios" className="h-12 sm:h-16 w-auto" />
+              <Image src="/logo.png" alt="Uniformes Consuelo Rios" width={64} height={64} className="h-12 sm:h-16 w-auto" style={{ width: 'auto' }} priority />
               <span className="text-lg sm:text-xl font-bold font-display text-brand-500 hidden sm:block">
                 Uniformes Consuelo Rios
               </span>
@@ -90,16 +91,22 @@ export default async function SchoolNotFound() {
                   href={`/${school.slug}`}
                   className="group flex items-center gap-4 p-4 bg-gray-50 rounded-xl border-2 border-gray-200 hover:border-brand-500 hover:bg-brand-50 transition-all"
                 >
-                  <div className="w-14 h-14 rounded-full bg-gradient-to-br from-brand-100 to-brand-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                  <div className="w-14 h-14 rounded-full bg-gradient-to-br from-brand-100 to-brand-200 flex items-center justify-center overflow-hidden flex-shrink-0 relative">
                     {school.logo_url ? (
-                      <img
+                      <Image
                         src={`${API_BASE_URL}${school.logo_url}`}
                         alt={`Escudo ${school.name}`}
-                        className="w-full h-full object-cover"
+                        fill
+                        sizes="56px"
+                        className="object-cover"
+                        unoptimized
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                          (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                        }}
                       />
-                    ) : (
-                      <SchoolIcon className="w-7 h-7 text-brand-600" />
-                    )}
+                    ) : null}
+                    <SchoolIcon className={`w-7 h-7 text-brand-600 ${school.logo_url ? 'hidden' : ''}`} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="font-semibold text-gray-800 truncate group-hover:text-brand-700">

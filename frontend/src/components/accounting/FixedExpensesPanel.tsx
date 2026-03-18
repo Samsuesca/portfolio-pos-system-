@@ -195,8 +195,8 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                 {fixedExpensesList.filter(e => e.is_active).length}
               </p>
             </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <CalendarClock className="w-6 h-6 text-blue-600" />
+            <div className="w-12 h-12 bg-brand-100 rounded-lg flex items-center justify-center">
+              <CalendarClock className="w-6 h-6 text-brand-600" />
             </div>
           </div>
         </div>
@@ -263,17 +263,17 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
           </div>
         </div>
       ) : (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="mb-4 p-3 bg-brand-50 border border-brand-200 rounded-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-blue-600" />
-              <span className="text-sm text-blue-800">
+              <Users className="w-4 h-4 text-brand-600" />
+              <span className="text-sm text-brand-800">
                 Gestiona la nomina desde el modulo dedicado para integrarla automaticamente aqui.
               </span>
             </div>
             <Link
               to="/payroll"
-              className="flex items-center gap-1 text-sm text-blue-700 hover:text-blue-900 font-medium"
+              className="flex items-center gap-1 text-sm text-brand-700 hover:text-brand-800 font-medium"
             >
               Ir a Nomina <ExternalLink className="w-3 h-3" />
             </Link>
@@ -296,7 +296,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
         </div>
         <button
           onClick={openCreateModal}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+          className="flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg transition-colors"
         >
           <Plus className="w-5 h-5" />
           Nuevo Gasto Fijo
@@ -370,12 +370,12 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                         {item.recurrence_frequency === 'yearly' && `Anual`}
                         {(item.recurrence_interval && item.recurrence_interval > 1) && ` (cada ${item.recurrence_interval})`}
                         {item.recurrence_weekdays && item.recurrence_weekdays.length > 0 && (
-                          <span className="text-xs text-blue-600 ml-1">
+                          <span className="text-xs text-brand-600 ml-1">
                             ({item.recurrence_weekdays.length} dias)
                           </span>
                         )}
                         {item.recurrence_month_days && item.recurrence_month_days.length > 0 && (
-                          <span className="text-xs text-blue-600 ml-1">
+                          <span className="text-xs text-brand-600 ml-1">
                             (dias: {item.recurrence_month_days.join(', ')})
                           </span>
                         )}
@@ -414,7 +414,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                     <div className="flex items-center justify-end gap-2">
                       <button
                         onClick={() => openEditModal(item)}
-                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        className="p-2 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"
                         title="Editar"
                       >
                         <Pencil className="w-4 h-4" />
@@ -468,7 +468,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                   type="text"
                   value={form.name || ''}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500"
                   placeholder="Ej: Internet Claro"
                 />
               </div>
@@ -479,7 +479,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                   type="text"
                   value={form.vendor || ''}
                   onChange={(e) => setForm({ ...form, vendor: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500"
                   placeholder="Ej: Claro Colombia"
                 />
               </div>
@@ -490,7 +490,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                   <select
                     value={form.category || 'other'}
                     onChange={(e) => setForm({ ...form, category: e.target.value as ExpenseCategory })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500"
                   >
                     {activeCategories.map(cat => (
                       <option key={cat.code} value={cat.code}>{cat.name}</option>
@@ -503,7 +503,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                   <select
                     value={form.expense_type || 'exact'}
                     onChange={(e) => setForm({ ...form, expense_type: e.target.value as FixedExpenseType })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500"
                   >
                     <option value="exact">Valor Exacto</option>
                     <option value="variable">Valor Variable</option>
@@ -585,7 +585,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                     <select
                       value={form.frequency || 'monthly'}
                       onChange={(e) => setForm({ ...form, frequency: e.target.value as ExpenseFrequency })}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500"
                     >
                       <option value="weekly">Semanal</option>
                       <option value="biweekly">Quincenal</option>
@@ -603,13 +603,13 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                       max={31}
                       value={form.day_of_month || 1}
                       onChange={(e) => setForm({ ...form, day_of_month: parseInt(e.target.value) || 1 })}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500"
                     />
                   </div>
                 </div>
               ) : (
                 /* Advanced recurrence system */
-                <div className="space-y-4 bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <div className="space-y-4 bg-brand-50 p-4 rounded-lg border border-brand-200">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Frecuencia Base</label>
@@ -621,7 +621,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                           recurrence_weekdays: [],
                           recurrence_month_days: [],
                         })}
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500 bg-white"
                       >
                         <option value="daily">Diario</option>
                         <option value="weekly">Semanal</option>
@@ -639,7 +639,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                           max={12}
                           value={form.recurrence_interval || 1}
                           onChange={(e) => setForm({ ...form, recurrence_interval: parseInt(e.target.value) || 1 })}
-                          className="w-20 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+                          className="w-20 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500 bg-white"
                         />
                         <span className="text-sm text-gray-600">
                           {form.recurrence_frequency === 'daily' ? 'dia(s)' :
@@ -676,7 +676,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                             }}
                             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                               (form.recurrence_weekdays || []).includes(day.value as any)
-                                ? 'bg-blue-600 text-white'
+                                ? 'bg-brand-500 text-white'
                                 : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
                             }`}
                           >
@@ -699,7 +699,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                             recurrence_month_day_type: e.target.value === 'specific' ? undefined : e.target.value as any,
                             recurrence_month_days: e.target.value === 'specific' ? [1] : [],
                           })}
-                          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+                          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500 bg-white"
                         >
                           <option value="specific">Dia especifico</option>
                           <option value="last_day">Ultimo dia del mes</option>
@@ -725,7 +725,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                                 }}
                                 className={`w-8 h-8 rounded text-sm font-medium transition-colors ${
                                   (form.recurrence_month_days || []).includes(day)
-                                    ? 'bg-blue-600 text-white'
+                                    ? 'bg-brand-500 text-white'
                                     : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
                                 }`}
                               >
@@ -748,7 +748,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                 <textarea
                   value={form.description || ''}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500"
                   rows={2}
                   placeholder="Descripcion adicional..."
                 />
@@ -782,7 +782,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
               <button
                 onClick={handleSubmit}
                 disabled={submitting || !form.name || !form.amount}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
               >
                 {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
                 {editingExpense ? 'Guardar Cambios' : 'Crear Gasto Fijo'}

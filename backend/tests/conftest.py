@@ -17,7 +17,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import NullPool, StaticPool
 from httpx import AsyncClient, ASGITransport
 
 from app.db.base import Base
@@ -30,6 +30,18 @@ from app.models.sale import SaleStatus, PaymentMethod, ChangeType, ChangeStatus
 from app.models.order import OrderStatus
 from app.models.user import UserRole
 from app.core.config import settings
+
+
+# ============================================================================
+# EVENT LOOP (required for session-scoped async fixtures in pytest-asyncio 0.23)
+# ============================================================================
+
+@pytest.fixture(scope="session")
+def event_loop():
+    """Create a session-scoped event loop for async fixtures."""
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
 
 
 # ============================================================================
@@ -48,22 +60,16 @@ TEST_DATABASE_URL = os.getenv(
 
 
 @pytest.fixture(scope="session")
-def event_loop() -> Generator:
-    """Create event loop for async tests."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest.fixture(scope="session")
 async def async_engine():
-    """Create async PostgreSQL engine for testing."""
+    """Create async PostgreSQL engine for testing.
+
+    Uses NullPool to prevent connection pool issues during
+    fixture teardown across event loop boundaries.
+    """
     engine = create_async_engine(
         TEST_DATABASE_URL,
         echo=False,
-        pool_pre_ping=True,
-        pool_size=5,
-        max_overflow=10
+        poolclass=NullPool,
     )
 
     # Create all tables once at session start
@@ -526,13 +532,14 @@ async def app():
 
 
 @pytest.fixture
-async def api_client(app, db_session) -> AsyncGenerator[AsyncClient, None]:
+async def api_client(app, async_engine, db_session) -> AsyncGenerator[AsyncClient, None]:
     """
     Create async HTTP client for API testing.
 
     This client is configured to:
     - Use the FastAPI app directly (no real network)
     - Override database dependency to use test session
+    - Patch the app's global engine/session to use the test database
     - Include proper base URL for testing
 
     Usage:
@@ -540,7 +547,16 @@ async def api_client(app, db_session) -> AsyncGenerator[AsyncClient, None]:
             response = await api_client.get("/api/v1/health")
             assert response.status_code == 200
     """
+    import app.db.session as session_module
     from app.db.session import get_db
+
+    # Patch the app's global engine and session factory to use test database
+    original_engine = session_module.engine
+    original_session = session_module.AsyncSessionLocal
+    session_module.engine = async_engine
+    session_module.AsyncSessionLocal = async_sessionmaker(
+        async_engine, class_=AsyncSession, expire_on_commit=False
+    )
 
     # Override database dependency
     async def override_get_db():
@@ -552,8 +568,10 @@ async def api_client(app, db_session) -> AsyncGenerator[AsyncClient, None]:
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
 
-    # Clear overrides after test
+    # Restore originals
     app.dependency_overrides.clear()
+    session_module.engine = original_engine
+    session_module.AsyncSessionLocal = original_session
 
 
 @pytest.fixture

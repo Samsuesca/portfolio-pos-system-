@@ -258,7 +258,7 @@ const ExpenseCategoryManager: React.FC<ExpenseCategoryManagerProps> = ({
           {/* Loading */}
           {loading && (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+              <Loader2 className="w-8 h-8 animate-spin text-brand-600" />
             </div>
           )}
 
@@ -280,7 +280,7 @@ const ExpenseCategoryManager: React.FC<ExpenseCategoryManagerProps> = ({
                       value={formData.code}
                       onChange={(e) => setFormData({ ...formData, code: e.target.value.toLowerCase() })}
                       placeholder="ej: marketing_digital"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-400"
                       disabled={saving}
                     />
                     <p className="mt-1 text-xs text-gray-500">
@@ -299,7 +299,7 @@ const ExpenseCategoryManager: React.FC<ExpenseCategoryManagerProps> = ({
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="ej: Marketing Digital"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-400"
                     disabled={saving}
                   />
                 </div>
@@ -314,7 +314,7 @@ const ExpenseCategoryManager: React.FC<ExpenseCategoryManagerProps> = ({
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     placeholder="Descripción opcional..."
                     rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-400 resize-none"
                     disabled={saving}
                   />
                 </div>
@@ -332,7 +332,7 @@ const ExpenseCategoryManager: React.FC<ExpenseCategoryManagerProps> = ({
                         onClick={() => setFormData({ ...formData, color })}
                         className={`w-8 h-8 rounded-lg transition-all ${
                           formData.color === color
-                            ? 'ring-2 ring-offset-2 ring-blue-500 scale-110'
+                            ? 'ring-2 ring-offset-2 ring-brand-500 scale-110'
                             : 'hover:scale-105'
                         }`}
                         style={{ backgroundColor: color }}
@@ -392,7 +392,7 @@ const ExpenseCategoryManager: React.FC<ExpenseCategoryManagerProps> = ({
                   <button
                     type="submit"
                     disabled={saving}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-2"
+                    className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition disabled:opacity-50 flex items-center gap-2"
                   >
                     {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                     {editingCategory ? 'Guardar Cambios' : 'Crear Categoría'}
@@ -406,7 +406,7 @@ const ExpenseCategoryManager: React.FC<ExpenseCategoryManagerProps> = ({
           {!showForm && !loading && (
             <button
               onClick={handleNew}
-              className="w-full mb-4 p-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-blue-400 hover:text-blue-600 transition flex items-center justify-center gap-2"
+              className="w-full mb-4 p-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-brand-300 hover:text-brand-600 transition flex items-center justify-center gap-2"
             >
               <Plus className="w-5 h-5" />
               Nueva Categoría
@@ -471,7 +471,7 @@ const ExpenseCategoryManager: React.FC<ExpenseCategoryManagerProps> = ({
                         {category.name}
                       </span>
                       {category.is_system && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-100 text-brand-700 text-xs rounded-full">
                           <Shield className="w-3 h-3" />
                           Sistema
                         </span>
@@ -490,7 +490,7 @@ const ExpenseCategoryManager: React.FC<ExpenseCategoryManagerProps> = ({
                     {/* Edit */}
                     <button
                       onClick={() => handleEdit(category)}
-                      className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                      className="p-2 text-gray-500 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition"
                       title="Editar"
                     >
                       <Pencil className="w-4 h-4" />
@@ -546,8 +546,8 @@ const ExpenseCategoryManager: React.FC<ExpenseCategoryManagerProps> = ({
           )}
 
           {/* Help Text */}
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-            <p className="text-sm text-blue-800">
+          <div className="mt-6 p-4 bg-brand-50 rounded-lg">
+            <p className="text-sm text-brand-800">
               <strong>Nota:</strong> Las categorías del sistema (marcadas con{' '}
               <Shield className="w-3 h-3 inline" />) no se pueden eliminar, pero
               puedes editar su nombre y color. Las categorías personalizadas

@@ -391,7 +391,7 @@ export default function SoportePage() {
                   <div>
                     <h3 className="font-semibold text-slate-700 mb-1">Ubicación</h3>
                     <p className="text-slate-600 text-sm">
-                      Medellin, Colombia
+                      Medellín, Colombia
                     </p>
                   </div>
                 </div>
@@ -513,7 +513,7 @@ export default function SoportePage() {
 
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-2">
-                    Telefono
+                    Teléfono
                     {isAuthenticated && formData.phone && (
                       <span className="ml-2 text-xs text-green-600 font-normal">(Auto-completado)</span>
                     )}
@@ -533,7 +533,7 @@ export default function SoportePage() {
                     }`}
                   />
                   {formData.phone && formData.phone.length > 0 && (formData.phone.length !== 10 || !formData.phone.startsWith('3')) && (
-                    <p className="text-xs text-red-500 mt-1">Debe ser 10 digitos e iniciar con 3</p>
+                    <p className="text-xs text-red-500 mt-1">Debe ser 10 dígitos e iniciar con 3</p>
                   )}
                 </div>
 

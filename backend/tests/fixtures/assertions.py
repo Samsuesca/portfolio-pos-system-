@@ -110,7 +110,11 @@ def assert_unauthorized(
     detail_contains: str | None = None
 ) -> dict[str, Any]:
     """
-    Assert a 401 Unauthorized response.
+    Assert a 401 or 403 response for unauthenticated requests.
+
+    FastAPI with python-jose JWT auth returns 403 (not 401) for missing
+    credentials unless the dependency explicitly raises 401. We accept
+    both status codes to handle this behavior.
 
     Args:
         response: HTTP response object
@@ -119,7 +123,23 @@ def assert_unauthorized(
     Returns:
         Response JSON data
     """
-    return assert_error_response(response, 401, detail_contains)
+    assert response.status_code in (401, 403), (
+        f"Expected status 401 or 403, got {response.status_code}. "
+        f"Response: {response.text[:500]}"
+    )
+
+    data = response.json()
+
+    if detail_contains:
+        detail = data.get("detail", "")
+        if isinstance(detail, list):
+            detail = str(detail)
+        assert detail_contains.lower() in detail.lower(), (
+            f"Expected '{detail_contains}' in error detail. "
+            f"Got: {detail}"
+        )
+
+    return data
 
 
 def assert_forbidden(

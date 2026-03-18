@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { Package, Eye, Clock } from 'lucide-react';
+import { useMemo } from 'react';
+import { Eye, Ruler } from 'lucide-react';
 import { formatNumber } from '@/lib/utils';
 import { type ProductGroup, compareSizes } from '@/lib/types';
 import ProductImageOptimized from './ProductImageOptimized';
@@ -11,92 +11,52 @@ interface ProductGroupCardProps {
   onAddToCart: (productId: string, isOrder: boolean) => void;
   onOpenDetail: (selectedSize?: string) => void;
   onYomberClick?: () => void;
-  priority?: boolean; // Para imágenes above-the-fold
+  priority?: boolean;
 }
 
 /**
- * Tarjeta de producto agrupado con selector de tallas
- * Muestra un solo producto por tipo de prenda con todas sus tallas disponibles
+ * Clean product card: image + name + price range + CTA
+ * Size selection happens inside the ProductDetailModal
  */
 export default function ProductGroupCard({
   group,
-  onAddToCart,
   onOpenDetail,
   onYomberClick,
   priority = false
 }: ProductGroupCardProps) {
-  const [selectedSize, setSelectedSize] = useState<string | null>(null);
-
-  // Ordenar variantes por talla
   const sortedVariants = useMemo(() =>
     [...group.variants].sort((a, b) => compareSizes(a.size, b.size)),
     [group.variants]
   );
 
-  const selectedVariant = sortedVariants.find(v => v.size === selectedSize);
   const hasAnyStock = sortedVariants.some(v => v.stock > 0);
+  const totalSizes = sortedVariants.length;
+  const inStockCount = sortedVariants.filter(v => v.stock > 0).length;
 
-  // Manejar clic en botón de agregar
-  const handleAddClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-
+  const handleClick = () => {
     if (group.isYomber && onYomberClick) {
       onYomberClick();
       return;
     }
-
-    if (!selectedVariant) {
-      // Si no hay talla seleccionada, seleccionar la primera con stock o la primera disponible
-      const firstAvailable = sortedVariants.find(v => v.stock > 0) || sortedVariants[0];
-      setSelectedSize(firstAvailable.size);
-      return;
-    }
-
-    onAddToCart(selectedVariant.id, selectedVariant.isOrder);
-  };
-
-  // Determinar el texto del botón
-  const getButtonText = (): string => {
-    if (group.isYomber) return 'Consultar';
-    if (!selectedSize) return 'Seleccionar talla';
-    if (selectedVariant && selectedVariant.stock > 0) return 'Agregar';
-    return 'Encargar';
-  };
-
-  // Determinar las clases del botón
-  const getButtonClasses = (): string => {
-    const base = 'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors';
-
-    if (group.isYomber) {
-      return `${base} bg-purple-600 text-white hover:bg-purple-700`;
-    }
-    if (!selectedSize) {
-      return `${base} bg-gray-100 text-gray-600 hover:bg-gray-200`;
-    }
-    if (selectedVariant && selectedVariant.stock > 0) {
-      return `${base} bg-brand-600 text-white hover:bg-brand-700`;
-    }
-    return `${base} bg-orange-500 text-white hover:bg-orange-600`;
+    onOpenDetail();
   };
 
   return (
     <div
-      className={`bg-white rounded-xl border overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300 ${
-        group.isYomber ? 'border-purple-200' : 'border-surface-200'
-      }`}
+      onClick={handleClick}
+      className={`group bg-white rounded-xl border overflow-hidden cursor-pointer
+        transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5
+        ${group.isYomber ? 'border-purple-200 ring-1 ring-purple-100' : 'border-stone-200 hover:border-brand-300'}`}
     >
-      {/* Badge Yomber */}
+      {/* Yomber badge */}
       {group.isYomber && (
-        <div className="bg-purple-600 text-white text-xs font-semibold px-3 py-1 text-center">
+        <div className="bg-purple-600 text-white text-[11px] font-semibold px-3 py-1 text-center tracking-wide uppercase">
           Confeccion Personalizada
         </div>
       )}
 
-      {/* Imagen con overlay de detalles */}
-      <div
-        className="relative group/image cursor-pointer"
-        onClick={() => onOpenDetail(selectedSize || undefined)}
-      >
+      {/* Image with hover overlay */}
+      <div className="relative">
         <ProductImageOptimized
           images={group.images}
           primaryImageUrl={group.primaryImageUrl}
@@ -104,89 +64,63 @@ export default function ProductGroupCard({
           priority={priority}
         />
         {/* Hover overlay */}
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/image:opacity-100 transition-opacity flex items-center justify-center">
-          <div className="flex items-center gap-2 px-4 py-2 bg-white/90 rounded-full text-sm font-medium text-gray-700">
+        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+          <div className="flex items-center gap-2 px-4 py-2 bg-white/95 rounded-full text-sm font-medium text-stone-700 shadow-sm">
             <Eye className="w-4 h-4" />
-            Ver detalles
+            Ver tallas y detalles
           </div>
         </div>
       </div>
 
       <div className="p-4">
-        {/* Nombre del producto */}
-        <h3 className="font-semibold text-primary font-display mb-2 line-clamp-2">
+        {/* Product name */}
+        <h3 className="font-semibold text-stone-900 font-display text-[15px] leading-tight mb-1 line-clamp-2">
           {group.name}
         </h3>
 
-        {/* Selector de Tallas */}
-        {!group.isYomber && sortedVariants.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            {sortedVariants.map(variant => (
-              <button
-                key={variant.id}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedSize(variant.size);
-                }}
-                className={`px-2.5 py-1 text-xs rounded-md border transition-all ${
-                  selectedSize === variant.size
-                    ? 'bg-brand-600 text-white border-brand-600'
-                    : variant.stock > 0
-                      ? 'bg-white text-gray-700 border-gray-200 hover:border-brand-400'
-                      : 'bg-orange-50 text-orange-600 border-orange-200 hover:border-orange-400'
-                }`}
-              >
-                {variant.size}
-                {variant.stock === 0 && selectedSize !== variant.size && (
-                  <Package className="inline-block w-3 h-3 ml-1" />
-                )}
-              </button>
-            ))}
-          </div>
+        {/* Size availability summary */}
+        {!group.isYomber && totalSizes > 0 && (
+          <p className="text-xs text-stone-400 mb-3">
+            {inStockCount === totalSizes
+              ? `${totalSizes} ${totalSizes === 1 ? 'talla disponible' : 'tallas disponibles'}`
+              : inStockCount > 0
+                ? `${inStockCount} de ${totalSizes} ${totalSizes === 1 ? 'talla' : 'tallas'} en stock`
+                : `${totalSizes} ${totalSizes === 1 ? 'talla' : 'tallas'} · Se confeccionan bajo pedido`
+            }
+          </p>
         )}
 
-        {/* Info de stock cuando hay talla seleccionada */}
-        {selectedVariant && !group.isYomber && (
-          <div className={`text-xs mb-2 ${selectedVariant.stock > 0 ? 'text-green-600' : 'text-orange-600'}`}>
-            {selectedVariant.stock > 0 ? (
-              <span>Disponible ({selectedVariant.stock} unid.)</span>
-            ) : (
-              <span className="flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                Sin stock - Se confecciona en 5-7 dias
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Mensaje Yomber */}
+        {/* Yomber message */}
         {group.isYomber && (
-          <p className="text-xs text-purple-600 mb-2">
+          <p className="text-xs text-purple-500 mb-3 flex items-center gap-1">
+            <Ruler className="w-3 h-3" />
             Requiere medidas personalizadas
           </p>
         )}
 
-        {/* Precio y botón */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex flex-col">
-            <span className="text-xl font-bold text-brand-600 font-display">
-              ${formatNumber(selectedVariant?.price ?? group.basePrice)}
+        {/* Price + CTA */}
+        <div className="flex items-end justify-between gap-2">
+          <div>
+            <span className="text-lg font-bold text-stone-900 font-mono tabular-nums">
+              ${formatNumber(group.basePrice)}
             </span>
-            {/* Mostrar rango si los precios varían y no hay talla seleccionada */}
-            {!selectedVariant && group.basePrice !== group.maxPrice && (
-              <span className="text-xs text-gray-400">
-                - ${formatNumber(group.maxPrice)}
+            {group.basePrice !== group.maxPrice && (
+              <span className="text-sm text-stone-400 font-mono tabular-nums">
+                {' '}- ${formatNumber(group.maxPrice)}
               </span>
             )}
           </div>
 
-          {/* Botón de agregar */}
-          <button
-            onClick={handleAddClick}
-            className={getButtonClasses()}
+          <span className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors
+            ${group.isYomber
+              ? 'bg-purple-50 text-purple-600 group-hover:bg-purple-100'
+              : hasAnyStock
+                ? 'bg-brand-50 text-brand-600 group-hover:bg-brand-100'
+                : 'bg-orange-50 text-orange-600 group-hover:bg-orange-100'
+            }`}
           >
-            {getButtonText()}
-          </button>
+            {group.isYomber ? 'Consultar' : hasAnyStock ? 'Ver tallas' : 'Encargar'}
+          </span>
         </div>
       </div>
     </div>

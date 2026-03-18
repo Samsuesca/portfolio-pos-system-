@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { type GarmentTypeImage, API_BASE_URL, getProductImage } from '@/lib/api';
+import { type GarmentTypeImage, API_BASE_URL } from '@/lib/api';
+import GarmentIcon from './GarmentIcon';
 
 interface ProductImageOptimizedProps {
   images?: GarmentTypeImage[];
@@ -50,11 +51,11 @@ export default function ProductImageOptimized({
 
   const imageUrl = getImageUrl();
 
-  // Sin imagen o error - mostrar emoji
+  // Sin imagen o error - mostrar SVG silhouette
   if (!imageUrl || imageError) {
     return (
-      <div className={`aspect-square bg-gradient-to-br from-brand-50 to-surface-100 flex items-center justify-center ${className}`}>
-        <span className="text-5xl sm:text-6xl select-none">{getProductImage(productName)}</span>
+      <div className={`aspect-square bg-gradient-to-br from-brand-50 to-surface-200 flex items-center justify-center ${className}`}>
+        <GarmentIcon productName={productName} className="w-16 h-16 sm:w-20 sm:h-20 text-stone-400" />
       </div>
     );
   }
@@ -71,8 +72,7 @@ export default function ProductImageOptimized({
         className="object-cover transition-transform duration-300 hover:scale-105"
         loading={priority ? 'eager' : 'lazy'}
         priority={priority}
-        placeholder="blur"
-        blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABQODxIPDRQSEBIXFRQYHjIhHhwcHj0sLiQySUBMS0dARkVQWnNiUFVtVkVGZIhlbXd7gYKBTmCNl4x9lnN+gXz/2wBDARUXFx4aHjshITt8U0ZTfHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHz/wAARCAAIAAoDASIAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAAAAUG/8QAHxAAAgICAgMBAAAAAAAAAAAAAQIDBAAFERITITFB/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBEQCEAwA/AMvLqddbsVmlaIIiqFVXkPJOT/cYxgf/2Q=="
+        unoptimized
         onError={() => setImageError(true)}
       />
     </div>

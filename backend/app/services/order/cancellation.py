@@ -138,13 +138,13 @@ class OrderCancellationMixin:
             self.db.add(reverse_transaction)
             await self.db.flush()
 
-            # Aplicar a balance (restar de Caja/Banco)
+            # Aplicar a balance (restar de la misma cuenta donde entró el dinero)
             try:
-                await balance_service.apply_transaction_to_balance(reverse_transaction, user_id)
+                await balance_service.apply_transaction_to_balance(reverse_transaction, user_id, force_income_map=True)
                 logger.info(f"Created reverse transaction for order {order.code}: {txn.amount} via {txn.payment_method}")
             except Exception as e:
                 logger.error(f"Error applying reverse transaction to balance: {e}")
-                # No fallar, continuar con el proceso
+                raise ValueError(f"Error al revertir transacción contable: {str(e)}")
 
         # === PASO 3: CANCELAR CUENTAS POR COBRAR ===
         rec_result = await self.db.execute(

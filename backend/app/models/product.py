@@ -2,6 +2,7 @@
 Product and Inventory Models
 """
 from datetime import datetime
+from decimal import Decimal
 from sqlalchemy import String, Boolean, DateTime, Integer, Numeric, Text, ForeignKey, UniqueConstraint, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
@@ -138,8 +139,8 @@ class Product(Base):
     gender: Mapped[str | None] = mapped_column(String(10))  # unisex, male, female
 
     # Pricing (each school sets their own)
-    price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
-    cost: Mapped[float | None] = mapped_column(Numeric(10, 2))  # Purchase/production cost
+    price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    cost: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))  # Purchase/production cost
 
     description: Mapped[str | None] = mapped_column(Text)
     image_url: Mapped[str | None] = mapped_column(String(500))
@@ -265,8 +266,8 @@ class GlobalProduct(Base):
     gender: Mapped[str | None] = mapped_column(String(10))
 
     # Pricing (same for all schools)
-    price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
-    cost: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    cost: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
 
     description: Mapped[str | None] = mapped_column(Text)
     image_url: Mapped[str | None] = mapped_column(String(500))

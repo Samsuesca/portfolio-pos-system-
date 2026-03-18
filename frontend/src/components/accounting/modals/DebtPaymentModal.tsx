@@ -151,7 +151,7 @@ const DebtPaymentModal: React.FC<DebtPaymentModalProps> = ({
                 type="text"
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-400"
                 placeholder="Ej: Cuota prestamo bancario"
               />
             </div>
@@ -165,7 +165,7 @@ const DebtPaymentModal: React.FC<DebtPaymentModalProps> = ({
                 type="text"
                 value={form.creditor}
                 onChange={(e) => setForm({ ...form, creditor: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-400"
                 placeholder="Ej: Banco de Bogota"
               />
             </div>
@@ -189,7 +189,7 @@ const DebtPaymentModal: React.FC<DebtPaymentModalProps> = ({
                 <select
                   value={form.category}
                   onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-400"
                 >
                   {DEBT_CATEGORIES.map(cat => (
                     <option key={cat.value} value={cat.value}>{cat.label}</option>
@@ -207,7 +207,7 @@ const DebtPaymentModal: React.FC<DebtPaymentModalProps> = ({
                 type="date"
                 value={form.due_date}
                 onChange={(e) => setForm({ ...form, due_date: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-400"
               />
             </div>
 
@@ -218,7 +218,7 @@ const DebtPaymentModal: React.FC<DebtPaymentModalProps> = ({
                 id="is_recurring"
                 checked={form.is_recurring}
                 onChange={(e) => setForm({ ...form, is_recurring: e.target.checked })}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                className="w-4 h-4 text-brand-600 border-gray-300 rounded focus:ring-brand-500"
               />
               <label htmlFor="is_recurring" className="text-sm text-gray-700">
                 Es un pago recurrente
@@ -234,7 +234,7 @@ const DebtPaymentModal: React.FC<DebtPaymentModalProps> = ({
                 <select
                   value={form.recurrence_day}
                   onChange={(e) => setForm({ ...form, recurrence_day: Number(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-400"
                 >
                   {[...Array(28)].map((_, i) => (
                     <option key={i + 1} value={i + 1}>Dia {i + 1}</option>
@@ -252,7 +252,7 @@ const DebtPaymentModal: React.FC<DebtPaymentModalProps> = ({
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 rows={2}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-400"
                 placeholder="Notas adicionales..."
               />
             </div>
@@ -269,7 +269,7 @@ const DebtPaymentModal: React.FC<DebtPaymentModalProps> = ({
               <button
                 type="submit"
                 disabled={submitting}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                className="px-4 py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600 disabled:opacity-50 flex items-center gap-2"
               >
                 {submitting && <Loader2 size={16} className="animate-spin" />}
                 {editingDebt ? 'Guardar Cambios' : 'Crear Pago'}

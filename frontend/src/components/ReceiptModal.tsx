@@ -10,7 +10,7 @@
  */
 import { useState } from 'react';
 import { X, Printer, Download, Loader2, FileText } from 'lucide-react';
-import jsPDF from 'jspdf';
+import type jsPDF from 'jspdf';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import type { SaleWithItems, OrderWithItems, Client, SaleItemWithProduct, OrderItem, AlterationWithPayments } from '../types/api';
@@ -123,7 +123,8 @@ export default function ReceiptModal({
   const orderItems = order?.items || [];
 
   // Generate PDF using jsPDF (direct drawing, no html2canvas)
-  const generatePDF = (): jsPDF => {
+  const generatePDF = async (): Promise<jsPDF> => {
+    const { default: jsPDF } = await import('jspdf');
     const isThermal = format === 'thermal';
     const pdf = new jsPDF({
       orientation: 'portrait',
@@ -478,7 +479,7 @@ export default function ReceiptModal({
     setIsGenerating(true);
 
     try {
-      const pdf = generatePDF();
+      const pdf = await generatePDF();
       // Get PDF as base64 data URL
       const pdfDataUri = pdf.output('datauristring');
 
@@ -524,7 +525,7 @@ export default function ReceiptModal({
     setIsGenerating(true);
 
     try {
-      const pdf = generatePDF();
+      const pdf = await generatePDF();
       const typePrefix = isSale ? 'Recibo' : isOrder ? 'Encargo' : 'Arreglo';
       const defaultFileName = `${typePrefix}_${receiptCode || 'N-A'}.pdf`;
 

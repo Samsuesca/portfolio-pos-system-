@@ -9,14 +9,18 @@ import {
   ZoomOut,
   ShoppingCart,
   Package,
+  PackageSearch,
   Ruler,
+  Scissors,
+  Globe,
   Info,
   MessageCircle,
   Phone,
   Check,
   Clock
 } from 'lucide-react';
-import { type GarmentTypeImage, API_BASE_URL, getProductImage } from '@/lib/api';
+import { type GarmentTypeImage, API_BASE_URL } from '@/lib/api';
+import GarmentIcon from './GarmentIcon';
 import { formatNumber } from '@/lib/utils';
 import { type ProductGroup, type ProductVariant, compareSizes } from '@/lib/types';
 
@@ -211,7 +215,7 @@ export default function ProductDetailModal({
                     </div>
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <span className="text-9xl">{getProductImage(group.name)}</span>
+                      <GarmentIcon productName={group.name} className="w-32 h-32 text-stone-300" />
                     </div>
                   )}
 
@@ -289,7 +293,7 @@ export default function ProductDetailModal({
                 {/* Yomber Badge */}
                 {group.isYomber && (
                   <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium mb-4">
-                    <span>✂️</span>
+                    <Scissors className="w-4 h-4" />
                     Confección Personalizada
                   </div>
                 )}
@@ -297,7 +301,7 @@ export default function ProductDetailModal({
                 {/* Global Badge */}
                 {group.isGlobal && (
                   <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium mb-4">
-                    <span>🌐</span>
+                    <Globe className="w-4 h-4" />
                     Disponible para todos los colegios
                   </div>
                 )}
@@ -339,7 +343,7 @@ export default function ProductDetailModal({
                       >
                         {variant.size}
                         {variant.stock === 0 && selectedVariant?.id !== variant.id && (
-                          <span className="ml-1 text-xs">📦</span>
+                          <PackageSearch className="ml-1 w-3 h-3 inline" />
                         )}
                       </button>
                     ))}
@@ -512,7 +516,7 @@ export default function ProductDetailModal({
                       <div className="space-y-4">
                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                           <p className="text-blue-800 font-medium mb-2">
-                            📏 Guía de Tallas
+                            <Ruler className="w-4 h-4 inline mr-1" /> Guía de Tallas
                           </p>
                           <p className="text-blue-700 text-sm">
                             Próximamente podrás ver la guía de tallas detallada para

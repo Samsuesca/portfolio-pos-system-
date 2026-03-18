@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
 
 export interface ClientStudent {
   id: string;
@@ -117,24 +117,25 @@ export const useClientAuth = create<ClientAuthStore>()(
       },
 
       getOrders: async (): Promise<ClientOrder[]> => {
-        const { client } = get();
+        const { client, token } = get();
         if (!client) {
           console.log('[ClientAuth] No client, returning []');
           return [];
         }
 
-        // Add timestamp to prevent any browser caching
-        const timestamp = Date.now();
-        const url = `${API_BASE_URL}/api/v1/portal/clients/me/orders?client_id=${client.id}&_t=${timestamp}`;
-        console.log('[ClientAuth] Fetching orders from:', url);
+        const url = `${API_BASE_URL}/api/v1/portal/clients/me/orders?client_id=${client.id}&_t=${Date.now()}`;
 
         try {
+          const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+          };
+          if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+          }
+
           const response = await fetch(url, {
             method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-              'Cache-Control': 'no-cache, no-store, must-revalidate'
-            },
+            headers,
             cache: 'no-store',
           });
 

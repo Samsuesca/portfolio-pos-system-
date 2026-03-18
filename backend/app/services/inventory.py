@@ -237,6 +237,26 @@ class InventoryService(SchoolIsolatedService[Inventory]):
                     min_stock_alert=min_stock_alert,
                     school_id=school_id
                 )
+
+                # Telegram alert
+                from app.services.telegram import fire_and_forget_routed_alert
+                from app.services.telegram_messages import TelegramMessageBuilder
+                from app.models.school import School
+
+                school_result = await self.db.execute(
+                    select(School).where(School.id == school_id)
+                )
+                school = school_result.scalar_one_or_none()
+                school_name = school.name if school else "N/A"
+
+                msg = TelegramMessageBuilder.low_stock(
+                    product_code=product.code,
+                    product_name=product.name,
+                    current_qty=current_quantity,
+                    min_alert=min_stock_alert,
+                    school_name=school_name,
+                )
+                fire_and_forget_routed_alert("low_stock", msg)
         except Exception as e:
             # Don't fail the inventory operation if notification fails
             logger.warning(f"Failed to send low stock notification: {e}")

@@ -2,6 +2,7 @@
 Sales Transaction Models
 """
 from datetime import datetime
+from decimal import Decimal
 from sqlalchemy import String, DateTime, Numeric, Text, ForeignKey, UniqueConstraint, CheckConstraint, Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
@@ -74,8 +75,8 @@ class Sale(Base):
     )
 
     sale_date: Mapped[datetime] = mapped_column(DateTime, default=get_colombia_now_naive, nullable=False)
-    total: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
-    paid_amount: Mapped[float] = mapped_column(Numeric(10, 2), default=0, nullable=False)
+    total: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    paid_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0, nullable=False)
     payment_method: Mapped[PaymentMethod | None] = mapped_column(
         SQLEnum(PaymentMethod, name="payment_method_enum")
     )
@@ -163,9 +164,9 @@ class SaleItem(Base):
     is_global_product: Mapped[bool] = mapped_column(default=False, nullable=False)
 
     quantity: Mapped[int] = mapped_column(nullable=False)
-    unit_price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)  # Price at time of sale
-    subtotal: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
-    discount: Mapped[float] = mapped_column(Numeric(10, 2), default=0, nullable=False)
+    unit_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)  # Price at time of sale
+    subtotal: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    discount: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0, nullable=False)
 
     # Relationships
     sale: Mapped["Sale"] = relationship(back_populates="items")
@@ -251,10 +252,10 @@ class SaleChange(Base):
     is_new_global_product: Mapped[bool] = mapped_column(default=False, nullable=False)
 
     new_quantity: Mapped[int] = mapped_column(default=0, nullable=False)
-    new_unit_price: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    new_unit_price: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
 
     # Financial adjustment
-    price_adjustment: Mapped[float] = mapped_column(
+    price_adjustment: Mapped[Decimal] = mapped_column(
         Numeric(10, 2),
         default=0,
         nullable=False
@@ -323,7 +324,7 @@ class SalePayment(Base):
         index=True
     )
 
-    amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     payment_method: Mapped[PaymentMethod] = mapped_column(
         SQLEnum(PaymentMethod, name="payment_method_enum", create_type=False),
         nullable=False
@@ -331,11 +332,11 @@ class SalePayment(Base):
     notes: Mapped[str | None] = mapped_column(Text)
 
     # Cash change tracking (only applicable for cash payments)
-    amount_received: Mapped[float | None] = mapped_column(
+    amount_received: Mapped[Decimal | None] = mapped_column(
         Numeric(10, 2), nullable=True,
         comment="Physical amount received from customer (cash only)"
     )
-    change_given: Mapped[float | None] = mapped_column(
+    change_given: Mapped[Decimal | None] = mapped_column(
         Numeric(10, 2), nullable=True,
         comment="Change returned to customer (cash only)"
     )

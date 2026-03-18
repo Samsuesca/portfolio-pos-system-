@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Package, ShoppingCart, Plus, X, Trash2 } from 'lucide-react';
+import GarmentIcon from '@/components/GarmentIcon';
 import { schoolsApi, type School, type Product } from '@/lib/api';
 import { useCartStore } from '@/lib/store';
 import { formatNumber } from '@/lib/utils';
@@ -190,7 +191,7 @@ export default function CustomOrdersPage() {
     setSchoolName('');
 
     // Show success message
-    alert('✅ Productos agregados al carrito exitosamente!\n\nHaz clic en el ícono del carrito 🛒 (arriba a la derecha) para proceder al checkout.');
+    alert('Productos agregados al carrito exitosamente.\n\nHaz clic en el icono del carrito (arriba a la derecha) para proceder al checkout.');
   };
 
   const getFilteredSchools = () => {
@@ -200,16 +201,7 @@ export default function CustomOrdersPage() {
     ).slice(0, 5); // Limit to 5 suggestions
   };
 
-  const getProductEmoji = (garmentType: string): string => {
-    const type = garmentType.toLowerCase();
-    if (type.includes('camisa')) return '👕';
-    if (type.includes('pantalón') || type.includes('falda')) return '👖';
-    if (type.includes('chompa') || type.includes('sudadera')) return '🧥';
-    if (type.includes('yomber')) return '✂️';
-    if (type.includes('zapato')) return '👟';
-    if (type.includes('media')) return '🧦';
-    return '👔';
-  };
+  // getProductEmoji removed — using GarmentIcon component instead
 
   return (
     <div className="min-h-screen bg-surface-50">
@@ -219,15 +211,15 @@ export default function CustomOrdersPage() {
           <div className="flex items-center justify-between">
             <button
               onClick={() => router.push('/')}
-              className="flex items-center text-slate-600 hover:text-purple-600 transition-colors"
+              className="flex items-center text-slate-600 hover:text-brand-600 transition-colors"
             >
               <ArrowLeft className="w-5 h-5 mr-2" />
               Volver
             </button>
             <div className="text-center">
               <div className="flex items-center justify-center gap-2 mb-1">
-                <Package className="w-6 h-6 text-purple-600" />
-                <h1 className="text-2xl font-bold text-purple-600 font-display">
+                <Package className="w-6 h-6 text-brand-600" />
+                <h1 className="text-2xl font-bold text-brand-600 font-display">
                   Encargos Personalizados
                 </h1>
               </div>
@@ -244,7 +236,8 @@ export default function CustomOrdersPage() {
                   alert('El carrito está vacío');
                 }
               }}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors relative"
+              className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-xl hover:bg-brand-700 transition-colors relative"
+              aria-label={`Carrito de compras${mounted && getTotalItems() > 0 ? `, ${getTotalItems()} productos` : ''}`}
             >
               <ShoppingCart className="w-5 h-5" />
               {mounted && getTotalItems() > 0 && (
@@ -259,11 +252,11 @@ export default function CustomOrdersPage() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Instructions */}
-        <div className="bg-purple-50 border border-purple-200 rounded-xl p-6 mb-8">
-          <h2 className="text-lg font-bold text-purple-900 mb-2">
+        <div className="bg-brand-50 border border-brand-200 rounded-xl p-6 mb-8">
+          <h2 className="text-lg font-bold text-brand-900 mb-2">
             ¿Cómo funciona?
           </h2>
-          <ol className="text-sm text-purple-700 space-y-1 ml-4">
+          <ol className="text-sm text-brand-700 space-y-1 ml-4">
             <li>1. Selecciona el colegio para el cual necesitas el uniforme</li>
             <li>2. Agrega los productos personalizados con sus especificaciones</li>
             <li>3. Revisa tu lista y el total</li>
@@ -289,7 +282,7 @@ export default function CustomOrdersPage() {
                   }}
                   onFocus={() => setShowSchoolSuggestions(true)}
                   placeholder="Escribe el nombre del colegio..."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                 />
                 {/* Autocomplete suggestions */}
                 {showSchoolSuggestions && getFilteredSchools().length > 0 && (
@@ -302,7 +295,7 @@ export default function CustomOrdersPage() {
                           setSchoolName(school.name);
                           setShowSchoolSuggestions(false);
                         }}
-                        className="w-full text-left px-4 py-2 hover:bg-purple-50 transition-colors"
+                        className="w-full text-left px-4 py-2 hover:bg-brand-50 transition-colors"
                       >
                         {school.name}
                       </button>
@@ -311,15 +304,15 @@ export default function CustomOrdersPage() {
                 )}
               </div>
               <p className="text-xs text-slate-500 mt-2">
-                💡 Si el colegio no existe en nuestra lista, se creará automáticamente al procesar tu pedido
+                Si el colegio no existe en nuestra lista, se creará automáticamente al procesar tu pedido
               </p>
             </div>
 
             {/* Add Product Button */}
-            <div className="bg-white rounded-xl border border-purple-200 p-6">
+            <div className="bg-white rounded-xl border border-brand-200 p-6">
               <button
                 onClick={() => setShowModal(true)}
-                className="w-full flex items-center justify-center gap-2 py-4 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors font-semibold"
+                className="w-full flex items-center justify-center gap-2 py-4 bg-brand-600 text-white rounded-xl hover:bg-brand-700 transition-colors font-semibold"
               >
                 <Plus className="w-5 h-5" />
                 Agregar Producto Personalizado
@@ -329,26 +322,26 @@ export default function CustomOrdersPage() {
             {/* Custom Products List */}
             {customProducts.length > 0 && (
               <div className="bg-white rounded-xl border border-surface-200 p-6">
-                <h2 className="text-lg font-bold text-purple-600 font-display mb-4">
+                <h2 className="text-lg font-bold text-brand-600 font-display mb-4">
                   Productos Agregados
                 </h2>
                 <div className="space-y-4">
                   {customProducts.map((product) => (
                     <div
                       key={product.id}
-                      className="flex items-start gap-4 p-4 rounded-lg bg-purple-50 border border-purple-200"
+                      className="flex items-start gap-4 p-4 rounded-lg bg-brand-50 border border-brand-200"
                     >
                       {/* Product Icon */}
-                      <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-purple-100 to-purple-50 flex items-center justify-center flex-shrink-0">
-                        <span className="text-3xl">{getProductEmoji(product.garmentType)}</span>
+                      <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-brand-100 to-brand-50 flex items-center justify-center flex-shrink-0">
+                        <GarmentIcon productName={product.garmentType} className="w-10 h-10 text-brand-600" />
                       </div>
 
                       {/* Product Details */}
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-purple-900">
+                        <h3 className="font-semibold text-brand-900">
                           {product.garmentType} - {product.description}
                         </h3>
-                        <div className="text-sm text-purple-700 mt-1 space-y-0.5">
+                        <div className="text-sm text-brand-700 mt-1 space-y-0.5">
                           {product.color && (
                             <p>Color: {product.color}</p>
                           )}
@@ -365,7 +358,7 @@ export default function CustomOrdersPage() {
                           )}
                         </div>
                         <p className="text-sm font-semibold text-orange-600 mt-2 bg-orange-50 px-2 py-1 rounded inline-block">
-                          💰 Precio pendiente de cotización
+                          Precio pendiente de cotización
                         </p>
                       </div>
 
@@ -385,28 +378,28 @@ export default function CustomOrdersPage() {
 
           {/* Right Column - Summary */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl border border-purple-200 p-6 sticky top-24">
-              <h2 className="text-lg font-bold text-purple-600 font-display mb-4">
+            <div className="bg-white rounded-xl border border-brand-200 p-6 sticky top-24">
+              <h2 className="text-lg font-bold text-brand-600 font-display mb-4">
                 Resumen
               </h2>
 
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-600">Productos:</span>
-                  <span className="font-medium text-purple-600">
+                  <span className="font-medium text-brand-600">
                     {customProducts.length}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-600">Unidades totales:</span>
-                  <span className="font-medium text-purple-600">
+                  <span className="font-medium text-brand-600">
                     {customProducts.reduce((sum, p) => sum + p.quantity, 0)}
                   </span>
                 </div>
-                <div className="border-t border-purple-200 pt-3">
+                <div className="border-t border-brand-200 pt-3">
                   <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
                     <p className="text-sm font-semibold text-orange-800 mb-1">
-                      💰 Precio Total
+                      Precio Total
                     </p>
                     <p className="text-xs text-orange-700">
                       El precio se asignará después de la cotización
@@ -418,7 +411,7 @@ export default function CustomOrdersPage() {
               <button
                 onClick={handleAddToCart}
                 disabled={customProducts.length === 0 || !schoolName.trim()}
-                className="w-full py-4 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors font-bold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-4 bg-brand-600 text-white rounded-xl hover:bg-brand-700 transition-colors font-bold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Agregar al Carrito
               </button>
@@ -451,8 +444,8 @@ export default function CustomOrdersPage() {
               {/* Header */}
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-2">
-                  <Package className="w-6 h-6 text-purple-600" />
-                  <h3 className="text-xl font-bold text-purple-600 font-display">
+                  <Package className="w-6 h-6 text-brand-600" />
+                  <h3 className="text-xl font-bold text-brand-600 font-display">
                     Agregar Producto Personalizado
                   </h3>
                 </div>
@@ -471,7 +464,7 @@ export default function CustomOrdersPage() {
                   <select
                     value={formData.garmentType}
                     onChange={(e) => handleFormChange('garmentType', e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                   >
                     {GARMENT_TYPES.map(type => (
                       <option key={type} value={type}>{type}</option>
@@ -489,7 +482,7 @@ export default function CustomOrdersPage() {
                     value={formData.description}
                     onChange={(e) => handleFormChange('description', e.target.value)}
                     placeholder="Ej: Camisa blanca manga larga con logo bordado"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                   />
                 </div>
 
@@ -504,7 +497,7 @@ export default function CustomOrdersPage() {
                       value={formData.color}
                       onChange={(e) => handleFormChange('color', e.target.value)}
                       placeholder="Ej: Azul marino"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                     />
                   </div>
                   <div>
@@ -516,7 +509,7 @@ export default function CustomOrdersPage() {
                       value={formData.size}
                       onChange={(e) => handleFormChange('size', e.target.value)}
                       placeholder="Ej: M, 10, 36"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                     />
                   </div>
                 </div>
@@ -529,7 +522,7 @@ export default function CustomOrdersPage() {
                   <select
                     value={formData.gender}
                     onChange={(e) => handleFormChange('gender', e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                   >
                     {GENDER_OPTIONS.map(option => (
                       <option key={option.value} value={option.value}>
@@ -549,7 +542,7 @@ export default function CustomOrdersPage() {
                     min="1"
                     value={formData.quantity}
                     onChange={(e) => handleFormChange('quantity', parseInt(e.target.value) || 1)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                   />
                 </div>
 
@@ -563,7 +556,7 @@ export default function CustomOrdersPage() {
                     onChange={(e) => handleFormChange('customMeasurements', e.target.value)}
                     placeholder="Ej: Talle: 90cm, Largo: 65cm, Manga: 55cm"
                     rows={3}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                   />
                 </div>
 
@@ -577,14 +570,14 @@ export default function CustomOrdersPage() {
                     onChange={(e) => handleFormChange('notes', e.target.value)}
                     placeholder="Cualquier detalle adicional importante"
                     rows={3}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                   />
                 </div>
 
                 {/* Quotation Notice */}
                 <div className="bg-orange-50 rounded-lg p-4 border border-orange-200">
                   <p className="text-sm font-semibold text-orange-800 mb-1">
-                    💰 Información de Precio
+                    Información de Precio
                   </p>
                   <p className="text-xs text-orange-700">
                     El precio de este producto se asignará después de una cotización personalizada según tus especificaciones.
@@ -602,7 +595,7 @@ export default function CustomOrdersPage() {
                 </button>
                 <button
                   onClick={handleAddCustomProduct}
-                  className="flex-1 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors font-semibold"
+                  className="flex-1 py-3 bg-brand-600 text-white rounded-xl hover:bg-brand-700 transition-colors font-semibold"
                 >
                   Agregar Producto
                 </button>

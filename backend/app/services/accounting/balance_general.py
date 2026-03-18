@@ -27,6 +27,7 @@ class BalanceGeneralService:
     ACCOUNT_TYPE_LABELS = {
         AccountType.ASSET_CURRENT: "Activo Corriente",
         AccountType.ASSET_FIXED: "Activo Fijo",
+        AccountType.ASSET_INTANGIBLE: "Activos Intangibles",
         AccountType.ASSET_OTHER: "Otros Activos",
         AccountType.LIABILITY_CURRENT: "Pasivo Corriente",
         AccountType.LIABILITY_LONG: "Pasivo a Largo Plazo",
@@ -53,6 +54,7 @@ class BalanceGeneralService:
         totals = {
             "current_assets": Decimal("0"),
             "fixed_assets": Decimal("0"),
+            "intangible_assets": Decimal("0"),
             "other_assets": Decimal("0"),
             "current_liabilities": Decimal("0"),
             "long_liabilities": Decimal("0"),
@@ -66,6 +68,8 @@ class BalanceGeneralService:
                 totals["current_assets"] += value
             elif account.account_type == AccountType.ASSET_FIXED:
                 totals["fixed_assets"] += value
+            elif account.account_type == AccountType.ASSET_INTANGIBLE:
+                totals["intangible_assets"] += value
             elif account.account_type == AccountType.ASSET_OTHER:
                 totals["other_assets"] += value
             elif account.account_type == AccountType.LIABILITY_CURRENT:
@@ -77,7 +81,7 @@ class BalanceGeneralService:
             else:  # Equity types
                 totals["equity"] += value
 
-        total_assets = totals["current_assets"] + totals["fixed_assets"] + totals["other_assets"]
+        total_assets = totals["current_assets"] + totals["fixed_assets"] + totals["intangible_assets"] + totals["other_assets"]
         total_liabilities = totals["current_liabilities"] + totals["long_liabilities"] + totals["other_liabilities"]
         total_equity = totals["equity"]
 
@@ -88,6 +92,7 @@ class BalanceGeneralService:
             as_of_date=get_colombia_date(),
             total_current_assets=totals["current_assets"],
             total_fixed_assets=totals["fixed_assets"],
+            total_intangible_assets=totals["intangible_assets"],
             total_other_assets=totals["other_assets"],
             total_assets=total_assets,
             total_current_liabilities=totals["current_liabilities"],
@@ -134,6 +139,7 @@ class BalanceGeneralService:
 
         current_assets = make_group(AccountType.ASSET_CURRENT)
         fixed_assets = make_group(AccountType.ASSET_FIXED)
+        intangible_assets = make_group(AccountType.ASSET_INTANGIBLE)
         other_assets = make_group(AccountType.ASSET_OTHER)
 
         current_liabilities = make_group(AccountType.LIABILITY_CURRENT)
@@ -146,7 +152,7 @@ class BalanceGeneralService:
             make_group(AccountType.EQUITY_OTHER),
         ]
 
-        total_assets = current_assets.total + fixed_assets.total + other_assets.total
+        total_assets = current_assets.total + fixed_assets.total + intangible_assets.total + other_assets.total
         total_liabilities = current_liabilities.total + long_liabilities.total + other_liabilities.total
         total_equity = sum(e.total for e in equity)
 
@@ -156,6 +162,7 @@ class BalanceGeneralService:
             as_of_date=get_colombia_date(),
             current_assets=current_assets,
             fixed_assets=fixed_assets,
+            intangible_assets=intangible_assets,
             other_assets=other_assets,
             current_liabilities=current_liabilities,
             long_liabilities=long_liabilities,

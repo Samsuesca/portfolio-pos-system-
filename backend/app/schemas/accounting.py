@@ -685,6 +685,7 @@ class BalanceGeneralSummary(BaseSchema):
     # Activos
     total_current_assets: Decimal  # Efectivo, inventario, cuentas por cobrar
     total_fixed_assets: Decimal    # Equipos, maquinaria
+    total_intangible_assets: Decimal = Decimal("0")  # Software, licencias, patentes
     total_other_assets: Decimal
     total_assets: Decimal
 
@@ -716,6 +717,7 @@ class BalanceGeneralDetailed(BaseSchema):
     # Assets breakdown
     current_assets: BalanceAccountsByType
     fixed_assets: BalanceAccountsByType
+    intangible_assets: BalanceAccountsByType | None = None
     other_assets: BalanceAccountsByType
 
     # Liabilities breakdown

@@ -49,6 +49,21 @@ class ExpenseService(SchoolIsolatedService[Expense]):
         self.db.add(expense)
         await self.db.flush()
         await self.db.refresh(expense)
+
+        # Telegram alert
+        try:
+            from app.services.telegram import fire_and_forget_routed_alert
+            from app.services.telegram_messages import TelegramMessageBuilder
+
+            msg = TelegramMessageBuilder.expense_created(
+                description=expense.description,
+                amount=expense.amount,
+                category=expense.category.value if hasattr(expense.category, 'value') else str(expense.category) if expense.category else None,
+            )
+            fire_and_forget_routed_alert("expense_created", msg)
+        except Exception:
+            pass
+
         return expense
 
     async def update_expense(
@@ -108,6 +123,20 @@ class ExpenseService(SchoolIsolatedService[Expense]):
         from app.services.balance_integration import BalanceIntegrationService
         balance_service = BalanceIntegrationService(self.db)
         await balance_service.apply_transaction_to_balance(transaction, created_by)
+
+        # Telegram alert
+        try:
+            from app.services.telegram import fire_and_forget_routed_alert
+            from app.services.telegram_messages import TelegramMessageBuilder
+
+            msg = TelegramMessageBuilder.expense_paid(
+                description=expense.description,
+                amount=payment.amount,
+                payment_method=payment.payment_method.value if hasattr(payment.payment_method, 'value') else str(payment.payment_method),
+            )
+            fire_and_forget_routed_alert("expense_paid", msg)
+        except Exception:
+            pass
 
         await self.db.refresh(expense)
         return expense

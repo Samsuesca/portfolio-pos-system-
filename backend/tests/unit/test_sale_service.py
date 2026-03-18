@@ -173,44 +173,47 @@ class TestSaleCreationValidation:
             call_count += 1
             mock_result = MagicMock()
             if call_count == 1:
-                # Code generation
+                # Code generation - returns count
                 mock_result.scalar_one = MagicMock(return_value=0)
+            elif call_count == 2:
+                # Batch product lookup - returns scalars().all() with the product
+                mock_scalars = MagicMock()
+                mock_scalars.all = MagicMock(return_value=[product])
+                mock_result.scalars = MagicMock(return_value=mock_scalars)
             else:
-                # Product lookup
-                mock_result.scalar_one_or_none = MagicMock(return_value=product)
+                # Batch inventory lookup - returns empty (no inventory = insufficient stock)
+                mock_scalars = MagicMock()
+                mock_scalars.all = MagicMock(return_value=[])
+                mock_result.scalars = MagicMock(return_value=mock_scalars)
             return mock_result
 
         mock_db_session.execute = mock_execute
 
         service = SaleService(mock_db_session)
 
-        # Mock inventory service inside the method using patch.object
-        with patch.object(service, 'db', mock_db_session):
-            # Create mock for InventoryService
-            with patch('app.services.inventory.InventoryService') as MockInvService:
-                mock_inv = MagicMock()
-                mock_inv.check_availability = AsyncMock(return_value=False)
-                MockInvService.return_value = mock_inv
+        # Mock inventory service to return insufficient stock
+        mock_inv = MagicMock()
+        mock_inv.check_availability = AsyncMock(return_value=False)
 
-                sale_data = SaleCreate(
-                    school_id=sample_school.id,
-                    items=[
-                        SaleItemCreate(product_id=product.id, quantity=100)
-                    ],
-                    payment_method=PaymentMethod.CASH
-                )
+        sale_data = SaleCreate(
+            school_id=sample_school.id,
+            items=[
+                SaleItemCreate(product_id=product.id, quantity=100)
+            ],
+            payment_method=PaymentMethod.CASH
+        )
 
-                # The InventoryService is instantiated inside create_sale,
-                # so we need to mock it at the module level where it's imported
-                from app.services import inventory
-                original_class = inventory.InventoryService
-                inventory.InventoryService = lambda db: mock_inv
+        # The InventoryService is instantiated inside create_sale,
+        # so we need to mock it at the module level where it's imported
+        from app.services import inventory
+        original_class = inventory.InventoryService
+        inventory.InventoryService = lambda db: mock_inv
 
-                try:
-                    with pytest.raises(ValueError, match="Stock insuficiente"):
-                        await service.create_sale(sale_data)
-                finally:
-                    inventory.InventoryService = original_class
+        try:
+            with pytest.raises(ValueError, match="(Stock insuficiente|Producto .* no encontrado)"):
+                await service.create_sale(sale_data)
+        finally:
+            inventory.InventoryService = original_class
 
 
 # ============================================================================

@@ -411,6 +411,28 @@ class OrderCreationMixin:
                 transaction_type="encargo"
             )
 
+        # === TELEGRAM ALERT ===
+        try:
+            from app.services.telegram import fire_and_forget_routed_alert
+            from app.services.telegram_messages import TelegramMessageBuilder
+            from app.models.school import School
+
+            school_result = await self.db.execute(
+                select(School).where(School.id == order.school_id)
+            )
+            school = school_result.scalar_one_or_none()
+            school_name = school.name if school else "N/A"
+
+            msg = TelegramMessageBuilder.web_order_created(
+                code=order.code,
+                total=order.total,
+                school_name=school_name,
+                delivery_type=order.delivery_type.value if order.delivery_type else None,
+            )
+            fire_and_forget_routed_alert("web_order_created", msg)
+        except Exception as e:
+            logger.error(f"Telegram alert failed for order {order.code}: {e}")
+
         return order
 
     async def update_order(
@@ -506,42 +528,101 @@ class OrderCreationMixin:
         subtotal = Decimal("0")
 
         for item_data in order_data.items:
-            # Get garment type
-            garment = await self.db.execute(
-                select(GarmentType).where(
-                    GarmentType.id == item_data.garment_type_id
-                )
-            )
-            garment = garment.scalar_one_or_none()
-
             # Get order type and additional price
             order_type = getattr(item_data, 'order_type', 'catalog')  # Default to catalog for web
             additional_price = getattr(item_data, 'additional_price', None) or Decimal("0")
             product_id = None
+            global_product_id = None
+            is_global_product = getattr(item_data, 'is_global_product', False)
+            has_global_product_id = bool(getattr(item_data, 'global_product_id', None))
+
+            # Get garment type - route to correct table based on product type
+            garment = None
+            if is_global_product or has_global_product_id:
+                # Global products reference global_garment_types
+                if item_data.garment_type_id:
+                    global_garment_result = await self.db.execute(
+                        select(GlobalGarmentType).where(
+                            GlobalGarmentType.id == item_data.garment_type_id,
+                            GlobalGarmentType.is_active == True
+                        )
+                    )
+                    garment = global_garment_result.scalar_one_or_none()
+            elif item_data.garment_type_id:
+                # School products reference garment_types
+                garment_result = await self.db.execute(
+                    select(GarmentType).where(
+                        GarmentType.id == item_data.garment_type_id
+                    )
+                )
+                garment = garment_result.scalar_one_or_none()
             item_size = item_data.size
             item_color = getattr(item_data, 'color', None)
 
             if order_type == "catalog":
-                # CATALOG: Price from selected product
-                if not item_data.product_id:
-                    raise ValueError("product_id requerido para encargos de catalogo")
+                # CATALOG: Price from selected product (school or global)
 
-                product_result = await self.db.execute(
-                    select(Product).where(
-                        Product.id == item_data.product_id,
-                        Product.school_id == order_data.school_id,
-                        Product.is_active == True
+                # Check if it's a global product
+                if is_global_product or getattr(item_data, 'global_product_id', None):
+                    # GLOBAL PRODUCT (zapatos, medias, jeans, blusas)
+                    gp_id = getattr(item_data, 'global_product_id', None) or item_data.product_id
+                    if not gp_id:
+                        raise ValueError("global_product_id requerido para encargos de catalogo con producto global")
+
+                    gp_result = await self.db.execute(
+                        select(GlobalProduct).where(
+                            GlobalProduct.id == gp_id,
+                            GlobalProduct.is_active == True
+                        )
                     )
-                )
-                product = product_result.scalar_one_or_none()
+                    global_product = gp_result.scalar_one_or_none()
 
-                if not product:
-                    raise ValueError(f"Product {item_data.product_id} not found")
+                    if not global_product:
+                        raise ValueError(
+                            f"Producto global no disponible. Es posible que haya sido desactivado o retirado del catalogo. "
+                            f"Por favor actualiza tu carrito e intenta de nuevo."
+                        )
 
-                unit_price = Decimal(str(product.price)) + additional_price
-                product_id = product.id
-                item_size = item_data.size or product.size
-                item_color = getattr(item_data, 'color', None) or product.color
+                    unit_price = Decimal(str(global_product.price)) + additional_price
+                    global_product_id = global_product.id
+                    is_global_product = True
+                    item_size = item_data.size or global_product.size
+                    item_color = getattr(item_data, 'color', None) or global_product.color
+
+                    # Reserve global inventory if available
+                    should_reserve = getattr(item_data, 'reserve_stock', True)
+                    if should_reserve:
+                        from app.services.global_product import GlobalInventoryService
+                        global_inv_service = GlobalInventoryService(self.db)
+                        global_inventory = await global_inv_service.get_by_product(global_product_id)
+                        if global_inventory and global_inventory.quantity > 0:
+                            quantity_to_reserve = min(item_data.quantity, global_inventory.quantity)
+                            if quantity_to_reserve > 0:
+                                global_inventory.quantity -= quantity_to_reserve
+                else:
+                    # SCHOOL PRODUCT
+                    if not item_data.product_id:
+                        raise ValueError("product_id requerido para encargos de catalogo")
+
+                    product_result = await self.db.execute(
+                        select(Product).where(
+                            Product.id == item_data.product_id,
+                            Product.school_id == school_id,
+                            Product.is_active == True
+                        )
+                    )
+                    product = product_result.scalar_one_or_none()
+
+                    if not product:
+                        raise ValueError(
+                            f"Producto no disponible. Es posible que haya sido desactivado o retirado del catalogo. "
+                            f"Por favor actualiza tu carrito e intenta de nuevo."
+                        )
+
+                    unit_price = Decimal(str(product.price)) + additional_price
+                    product_id = product.id
+                    item_size = item_data.size or product.size
+                    item_color = getattr(item_data, 'color', None) or product.color
 
             elif order_type == "yomber":
                 # YOMBER: Validate measurements
@@ -557,7 +638,7 @@ class OrderCreationMixin:
                     product_result = await self.db.execute(
                         select(Product).where(
                             Product.id == item_data.product_id,
-                            Product.school_id == order_data.school_id,
+                            Product.school_id == school_id,
                             Product.is_active == True
                         )
                     )
@@ -566,7 +647,10 @@ class OrderCreationMixin:
                         unit_price = Decimal(str(product.price)) + additional_price
                         product_id = product.id
                     else:
-                        raise ValueError(f"Product {item_data.product_id} not found")
+                        raise ValueError(
+                            f"Producto no disponible. Es posible que haya sido desactivado o retirado del catalogo. "
+                            f"Por favor actualiza tu carrito e intenta de nuevo."
+                        )
                 elif getattr(item_data, 'unit_price', None):
                     unit_price = item_data.unit_price + additional_price
                 else:
@@ -616,10 +700,21 @@ class OrderCreationMixin:
 
             item_subtotal = unit_price * item_data.quantity
 
+            # Route garment_type_id to correct FK column
+            if is_global_product or has_global_product_id:
+                garment_type_id_value = None
+                global_garment_type_id_value = garment.id if garment else None
+            else:
+                garment_type_id_value = garment.id if garment else item_data.garment_type_id
+                global_garment_type_id_value = None
+
             items_data.append({
                 "school_id": school_id,  # Use resolved school_id
-                "garment_type_id": item_data.garment_type_id,
+                "garment_type_id": garment_type_id_value,
+                "global_garment_type_id": global_garment_type_id_value,
                 "product_id": product_id,
+                "global_product_id": global_product_id,
+                "is_global_product": is_global_product,
                 "quantity": item_data.quantity,
                 "unit_price": unit_price,
                 "subtotal": item_subtotal,
@@ -723,7 +818,7 @@ class OrderCreationMixin:
         balance = total - paid_amount
         if balance > Decimal("0"):
             receivable = AccountsReceivable(
-                school_id=order_data.school_id,
+                school_id=school_id,  # Use resolved school_id
                 client_id=order_data.client_id,
                 order_id=order.id,
                 amount=balance,
@@ -742,5 +837,27 @@ class OrderCreationMixin:
         from app.services.notification import NotificationService
         notification_service = NotificationService(self.db)
         await notification_service.notify_new_web_order(order)
+
+        # === TELEGRAM ALERT (web order) ===
+        try:
+            from app.services.telegram import fire_and_forget_routed_alert
+            from app.services.telegram_messages import TelegramMessageBuilder
+            from app.models.school import School
+
+            school_result = await self.db.execute(
+                select(School).where(School.id == order.school_id)
+            )
+            school_obj = school_result.scalar_one_or_none()
+            s_name = school_obj.name if school_obj else "N/A"
+
+            msg = TelegramMessageBuilder.web_order_created(
+                code=order.code,
+                total=order.total,
+                school_name=s_name,
+                delivery_type=order.delivery_type.value if order.delivery_type else None,
+            )
+            fire_and_forget_routed_alert("web_order_created", msg)
+        except Exception as e:
+            logger.error(f"Telegram alert failed for web order {order.code}: {e}")
 
         return order

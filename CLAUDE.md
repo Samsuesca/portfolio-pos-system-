@@ -1,5 +1,5 @@
 <!-- AUTO-GENERATED GIT WORKFLOW HEADER -->
-<!-- Version: 1.0.0 | Template: GIT_WORKFLOW_BUSINESS.md | Last Updated: 2026-02-16 -->
+<!-- Version: 1.0.0 | Template: GIT_WORKFLOW_BUSINESS.md | Last Updated: 2026-02-15 -->
 <!-- DO NOT EDIT MANUALLY - Run: ~/.claude/scripts/sync-git-workflow.sh -->
 
 ---
@@ -641,6 +641,8 @@ date.toLocaleString('es-CO', { timeZone: 'America/Bogota' })
 | Admin Portal | Next.js | 16 |
 | Estado | Zustand | - |
 | Estilos | Tailwind CSS | v4 |
+| Pasarela de Pagos | Wompi | - |
+| Alertas | Telegram Bot API | - |
 
 ### Estructura de Carpetas
 
@@ -648,18 +650,21 @@ date.toLocaleString('es-CO', { timeZone: 'America/Bogota' })
 uniformes-system-v2/
 ├── backend/                 # API FastAPI
 │   ├── app/
-│   │   ├── api/routes/      # Endpoints (18 archivos)
+│   │   ├── api/routes/      # Endpoints (18+ archivos)
 │   │   ├── models/          # SQLAlchemy models
 │   │   ├── services/        # Logica de negocio
+│   │   │   ├── wompi.py     # Integracion Wompi
+│   │   │   ├── telegram.py  # Bot Telegram
+│   │   │   └── monitoring.py # Salud del sistema
 │   │   └── schemas/         # Pydantic schemas
 │   ├── alembic/             # Migraciones DB
-│   └── tests/               # pytest (284 tests)
+│   └── tests/               # pytest (284+ tests)
 │
 ├── frontend/                # App Tauri (vendedores)
 │   ├── src/
-│   │   ├── pages/           # 18 vistas principales
+│   │   ├── pages/           # 18+ vistas principales
 │   │   ├── components/      # 45+ componentes
-│   │   ├── services/        # 14 clientes API
+│   │   ├── services/        # 14+ clientes API
 │   │   └── stores/          # Estado Zustand
 │   └── src-tauri/           # Codigo Rust
 │
@@ -907,6 +912,10 @@ origins = [
 - `accounts_payable` - CxP
 - `transactions` - Transacciones
 - `daily_cash_registers` - Cierre de caja
+- `payment_transactions` - Registro de pagos Wompi (estado, ref, monto)
+
+### Monitoreo y Alertas
+- `telegram_alert_subscriptions` - Preferencias de alertas por usuario
 
 ---
 
@@ -934,6 +943,24 @@ getBalanceAccounts(params)  // Cuentas contables
 | `GET /schools/{id}/products` | Productos del colegio |
 | `POST /schools/{id}/sales` | Crear venta |
 | `GET /global/accounting/cash-balances` | Saldos globales |
+
+### Wompi Payment Gateway API
+
+```typescript
+POST   /payments/sessions              // Crear sesion de pago
+POST   /payments/webhooks/wompi        // Webhook para confirmacion de pago
+GET    /payments/status/{ref}          // Consultar estado de pago
+GET    /payments/config                // Obtener configuracion publica Wompi
+```
+
+### Telegram Alerts API
+
+```typescript
+GET    /telegram-alerts/alert-types               // Tipos de alertas disponibles
+GET    /telegram-alerts/my-subscriptions          // Mis suscripciones
+PUT    /telegram-alerts/my-subscriptions/{type}   // Actualizar suscripcion
+POST   /telegram-alerts/link                      // Vincular cuenta con Telegram
+```
 
 ---
 
@@ -977,4 +1004,4 @@ getBalanceAccounts(params)  // Cuentas contables
 
 ---
 
-*Ultima actualizacion: 2026-01-23 | Version: v2.0.0*
+*Ultima actualizacion: 2026-03-15 | Version: v2.7.0*

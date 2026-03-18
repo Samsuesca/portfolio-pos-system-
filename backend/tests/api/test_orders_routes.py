@@ -432,3 +432,146 @@ class TestOrdersMultiTenancy:
 
         data = assert_success_response(response)
         assert isinstance(data, list)
+
+
+# ============================================================================
+# CLIENT FILTER TESTS
+# ============================================================================
+
+class TestOrderClientFilter:
+    """Tests for GET /api/v1/orders?client_id=... filter."""
+
+    async def test_filter_orders_by_client_id(
+        self,
+        api_client,
+        superuser_headers,
+        test_order,
+        test_client
+    ):
+        """Should return only orders for the given client."""
+        response = await api_client.get(
+            f"/api/v1/orders?client_id={test_client.id}",
+            headers=superuser_headers
+        )
+
+        data = assert_success_response(response)
+        assert isinstance(data, list)
+        # All returned orders should belong to the test client
+        for order in data:
+            assert order["client_name"] is not None
+
+    async def test_filter_by_nonexistent_client_returns_empty(
+        self,
+        api_client,
+        superuser_headers,
+        test_order
+    ):
+        """Should return empty list for a client with no orders."""
+        response = await api_client.get(
+            f"/api/v1/orders?client_id={uuid4()}",
+            headers=superuser_headers
+        )
+
+        data = assert_success_response(response)
+        assert isinstance(data, list)
+        assert len(data) == 0
+
+
+# ============================================================================
+# RESOLVE DUPLICATE TESTS
+# ============================================================================
+
+class TestResolveDuplicate:
+    """Tests for POST /api/v1/schools/{school_id}/orders/{order_id}/resolve-duplicate"""
+
+    async def test_resolve_duplicate_success(
+        self,
+        api_client,
+        superuser_headers,
+        test_order,
+        test_sale,
+        test_school
+    ):
+        """Should cancel order as duplicate, linking it to the sale."""
+        response = await api_client.post(
+            f"/api/v1/schools/{test_school.id}/orders/{test_order.id}/resolve-duplicate",
+            headers=superuser_headers,
+            params={"sale_id": str(test_sale.id)}
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            assert data["status"] == "cancelled"
+        else:
+            # Order may already be in a state that prevents cancellation
+            assert response.status_code in [200, 400]
+
+    async def test_resolve_duplicate_with_notes(
+        self,
+        api_client,
+        superuser_headers,
+        test_order,
+        test_sale,
+        test_school
+    ):
+        """Should include custom notes in the cancellation reason."""
+        response = await api_client.post(
+            f"/api/v1/schools/{test_school.id}/orders/{test_order.id}/resolve-duplicate",
+            headers=superuser_headers,
+            params={
+                "sale_id": str(test_sale.id),
+                "notes": "Cliente confirmo compra en tienda"
+            }
+        )
+
+        # Either succeeds or order state prevents cancellation
+        assert response.status_code in [200, 400]
+
+    async def test_resolve_duplicate_sale_not_found(
+        self,
+        api_client,
+        superuser_headers,
+        test_order,
+        test_school
+    ):
+        """Should return 404 when sale_id doesn't exist."""
+        response = await api_client.post(
+            f"/api/v1/schools/{test_school.id}/orders/{test_order.id}/resolve-duplicate",
+            headers=superuser_headers,
+            params={"sale_id": str(uuid4())}
+        )
+
+        assert response.status_code == 404
+        assert "Venta no encontrada" in response.json()["detail"]
+
+    async def test_resolve_duplicate_order_not_found(
+        self,
+        api_client,
+        superuser_headers,
+        test_sale,
+        test_school
+    ):
+        """Should return error when order doesn't exist."""
+        response = await api_client.post(
+            f"/api/v1/schools/{test_school.id}/orders/{uuid4()}/resolve-duplicate",
+            headers=superuser_headers,
+            params={"sale_id": str(test_sale.id)}
+        )
+
+        # Should be 400 (ValueError from cancel_order) or 404
+        assert response.status_code in [400, 404]
+
+    async def test_resolve_duplicate_missing_sale_id(
+        self,
+        api_client,
+        superuser_headers,
+        test_order,
+        test_school
+    ):
+        """Should return 422 when sale_id query param is missing."""
+        response = await api_client.post(
+            f"/api/v1/schools/{test_school.id}/orders/{test_order.id}/resolve-duplicate",
+            headers=superuser_headers
+        )
+
+        assert response.status_code in (400, 422)

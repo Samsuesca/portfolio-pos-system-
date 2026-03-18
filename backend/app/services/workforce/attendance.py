@@ -119,6 +119,31 @@ class AttendanceService:
         db.add(record)
         await db.commit()
         await db.refresh(record)
+
+        # Telegram alert for late/absent
+        if minutes_late > 0 or data.status in ("absent", "late"):
+            try:
+                from app.services.telegram import fire_and_forget_routed_alert
+                from app.services.telegram_messages import TelegramMessageBuilder
+                from app.models.payroll import Employee
+                from sqlalchemy import select as sa_select
+
+                emp_result = await db.execute(
+                    sa_select(Employee).where(Employee.id == data.employee_id)
+                )
+                employee = emp_result.scalar_one_or_none()
+                emp_name = employee.full_name if employee else str(data.employee_id)
+
+                status_label = "late" if minutes_late > 0 else data.status
+                msg = TelegramMessageBuilder.attendance_alert(
+                    employee_name=emp_name,
+                    status=status_label,
+                    minutes_late=minutes_late if minutes_late > 0 else None,
+                )
+                fire_and_forget_routed_alert("attendance_alert", msg)
+            except Exception:
+                pass
+
         # Re-fetch with relationships loaded
         return await self.get_attendance_record(db, record.id)
 
@@ -371,16 +396,18 @@ class AttendanceService:
     @staticmethod
     def _calculate_minutes_late(check_in: time, scheduled_start: time) -> int:
         """Calculate minutes late (0 if on time or early)"""
-        check_in_dt = datetime.combine(date.today(), check_in)
-        scheduled_dt = datetime.combine(date.today(), scheduled_start)
+        today = get_colombia_date()
+        check_in_dt = datetime.combine(today, check_in)
+        scheduled_dt = datetime.combine(today, scheduled_start)
         diff = (check_in_dt - scheduled_dt).total_seconds() / 60
         return max(0, int(diff))
 
     @staticmethod
     def _calculate_early_departure(check_out: time, scheduled_end: time) -> int:
         """Calculate minutes of early departure (0 if stayed or left late)"""
-        check_out_dt = datetime.combine(date.today(), check_out)
-        scheduled_dt = datetime.combine(date.today(), scheduled_end)
+        today = get_colombia_date()
+        check_out_dt = datetime.combine(today, check_out)
+        scheduled_dt = datetime.combine(today, scheduled_end)
         diff = (scheduled_dt - check_out_dt).total_seconds() / 60
         return max(0, int(diff))
 

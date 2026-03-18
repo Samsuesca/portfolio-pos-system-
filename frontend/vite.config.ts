@@ -15,7 +15,7 @@ export default defineConfig({
   },
   clearScreen: false,
   server: {
-    port: 5173,
+    port: 5171,
     strictPort: true,
   },
   envPrefix: ['VITE_', 'TAURI_'],
@@ -23,6 +23,23 @@ export default defineConfig({
     target: process.env.TAURI_PLATFORM == 'windows' ? 'chrome105' : 'safari13',
     minify: !process.env.TAURI_DEBUG ? 'esbuild' : false,
     sourcemap: !!process.env.TAURI_DEBUG,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-state': ['zustand', '@tanstack/react-query', 'axios'],
+          'vendor-pdf': ['jspdf'],
+          'vendor-icons': ['lucide-react'],
+          'vendor-tauri': [
+            '@tauri-apps/api',
+            '@tauri-apps/plugin-dialog',
+            '@tauri-apps/plugin-fs',
+            '@tauri-apps/plugin-http',
+            '@tauri-apps/plugin-shell',
+          ],
+        },
+      },
+    },
   },
   resolve: {
     // Priorizar .tsx/.ts sobre .js cuando existan ambos archivos

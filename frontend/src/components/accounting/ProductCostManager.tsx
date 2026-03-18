@@ -305,7 +305,7 @@ const ProductCostManager: React.FC<ProductCostManagerProps> = ({
             onClick={() => setViewMode('all')}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
               viewMode === 'all'
-                ? 'bg-blue-100 text-blue-800'
+                ? 'bg-brand-100 text-brand-800'
                 : 'text-gray-500 hover:bg-gray-100'
             }`}
           >
@@ -325,7 +325,7 @@ const ProductCostManager: React.FC<ProductCostManagerProps> = ({
                 placeholder="Buscar por nombre o codigo..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-400"
               />
             </div>
 
@@ -335,7 +335,7 @@ const ProductCostManager: React.FC<ProductCostManagerProps> = ({
               <select
                 value={selectedSchool}
                 onChange={(e) => setSelectedSchool(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500"
               >
                 <option value="all">Todos los colegios</option>
                 <option value="global">Productos Globales</option>
@@ -360,7 +360,7 @@ const ProductCostManager: React.FC<ProductCostManagerProps> = ({
               <span className="text-sm text-gray-600">%</span>
               <button
                 onClick={recalculateSuggested}
-                className="text-xs text-blue-600 hover:text-blue-800 underline"
+                className="text-xs text-brand-600 hover:text-brand-800 underline"
               >
                 Recalcular
               </button>
@@ -386,7 +386,7 @@ const ProductCostManager: React.FC<ProductCostManagerProps> = ({
         <div className="flex-1 overflow-y-auto p-6">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+              <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
             </div>
           ) : filteredProducts.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
@@ -404,7 +404,7 @@ const ProductCostManager: React.FC<ProductCostManagerProps> = ({
                 </span>
                 <button
                   onClick={applyAllSuggested}
-                  className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                  className="text-sm text-brand-600 hover:text-brand-800 flex items-center gap-1"
                 >
                   <Calculator className="w-4 h-4" />
                   Aplicar sugerido a todos
@@ -428,7 +428,7 @@ const ProductCostManager: React.FC<ProductCostManagerProps> = ({
                     {filteredProducts.map(product => (
                       <tr
                         key={product.id}
-                        className={product.isEdited ? 'bg-blue-50' : 'hover:bg-gray-50'}
+                        className={product.isEdited ? 'bg-brand-50' : 'hover:bg-gray-50'}
                       >
                         <td className="px-4 py-3">
                           <div>
@@ -458,7 +458,7 @@ const ProductCostManager: React.FC<ProductCostManagerProps> = ({
                         <td className="px-4 py-3 text-right">
                           <button
                             onClick={() => applySuggested(product.id)}
-                            className="text-blue-600 hover:text-blue-800 hover:underline"
+                            className="text-brand-600 hover:text-brand-800 hover:underline"
                             title="Aplicar costo sugerido"
                           >
                             {formatCurrency(product.suggestedCost)}
@@ -472,9 +472,9 @@ const ProductCostManager: React.FC<ProductCostManagerProps> = ({
                             value={product.newCost ?? ''}
                             onChange={(e) => handleCostChange(product.id, e.target.value)}
                             placeholder="0"
-                            className={`w-full text-right px-3 py-1.5 border rounded focus:ring-2 focus:ring-blue-500 ${
+                            className={`w-full text-right px-3 py-1.5 border rounded focus:ring-2 focus:ring-brand-500 ${
                               product.isEdited
-                                ? 'border-blue-300 bg-blue-50'
+                                ? 'border-brand-300 bg-brand-50'
                                 : 'border-gray-300'
                             }`}
                           />
@@ -493,7 +493,7 @@ const ProductCostManager: React.FC<ProductCostManagerProps> = ({
           <div className="text-sm text-gray-600">
             {editedCount > 0 && (
               <span className="flex items-center gap-1">
-                <CheckCircle className="w-4 h-4 text-blue-500" />
+                <CheckCircle className="w-4 h-4 text-brand-500" />
                 {editedCount} producto(s) modificado(s)
               </span>
             )}
@@ -508,7 +508,7 @@ const ProductCostManager: React.FC<ProductCostManagerProps> = ({
             <button
               onClick={handleSave}
               disabled={saving || editedCount === 0}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {saving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

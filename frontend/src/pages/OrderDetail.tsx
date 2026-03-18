@@ -4,7 +4,8 @@
 import { useEffect, useState, Fragment } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout';
-import { ArrowLeft, Calendar, User, Package, DollarSign, AlertCircle, Loader2, Clock, CheckCircle, XCircle, Truck, Edit2, Save, X, Ruler, ChevronDown, ChevronUp, Mail, Printer, Building2, MessageCircle, Ban, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Calendar, User, Package, DollarSign, AlertCircle, Loader2, Clock, CheckCircle, XCircle, Truck, Edit2, Save, X, Ruler, ChevronDown, ChevronUp, Mail, Printer, Building2, MessageCircle, Ban, RefreshCw, CreditCard } from 'lucide-react';
+import apiClient from '../utils/api-client';
 import DatePicker, { formatDateSpanish } from '../components/DatePicker';
 import { orderService } from '../services/orderService';
 import { orderChangeService } from '../services/orderChangeService';
@@ -84,6 +85,19 @@ export default function OrderDetail() {
   // Order changes history
   const [orderChanges, setOrderChanges] = useState<OrderChange[]>([]);
 
+  // Wompi payment transactions
+  const [wompiPayments, setWompiPayments] = useState<{
+    id: string;
+    reference: string;
+    status: string;
+    amount_in_cents: number;
+    payment_method_type: string | null;
+    wompi_fee_cents: number | null;
+    wompi_fee_tax_cents: number | null;
+    created_at: string;
+    completed_at: string | null;
+  }[]>([]);
+
   // Get school_id from the order itself (preferred), URL query param, or currentSchool as fallback
   const getEffectiveSchoolId = () => order?.school_id || searchParams.get('school_id') || currentSchool?.id || '';
 
@@ -131,11 +145,22 @@ export default function OrderDetail() {
       setOrder(data);
       // Load changes after we have the order data
       await loadOrderChanges(data.school_id);
+      // Load Wompi payment transactions
+      loadWompiPayments();
     } catch (err: any) {
       console.error('Error loading order:', err);
       setError(err.response?.data?.detail || 'Error al cargar el encargo');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadWompiPayments = async () => {
+    try {
+      const resp = await apiClient.get<typeof wompiPayments>(`/api/v1/payments/order/${orderId}`);
+      setWompiPayments(resp.data);
+    } catch {
+      // Silently fail — Wompi payments are supplementary info
     }
   };
 
@@ -527,7 +552,7 @@ export default function OrderDetail() {
                 Cambio/Devolucion
               </button>
             )}
-            {/* Cancel Order button - only show if not already cancelled or delivered */}
+            {/* Cancel button - only show if not already cancelled or delivered */}
             {order.status !== 'cancelled' && order.status !== 'delivered' && (
               <button
                 onClick={() => setShowCancelModal(true)}
@@ -694,6 +719,78 @@ export default function OrderDetail() {
               </span>
             </div>
           </div>
+
+          {/* Wompi Payment Transactions */}
+          {wompiPayments.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <h3 className="text-sm font-semibold text-gray-600 mb-2 flex items-center gap-1.5">
+                <CreditCard className="w-4 h-4" />
+                Pagos en linea (Wompi)
+              </h3>
+              <div className="space-y-2">
+                {wompiPayments.map((p) => {
+                  const amount = p.amount_in_cents / 100;
+                  const isApproved = p.status === 'APPROVED';
+                  const isPending = p.status === 'PENDING';
+                  const feeCop = p.wompi_fee_cents ? p.wompi_fee_cents / 100 : null;
+                  const feeTaxCop = p.wompi_fee_tax_cents ? p.wompi_fee_tax_cents / 100 : null;
+                  const totalFee = feeCop && feeTaxCop ? feeCop + feeTaxCop : null;
+                  return (
+                    <div
+                      key={p.id}
+                      className={`text-sm rounded-lg p-3 ${
+                        isApproved ? 'bg-green-50 border border-green-200' :
+                        isPending ? 'bg-amber-50 border border-amber-200' :
+                        'bg-red-50 border border-red-200'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-1.5">
+                          {isApproved ? (
+                            <CheckCircle className="w-4 h-4 text-green-600" />
+                          ) : isPending ? (
+                            <Clock className="w-4 h-4 text-amber-600" />
+                          ) : (
+                            <XCircle className="w-4 h-4 text-red-600" />
+                          )}
+                          <span className={`font-medium ${
+                            isApproved ? 'text-green-800' :
+                            isPending ? 'text-amber-800' :
+                            'text-red-800'
+                          }`}>
+                            {formatCurrency(amount)}
+                          </span>
+                        </div>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          isApproved ? 'bg-green-200 text-green-800' :
+                          isPending ? 'bg-amber-200 text-amber-800' :
+                          'bg-red-200 text-red-800'
+                        }`}>
+                          {isApproved ? 'Aprobado' : isPending ? 'Pendiente' : p.status}
+                        </span>
+                      </div>
+                      <div className="mt-1 text-xs text-gray-500 space-y-0.5">
+                        {p.payment_method_type && (
+                          <p>Metodo: {p.payment_method_type}</p>
+                        )}
+                        <p>Ref: {p.reference}</p>
+                        {totalFee && isApproved && (
+                          <p className="text-amber-700">
+                            Comision Wompi: {formatCurrency(totalFee)}
+                            {feeCop && feeTaxCop && (
+                              <span className="text-gray-400 ml-1">
+                                ({formatCurrency(feeCop)} + IVA {formatCurrency(feeTaxCop)})
+                              </span>
+                            )}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1250,6 +1347,7 @@ export default function OrderDetail() {
         ].filter(Boolean)}
         loading={cancelling}
       />
+
     </Layout>
   );
 }

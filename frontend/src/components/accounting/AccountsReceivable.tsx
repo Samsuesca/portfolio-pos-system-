@@ -39,8 +39,8 @@ const getOriginInfo = (item: AccountsReceivableListItem) => {
     return {
       label: `${item.order_code}`,
       icon: Package,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
+      color: 'text-brand-600',
+      bgColor: 'bg-brand-50',
       status: item.order_status
     };
   }
@@ -57,7 +57,7 @@ const getOrderStatusLabel = (status: string | null | undefined) => {
   if (!status) return null;
   const statusMap: Record<string, { label: string; color: string }> = {
     pending: { label: 'Pendiente', color: 'text-orange-600 bg-orange-50' },
-    in_production: { label: 'En producción', color: 'text-blue-600 bg-blue-50' },
+    in_production: { label: 'En producción', color: 'text-brand-600 bg-brand-50' },
     ready: { label: 'Listo', color: 'text-green-600 bg-green-50' },
     delivered: { label: 'Entregado', color: 'text-gray-600 bg-gray-100' },
     cancelled: { label: 'Cancelado', color: 'text-red-600 bg-red-50' }
@@ -118,12 +118,12 @@ const AccountsReceivable: React.FC<AccountsReceivableProps> = ({
         {/* Total Pendiente - calculated from list data for consistency */}
         <div
           className={`bg-white rounded-lg shadow-sm border p-3 cursor-pointer transition-colors ${
-            activeFilter === 'all' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'
+            activeFilter === 'all' ? 'border-brand-500 bg-brand-50' : 'border-gray-200 hover:border-brand-300'
           }`}
           onClick={() => setActiveFilter('all')}
         >
           <p className="text-xs font-medium text-gray-500">Total Pendiente</p>
-          <p className="text-lg font-bold text-blue-600">
+          <p className="text-lg font-bold text-brand-600">
             {formatCurrency(summaryByType.order.pending + summaryByType.manual.pending + summaryByType.sale.pending)}
           </p>
           <p className="text-xs text-gray-400">{receivablesList.length} cuenta(s)</p>
@@ -132,15 +132,15 @@ const AccountsReceivable: React.FC<AccountsReceivableProps> = ({
         {/* Encargos */}
         <div
           className={`bg-white rounded-lg shadow-sm border p-3 cursor-pointer transition-colors ${
-            activeFilter === 'order' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'
+            activeFilter === 'order' ? 'border-brand-500 bg-brand-50' : 'border-gray-200 hover:border-brand-300'
           }`}
           onClick={() => setActiveFilter(activeFilter === 'order' ? 'all' : 'order')}
         >
           <div className="flex items-center gap-1">
-            <Package className="w-3 h-3 text-blue-600" />
+            <Package className="w-3 h-3 text-brand-600" />
             <p className="text-xs font-medium text-gray-500">Encargos</p>
           </div>
-          <p className="text-lg font-bold text-blue-600">{formatCurrency(summaryByType.order.pending)}</p>
+          <p className="text-lg font-bold text-brand-600">{formatCurrency(summaryByType.order.pending)}</p>
           <p className="text-xs text-gray-400">{summaryByType.order.count} cuenta(s)</p>
         </div>
 
@@ -180,7 +180,7 @@ const AccountsReceivable: React.FC<AccountsReceivableProps> = ({
             </div>
             <button
               onClick={onCreateReceivable}
-              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg transition-colors text-sm"
+              className="flex items-center gap-1.5 bg-brand-500 hover:bg-brand-600 text-white px-3 py-1.5 rounded-lg transition-colors text-sm"
             >
               <Plus className="w-4 h-4" />
               Nueva
@@ -204,14 +204,14 @@ const AccountsReceivable: React.FC<AccountsReceivableProps> = ({
                   onClick={() => setActiveFilter(tab.key)}
                   className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
                     isActive
-                      ? 'bg-blue-100 text-blue-700'
+                      ? 'bg-brand-100 text-brand-700'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
                   <Icon className="w-3 h-3" />
                   {tab.label}
                   <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-xs ${
-                    isActive ? 'bg-blue-200' : 'bg-gray-200'
+                    isActive ? 'bg-brand-200' : 'bg-gray-200'
                   }`}>
                     {count}
                   </span>

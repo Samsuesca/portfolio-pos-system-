@@ -304,6 +304,49 @@ class PatrimonyService:
             "breakdown": breakdown
         }
 
+    async def get_intangible_assets(self, school_id: UUID) -> dict:
+        """
+        Obtiene total de activos intangibles (software, licencias, patentes, marcas).
+
+        Returns:
+            {
+                "total_value": Decimal,
+                "count": int,
+                "breakdown": [
+                    {"name": str, "value": Decimal, "amortization": Decimal}
+                ]
+            }
+        """
+        result = await self.db.execute(
+            select(BalanceAccount)
+            .where(
+                BalanceAccount.school_id == school_id,
+                BalanceAccount.account_type == AccountType.ASSET_INTANGIBLE,
+                BalanceAccount.is_active == True
+            )
+        )
+        accounts = result.scalars().all()
+
+        total_value = Decimal("0")
+        breakdown = []
+
+        for account in accounts:
+            net_value = account.net_value
+            total_value += net_value
+            breakdown.append({
+                "id": str(account.id),
+                "name": account.name,
+                "original_value": float(account.original_value or account.balance),
+                "amortization": float(account.accumulated_depreciation or 0),
+                "net_value": float(net_value)
+            })
+
+        return {
+            "total_value": float(total_value),
+            "count": len(accounts),
+            "breakdown": breakdown
+        }
+
     async def get_debts(self, school_id: UUID) -> dict:
         """
         Obtiene total de deudas (préstamos, créditos, etc.).
@@ -403,6 +446,7 @@ class PatrimonyService:
         inventory = await self.get_inventory_valuation(school_id)
         accounts_receivable = await self.get_accounts_receivable_total(school_id)
         fixed_assets = await self.get_fixed_assets(school_id)
+        intangible_assets = await self.get_intangible_assets(school_id)
         accounts_payable = await self.get_accounts_payable_total(school_id)
         debts = await self.get_debts(school_id)
 
@@ -411,8 +455,9 @@ class PatrimonyService:
         total_inventory = Decimal(str(inventory["total_value"]))
         total_receivables = Decimal(str(accounts_receivable["total"]))
         total_fixed = Decimal(str(fixed_assets["total_value"]))
+        total_intangible = Decimal(str(intangible_assets["total_value"]))
 
-        total_assets = total_liquid + total_inventory + total_receivables + total_fixed
+        total_assets = total_liquid + total_inventory + total_receivables + total_fixed + total_intangible
 
         total_payables = Decimal(str(accounts_payable["total"]))
         total_debts = Decimal(str(debts["total"]))
@@ -450,6 +495,7 @@ class PatrimonyService:
                 },
                 "accounts_receivable": accounts_receivable,
                 "fixed_assets": fixed_assets,
+                "intangible_assets": intangible_assets,
                 "total": float(total_assets)
             },
             "liabilities": {
@@ -809,6 +855,35 @@ class PatrimonyService:
             "breakdown": breakdown
         }
 
+    async def get_global_intangible_assets(self) -> dict:
+        """
+        Obtiene total global de activos intangibles.
+        """
+        result = await self.db.execute(
+            select(BalanceAccount)
+            .where(
+                BalanceAccount.account_type == AccountType.ASSET_INTANGIBLE,
+                BalanceAccount.is_active == True
+            )
+        )
+        accounts = result.scalars().all()
+
+        total_value = sum(acc.net_value for acc in accounts)
+        breakdown = [
+            {
+                "id": str(acc.id),
+                "name": acc.name,
+                "net_value": float(acc.net_value)
+            }
+            for acc in accounts
+        ]
+
+        return {
+            "total_value": float(total_value),
+            "count": len(accounts),
+            "breakdown": breakdown
+        }
+
     async def get_global_debts(self) -> dict:
         """
         Obtiene total global de deudas.
@@ -889,6 +964,7 @@ class PatrimonyService:
         inventory = await self.get_global_inventory_valuation()
         accounts_receivable = await self.get_global_accounts_receivable()
         fixed_assets = await self.get_global_fixed_assets()
+        intangible_assets = await self.get_global_intangible_assets()
         accounts_payable = await self.get_global_accounts_payable()
         pending_expenses = await self.get_global_pending_expenses()
         debts = await self.get_global_debts()
@@ -898,8 +974,9 @@ class PatrimonyService:
         total_inventory = Decimal(str(inventory["total_value"]))
         total_receivables = Decimal(str(accounts_receivable["total"]))
         total_fixed = Decimal(str(fixed_assets["total_value"]))
+        total_intangible = Decimal(str(intangible_assets["total_value"]))
 
-        total_assets = total_liquid + total_inventory + total_receivables + total_fixed
+        total_assets = total_liquid + total_inventory + total_receivables + total_fixed + total_intangible
 
         total_payables = Decimal(str(accounts_payable["total"]))
         total_pending = Decimal(str(pending_expenses["total"]))
@@ -925,6 +1002,7 @@ class PatrimonyService:
                 },
                 "accounts_receivable": accounts_receivable,
                 "fixed_assets": fixed_assets,
+                "intangible_assets": intangible_assets,
                 "current_assets": float(current_assets),
                 "total": float(total_assets)
             },

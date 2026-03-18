@@ -4,14 +4,15 @@
  * Creates separate sales (one per school) when items span multiple schools.
  */
 import { useState, useEffect, useMemo } from 'react';
-import { X, Loader2, ShoppingCart, Building2, UserX, Package, Minimize2 } from 'lucide-react';
+import { X, Loader2, ShoppingCart, Building2, UserX, Package, Minimize2, AlertTriangle } from 'lucide-react';
 import { saleService, type SaleCreate, type SalePaymentCreate } from '../services/saleService';
 import { productService } from '../services/productService';
 import ClientSelector, { NO_CLIENT_ID } from './ClientSelector';
 import ProductGroupSelector from './ProductGroupSelector';
 import { useSchoolStore } from '../stores/schoolStore';
 import { useDraftStore, type SaleDraft, type DraftItem, type DraftPayment } from '../stores/draftStore';
-import type { Product, GlobalProduct, GarmentType } from '../types/api';
+import type { Product, GlobalProduct, GarmentType, OrderListItem } from '../types/api';
+import { orderService } from '../services/orderService';
 
 // Import sub-components
 import {
@@ -93,6 +94,10 @@ export default function SaleModal({
   const [payments, setPayments] = useState<PaymentLine[]>([
     { id: '1', amount: 0, payment_method: '' }
   ]);
+
+  // Pending orders warning state
+  const [clientPendingOrders, setClientPendingOrders] = useState<OrderListItem[]>([]);
+  const [pendingOrdersDismissed, setPendingOrdersDismissed] = useState(false);
 
   const [items, setItems] = useState<SaleItemCreateExtended[]>([]);
   const [currentItem, setCurrentItem] = useState<CurrentItem>({
@@ -265,6 +270,26 @@ export default function SaleModal({
       }
     }
   }, [items]);
+
+  // Check for pending orders when client changes
+  useEffect(() => {
+    const checkClientOrders = async () => {
+      if (!formData.client_id || formData.client_id === NO_CLIENT_ID) {
+        setClientPendingOrders([]);
+        setPendingOrdersDismissed(false);
+        return;
+      }
+      try {
+        const orders = await orderService.getClientActiveOrders(formData.client_id);
+        setClientPendingOrders(orders);
+        setPendingOrdersDismissed(false);
+      } catch (err) {
+        console.error('Error checking client orders:', err);
+        setClientPendingOrders([]);
+      }
+    };
+    checkClientOrders();
+  }, [formData.client_id]);
 
   const loadProducts = async (schoolIdToLoad?: string) => {
     const targetSchoolId = schoolIdToLoad || selectedSchoolId;
@@ -665,6 +690,54 @@ export default function SaleModal({
                 )}
               </div>
             </div>
+
+            {/* Pending Orders Warning */}
+            {clientPendingOrders.length > 0 && !pendingOrdersDismissed && (
+              <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4">
+                <div className="flex items-start">
+                  <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5 mr-3 flex-shrink-0" />
+                  <div className="flex-1">
+                    <h4 className="text-sm font-semibold text-yellow-800">
+                      Este cliente tiene {clientPendingOrders.length} encargo(s) pendiente(s)
+                    </h4>
+                    <p className="text-xs text-yellow-700 mt-1">
+                      Verifique que no este comprando los mismos productos del encargo.
+                    </p>
+                    <div className="mt-2 space-y-1">
+                      {clientPendingOrders.map(order => (
+                        <div key={order.id} className="text-xs bg-yellow-100 rounded p-2 flex justify-between items-center gap-2">
+                          <span className="font-mono font-medium">{order.code}</span>
+                          <span>{order.items_count} items</span>
+                          <span className="font-medium">${Number(order.total).toLocaleString()}</span>
+                          <span className="text-yellow-600">
+                            {new Date(order.created_at).toLocaleDateString('es-CO', { timeZone: 'America/Bogota' })}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPendingOrdersDismissed(true)}
+                        className="text-xs px-3 py-1 bg-yellow-200 hover:bg-yellow-300 text-yellow-800 rounded transition"
+                      >
+                        Continuar de todos modos
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const clientName = clientPendingOrders[0]?.client_name || '';
+                          window.open(`/orders?search=${encodeURIComponent(clientName)}`, '_blank');
+                        }}
+                        className="text-xs px-3 py-1 bg-white border border-yellow-300 hover:bg-yellow-50 text-yellow-800 rounded transition"
+                      >
+                        Ver encargos
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Historical Sale Section */}
             <HistoricalSaleSection

@@ -36,7 +36,7 @@ const CashProjectionChart: React.FC<CashProjectionChartProps> = ({
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 h-full">
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="animate-spin text-blue-500" size={32} />
+          <Loader2 className="animate-spin text-brand-500" size={32} />
         </div>
       </div>
     );
@@ -86,7 +86,7 @@ const CashProjectionChart: React.FC<CashProjectionChartProps> = ({
               onClick={() => handleMonthsChange(m)}
               className={`px-3 py-1 text-sm rounded ${
                 months === m
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-brand-500 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
@@ -98,9 +98,9 @@ const CashProjectionChart: React.FC<CashProjectionChartProps> = ({
 
       {/* Summary Cards */}
       <div className="grid grid-cols-4 gap-2 mb-4 text-sm">
-        <div className="bg-blue-50 rounded p-2">
+        <div className="bg-brand-50 rounded p-2">
           <p className="text-gray-500">Liquidez Actual</p>
-          <p className="font-semibold text-blue-600">{formatCurrency(projection.current_liquidity)}</p>
+          <p className="font-semibold text-brand-600">{formatCurrency(projection.current_liquidity)}</p>
         </div>
         <div className="bg-green-50 rounded p-2">
           <p className="text-gray-500">Ingresos Proy.</p>
@@ -238,7 +238,7 @@ const CashProjectionChart: React.FC<CashProjectionChartProps> = ({
           <span className="text-gray-600">Gastos</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-full bg-blue-500" />
+          <div className="w-3 h-3 rounded-full bg-brand-500" />
           <span className="text-gray-600">Balance</span>
         </div>
         <div className="flex items-center gap-1">

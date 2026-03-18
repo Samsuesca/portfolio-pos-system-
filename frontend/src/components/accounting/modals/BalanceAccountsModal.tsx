@@ -2,7 +2,7 @@
  * BalanceAccountsModal - Modal for managing fixed assets and liabilities
  */
 import React, { useState } from 'react';
-import { X, Loader2, Plus, Pencil, Trash2, Package, Car, Clock, CreditCard } from 'lucide-react';
+import { X, Loader2, Plus, Pencil, Trash2, Package, Car, Clock, CreditCard, Sparkles } from 'lucide-react';
 import DatePicker, { formatDateSpanish } from '../../DatePicker';
 import { formatCurrency } from '../../../utils/formatting';
 import type { GlobalBalanceAccountResponse, GlobalBalanceAccountCreate, BalanceAccountModalType } from '../types';
@@ -44,6 +44,8 @@ const BalanceAccountsModal: React.FC<BalanceAccountsModalProps> = ({
     switch (modalType) {
       case 'asset_fixed':
         return 'Activos Fijos';
+      case 'asset_intangible':
+        return 'Activos Intangibles';
       case 'liability_current':
         return 'Pasivos Corrientes';
       case 'liability_long':
@@ -57,6 +59,8 @@ const BalanceAccountsModal: React.FC<BalanceAccountsModalProps> = ({
     switch (modalType) {
       case 'asset_fixed':
         return <Car className="w-5 h-5 text-green-600" />;
+      case 'asset_intangible':
+        return <Sparkles className="w-5 h-5 text-violet-600" />;
       case 'liability_current':
         return <Clock className="w-5 h-5 text-orange-600" />;
       case 'liability_long':
@@ -129,7 +133,8 @@ const BalanceAccountsModal: React.FC<BalanceAccountsModalProps> = ({
     await onDelete(id);
   };
 
-  const isAsset = modalType === 'asset_fixed';
+  const isAsset = modalType === 'asset_fixed' || modalType === 'asset_intangible';
+  const isIntangible = modalType === 'asset_intangible';
   const isLiability = modalType === 'liability_current' || modalType === 'liability_long';
 
   return (
@@ -175,7 +180,7 @@ const BalanceAccountsModal: React.FC<BalanceAccountsModalProps> = ({
               {/* Accounts List */}
               {loading ? (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                  <Loader2 className="w-6 h-6 animate-spin text-brand-600" />
                   <span className="ml-2 text-gray-600">Cargando...</span>
                 </div>
               ) : accounts.length === 0 ? (
@@ -224,7 +229,7 @@ const BalanceAccountsModal: React.FC<BalanceAccountsModalProps> = ({
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => startEdit(account)}
-                            className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            className="p-2 text-gray-500 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"
                             title="Editar"
                           >
                             <Pencil className="w-4 h-4" />
@@ -256,8 +261,8 @@ const BalanceAccountsModal: React.FC<BalanceAccountsModalProps> = ({
                   type="text"
                   value={form.name || ''}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder={isAsset ? 'Ej: Vehiculo, Maquinaria, Equipo de computo' : 'Ej: Prestamo bancario, Deuda con proveedor X'}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                  placeholder={isIntangible ? 'Ej: Software, Licencia, Patente, Marca registrada' : isAsset ? 'Ej: Vehiculo, Maquinaria, Equipo de computo' : 'Ej: Prestamo bancario, Deuda con proveedor X'}
                 />
               </div>
 
@@ -266,7 +271,7 @@ const BalanceAccountsModal: React.FC<BalanceAccountsModalProps> = ({
                 <textarea
                   value={form.description || ''}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                   rows={2}
                   placeholder="Descripcion adicional..."
                 />
@@ -281,7 +286,7 @@ const BalanceAccountsModal: React.FC<BalanceAccountsModalProps> = ({
                     type="number"
                     value={form.balance ?? ''}
                     onChange={(e) => setForm({ ...form, balance: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                     min="0"
                   />
                 </div>
@@ -293,7 +298,7 @@ const BalanceAccountsModal: React.FC<BalanceAccountsModalProps> = ({
                       type="number"
                       value={form.original_value ?? ''}
                       onChange={(e) => setForm({ ...form, original_value: parseFloat(e.target.value) || undefined })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                       min="0"
                       placeholder="Costo de adquisicion"
                     />
@@ -307,7 +312,7 @@ const BalanceAccountsModal: React.FC<BalanceAccountsModalProps> = ({
                       type="text"
                       value={form.creditor || ''}
                       onChange={(e) => setForm({ ...form, creditor: e.target.value || undefined })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                       placeholder="Ej: Banco X, Proveedor Y"
                     />
                   </div>
@@ -317,12 +322,12 @@ const BalanceAccountsModal: React.FC<BalanceAccountsModalProps> = ({
               {isAsset && (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Depreciacion Acumulada</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{isIntangible ? 'Amortizacion Acumulada' : 'Depreciacion Acumulada'}</label>
                     <input
                       type="number"
                       value={form.accumulated_depreciation ?? ''}
                       onChange={(e) => setForm({ ...form, accumulated_depreciation: parseFloat(e.target.value) || undefined })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                       min="0"
                     />
                   </div>
@@ -332,7 +337,7 @@ const BalanceAccountsModal: React.FC<BalanceAccountsModalProps> = ({
                       type="number"
                       value={form.useful_life_years ?? ''}
                       onChange={(e) => setForm({ ...form, useful_life_years: parseInt(e.target.value) || undefined })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                       min="1"
                     />
                   </div>
@@ -347,7 +352,7 @@ const BalanceAccountsModal: React.FC<BalanceAccountsModalProps> = ({
                       type="number"
                       value={form.interest_rate ?? ''}
                       onChange={(e) => setForm({ ...form, interest_rate: parseFloat(e.target.value) || undefined })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                       min="0"
                       max="100"
                       step="0.1"

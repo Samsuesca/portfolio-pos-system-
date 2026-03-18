@@ -1,224 +1,130 @@
-# Uniformes System v2.0
+# Uniformes Consuelo Rios — Multi-Tenant POS & ERP
 
-Sistema de gestion de uniformes escolares con arquitectura **multi-tenant**, aplicacion de escritorio nativa y portal web para pedidos online.
+![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/React_18-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL_15-4169E1?logo=postgresql&logoColor=white)
+![Tauri](https://img.shields.io/badge/Tauri_2.0-FFC131?logo=tauri&logoColor=black)
+![Next.js](https://img.shields.io/badge/Next.js_14-000000?logo=next.js&logoColor=white)
+![Tests](https://img.shields.io/badge/Tests-284_passing-brightgreen)
 
-## Caracteristicas Principales
+**Live:** [yourdomain.com](https://yourdomain.com)
 
-- **Multi-Colegio**: Gestiona 4+ instituciones con datos aislados 
-- **Contabilidad Global**: Un negocio, una caja, un banco - colegios como fuentes de ingreso
-- **Inventario Inteligente**: Control de stock por colegio, tallas y tipos de prenda
-- **Ventas y Encargos**: Sistema POS completo con pedidos personalizados
-- **Cambios y Devoluciones**: Gestion de cambios con ajuste automatico de inventario
-- **Portal Web**: Catalogo online para padres de familia
-- **App Desktop**: Aplicacion nativa multiplataforma con Tauri
+Production multi-tenant point-of-sale and ERP system for school uniform retailers. Serves **4+ school organizations** with complete data isolation, a native desktop app for in-store operations, and a public e-commerce storefront — all powered by a unified backend API.
 
-## Stack Tecnologico
+## Architecture
 
-| Componente | Tecnologia |
-|------------|------------|
-| **Backend** | FastAPI, Python 3.10+, PostgreSQL 15, SQLAlchemy 2.0 |
-| **Frontend Desktop** | Tauri (Rust), React 18, TypeScript, Tailwind CSS |
-| **Portal Web** | Next.js 14, TypeScript, Tailwind CSS |
-| **Estado** | Zustand |
-| **Servidor** | VPS Vultr, Nginx, Systemd, Certbot SSL |
+```
+                    ┌──────────────────────┐
+                    │    PostgreSQL 15      │
+                    │  (Row-level tenancy)  │
+                    └──────────┬───────────┘
+                               │
+                    ┌──────────┴───────────┐
+                    │   FastAPI Backend     │
+                    │   18+ REST endpoints  │
+                    │   284 unit tests      │
+                    └──┬───────────────┬───┘
+                       │               │
+          ┌────────────┴──┐     ┌──────┴────────────┐
+          │  Desktop ERP  │     │  E-Commerce Portal │
+          │  Tauri + React│     │  Next.js 14        │
+          │  (in-store)   │     │  (parents/public)  │
+          └───────────────┘     └───────────────────┘
+```
 
-## Arquitectura
+## Key Features
+
+- **Multi-Tenant Isolation** — Shared database with row-level tenant filtering via SQLAlchemy scoped sessions. Each school sees only its data.
+- **Desktop POS** — Native cross-platform app (Tauri 2.0 + Rust + React) for in-store sales, orders, returns, and inventory management.
+- **E-Commerce Portal** — Next.js 14 storefront with real-time inventory sync, online ordering, and product catalog for parents.
+- **Global Accounting** — Single cash register and bank across all tenants; schools serve as revenue sources with per-school reporting filters.
+- **Inventory System** — Stock tracking by school, garment type, and size. Automatic adjustments on sales, returns, and transfers.
+- **Orders & Returns** — Custom order management with status tracking, exchanges, and automatic inventory reconciliation.
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Backend** | FastAPI, Python 3.10+, SQLAlchemy 2.0 (async), Pydantic v2, Alembic |
+| **Database** | PostgreSQL 15 with row-level tenant isolation |
+| **Desktop** | Tauri 2.0 + Rust, React 18, TypeScript, Tailwind CSS, Zustand |
+| **Web Portal** | Next.js 14 (App Router), TypeScript, Tailwind CSS |
+| **Infrastructure** | Linux VPS, Docker, Nginx, systemd, SSL/TLS, GitHub Actions CI/CD |
+| **Testing** | pytest — 284 tests, >90% coverage on critical paths |
+
+## Project Structure
 
 ```
 uniformes-system-v2/
-├── backend/               # API REST (FastAPI)
+├── backend/                # FastAPI REST API
 │   ├── app/
-│   │   ├── api/routes/    # Endpoints
-│   │   ├── models/        # SQLAlchemy models
-│   │   ├── schemas/       # Pydantic schemas
-│   │   └── services/      # Logica de negocio
-│   ├── alembic/           # Migraciones DB
-│   └── tests/             # Tests unitarios e integracion
-│
-├── frontend/              # App Desktop (Tauri + React)
+│   │   ├── api/routes/     # 18+ endpoint modules
+│   │   ├── models/         # SQLAlchemy models (tenant-aware)
+│   │   ├── schemas/        # Pydantic v2 schemas
+│   │   └── services/       # Business logic layer
+│   ├── alembic/            # Database migrations
+│   └── tests/              # 284 unit + integration tests
+├── frontend/               # Desktop ERP (Tauri + React)
 │   ├── src/
-│   │   ├── pages/         # Vistas principales
-│   │   ├── components/    # Componentes React
-│   │   ├── services/      # API clients
-│   │   └── stores/        # Estado Zustand
-│   └── src-tauri/         # Configuracion Tauri
-│
-├── web-portal/            # Portal Web (Next.js)
-│   ├── app/               # App Router pages
-│   ├── components/        # Componentes React
-│   └── lib/               # Utilidades y API
-│
-└── docs/                  # Documentacion
+│   │   ├── pages/          # Main views (POS, inventory, orders)
+│   │   ├── components/     # Reusable React components
+│   │   ├── services/       # API client layer
+│   │   └── stores/         # Zustand state management
+│   └── src-tauri/          # Rust backend (Tauri)
+├── web-portal/             # E-Commerce (Next.js 14)
+│   ├── app/                # App Router pages
+│   ├── components/         # UI components
+│   └── lib/                # Utilities and API clients
+└── docs/                   # Technical documentation
 ```
 
-## Desarrollo Local
-
-### Requisitos
-
-- Python 3.10+
-- Node.js 18+
-- Rust (para Tauri)
-- PostgreSQL 15 (o Docker)
-
-### Setup
+## Quick Start
 
 ```bash
-# Clonar repositorio
+# Clone
 git clone https://github.com/Samsuesca/uniformes-system-v2.git
 cd uniformes-system-v2
 
 # Backend
 cd backend
-python3 -m venv venv
-source venv/bin/activate
+python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
-# Editar .env con credenciales de DB
+cp .env.example .env        # Configure database credentials
+alembic upgrade head
 uvicorn app.main:app --reload
 
-# Frontend (otra terminal)
+# Desktop App (separate terminal)
 cd frontend
 npm install
-npm run tauri:dev
+npm run tauri dev
 
-# Web Portal (otra terminal)
+# Web Portal (separate terminal)
 cd web-portal
 npm install
 npm run dev
 ```
 
-### URLs Desarrollo
-
-| Servicio | URL |
-|----------|-----|
+| Service | URL |
+|---------|-----|
 | Backend API | http://localhost:8000 |
-| API Docs | http://localhost:8000/docs |
+| API Docs (Swagger) | http://localhost:8000/docs |
 | Web Portal | http://localhost:3000 |
-| Desktop App | Ventana nativa |
-
-## Produccion
-
-### URLs Produccion
-
-| Servicio | URL |
-|----------|-----|
-| API | https://api.yourdomain.com |
-| Portal Web | https://yourdomain.com |
-| Servidor | 104.156.247.226 |
-
-### Desplegar Cambios
-
-```bash
-# Backend (en servidor)
-cd /var/www/uniformes-system-v2
-git pull origin main
-systemctl restart uniformes-api
-
-# Web Portal (en servidor)
-cd /var/www/uniformes-system-v2/web-portal
-npm run build
-pm2 restart web-portal
-
-# Ver logs
-journalctl -u uniformes-api -f
-```
-
-### Build App Desktop
-
-```bash
-cd frontend
-npm run tauri build
-
-# Instaladores generados en:
-# src-tauri/target/release/bundle/msi/   (Windows)
-# src-tauri/target/release/bundle/dmg/   (macOS)
-```
-
-## Base de Datos
-
-### Migraciones
-
-```bash
-cd backend
-source venv/bin/activate
-
-# Crear migracion
-alembic revision --autogenerate -m "descripcion"
-
-# Aplicar migraciones
-alembic upgrade head
-
-# Rollback
-alembic downgrade -1
-```
-
-### Conexion
-
-```
-Host: localhost (dev) / 104.156.247.226 (prod)
-Port: 5432
-Database: uniformes_db
-User: uniformes_user
-```
-
-## Contabilidad Global
-
-El sistema maneja contabilidad a nivel de **negocio**, no por colegio:
-
-- **Una sola Caja** y **un solo Banco**
-- Colegios son fuentes de ingreso (filtros para reportes)
-- Endpoints en `/api/v1/global/accounting/*`
-
-```python
-# school_id es OPCIONAL en:
-- Expenses (gastos)
-- Transactions
-- AccountsReceivable (CxC)
-- AccountsPayable (CxP)
-```
+| Desktop App | Native window |
 
 ## Tests
 
 ```bash
 cd backend
-source venv/bin/activate
-pytest
-
-# Con coverage
-pytest --cov=app --cov-report=html
+pytest                          # Run all 284 tests
+pytest --cov=app --cov-report=html  # With coverage report
 ```
 
-## Git Workflow
+## Author
 
-```bash
-# Desarrollo en develop
-git checkout develop
-git pull origin develop
+**Angel Samuel Suesca Rios** — [@Samsuesca](https://github.com/Samsuesca)
 
-# Nueva feature
-git checkout -b feature/nombre
-# ... cambios ...
-git add . && git commit -m "feat: descripcion"
-git push -u origin feature/nombre
+## License
 
-# Merge a main para produccion
-git checkout main
-git merge develop
-git push origin main
-```
-
-## Documentacion
-
-- [CLAUDE.md](CLAUDE.md) - Contexto del proyecto para AI
-- [docs/CLOUD_DEPLOYMENT.md](docs/CLOUD_DEPLOYMENT.md) - Guia de despliegue
-- [docs/SALE_CHANGES.md](docs/SALE_CHANGES.md) - Sistema de cambios/devoluciones
-- [docs/GIT_WORKFLOW.md](docs/GIT_WORKFLOW.md) - Flujo de trabajo Git
-
-## Autor
-
-**Angel Samuel Suesca Rios**
-- GitHub: [@Samsuesca](https://github.com/Samsuesca)
-
-## Licencia
-
-MIT License
+MIT

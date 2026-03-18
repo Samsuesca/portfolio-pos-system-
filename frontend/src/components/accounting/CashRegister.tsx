@@ -35,7 +35,7 @@ const getAccountStyle = (code: string) => {
     case '1101':
       return { icon: Wallet, color: 'bg-emerald-100 text-emerald-600', borderColor: 'border-emerald-200' };
     case '1102':
-      return { icon: DollarSign, color: 'bg-blue-100 text-blue-600', borderColor: 'border-blue-200' };
+      return { icon: DollarSign, color: 'bg-brand-100 text-brand-600', borderColor: 'border-brand-200' };
     case '1103':
       return { icon: CreditCard, color: 'bg-purple-100 text-purple-600', borderColor: 'border-purple-200' };
     case '1104':
@@ -48,7 +48,7 @@ const getAccountStyle = (code: string) => {
 // Category labels and icons for breakdown display
 const CATEGORY_CONFIG: Record<keyof CategoryBreakdown, { label: string; icon: React.ComponentType<{ className?: string }>; color: string }> = {
   sales: { label: 'Ventas', icon: ShoppingBag, color: 'text-emerald-600' },
-  orders: { label: 'Encargos', icon: Package, color: 'text-blue-600' },
+  orders: { label: 'Encargos', icon: Package, color: 'text-brand-600' },
   alterations: { label: 'Arreglos', icon: Wrench, color: 'text-purple-600' },
   sale_changes: { label: 'Cambios', icon: RefreshCw, color: 'text-amber-600' },
   transfers: { label: 'Transferencias', icon: ArrowLeftRight, color: 'text-cyan-600' },

@@ -35,9 +35,6 @@ import {
   Shield,
   Calculator,
   ShieldCheck,
-  Clock,
-  Wifi,
-  WifiOff,
   Globe,
   MessageSquare,
   FolderOpen,
@@ -156,15 +153,6 @@ export default function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [schoolDropdownOpen, setSchoolDropdownOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
-
-  // Update time every minute
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000); // Update every minute
-    return () => clearInterval(timer);
-  }, []);
 
   // Warn user before leaving if there are unsaved drafts
   useEffect(() => {
@@ -196,24 +184,6 @@ export default function Layout({ children }: LayoutProps) {
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [quickActionsOpen]);
-
-  // Format time as HH:MM
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('es-CO', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
-  };
-
-  // Format date
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('es-CO', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short'
-    });
-  };
 
   const handleLogout = () => {
     logout();
@@ -255,7 +225,7 @@ export default function Layout({ children }: LayoutProps) {
           {!sidebarCollapsed && (
             <button
               onClick={() => setSidebarOpen(false)}
-              className="lg:hidden absolute right-2 p-2 rounded-lg hover:bg-white/10 text-slate-300 hover:text-white transition-colors"
+              className="lg:hidden absolute right-2 p-2 rounded-lg hover:bg-white/10 text-stone-300 hover:text-white transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -372,11 +342,11 @@ export default function Layout({ children }: LayoutProps) {
                   onClick={() => navigate(item.path)}
                   title={sidebarCollapsed ? item.name : undefined}
                   className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'px-3'} py-2.5 rounded-lg transition-all duration-200 group ${isActive
-                      ? 'bg-brand-600 text-white shadow-md'
-                      : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                      ? 'border-l-2 border-brand-400 bg-white/8 text-white'
+                      : 'text-stone-400 hover:bg-white/5 hover:text-white border-l-2 border-transparent'
                     }`}
                 >
-                  <Icon className={`w-4 h-4 ${sidebarCollapsed ? '' : 'mr-2.5'} flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'}`} />
+                  <Icon className={`w-4 h-4 ${sidebarCollapsed ? '' : 'mr-2.5'} flex-shrink-0 ${isActive ? 'text-brand-400' : 'text-stone-500 group-hover:text-white'}`} />
                   {!sidebarCollapsed && <span className="text-sm font-medium truncate">{item.name}</span>}
                 </button>
               );
@@ -394,7 +364,7 @@ export default function Layout({ children }: LayoutProps) {
                 {/* Operations Section */}
                 {operationsItems.length > 0 && (
                   <div>
-                    {!sidebarCollapsed && <p className="px-3 py-1.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Operaciones</p>}
+                    {!sidebarCollapsed && <p className="px-3 py-1.5 text-[10px] font-semibold text-stone-500 uppercase tracking-wider">Operaciones</p>}
                     {sidebarCollapsed && <div className="border-t border-white/10 my-2" />}
                     <div className="space-y-0.5">
                       {operationsItems.map(renderNavItem)}
@@ -405,7 +375,7 @@ export default function Layout({ children }: LayoutProps) {
                 {/* Finance Section */}
                 {financeItems.length > 0 && (
                   <div>
-                    {!sidebarCollapsed && <p className="px-3 py-1.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Finanzas</p>}
+                    {!sidebarCollapsed && <p className="px-3 py-1.5 text-[10px] font-semibold text-stone-500 uppercase tracking-wider">Finanzas</p>}
                     {sidebarCollapsed && <div className="border-t border-white/10 my-2" />}
                     <div className="space-y-0.5">
                       {financeItems.map(renderNavItem)}
@@ -416,7 +386,7 @@ export default function Layout({ children }: LayoutProps) {
                 {/* HR Section */}
                 {hrItems.length > 0 && (
                   <div>
-                    {!sidebarCollapsed && <p className="px-3 py-1.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">RRHH</p>}
+                    {!sidebarCollapsed && <p className="px-3 py-1.5 text-[10px] font-semibold text-stone-500 uppercase tracking-wider">RRHH</p>}
                     {sidebarCollapsed && <div className="border-t border-white/10 my-2" />}
                     <div className="space-y-0.5">
                       {hrItems.map(renderNavItem)}
@@ -442,11 +412,11 @@ export default function Layout({ children }: LayoutProps) {
                       onClick={() => navigate(item.path)}
                       title={sidebarCollapsed ? item.name : undefined}
                       className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'px-3'} py-2.5 rounded-lg transition-all duration-200 group ${isActive
-                          ? 'bg-amber-600 text-white shadow-md'
-                          : 'text-amber-300 hover:bg-amber-500/20 hover:text-amber-200'
+                          ? 'border-l-2 border-amber-400 bg-amber-500/10 text-amber-200'
+                          : 'text-amber-300/70 hover:bg-amber-500/10 hover:text-amber-200 border-l-2 border-transparent'
                         }`}
                     >
-                      <Icon className={`w-4 h-4 ${sidebarCollapsed ? '' : 'mr-2.5'} flex-shrink-0 ${isActive ? 'text-white' : 'text-amber-400 group-hover:text-amber-200'}`} />
+                      <Icon className={`w-4 h-4 ${sidebarCollapsed ? '' : 'mr-2.5'} flex-shrink-0 ${isActive ? 'text-amber-400' : 'text-amber-400/60 group-hover:text-amber-200'}`} />
                       {!sidebarCollapsed && <span className="text-sm font-medium truncate">{item.name}</span>}
                     </button>
                   );
@@ -473,21 +443,21 @@ export default function Layout({ children }: LayoutProps) {
                 <button
                   onClick={() => navigate('/my-profile')}
                   title="Mi Perfil"
-                  className="w-full flex items-center justify-center p-2 text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-all border border-white/10 hover:border-white/20"
+                  className="w-full flex items-center justify-center p-2 text-stone-300 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-all border border-white/10 hover:border-white/20"
                 >
                   <UserCircle className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => navigate('/settings')}
-                  title="Configuración"
-                  className="w-full flex items-center justify-center p-2 text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-all border border-white/10 hover:border-white/20"
+                  title="Configuracion"
+                  className="w-full flex items-center justify-center p-2 text-stone-300 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-all border border-white/10 hover:border-white/20"
                 >
                   <Settings className="w-4 h-4" />
                 </button>
                 <button
                   onClick={handleLogout}
-                  title="Cerrar Sesión"
-                  className="w-full flex items-center justify-center p-2 text-slate-300 hover:text-white bg-white/5 hover:bg-red-500/20 rounded-lg transition-all border border-white/10 hover:border-red-400/30"
+                  title="Cerrar Sesion"
+                  className="w-full flex items-center justify-center p-2 text-stone-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all border border-white/10 hover:border-red-400/30"
                 >
                   <LogOut className="w-4 h-4" />
                 </button>
@@ -495,7 +465,7 @@ export default function Layout({ children }: LayoutProps) {
             ) : (
               /* Expanded: Full profile */
               <>
-                <div className="flex items-center mb-2">
+                <div className="flex items-center mb-3">
                   <div className="w-9 h-9 rounded-full bg-brand-600 flex items-center justify-center text-white shadow-lg">
                     <span className="text-sm font-bold">
                       {user?.username.charAt(0).toUpperCase()}
@@ -503,21 +473,21 @@ export default function Layout({ children }: LayoutProps) {
                   </div>
                   <div className="ml-2.5 flex-1 overflow-hidden">
                     <p className="text-sm font-semibold text-white truncate">{user?.username}</p>
-                    <p className="text-[11px] text-slate-400 truncate">{user?.email}</p>
+                    <p className="text-[11px] text-stone-400 truncate">{user?.email}</p>
                   </div>
                 </div>
 
                 {/* Role Badge */}
                 {(role || isSuperuser) && (
-                  <div className="mb-2 flex items-center justify-center">
+                  <div className="mb-3 flex items-center justify-center">
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${
                       isSuperuser
-                        ? 'bg-gradient-to-r from-amber-500/30 to-orange-500/30 text-amber-200 border border-amber-400/40'
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
                         : role === 'seller'
-                          ? 'bg-gradient-to-r from-emerald-500/30 to-green-500/30 text-emerald-200 border border-emerald-400/40'
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
                           : role === 'admin'
-                            ? 'bg-gradient-to-r from-blue-500/30 to-indigo-500/30 text-blue-200 border border-blue-400/40'
-                            : 'bg-slate-500/30 text-slate-200 border border-slate-400/40'
+                            ? 'bg-blue-500/20 text-blue-300 border border-blue-400/30'
+                            : 'bg-stone-500/20 text-stone-300 border border-stone-400/30'
                     }`}>
                       <Shield className="w-3 h-3" />
                       {isSuperuser ? 'Superusuario' : role ? getRoleDisplayName(role) : ''}
@@ -525,33 +495,37 @@ export default function Layout({ children }: LayoutProps) {
                   </div>
                 )}
 
-                <button
-                  onClick={() => navigate('/my-profile')}
-                  className="w-full flex items-center justify-center px-3 py-2 text-sm font-medium text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-all border border-white/10 hover:border-white/20"
-                >
-                  <UserCircle className="w-4 h-4 mr-2" />
-                  Mi Perfil
-                </button>
-
-                <button
-                  onClick={() => navigate('/settings')}
-                  className="w-full flex items-center justify-center px-3 py-2 text-sm font-medium text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-all border border-white/10 hover:border-white/20"
-                >
-                  <Settings className="w-4 h-4 mr-2" />
-                  Configuración
-                </button>
+                {/* Profile & Settings in one row */}
+                <div className="flex gap-1.5 mb-1.5">
+                  <button
+                    onClick={() => navigate('/my-profile')}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-2 py-2 text-xs font-medium text-stone-300 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-all"
+                    title="Mi Perfil"
+                  >
+                    <UserCircle className="w-3.5 h-3.5" />
+                    Perfil
+                  </button>
+                  <button
+                    onClick={() => navigate('/settings')}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-2 py-2 text-xs font-medium text-stone-300 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-all"
+                    title="Configuracion"
+                  >
+                    <Settings className="w-3.5 h-3.5" />
+                    Config
+                  </button>
+                </div>
 
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center justify-center px-3 py-2 text-sm font-medium text-slate-300 hover:text-white bg-white/5 hover:bg-red-500/20 rounded-lg transition-all border border-white/10 hover:border-red-400/30"
+                  className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-stone-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all"
                 >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Cerrar Sesión
+                  <LogOut className="w-3.5 h-3.5" />
+                  Cerrar Sesion
                 </button>
 
-                {/* Version Info */}
+                {/* Version */}
                 <div className="mt-2 text-center">
-                  <span className="text-[10px] text-slate-500">
+                  <span className="text-[10px] text-stone-600">
                     v{SYSTEM_VERSION} | App v{APP_VERSION}
                   </span>
                 </div>
@@ -601,54 +575,13 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           </div>
 
-          {/* Right Side: Time, User Info, Connection Status, School Selector */}
+          {/* Right Side: Connection Status, Print Queue, Notifications, School Selector */}
           <div className="flex items-center gap-2 md:gap-4">
-            {/* Date & Time - Hidden on very small screens */}
-            <div className="hidden sm:flex items-center gap-2 text-slate-600 bg-surface-50 px-3 py-1.5 rounded-lg">
-              <Clock className="w-4 h-4 text-slate-400" />
-              <div className="text-sm">
-                <span className="font-medium">{formatTime(currentTime)}</span>
-                <span className="hidden md:inline text-slate-400 mx-1">•</span>
-                <span className="hidden md:inline text-slate-500">{formatDate(currentTime)}</span>
-              </div>
-            </div>
-
-            {/* User Info - Compact */}
-            <div className="hidden md:flex items-center gap-2 bg-surface-50 px-3 py-1.5 rounded-lg">
-              <div className="w-6 h-6 rounded-full bg-brand-600 flex items-center justify-center text-white text-xs font-bold">
-                {user?.username.charAt(0).toUpperCase()}
-              </div>
-              <div className="text-sm">
-                <span className="font-medium text-slate-700">{user?.full_name || user?.username}</span>
-                {isSuperuser && (
-                  <span className="ml-1.5 px-1.5 py-0.5 text-xs bg-amber-100 text-amber-700 rounded-full">
-                    Super
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Connection Status */}
+            {/* Connection Status - Simple dot indicator */}
             <div
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium ${
-                isOnline
-                  ? 'bg-green-50 text-green-700'
-                  : 'bg-red-50 text-red-700 animate-pulse'
-              }`}
-              title={isOnline ? 'Conectado al servidor' : 'Sin conexión al servidor'}
-            >
-              {isOnline ? (
-                <>
-                  <Wifi className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Conectado</span>
-                </>
-              ) : (
-                <>
-                  <WifiOff className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Sin conexión</span>
-                </>
-              )}
-            </div>
+              className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`}
+              title={isOnline ? 'Conectado al servidor' : 'Sin conexion al servidor'}
+            />
 
             {/* Print Queue (only visible if printer is configured) */}
             <PrintQueueButton />

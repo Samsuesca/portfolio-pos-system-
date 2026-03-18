@@ -935,7 +935,7 @@ export interface ExpensesByCategory {
 // ============================================
 
 export type AccountType =
-  | 'asset_current' | 'asset_fixed' | 'asset_other'
+  | 'asset_current' | 'asset_fixed' | 'asset_intangible' | 'asset_other'
   | 'liability_current' | 'liability_long' | 'liability_other'
   | 'equity_capital' | 'equity_retained' | 'equity_other';
 

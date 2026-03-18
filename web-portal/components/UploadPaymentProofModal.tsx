@@ -257,7 +257,7 @@ export default function UploadPaymentProofModal({
           {/* Instructions */}
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
             <p className="text-sm font-semibold text-yellow-900 mb-2">
-              📋 Instrucciones:
+              Instrucciones:
             </p>
             <ul className="text-sm text-yellow-800 space-y-1 ml-4">
               <li className="list-disc">Asegúrate de que el comprobante sea legible</li>

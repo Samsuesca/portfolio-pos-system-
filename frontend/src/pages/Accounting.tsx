@@ -609,7 +609,7 @@ export default function Accounting() {
       return (
         <button
           onClick={() => setShowExpenseModal(true)}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+          className="flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white px-5 py-2.5 rounded-lg font-semibold text-sm transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand-500/20 active:translate-y-0 active:shadow-none"
         >
           <Plus className="w-5 h-5" />
           Nuevo Gasto
@@ -620,8 +620,8 @@ export default function Accounting() {
   };
 
   const renderTabs = () => (
-    <div className="mb-6 border-b border-gray-200">
-      <nav className="-mb-px flex space-x-4 overflow-x-auto">
+    <div className="mb-8">
+      <nav className="flex gap-1 p-1 bg-surface-200/60 rounded-xl w-fit overflow-x-auto">
         {[
           { key: 'summary', label: 'Resumen', icon: Calculator },
           { key: 'expenses', label: 'Gastos', icon: Receipt },
@@ -633,10 +633,10 @@ export default function Accounting() {
             key={key}
             onClick={() => setActiveTab(key as TabType)}
             className={`
-              flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap
+              flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap
               ${activeTab === key
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                ? 'bg-white text-brand-700 font-semibold shadow-sm ring-1 ring-stone-200/60'
+                : 'text-stone-500 hover:text-stone-700 hover:bg-white/40'
               }
             `}
           >
@@ -654,7 +654,7 @@ export default function Accounting() {
     return (
       <Layout>
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
           <span className="ml-3 text-gray-600">Cargando contabilidad...</span>
         </div>
       </Layout>
@@ -690,11 +690,13 @@ export default function Accounting() {
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800 flex items-center">
-            <Calculator className="w-8 h-8 mr-3 text-blue-600" />
+          <h1 className="text-2xl font-bold text-stone-900 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-brand-500 flex items-center justify-center shadow-sm">
+              <Calculator className="w-5 h-5 text-white" />
+            </div>
             Contabilidad
           </h1>
-          <p className="text-gray-600 mt-1">Gestion financiera y balance general</p>
+          <p className="text-stone-500 mt-1 ml-[52px]">Gestion financiera y balance general</p>
         </div>
         {renderActionButton()}
       </div>

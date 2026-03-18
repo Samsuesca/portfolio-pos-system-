@@ -738,7 +738,7 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
               {/* Total Activos */}
               <div className="flex justify-between font-bold text-lg border-t-2 border-gray-800 pt-2 mt-4">
                 <span>TOTAL ACTIVOS</span>
-                <span className="text-blue-600">{formatCurrency(balanceSheet.total_assets)}</span>
+                <span className="text-brand-600">{formatCurrency(balanceSheet.total_assets)}</span>
               </div>
             </div>
 
@@ -835,7 +835,7 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
               {/* Total Pasivos + Patrimonio */}
               <div className="flex justify-between font-bold text-lg border-t-2 border-gray-800 pt-2 mt-4">
                 <span>PASIVOS + PATRIMONIO</span>
-                <span className="text-blue-600">{formatCurrency(balanceSheet.total_liabilities + balanceSheet.total_equity)}</span>
+                <span className="text-brand-600">{formatCurrency(balanceSheet.total_liabilities + balanceSheet.total_equity)}</span>
               </div>
             </div>
           </div>

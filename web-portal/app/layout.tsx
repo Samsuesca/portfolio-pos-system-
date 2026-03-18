@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Outfit, Inter } from "next/font/google";
+import { Outfit, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { ToastContainer } from "@/components/ui/Toast";
 
@@ -15,8 +15,17 @@ const inter = Inter({
   display: "swap",
 });
 
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
+  subsets: ["latin"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "Uniformes Consuelo Rios - Portal de Clientes",
+  title: {
+    default: "Uniformes Consuelo Rios - Portal de Clientes",
+    template: "%s | Uniformes Consuelo Rios",
+  },
   description: "Catalogo de uniformes escolares y pedidos online. Calidad y los mejores precios en uniformes escolares.",
   metadataBase: new URL('https://yourdomain.com'),
   openGraph: {
@@ -51,7 +60,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body
-        className={`${outfit.variable} ${inter.variable} antialiased`}
+        className={`${outfit.variable} ${inter.variable} ${jetbrainsMono.variable} antialiased`}
       >
         {children}
         <ToastContainer />

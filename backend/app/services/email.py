@@ -4,13 +4,15 @@ Email Service using Resend
 Free tier: 3,000 emails/month
 
 NOTE: Business info (name, contact, address, hours) is now centralized in
-the business_settings table. Templates in this file should be gradually
-updated to use get_business_info_sync() instead of hardcoded values.
+the business_settings table. Use get_business_info() (async) or
+get_business_info_cached() (sync, from cache) to access it.
 
 EMAIL LOGGING: All email sends are logged via _queue_email_log() for auditing.
-Use process_email_log_queue() to persist queued logs to the database.
+Logs are flushed to DB periodically by a background task (see main.py lifespan).
 """
+import asyncio
 import logging
+import threading
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -25,11 +27,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # ============================================
-# Email Logging Queue
+# Email Logging Queue (thread-safe)
 # ============================================
 
-# In-memory queue for pending email logs (processed asynchronously)
 _email_log_queue: list[dict] = []
+_queue_lock = threading.Lock()
 
 
 def _queue_email_log(
@@ -49,49 +51,42 @@ def _queue_email_log(
     """
     Queue an email log entry for async processing.
 
-    This is non-blocking and doesn't require a DB session.
-    Call process_email_log_queue() to persist the logs.
+    Thread-safe. Logs are flushed to DB by the background task.
     """
-    _email_log_queue.append({
-        "email_type": email_type,
-        "recipient_email": recipient_email,
-        "recipient_name": recipient_name,
-        "subject": subject,
-        "status": status,
-        "error_message": error_message,
-        "reference_code": reference_code,
-        "client_id": client_id,
-        "order_id": order_id,
-        "sale_id": sale_id,
-        "user_id": user_id,
-        "triggered_by": triggered_by,
-    })
+    with _queue_lock:
+        _email_log_queue.append({
+            "email_type": email_type,
+            "recipient_email": recipient_email,
+            "recipient_name": recipient_name,
+            "subject": subject,
+            "status": status,
+            "error_message": error_message,
+            "reference_code": reference_code,
+            "client_id": client_id,
+            "order_id": order_id,
+            "sale_id": sale_id,
+            "user_id": user_id,
+            "triggered_by": triggered_by,
+        })
 
 
 async def process_email_log_queue(db: "AsyncSession") -> int:
     """
     Process pending email logs and persist them to the database.
 
+    Thread-safe: atomically swaps the queue before processing.
     Returns the number of logs processed.
-
-    Usage:
-        # In a route or background task with DB session
-        from app.services.email import process_email_log_queue
-        await process_email_log_queue(db)
     """
     from app.services.email_log import EmailLogService
 
-    global _email_log_queue
-
-    if not _email_log_queue:
-        return 0
+    with _queue_lock:
+        if not _email_log_queue:
+            return 0
+        logs_to_process = _email_log_queue.copy()
+        _email_log_queue.clear()
 
     log_service = EmailLogService(db)
     processed = 0
-
-    # Copy and clear queue atomically
-    logs_to_process = _email_log_queue.copy()
-    _email_log_queue.clear()
 
     for log_data in logs_to_process:
         try:
@@ -106,75 +101,73 @@ async def process_email_log_queue(db: "AsyncSession") -> int:
 
 def get_email_log_queue_size() -> int:
     """Get the current size of the email log queue."""
-    return len(_email_log_queue)
+    with _queue_lock:
+        return len(_email_log_queue)
 
 
-# Cached business info for email templates (sync version for non-async contexts)
+# ============================================
+# Business Info Cache (async-safe)
+# ============================================
+
+_BUSINESS_INFO_DEFAULTS: dict = {
+    "business_name": "Uniformes Consuelo Rios",
+    "business_name_short": "UCR",
+    "phone_main": "+57 300 123 4567",
+    "phone_support": "+57 301 568 7810",
+    "whatsapp_number": "573001234567",
+    "email_contact": "contact@example.com",
+    "address_line1": "Calle 56 D #26 BE 04",
+    "address_line2": "Villas de San José, Boston - Barrio Sucre",
+    "city": "Medellín",
+    "state": "Antioquia",
+    "country": "Colombia",
+    "hours_weekday": "Lunes a Viernes: 8:00 AM - 6:00 PM",
+    "hours_saturday": "Sábados: 9:00 AM - 2:00 PM",
+    "website_url": "https://yourdomain.com",
+}
+
 _cached_business_info: dict | None = None
-_cache_timestamp: float = 0
 
-def get_business_info_sync() -> dict:
+
+async def load_business_info(db: "AsyncSession") -> dict:
     """
-    Get business info synchronously for email templates.
-    Uses a simple cache to avoid DB calls on every email.
-
-    Returns default values if DB is unavailable.
+    Load business info from DB using async session.
+    Called at startup and periodically to refresh the cache.
     """
-    import time
-    global _cached_business_info, _cache_timestamp
-
-    # Cache for 5 minutes
-    if _cached_business_info and (time.time() - _cache_timestamp) < 300:
-        return _cached_business_info
-
-    # Default values (fallback)
-    defaults = {
-        "business_name": "Uniformes Consuelo Rios",
-        "business_name_short": "UCR",
-        "phone_main": "+57 300 123 4567",
-        "phone_support": "+57 301 568 7810",
-        "whatsapp_number": "573001234567",
-        "email_contact": "contact@example.com",
-        "address_line1": "Calle 56 D #26 BE 04",
-        "address_line2": "Villas de San José, Boston - Barrio Sucre",
-        "city": "Medellín",
-        "state": "Antioquia",
-        "country": "Colombia",
-        "hours_weekday": "Lunes a Viernes: 8:00 AM - 6:00 PM",
-        "hours_saturday": "Sábados: 9:00 AM - 2:00 PM",
-        "website_url": "https://yourdomain.com",
-    }
+    global _cached_business_info
+    from sqlalchemy import text
 
     try:
-        # Try to fetch from DB using sync connection
-        from sqlalchemy import create_engine, text
-        from app.core.config import settings as app_settings
-
-        # Convert async URL to sync
-        db_url = app_settings.DATABASE_URL.replace("+asyncpg", "")
-        engine = create_engine(db_url)
-
-        with engine.connect() as conn:
-            result = conn.execute(text("SELECT key, value FROM business_settings"))
-            rows = result.fetchall()
-            if rows:
-                _cached_business_info = {row[0]: row[1] for row in rows}
-                _cache_timestamp = time.time()
-                return _cached_business_info
-
+        result = await db.execute(text("SELECT key, value FROM business_settings"))
+        rows = result.fetchall()
+        if rows:
+            _cached_business_info = {row[0]: row[1] for row in rows}
+            return _cached_business_info
     except Exception as e:
         logger.warning(f"Could not fetch business info from DB: {e}")
 
-    _cached_business_info = defaults
-    _cache_timestamp = time.time()
-    return defaults
+    _cached_business_info = _BUSINESS_INFO_DEFAULTS.copy()
+    return _cached_business_info
+
+
+def get_business_info_cached() -> dict:
+    """
+    Get business info from cache (sync, non-blocking).
+    Returns cached data or defaults if not yet loaded.
+    """
+    if _cached_business_info is not None:
+        return _cached_business_info
+    return _BUSINESS_INFO_DEFAULTS.copy()
+
+
+# Keep old name as alias for backwards compatibility with comments/docs
+get_business_info_sync = get_business_info_cached
 
 
 def invalidate_business_info_cache():
     """Clear the cached business info (call when settings are updated)."""
-    global _cached_business_info, _cache_timestamp
+    global _cached_business_info
     _cached_business_info = None
-    _cache_timestamp = 0
 
 
 def send_verification_email(email: str, code: str, name: str = "Usuario") -> bool:

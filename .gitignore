@@ -256,3 +256,4 @@ frontend/src/**/*.js
 # ============================================
 # Payment proofs, documents, etc.
 backend/uploads/
+uploads/

@@ -98,7 +98,7 @@ export default function DashboardPage() {
       value: stats.activeSchools,
       total: stats.totalSchools,
       icon: School,
-      color: 'bg-blue-500',
+      color: 'bg-brand-500',
       href: '/schools',
     });
   }
@@ -109,7 +109,7 @@ export default function DashboardPage() {
       value: stats.totalUsers,
       subtitle: `${stats.superusers} superusuarios`,
       icon: Users,
-      color: 'bg-green-500',
+      color: 'bg-stone-700',
       href: '/users',
     });
   }
@@ -122,7 +122,7 @@ export default function DashboardPage() {
       label: 'Colegios',
       icon: School,
       href: '/schools',
-      color: 'text-blue-600 bg-blue-100',
+      color: 'text-brand-700 bg-brand-100',
     });
   }
 
@@ -131,7 +131,7 @@ export default function DashboardPage() {
       label: 'Usuarios',
       icon: Users,
       href: '/users',
-      color: 'text-green-600 bg-green-100',
+      color: 'text-stone-700 bg-stone-200',
     });
   }
 
@@ -140,7 +140,7 @@ export default function DashboardPage() {
       label: 'Cuentas de Pago',
       icon: CreditCard,
       href: '/payment-accounts',
-      color: 'text-purple-600 bg-purple-100',
+      color: 'text-brand-700 bg-brand-100',
     });
   }
 
@@ -149,7 +149,7 @@ export default function DashboardPage() {
       label: 'Zonas de Entrega',
       icon: Truck,
       href: '/delivery-zones',
-      color: 'text-orange-600 bg-orange-100',
+      color: 'text-stone-700 bg-stone-200',
     });
   }
 
@@ -158,7 +158,7 @@ export default function DashboardPage() {
       label: 'Productos',
       icon: Package,
       href: '/products',
-      color: 'text-pink-600 bg-pink-100',
+      color: 'text-brand-700 bg-brand-100',
     });
   }
 
@@ -167,7 +167,7 @@ export default function DashboardPage() {
       label: 'Ventas',
       icon: ShoppingCart,
       href: '/sales',
-      color: 'text-emerald-600 bg-emerald-100',
+      color: 'text-emerald-700 bg-emerald-100',
     });
   }
 
@@ -176,7 +176,7 @@ export default function DashboardPage() {
       label: 'Encargos',
       icon: ShoppingBag,
       href: '/orders',
-      color: 'text-indigo-600 bg-indigo-100',
+      color: 'text-emerald-700 bg-emerald-100',
     });
   }
 
@@ -185,7 +185,7 @@ export default function DashboardPage() {
       label: 'Clientes',
       icon: UserCheck,
       href: '/clients',
-      color: 'text-cyan-600 bg-cyan-100',
+      color: 'text-stone-700 bg-stone-200',
     });
   }
 
@@ -194,7 +194,7 @@ export default function DashboardPage() {
       label: 'Contabilidad',
       icon: Calculator,
       href: '/accounting',
-      color: 'text-amber-600 bg-amber-100',
+      color: 'text-brand-700 bg-brand-100',
     });
   }
 
@@ -203,7 +203,7 @@ export default function DashboardPage() {
       label: 'Arreglos',
       icon: Scissors,
       href: '/alterations',
-      color: 'text-rose-600 bg-rose-100',
+      color: 'text-stone-700 bg-stone-200',
     });
   }
 
@@ -212,7 +212,7 @@ export default function DashboardPage() {
       label: 'Gestión Laboral',
       icon: ClipboardList,
       href: '/workforce',
-      color: 'text-teal-600 bg-teal-100',
+      color: 'text-emerald-700 bg-emerald-100',
     });
   }
 

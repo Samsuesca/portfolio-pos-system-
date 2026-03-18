@@ -201,11 +201,11 @@ class AlterationPayment(Base):
     notes: Mapped[str | None] = mapped_column(Text)
 
     # Cash change tracking (only for cash payments)
-    amount_received: Mapped[float | None] = mapped_column(
+    amount_received: Mapped[Decimal | None] = mapped_column(
         Numeric(10, 2), nullable=True,
         comment="Physical amount received from customer (cash only)"
     )
-    change_given: Mapped[float | None] = mapped_column(
+    change_given: Mapped[Decimal | None] = mapped_column(
         Numeric(10, 2), nullable=True,
         comment="Change returned to customer (cash only)"
     )

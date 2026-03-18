@@ -128,14 +128,14 @@ export default function Sidebar() {
   const NavContent = () => (
     <>
       {/* Logo */}
-      <div className="p-6 border-b border-slate-700">
+      <div className="p-6 border-b border-stone-700">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-brand-500 rounded-lg flex items-center justify-center">
+          <div className="w-10 h-10 bg-gradient-to-br from-brand-400 to-brand-600 rounded-lg flex items-center justify-center shadow-lg shadow-brand-500/20">
             <Shield className="w-6 h-6 text-white" />
           </div>
           <div>
             <h1 className="font-bold text-white">Admin Panel</h1>
-            <p className="text-xs text-slate-400">v{SYSTEM_VERSION} | Admin v{APP_VERSION}</p>
+            <p className="text-xs text-stone-400">v{SYSTEM_VERSION} | Admin v{APP_VERSION}</p>
           </div>
         </div>
       </div>
@@ -149,7 +149,7 @@ export default function Sidebar() {
           <div key={group.label ?? 'main'} className={groupIndex > 0 ? 'mt-6' : ''}>
             {group.label && (
               <div className="px-3 mb-2">
-                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                <span className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider">
                   {group.label}
                 </span>
               </div>
@@ -164,13 +164,13 @@ export default function Sidebar() {
                     key={item.href}
                     href={item.href}
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
                       active
-                        ? 'bg-brand-500 text-white'
-                        : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                        ? 'bg-brand-500/15 text-brand-400 border-l-3 border-brand-400 -ml-px'
+                        : 'text-stone-300 hover:bg-stone-700/50 hover:text-white'
                     }`}
                   >
-                    <Icon className="w-5 h-5 flex-shrink-0" />
+                    <Icon className={`w-5 h-5 flex-shrink-0 ${active ? 'text-brand-400' : ''}`} />
                     <span className="font-medium text-sm">{item.label}</span>
                   </Link>
                 );
@@ -181,16 +181,16 @@ export default function Sidebar() {
       </nav>
 
       {/* User Info & Logout */}
-      <div className="p-4 border-t border-slate-700">
+      <div className="p-4 border-t border-stone-700">
         <div className="px-3 py-2 mb-1">
           <p className="text-sm font-medium text-white truncate">
             {user?.full_name || user?.username}
           </p>
-          <p className="text-xs text-slate-400 truncate">{user?.email}</p>
+          <p className="text-xs text-stone-400 truncate">{user?.email}</p>
         </div>
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 w-full px-3 py-2.5 text-slate-300 hover:bg-slate-700 hover:text-white rounded-lg transition-colors"
+          className="flex items-center gap-3 w-full px-3 py-2.5 text-stone-300 hover:bg-stone-700/50 hover:text-white rounded-lg transition-colors"
         >
           <LogOut className="w-5 h-5" />
           <span className="font-medium text-sm">Cerrar Sesión</span>
@@ -204,7 +204,7 @@ export default function Sidebar() {
       {/* Mobile Menu Button */}
       <button
         onClick={() => setIsMobileMenuOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-slate-800 rounded-lg text-white"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-stone-800 rounded-lg text-white shadow-lg"
       >
         <Menu className="w-6 h-6" />
       </button>
@@ -212,20 +212,20 @@ export default function Sidebar() {
       {/* Mobile Sidebar Overlay */}
       {isMobileMenuOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-black/50 z-40"
+          className="lg:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
 
       {/* Mobile Sidebar */}
       <aside
-        className={`lg:hidden fixed inset-y-0 left-0 w-64 bg-slate-800 z-50 transform transition-transform duration-300 ${
+        className={`lg:hidden fixed inset-y-0 left-0 w-64 bg-stone-900 z-50 transform transition-transform duration-300 ${
           isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <button
           onClick={() => setIsMobileMenuOpen(false)}
-          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white"
+          className="absolute top-4 right-4 p-2 text-stone-400 hover:text-white"
         >
           <X className="w-6 h-6" />
         </button>
@@ -235,7 +235,7 @@ export default function Sidebar() {
       </aside>
 
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 bg-slate-800">
+      <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 bg-stone-900">
         <NavContent />
       </aside>
     </>

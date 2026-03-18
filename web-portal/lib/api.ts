@@ -2,7 +2,7 @@ import axios from 'axios';
 import { getPublicToken, clearPublicToken } from './auth';
 
 // API Base URL - se configura desde variables de entorno (exported for image URLs)
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
 
 // Public client - NO authentication required (for public endpoints like /schools)
 const publicClient = axios.create({
@@ -134,6 +134,8 @@ export interface OrderItem {
   notes?: string;
   order_type?: string;
   product_id?: string;
+  global_product_id?: string;
+  is_global_product?: boolean;
   needs_quotation?: boolean;
 }
 
@@ -333,7 +335,7 @@ export interface ClientWebRegister {
 export const clientsApi = {
   // Web portal client registration (public endpoint - sin autenticación)
   register: async (data: ClientWebRegister) => {
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
     const response = await fetch(`${API_BASE_URL}/api/v1/portal/clients/register`, {
       method: 'POST',
       headers: {
@@ -410,13 +412,81 @@ export const ordersApi = {
   },
 };
 
-// Helper function for product images (placeholder)
-export const getProductImage = (productName: string): string => {
-  const name = productName.toLowerCase();
-  if (name.includes('camisa') || name.includes('blusa')) return '👕';
-  if (name.includes('pantalon') || name.includes('falda')) return '👖';
-  if (name.includes('sudadera') || name.includes('buzo')) return '🧥';
-  if (name.includes('zapato') || name.includes('tennis')) return '👟';
-  if (name.includes('media') || name.includes('calcet')) return '🧦';
-  return '👔';
+// Payments (Wompi)
+export interface PaymentSession {
+  reference: string;
+  amount_in_cents: number;
+  currency: string;
+  public_key: string;
+  integrity_signature: string;
+  redirect_url: string;
+  description: string;
+}
+
+export interface PaymentStatus {
+  reference: string;
+  status: string;
+  amount_in_cents: number;
+  payment_method_type: string | null;
+  order_id: string | null;
+  receivable_id: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export const paymentsApi = {
+  // Get public Wompi config
+  getConfig: async (): Promise<{ enabled: boolean; public_key: string | null; environment: string | null }> => {
+    const response = await fetch(`${API_BASE_URL}/api/v1/payments/config`);
+    return response.json();
+  },
+
+  // Create payment session
+  createSession: async (data: { order_id?: string; receivable_id?: string }): Promise<PaymentSession> => {
+    const response = await fetch(`${API_BASE_URL}/api/v1/payments/sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Error al crear sesion de pago' }));
+      throw new Error(error.detail || 'Error al crear sesion de pago');
+    }
+    return response.json();
+  },
+
+  // Check payment status by reference
+  checkStatus: async (reference: string): Promise<PaymentStatus> => {
+    const response = await fetch(`${API_BASE_URL}/api/v1/payments/status/${reference}`);
+    if (!response.ok) {
+      throw new Error('Transaccion no encontrada');
+    }
+    return response.json();
+  },
+
+  // Resolve payment status by Wompi transaction ID
+  resolveByWompiId: async (wompiId: string): Promise<PaymentStatus> => {
+    const response = await fetch(`${API_BASE_URL}/api/v1/payments/resolve/${wompiId}`);
+    if (!response.ok) {
+      throw new Error('Transaccion no encontrada');
+    }
+    return response.json();
+  },
+
+  // Build Wompi checkout redirect URL
+  // Wompi uses the same checkout domain for sandbox and production;
+  // the public key prefix (pub_test_ vs pub_prod_) determines the environment.
+  buildCheckoutUrl: (session: PaymentSession): string => {
+    const params = new URLSearchParams({
+      'public-key': session.public_key,
+      'currency': session.currency,
+      'amount-in-cents': session.amount_in_cents.toString(),
+      'reference': session.reference,
+      'redirect-url': session.redirect_url,
+    });
+    // signature:integrity needs special handling (colon in key)
+    return `https://checkout.wompi.co/p/?${params.toString()}&signature%3Aintegrity=${session.integrity_signature}`;
+  },
 };
+
+// getProductImage removed — use GarmentIcon component instead

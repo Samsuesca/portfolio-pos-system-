@@ -15,6 +15,7 @@ export interface OrderFilters {
   skip?: number;
   limit?: number;
   source_filter?: string;  // 'exclude_web_portal' to exclude web portal orders
+  client_id?: string;  // Filter by client UUID
   start_date?: string;  // YYYY-MM-DD
   end_date?: string;    // YYYY-MM-DD
 }
@@ -31,6 +32,7 @@ export const orderService = {
     if (filters?.skip) params.append('skip', String(filters.skip));
     if (filters?.limit) params.append('limit', String(filters.limit));
     if (filters?.source_filter) params.append('source_filter', filters.source_filter);
+    if (filters?.client_id) params.append('client_id', filters.client_id);
     if (filters?.start_date) params.append('start_date', filters.start_date);
     if (filters?.end_date) params.append('end_date', filters.end_date);
 
@@ -206,7 +208,7 @@ export const orderService = {
    * Get receipt URL for printing
    */
   getReceiptUrl(schoolId: string, orderId: string): string {
-    const apiUrl = localStorage.getItem('api_url') || 'http://localhost:8000';
+    const apiUrl = localStorage.getItem('api_url') || 'http://localhost:8001';
     return `${apiUrl}/api/v1/schools/${schoolId}/orders/${orderId}/receipt`;
   },
 
@@ -252,6 +254,30 @@ export const orderService = {
    * - References to all orders containing this product
    * - School information for multi-school users
    */
+  /**
+   * Get active (non-cancelled, non-delivered) orders for a specific client.
+   * Used to warn vendors about potential duplicate orders during sale creation.
+   */
+  async getClientActiveOrders(clientId: string): Promise<OrderListItem[]> {
+    const allOrders = await this.getAllOrders({ client_id: clientId });
+    return allOrders.filter(o => !['cancelled', 'delivered'].includes(o.status));
+  },
+
+  /**
+   * Resolve a duplicate order by linking it to an existing sale.
+   * Cancels the order (reverting inventory, transactions, CxC) while keeping the sale.
+   */
+  async resolveDuplicate(schoolId: string, orderId: string, saleId: string, notes?: string): Promise<Order> {
+    const params: Record<string, string> = { sale_id: saleId };
+    if (notes) params.notes = notes;
+    const response = await apiClient.post<Order>(
+      `/schools/${schoolId}/orders/${orderId}/resolve-duplicate`,
+      null,
+      { params }
+    );
+    return response.data;
+  },
+
   async getProductDemand(filters?: ProductDemandFilters): Promise<ProductDemandResponse> {
     const params = new URLSearchParams();
     if (filters?.school_id) params.append('school_id', filters.school_id);

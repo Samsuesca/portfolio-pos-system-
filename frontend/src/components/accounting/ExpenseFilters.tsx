@@ -66,16 +66,16 @@ const ExpenseFilters: React.FC<ExpenseFiltersProps> = ({
       <button
         onClick={onToggle}
         className={`w-full px-5 py-4 flex items-center justify-between rounded-xl transition ${
-          visible ? 'bg-blue-50 rounded-b-none' : 'hover:bg-gray-50'
+          visible ? 'bg-brand-50 rounded-b-none' : 'hover:bg-gray-50'
         }`}
       >
         <div className="flex items-center gap-2">
-          <Filter className={`w-5 h-5 ${hasActiveFilters ? 'text-blue-600' : 'text-gray-500'}`} />
-          <span className={`font-semibold ${hasActiveFilters ? 'text-blue-700' : 'text-gray-700'}`}>
+          <Filter className={`w-5 h-5 ${hasActiveFilters ? 'text-brand-600' : 'text-gray-500'}`} />
+          <span className={`font-semibold ${hasActiveFilters ? 'text-brand-700' : 'text-gray-700'}`}>
             Filtros
           </span>
           {hasActiveFilters && (
-            <span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">
+            <span className="bg-brand-500 text-white text-xs px-2 py-0.5 rounded-full">
               Activos
             </span>
           )}
@@ -89,7 +89,7 @@ const ExpenseFilters: React.FC<ExpenseFiltersProps> = ({
 
       {/* Filter Panel */}
       {visible && (
-        <div className="px-5 pb-5 pt-4 bg-blue-50/50 border-t border-blue-100">
+        <div className="px-5 pb-5 pt-4 bg-brand-50/50 border-t border-brand-100">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Date Range */}
             <div className="space-y-1.5">
@@ -120,7 +120,7 @@ const ExpenseFilters: React.FC<ExpenseFiltersProps> = ({
                   value={filters.category}
                   onChange={(e) => updateFilter('category', e.target.value as any)}
                   disabled={loadingCategories}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white disabled:opacity-50"
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-400 text-sm bg-white disabled:opacity-50"
                 >
                   <option value="">Todas las categorias</option>
                   {activeCategories.map(cat => (
@@ -161,7 +161,7 @@ const ExpenseFilters: React.FC<ExpenseFiltersProps> = ({
                 <select
                   value={filters.paymentAccountId}
                   onChange={(e) => updateFilter('paymentAccountId', e.target.value)}
-                  className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white"
+                  className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-400 text-sm bg-white"
                 >
                   <option value="">Cuenta</option>
                   {cashBalances?.caja_menor?.id && (
@@ -182,7 +182,7 @@ const ExpenseFilters: React.FC<ExpenseFiltersProps> = ({
                   value={vendorSearch}
                   onChange={(e) => setVendorSearch(e.target.value)}
                   placeholder="Buscar..."
-                  className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-400 text-sm"
                 />
               </div>
             </div>
@@ -193,7 +193,7 @@ const ExpenseFilters: React.FC<ExpenseFiltersProps> = ({
             <div className="mt-4 flex justify-end">
               <button
                 onClick={onClear}
-                className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 font-medium"
+                className="flex items-center gap-1.5 text-sm text-brand-600 hover:text-brand-800 font-medium"
               >
                 <X className="w-4 h-4" />
                 Limpiar todos los filtros

@@ -264,7 +264,7 @@ async function simulateLogin(
   password: string,
   fetchFn: typeof fetch
 ): Promise<{ success: boolean; user?: any; error?: string }> {
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
   try {
     const response = await fetchFn(`${API_BASE_URL}/api/v1/auth/login`, {
@@ -297,7 +297,7 @@ async function simulateCheckAuth(
 ): Promise<boolean> {
   if (!token) return false
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
   try {
     const response = await fetchFn(`${API_BASE_URL}/api/v1/auth/me`, {

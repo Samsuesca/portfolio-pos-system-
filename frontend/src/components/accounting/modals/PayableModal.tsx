@@ -41,7 +41,7 @@ const PayableModal: React.FC<PayableModalProps> = ({
               type="text"
               value={form.vendor || ''}
               onChange={(e) => onFormChange({ ...form, vendor: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
               placeholder="Nombre del proveedor"
             />
           </div>
@@ -51,7 +51,7 @@ const PayableModal: React.FC<PayableModalProps> = ({
               type="text"
               value={form.description || ''}
               onChange={(e) => onFormChange({ ...form, description: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
               placeholder="Ej: Compra de tela para uniformes"
             />
           </div>
@@ -62,7 +62,7 @@ const PayableModal: React.FC<PayableModalProps> = ({
                 type="number"
                 value={form.amount || ''}
                 onChange={(e) => onFormChange({ ...form, amount: parseFloat(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                 min="0"
               />
             </div>
@@ -72,7 +72,7 @@ const PayableModal: React.FC<PayableModalProps> = ({
                 type="text"
                 value={form.invoice_number || ''}
                 onChange={(e) => onFormChange({ ...form, invoice_number: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -99,7 +99,7 @@ const PayableModal: React.FC<PayableModalProps> = ({
               type="text"
               value={form.category || ''}
               onChange={(e) => onFormChange({ ...form, category: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
               placeholder="Ej: Materia prima, Servicios, etc."
             />
           </div>
@@ -108,7 +108,7 @@ const PayableModal: React.FC<PayableModalProps> = ({
             <textarea
               value={form.notes || ''}
               onChange={(e) => onFormChange({ ...form, notes: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
               rows={2}
             />
           </div>

@@ -134,7 +134,7 @@ const CajaMenorAutoClose: React.FC<CajaMenorAutoCloseProps> = ({
         </div>
         <button
           onClick={loadConfig}
-          className="mt-3 text-sm text-blue-600 hover:text-blue-800 underline"
+          className="mt-3 text-sm text-brand-600 hover:text-brand-800 underline"
         >
           Reintentar
         </button>
@@ -178,9 +178,9 @@ const CajaMenorAutoClose: React.FC<CajaMenorAutoCloseProps> = ({
           </div>
 
           {/* Configured Base */}
-          <div className="text-center p-3 bg-blue-50 rounded-lg">
-            <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">Base Configurada</p>
-            <p className="text-xl font-bold text-blue-700 mt-1">
+          <div className="text-center p-3 bg-brand-50 rounded-lg">
+            <p className="text-xs font-medium text-brand-600 uppercase tracking-wide">Base Configurada</p>
+            <p className="text-xl font-bold text-brand-700 mt-1">
               {formatCurrency(baseAmount)}
             </p>
           </div>
@@ -268,14 +268,14 @@ const CajaMenorAutoClose: React.FC<CajaMenorAutoCloseProps> = ({
                 step="1000"
                 value={editBaseAmount}
                 onChange={(e) => setEditBaseAmount(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-400"
                 placeholder="Ej: 200000"
               />
             </div>
             <button
               onClick={handleSaveConfig}
               disabled={savingConfig || !editBaseAmount || parseFloat(editBaseAmount) < 0}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium transition-colors"
+              className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium transition-colors"
             >
               {savingConfig ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

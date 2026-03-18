@@ -8,7 +8,7 @@ Two types of endpoints:
 1. Public: /contacts/submit - Anyone can submit contact messages
 2. Private: Admin-only endpoints for managing and responding to messages
 """
-from fastapi import APIRouter, HTTPException, status, Query, Depends
+from fastapi import APIRouter, HTTPException, status, Query, Depends, Request
 from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload
 from uuid import UUID
@@ -17,6 +17,7 @@ from datetime import datetime
 
 from app.utils.timezone import get_colombia_now_naive
 from app.api.dependencies import DatabaseSession, CurrentUser, UserSchoolIds
+from app.core.limiter import limiter
 from app.models.contact import Contact, ContactType, ContactStatus
 from app.schemas.contact import (
     ContactCreate,
@@ -38,7 +39,9 @@ router = APIRouter(prefix="/contacts", tags=["Contacts"])
     status_code=status.HTTP_201_CREATED,
     summary="Submit contact message (PUBLIC)"
 )
+@limiter.limit("10/minute")
 async def submit_contact(
+    request: Request,
     contact_data: ContactCreate,
     db: DatabaseSession
 ):
@@ -85,6 +88,20 @@ async def submit_contact(
     db.add(contact)
     await db.commit()
     await db.refresh(contact)
+
+    # Telegram alert
+    try:
+        from app.services.telegram import fire_and_forget_routed_alert
+        from app.services.telegram_messages import TelegramMessageBuilder
+
+        msg = TelegramMessageBuilder.pqrs_received(
+            contact_type=contact.contact_type if isinstance(contact.contact_type, str) else contact.contact_type.value,
+            name=contact.name,
+            subject=contact.subject,
+        )
+        fire_and_forget_routed_alert("pqrs_received", msg)
+    except Exception:
+        pass
 
     return ContactResponse.model_validate(contact)
 

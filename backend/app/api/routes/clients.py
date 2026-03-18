@@ -36,31 +36,19 @@ from app.schemas.client import (
 )
 from app.services.client import ClientService
 from app.services.email import send_verification_email, send_welcome_email
+from app.core.redis_client import (
+    set_verification_code,
+    get_verification_code,
+    delete_verification_code,
+    set_verified_email,
+    is_email_verified,
+    delete_verified_email
+)
 
-# In-memory store for verification codes (in production, use Redis)
 import random
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from app.utils.timezone import get_colombia_now_naive
-
-phone_verification_codes: dict[str, tuple[str, datetime]] = {}
-email_verification_codes: dict[str, tuple[str, datetime]] = {}
-verified_emails: dict[str, datetime] = {}  # email -> expiry_time
-
-
-def cleanup_expired_data():
-    """Remove expired verification codes and verified emails"""
-    now = get_colombia_now_naive()
-
-    # Clean expired verification codes
-    expired_codes = [email for email, (_, expiry) in email_verification_codes.items() if expiry < now]
-    for email in expired_codes:
-        del email_verification_codes[email]
-
-    # Clean expired verified emails
-    expired_verified = [email for email, expiry in verified_emails.items() if expiry < now]
-    for email in expired_verified:
-        del verified_emails[email]
 
 
 # =============================================================================
@@ -550,14 +538,11 @@ async def register_web_client(
     If email already exists, returns the existing client.
     This allows repeat customers to place orders without issues.
     """
-    # Clean expired data
-    cleanup_expired_data()
-
     client_service = ClientService(db)
 
     # Check if email was verified via OTP
     email = registration_data.email.lower().strip()
-    email_verified = email in verified_emails and verified_emails[email] > get_colombia_now_naive()
+    email_verified = await is_email_verified(email)
 
     try:
         client = await client_service.register_web_client(registration_data)
@@ -566,7 +551,7 @@ async def register_web_client(
         if email_verified:
             client.is_verified = True
             # Remove from verified emails list
-            del verified_emails[email]
+            await delete_verified_email(email)
 
         await db.commit()
 
@@ -787,7 +772,7 @@ async def send_phone_verification(
     Send a verification code to the phone number.
 
     In production, this would send an SMS via Twilio/AWS SNS/etc.
-    For now, it stores the code in memory and returns it in the response (dev only).
+    For now, it stores the code in Redis and returns it in the response (dev only).
     """
     # Clean phone number
     phone = data.phone.replace(" ", "").replace("-", "")
@@ -795,9 +780,8 @@ async def send_phone_verification(
     # Generate 6-digit code
     code = "".join([str(random.randint(0, 9)) for _ in range(6)])
 
-    # Store with 5-minute expiry
-    expiry = get_colombia_now_naive() + timedelta(minutes=5)
-    phone_verification_codes[phone] = (code, expiry)
+    # Store in Redis with 5-minute expiry
+    await set_verification_code(f"phone:{phone}", code, ttl=300)
 
     # In production: Send SMS here via Twilio/AWS SNS
     # For now, we'll include the code in response for testing (REMOVE IN PRODUCTION)
@@ -821,21 +805,14 @@ async def confirm_phone_verification(
     phone = data.phone.replace(" ", "").replace("-", "")
     code = data.code
 
+    # Get code from Redis
+    stored_code = await get_verification_code(f"phone:{phone}")
+
     # Check if code exists
-    if phone not in phone_verification_codes:
+    if not stored_code:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No se encontró código de verificación. Solicita uno nuevo."
-        )
-
-    stored_code, expiry = phone_verification_codes[phone]
-
-    # Check if expired
-    if get_colombia_now_naive() > expiry:
-        del phone_verification_codes[phone]
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El código ha expirado. Solicita uno nuevo."
+            detail="No se encontró código de verificación o ha expirado. Solicita uno nuevo."
         )
 
     # Verify code
@@ -845,8 +822,8 @@ async def confirm_phone_verification(
             detail="Código incorrecto"
         )
 
-    # Code is valid - remove from store
-    del phone_verification_codes[phone]
+    # Code is valid - remove from Redis
+    await delete_verification_code(f"phone:{phone}")
 
     return {
         "message": "Teléfono verificado exitosamente",
@@ -870,9 +847,6 @@ async def send_email_verification(
     Uses Resend to send emails (3,000/month free).
     In dev mode without API key, code is logged to console.
     """
-    # Clean expired data
-    cleanup_expired_data()
-
     email = data.email.lower().strip()
     name = data.name or "Usuario"
 
@@ -888,9 +862,8 @@ async def send_email_verification(
     # Generate 6-digit code
     code = "".join([str(random.randint(0, 9)) for _ in range(6)])
 
-    # Store with 10-minute expiry
-    expiry = get_colombia_now_naive() + timedelta(minutes=10)
-    email_verification_codes[email] = (code, expiry)
+    # Store in Redis with 10-minute expiry
+    await set_verification_code(f"email:{email}", code, ttl=600)
 
     # Send email
     sent = send_verification_email(email, code, name)
@@ -915,27 +888,17 @@ async def confirm_email_verification(
     """
     Verify the email with the code sent.
     """
-    # Clean expired data
-    cleanup_expired_data()
-
     email = data.email.lower().strip()
     code = data.code
 
+    # Get code from Redis
+    stored_code = await get_verification_code(f"email:{email}")
+
     # Check if code exists
-    if email not in email_verification_codes:
+    if not stored_code:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No se encontró código de verificación. Solicita uno nuevo."
-        )
-
-    stored_code, expiry = email_verification_codes[email]
-
-    # Check if expired
-    if get_colombia_now_naive() > expiry:
-        del email_verification_codes[email]
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El código ha expirado. Solicita uno nuevo."
+            detail="No se encontró código de verificación o ha expirado. Solicita uno nuevo."
         )
 
     # Verify code
@@ -945,11 +908,11 @@ async def confirm_email_verification(
             detail="Código incorrecto"
         )
 
-    # Code is valid - remove from store
-    del email_verification_codes[email]
+    # Code is valid - remove from Redis
+    await delete_verification_code(f"email:{email}")
 
     # Mark email as verified for 30 minutes (time to complete registration)
-    verified_emails[email] = get_colombia_now_naive() + timedelta(minutes=30)
+    await set_verified_email(email, ttl=1800)
 
     return {
         "message": "Email verificado exitosamente",

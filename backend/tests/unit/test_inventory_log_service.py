@@ -7,6 +7,7 @@ Similar to balance_entries for accounting audit.
 import pytest
 from datetime import date
 from uuid import uuid4
+from app.utils.timezone import get_colombia_date
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.services.inventory_log import InventoryLogService
@@ -556,4 +557,4 @@ class TestAuditTrailIntegrity:
             description="Adjustment"
         )
 
-        assert result.movement_date == date.today()
+        assert result.movement_date == get_colombia_date()

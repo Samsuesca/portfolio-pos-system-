@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { Home, AlertTriangle } from 'lucide-react';
 
 export default function NotFound() {
@@ -9,7 +10,7 @@ export default function NotFound() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center gap-4">
             <Link href="/" className="flex items-center gap-4 hover:opacity-80 transition-opacity">
-              <img src="/logo.png" alt="Uniformes Consuelo Rios" className="h-12 sm:h-16 w-auto" />
+              <Image src="/logo.png" alt="Uniformes Consuelo Rios" width={64} height={64} className="h-12 sm:h-16 w-auto" style={{ width: 'auto' }} priority />
               <span className="text-lg sm:text-xl font-bold font-display text-brand-500 hidden sm:block">
                 Uniformes Consuelo Rios
               </span>

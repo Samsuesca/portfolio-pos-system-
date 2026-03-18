@@ -1,6 +1,6 @@
 {
   "name": "uniformes-system-frontend",
-  "version": "2.4.1",
+  "version": "2.7.0",
   "description": "Sistema de Gestión de Uniformes - Frontend",
   "type": "module",
   "scripts": {
@@ -35,7 +35,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hot-toast": "^2.6.0",
-    "react-query": "^3.39.3",
+    "@tanstack/react-query": "^5.62.0",
     "react-router-dom": "^6.20.0",
     "zustand": "^4.4.6"
   },
@@ -53,7 +53,7 @@
     "jsdom": "^24.0.0",
     "postcss": "^8.4.31",
     "tailwindcss": "^3.3.5",
-    "typescript": "^5.2.2",
+    "typescript": "^5.9.3",
     "vite": "^4.5.0",
     "vitest": "^1.2.0"
   }

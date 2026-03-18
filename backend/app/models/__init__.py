@@ -59,9 +59,12 @@ from app.models.payroll import (
     Employee, EmployeeBonus,
     PayrollRun, PayrollItem, PayrollStatus, PaymentFrequency,
 )
+from app.models.audit_log import AuditLog, AuditAction
 from app.models.notification import Notification, NotificationType, ReferenceType
 from app.models.business_settings import BusinessSettings, DEFAULT_BUSINESS_SETTINGS
 from app.models.print_queue import PrintQueueItem, PrintQueueStatus
+from app.models.payment_transaction import PaymentTransaction, WompiTransactionStatus
+from app.models.telegram_subscription import TelegramAlertSubscription, TelegramAlertType
 from app.models.workforce import (
     ShiftType, ShiftTemplate, EmployeeSchedule,
     AttendanceStatus, AttendanceRecord,
@@ -164,6 +167,9 @@ __all__ = [
     "AlterationPayment",
     "AlterationType",
     "AlterationStatus",
+    # Audit Log models
+    "AuditLog",
+    "AuditAction",
     # Notification models
     "Notification",
     "NotificationType",
@@ -181,6 +187,9 @@ __all__ = [
     "PayrollItem",
     "PayrollStatus",
     "PaymentFrequency",
+    # Payment Transaction models
+    "PaymentTransaction",
+    "WompiTransactionStatus",
     # Workforce Management models
     "ShiftType",
     "ShiftTemplate",
@@ -198,4 +207,7 @@ __all__ = [
     "PerformanceReview",
     "ResponsibilityCategory",
     "PositionResponsibility",
+    # Telegram Alert Subscription models
+    "TelegramAlertSubscription",
+    "TelegramAlertType",
 ]

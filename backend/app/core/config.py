@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from pydantic import model_validator
 from typing import List, Optional
 import os
 import json
@@ -28,7 +29,7 @@ class Settings(BaseSettings):
 
     # Environment
     ENV: str = "development"
-    DEBUG: bool = True
+    DEBUG: bool = False
     TESTING: bool = False  # Set to True during pytest runs to disable rate limiting
 
     # Database
@@ -51,11 +52,11 @@ class Settings(BaseSettings):
         # Desktop app (Tauri)
         "tauri://localhost",
         # Desarrollo local
-        "http://localhost:3000",   # Web portal dev
-        "http://localhost:3001",   # Admin portal dev
-        "http://localhost:5173",   # Vite dev server
-        "http://127.0.0.1:3000",
+        "http://localhost:3001",   # Web portal dev
+        "http://localhost:3002",   # Admin portal dev
+        "http://localhost:5171",   # Vite dev server (Tauri frontend)
         "http://127.0.0.1:3001",
+        "http://127.0.0.1:3002",
         # Produccion
         "https://yourdomain.com",
         "https://www.yourdomain.com",
@@ -66,8 +67,29 @@ class Settings(BaseSettings):
     # Email (Resend)
     RESEND_API_KEY: Optional[str] = None
     EMAIL_FROM: str = "Uniformes <noreply@resend.dev>"
-    FRONTEND_URL: str = "http://localhost:3000"  # Web portal (clients)
-    ADMIN_PORTAL_URL: str = "http://localhost:3001"  # Admin portal (internal users)
+    FRONTEND_URL: str = "http://localhost:3001"  # Web portal (clients)
+    ADMIN_PORTAL_URL: str = "http://localhost:3002"  # Admin portal (internal users)
+
+    # Wompi Payment Gateway
+    WOMPI_ENABLED: bool = False
+    WOMPI_ENVIRONMENT: str = "sandbox"  # "sandbox" or "production"
+    WOMPI_PUBLIC_KEY: Optional[str] = None
+    WOMPI_PRIVATE_KEY: Optional[str] = None
+    WOMPI_EVENTS_KEY: Optional[str] = None
+    WOMPI_INTEGRITY_KEY: Optional[str] = None
+    WOMPI_REDIRECT_URL: str = "http://localhost:3001/pago/resultado"
+
+    @property
+    def wompi_base_url(self) -> str:
+        if self.WOMPI_ENVIRONMENT == "production":
+            return "https://production.wompi.co/v1"
+        return "https://sandbox.wompi.co/v1"
+
+    # Telegram Monitoring Alerts
+    TELEGRAM_BOT_TOKEN: Optional[str] = None
+    TELEGRAM_CHAT_ID: Optional[str] = None
+    DISK_ALERT_THRESHOLD_PCT: float = 80.0
+    HEALTH_SAMPLE_INTERVAL: int = 60  # seconds
 
     # WhatsApp Business API (Meta Cloud API)
     WHATSAPP_ENABLED: bool = False
@@ -88,6 +110,18 @@ class Settings(BaseSettings):
         # Development: use local backend/uploads directory
         import os
         return os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads")
+
+    @model_validator(mode='after')
+    def validate_production_settings(self) -> 'Settings':
+        """Prevent dangerous defaults in production."""
+        if self.ENV == "production":
+            if self.SECRET_KEY == "your-secret-key-change-in-production":
+                raise ValueError("SECRET_KEY must be changed in production")
+            if self.DEBUG:
+                raise ValueError("DEBUG must be False in production")
+            if self.TESTING:
+                raise ValueError("TESTING must be False in production")
+        return self
 
     class Config:
         env_file = ".env"

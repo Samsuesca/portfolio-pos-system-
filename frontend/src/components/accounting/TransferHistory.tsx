@@ -28,7 +28,7 @@ const getAccountBadgeClasses = (code: string | null): string => {
     case '1103':
       return 'bg-purple-100 text-purple-800';
     case '1104':
-      return 'bg-blue-100 text-blue-800';
+      return 'bg-brand-100 text-brand-800';
     default:
       return 'bg-gray-100 text-gray-800';
   }
@@ -123,7 +123,7 @@ const TransferHistory: React.FC<TransferHistoryProps> = ({ refreshTrigger }) => 
       <div className="px-6 py-4 border-b border-gray-200">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-            <ArrowRightLeft className="w-5 h-5 text-blue-600" />
+            <ArrowRightLeft className="w-5 h-5 text-brand-600" />
             Historial de Transferencias
           </h3>
 
@@ -135,7 +135,7 @@ const TransferHistory: React.FC<TransferHistoryProps> = ({ refreshTrigger }) => 
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-400 outline-none"
               />
             </div>
             <div className="flex items-center gap-1">
@@ -144,12 +144,12 @@ const TransferHistory: React.FC<TransferHistoryProps> = ({ refreshTrigger }) => 
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-400 outline-none"
               />
             </div>
             <button
               onClick={handleApplyFilter}
-              className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1"
+              className="px-3 py-1.5 bg-brand-500 text-white text-sm font-medium rounded-lg hover:bg-brand-600 transition-colors flex items-center gap-1"
             >
               <Search className="w-3.5 h-3.5" />
               Aplicar
@@ -171,7 +171,7 @@ const TransferHistory: React.FC<TransferHistoryProps> = ({ refreshTrigger }) => 
         {/* Loading overlay */}
         {loading && (
           <div className="absolute inset-0 bg-white/70 z-10 flex items-center justify-center">
-            <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+            <Loader2 className="w-6 h-6 text-brand-600 animate-spin" />
           </div>
         )}
 
@@ -181,7 +181,7 @@ const TransferHistory: React.FC<TransferHistoryProps> = ({ refreshTrigger }) => 
             <p className="text-red-600 text-sm">{error}</p>
             <button
               onClick={fetchData}
-              className="mt-2 text-sm text-blue-600 hover:text-blue-800 underline"
+              className="mt-2 text-sm text-brand-600 hover:text-brand-800 underline"
             >
               Reintentar
             </button>

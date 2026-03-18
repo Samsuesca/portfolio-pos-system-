@@ -208,7 +208,7 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
           {onCreateExpense && (
             <button
               onClick={onCreateExpense}
-              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium shadow-sm"
+              className="flex items-center gap-2 px-4 py-2.5 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition font-medium shadow-sm"
             >
               <Plus className="w-5 h-5" />
               Nuevo Gasto
@@ -225,7 +225,7 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Buscar por proveedor, descripcion, categoria..."
-          className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base shadow-sm"
+          className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-brand-400 text-base shadow-sm"
         />
         {searchTerm && (
           <button
@@ -246,23 +246,23 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
 
       {/* Payroll Alert - Recommend using Payroll module */}
       {hasManualPayrollExpenses && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="bg-brand-50 border border-brand-200 rounded-lg p-4">
           <div className="flex items-start gap-3">
             <div className="flex-shrink-0">
-              <Users className="w-5 h-5 text-blue-600 mt-0.5" />
+              <Users className="w-5 h-5 text-brand-600 mt-0.5" />
             </div>
             <div className="flex-1">
-              <h4 className="font-medium text-blue-800">
+              <h4 className="font-medium text-brand-800">
                 Gastos de nomina detectados
               </h4>
-              <p className="text-sm text-blue-700 mt-1">
+              <p className="text-sm text-brand-700 mt-1">
                 Se encontraron <span className="font-semibold">{payrollExpenses.length}</span> gasto(s)
                 de nomina registrados manualmente por un total de{' '}
                 <span className="font-semibold">
                   {formatCurrency(payrollExpenses.reduce((sum, e) => sum + Number(e.amount), 0))}
                 </span>.
               </p>
-              <p className="text-sm text-blue-600 mt-2">
+              <p className="text-sm text-brand-600 mt-2">
                 Para mejor gestion y proyeccion financiera, usa el <strong>modulo de Nomina</strong> en
                 lugar de registrar gastos manuales. El modulo permite gestionar empleados,
                 bonificaciones y genera automaticamente los gastos al aprobar la nomina.
@@ -270,14 +270,14 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
               <div className="flex items-center gap-3 mt-3">
                 <a
                   href="/payroll"
-                  className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900 underline"
+                  className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-800 underline"
                 >
                   Ir al modulo de Nomina
                   <ArrowRight className="w-4 h-4" />
                 </a>
                 <button
                   onClick={() => setHidePayrollAlert(true)}
-                  className="text-sm text-blue-500 hover:text-blue-700"
+                  className="text-sm text-brand-500 hover:text-brand-700"
                 >
                   Ocultar alerta
                 </button>

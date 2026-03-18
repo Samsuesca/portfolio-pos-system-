@@ -2,6 +2,7 @@
 Custom Orders Models (Encargos)
 """
 from datetime import datetime, date
+from decimal import Decimal
 from sqlalchemy import String, DateTime, Date, Numeric, Integer, Text, ForeignKey, UniqueConstraint, CheckConstraint, Enum as SQLEnum, Computed, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
@@ -81,23 +82,23 @@ class Order(Base):
     delivery_date: Mapped[date | None] = mapped_column(Date)
     expected_delivery_days: Mapped[int] = mapped_column(Integer, default=7, nullable=False)
 
-    subtotal: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
-    tax: Mapped[float] = mapped_column(Numeric(10, 2), default=0, nullable=False)
-    total: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
-    paid_amount: Mapped[float] = mapped_column(Numeric(10, 2), default=0, nullable=False)
+    subtotal: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    tax: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0, nullable=False)
+    total: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    paid_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0, nullable=False)
     # balance computed automatically as (total - paid_amount)
-    balance: Mapped[float] = mapped_column(
+    balance: Mapped[Decimal] = mapped_column(
         Numeric(10, 2),
         Computed("total - paid_amount"),
         nullable=False
     )
 
     # Cash change tracking (only for cash payments)
-    amount_received: Mapped[float | None] = mapped_column(
+    amount_received: Mapped[Decimal | None] = mapped_column(
         Numeric(10, 2), nullable=True,
         comment="Physical amount received from customer (cash only)"
     )
-    change_given: Mapped[float | None] = mapped_column(
+    change_given: Mapped[Decimal | None] = mapped_column(
         Numeric(10, 2), nullable=True,
         comment="Change returned to customer (cash only)"
     )
@@ -155,7 +156,7 @@ class Order(Base):
         ForeignKey("delivery_zones.id", ondelete="SET NULL"),
         nullable=True
     )
-    delivery_fee: Mapped[float] = mapped_column(Numeric(10, 2), default=0, nullable=False)
+    delivery_fee: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=get_colombia_now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
@@ -242,8 +243,8 @@ class OrderItem(Base):
     is_global_product: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     quantity: Mapped[int] = mapped_column(nullable=False)
-    unit_price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
-    subtotal: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    unit_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    subtotal: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
 
     # Custom order specifications
     size: Mapped[str | None] = mapped_column(String(10))
@@ -334,7 +335,7 @@ class OrderChange(Base):
     is_new_global_product: Mapped[bool] = mapped_column(default=False, nullable=False)
 
     new_quantity: Mapped[int] = mapped_column(default=0, nullable=False)
-    new_unit_price: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    new_unit_price: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
 
     # Order-specific: new item specifications
     new_size: Mapped[str | None] = mapped_column(String(10))
@@ -343,7 +344,7 @@ class OrderChange(Base):
     new_embroidery_text: Mapped[str | None] = mapped_column(String(100))
 
     # Financial adjustment
-    price_adjustment: Mapped[float] = mapped_column(
+    price_adjustment: Mapped[Decimal] = mapped_column(
         Numeric(10, 2),
         default=0,
         nullable=False

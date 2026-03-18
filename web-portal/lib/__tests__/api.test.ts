@@ -1,68 +1,39 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { getProductImage } from '../api'
-
-// Note: More comprehensive API tests would require mocking axios and getPublicToken
-// This file demonstrates basic testing patterns for the web-portal
+import { getGarmentType } from '../../components/GarmentIcon'
 
 describe('Web Portal API Utilities', () => {
-  describe('getProductImage', () => {
-    it('should return shirt emoji for camisa', () => {
-      expect(getProductImage('Camisa Escolar')).toBe('👕')
-      expect(getProductImage('CAMISA POLO')).toBe('👕')
-      expect(getProductImage('camisa manga larga')).toBe('👕')
+  describe('getGarmentType', () => {
+    it('should return shirt type for camisa/camiseta', () => {
+      expect(getGarmentType('Camisa Escolar')).toBe('shirt')
+      expect(getGarmentType('Camiseta Polo')).toBe('shirt')
     })
 
-    it('should return shirt emoji for blusa', () => {
-      expect(getProductImage('Blusa Mujer')).toBe('👕')
-      expect(getProductImage('BLUSA ESCOLAR')).toBe('👕')
+    it('should return blouse type for blusa', () => {
+      expect(getGarmentType('Blusa Mujer')).toBe('blouse')
     })
 
-    it('should return pants emoji for pantalon', () => {
-      // Note: Function uses .includes() which is case-insensitive after .toLowerCase()
-      // but doesn't handle accented characters, so 'Pantalón' does not match 'pantalon'
-      expect(getProductImage('Pantalon Azul')).toBe('👖')
-      expect(getProductImage('PANTALON LARGO')).toBe('👖')
+    it('should return pants type for pantalon/jean', () => {
+      expect(getGarmentType('Pantalon Azul')).toBe('pants')
+      expect(getGarmentType('Jean Escolar')).toBe('pants')
     })
 
-    it('should return pants emoji for falda', () => {
-      expect(getProductImage('Falda Escolar')).toBe('👖')
-      expect(getProductImage('FALDA PLISADA')).toBe('👖')
+    it('should return hoodie type for sudadera/chompa', () => {
+      expect(getGarmentType('Sudadera Gris')).toBe('hoodie')
+      expect(getGarmentType('Chompa Azul')).toBe('hoodie')
     })
 
-    it('should return coat emoji for sudadera', () => {
-      expect(getProductImage('Sudadera Gris')).toBe('🧥')
-      expect(getProductImage('SUDADERA ESCOLAR')).toBe('🧥')
+    it('should return sneaker type for zapato/tennis', () => {
+      expect(getGarmentType('Zapato Negro')).toBe('sneaker')
+      expect(getGarmentType('Tennis Blanco')).toBe('sneaker')
     })
 
-    it('should return coat emoji for buzo', () => {
-      expect(getProductImage('Buzo Deportivo')).toBe('🧥')
-      expect(getProductImage('BUZO ESCOLAR')).toBe('🧥')
+    it('should return socks type for media', () => {
+      expect(getGarmentType('Media Larga')).toBe('socks')
     })
 
-    it('should return shoe emoji for zapato', () => {
-      expect(getProductImage('Zapato Negro')).toBe('👟')
-      expect(getProductImage('ZAPATOS ESCOLARES')).toBe('👟')
-    })
-
-    it('should return shoe emoji for tennis', () => {
-      expect(getProductImage('Tennis Blanco')).toBe('👟')
-      expect(getProductImage('TENNIS DEPORTIVO')).toBe('👟')
-    })
-
-    it('should return socks emoji for media', () => {
-      expect(getProductImage('Media Larga')).toBe('🧦')
-      expect(getProductImage('MEDIAS BLANCAS')).toBe('🧦')
-    })
-
-    it('should return socks emoji for calcetin', () => {
-      expect(getProductImage('Calcetín Deportivo')).toBe('🧦')
-      expect(getProductImage('CALCETINES ESCOLARES')).toBe('🧦')
-    })
-
-    it('should return default tie emoji for unknown product', () => {
-      expect(getProductImage('Producto Desconocido')).toBe('👔')
-      expect(getProductImage('Accesorios')).toBe('👔')
-      expect(getProductImage('')).toBe('👔')
+    it('should return default for unknown product', () => {
+      expect(getGarmentType('Producto Desconocido')).toBe('default')
+      expect(getGarmentType('')).toBe('default')
     })
   })
 })

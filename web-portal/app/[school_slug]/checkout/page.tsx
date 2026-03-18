@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, CheckCircle, School as SchoolIcon, Package, Eye, EyeOff, Mail, AlertCircle, Loader2, User, X, CreditCard, Upload, Store, Truck } from 'lucide-react';
 import { useCartStore } from '@/lib/store';
-import { clientsApi, ordersApi, deliveryZonesApi, DeliveryZone, DeliveryType } from '@/lib/api';
+import { clientsApi, ordersApi, deliveryZonesApi, paymentsApi, DeliveryZone, DeliveryType } from '@/lib/api';
 import { useClientAuth } from '@/lib/clientAuth';
 import { formatNumber } from '@/lib/utils';
 import UploadPaymentProofModal from '@/components/UploadPaymentProofModal';
@@ -24,7 +24,9 @@ export default function CheckoutPage() {
   const [orderCode, setOrderCode] = useState('');
   const [firstOrderId, setFirstOrderId] = useState(''); // Store first order ID for upload
   // Multi-school order results
-  const [orderResults, setOrderResults] = useState<{schoolName: string; orderCode: string; total: number}[]>([]);
+  const [orderResults, setOrderResults] = useState<{schoolName: string; orderCode: string; orderId: string; total: number}[]>([]);
+  const [wompiEnabled, setWompiEnabled] = useState(false);
+  const [payingOrderId, setPayingOrderId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [error, setError] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -104,6 +106,27 @@ export default function CheckoutPage() {
       return () => clearTimeout(timer);
     }
   }, [resendCooldown]);
+
+  // Check Wompi config when order succeeds
+  useEffect(() => {
+    if (success) {
+      paymentsApi.getConfig()
+        .then(config => setWompiEnabled(config.enabled))
+        .catch(() => {});
+    }
+  }, [success]);
+
+  const handlePayOnline = async (orderId: string) => {
+    setPayingOrderId(orderId);
+    try {
+      const session = await paymentsApi.createSession({ order_id: orderId });
+      const checkoutUrl = paymentsApi.buildCheckoutUrl(session);
+      window.location.href = checkoutUrl;
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Error al iniciar pago en linea');
+      setPayingOrderId(null);
+    }
+  };
 
   // Helper para obtener el stock del producto
   const getProductStock = (product: any): number => {
@@ -280,7 +303,7 @@ export default function CheckoutPage() {
       // Step 2: Create orders with client_id (using public web endpoint)
       // Multi-school: Create separate orders for each school
       const itemsBySchool = getItemsBySchool();
-      const results: {schoolName: string; orderCode: string; total: number}[] = [];
+      const results: {schoolName: string; orderCode: string; orderId: string; total: number}[] = [];
 
       for (const [schoolId, schoolItems] of itemsBySchool.entries()) {
         const schoolTotal = schoolItems.reduce(
@@ -300,6 +323,7 @@ export default function CheckoutPage() {
           client_id: clientId,
           items: schoolItems.map(item => {
             const isCustomItem = item.product.price === 0 || item.product.school_id === 'pending-quotation';
+            const isGlobalItem = item.isGlobal === true;
 
             return {
               // For custom items, don't send garment_type_id - backend will create generic type
@@ -309,7 +333,10 @@ export default function CheckoutPage() {
               size: item.product.size,
               gender: item.product.gender,
               order_type: isCustomItem ? 'web_custom' : 'catalog',
-              product_id: isCustomItem ? undefined : item.product.id,
+              // Global products use global_product_id, school products use product_id
+              product_id: (isCustomItem || isGlobalItem) ? undefined : item.product.id,
+              global_product_id: isGlobalItem ? item.product.id : undefined,
+              is_global_product: isGlobalItem || undefined,
               needs_quotation: isCustomItem,
               notes: isCustomItem ? item.product.description : undefined,
             };
@@ -327,6 +354,7 @@ export default function CheckoutPage() {
         results.push({
           schoolName: schoolItems[0].school.name,
           orderCode: orderResponse.data.code || '',
+          orderId: orderResponse.data.id,
           total: schoolTotal,
         });
 
@@ -448,22 +476,37 @@ export default function CheckoutPage() {
 
             {/* Next Steps */}
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-6">
-              <h3 className="font-bold text-blue-900 text-lg mb-3 flex items-center gap-2">
-                <span>📋</span> Próximos pasos
+              <h3 className="font-bold text-blue-900 text-lg mb-3">
+                Proximos pasos
               </h3>
               <ol className="space-y-2 text-blue-800">
-                <li className="flex items-start gap-2">
-                  <span className="font-bold mt-0.5">1.</span>
-                  <span>Realiza el pago por transferencia bancaria o Nequi</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="font-bold mt-0.5">2.</span>
-                  <span>Sube el comprobante de pago usando el botón de abajo</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="font-bold mt-0.5">3.</span>
-                  <span>Espera la confirmación y procesaremos tu pedido</span>
-                </li>
+                {wompiEnabled ? (
+                  <>
+                    <li className="flex items-start gap-2">
+                      <span className="font-bold mt-0.5">1.</span>
+                      <span>Paga en linea con tarjeta, PSE, Nequi o Daviplata usando el boton de abajo</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="font-bold mt-0.5">2.</span>
+                      <span>Tu pago se confirma automaticamente y procesamos tu pedido</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="font-bold mt-0.5">3.</span>
+                      <span>Tambien puedes pagar presencialmente en nuestra tienda o contra entrega</span>
+                    </li>
+                  </>
+                ) : (
+                  <>
+                    <li className="flex items-start gap-2">
+                      <span className="font-bold mt-0.5">1.</span>
+                      <span>Realiza el pago presencialmente en nuestra tienda o contra entrega</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="font-bold mt-0.5">2.</span>
+                      <span>Espera la confirmacion y procesaremos tu pedido</span>
+                    </li>
+                  </>
+                )}
               </ol>
             </div>
 
@@ -489,20 +532,44 @@ export default function CheckoutPage() {
             )}
 
             {/* Action Buttons */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+            <div className="space-y-3 mb-6">
+              {/* Wompi Online Payment */}
+              {wompiEnabled && totalAmount > 0 && (
+                <div className="space-y-2">
+                  {!hasMultipleOrders && firstOrderId && (
+                    <button
+                      onClick={() => handlePayOnline(firstOrderId)}
+                      disabled={payingOrderId === firstOrderId}
+                      className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <CreditCard className="w-5 h-5" />
+                      {payingOrderId === firstOrderId ? 'Redirigiendo a pago...' : 'Pagar en línea'}
+                    </button>
+                  )}
+                  {hasMultipleOrders && orderResults.filter(r => r.total > 0).map((result) => (
+                    <button
+                      key={result.orderId}
+                      onClick={() => handlePayOnline(result.orderId)}
+                      disabled={payingOrderId === result.orderId}
+                      className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <CreditCard className="w-5 h-5" />
+                      {payingOrderId === result.orderId
+                        ? 'Redirigiendo a pago...'
+                        : `Pagar en línea - ${result.orderCode} ($${formatNumber(result.total)})`
+                      }
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Secondary options */}
               <button
                 onClick={() => window.open('/pago', '_blank')}
-                className="flex items-center justify-center gap-2 py-3 px-4 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-semibold"
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 border-2 border-surface-200 text-gray-700 rounded-xl hover:bg-surface-50 transition-colors font-semibold"
               >
-                <CreditCard className="w-5 h-5" />
-                Ver Métodos de Pago
-              </button>
-              <button
-                onClick={() => setShowUploadModal(true)}
-                className="flex items-center justify-center gap-2 py-3 px-4 bg-brand-600 text-white rounded-xl hover:bg-brand-700 transition-colors font-semibold"
-              >
-                <Upload className="w-5 h-5" />
-                Subir Comprobante
+                <Store className="w-5 h-5" />
+                Informacion sobre Pagos
               </button>
             </div>
 
@@ -667,7 +734,7 @@ export default function CheckoutPage() {
               • Te contactaremos para coordinar la entrega<br />
             </>
           )}
-          • El pago se realiza contra entrega
+          • Paga en linea o presencialmente
         </p>
       </div>
     </div>

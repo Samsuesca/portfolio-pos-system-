@@ -481,6 +481,7 @@ export function getAccountTypeLabel(accountType: AccountType): string {
   const labels: Record<AccountType, string> = {
     asset_current: 'Activo Corriente',
     asset_fixed: 'Activo Fijo',
+    asset_intangible: 'Activo Intangible',
     asset_other: 'Otros Activos',
     liability_current: 'Pasivo Corriente',
     liability_long: 'Pasivo a Largo Plazo',
@@ -496,6 +497,7 @@ export function getAccountTypeColor(accountType: AccountType): string {
   const colors: Record<AccountType, string> = {
     asset_current: 'bg-green-100 text-green-800',
     asset_fixed: 'bg-emerald-100 text-emerald-800',
+    asset_intangible: 'bg-violet-100 text-violet-800',
     asset_other: 'bg-teal-100 text-teal-800',
     liability_current: 'bg-red-100 text-red-800',
     liability_long: 'bg-rose-100 text-rose-800',
@@ -654,6 +656,17 @@ export interface PatrimonySummary {
         name: string;
         original_value: number;
         depreciation: number;
+        net_value: number;
+      }>;
+    };
+    intangible_assets?: {
+      total_value: number;
+      count: number;
+      breakdown: Array<{
+        id: string;
+        name: string;
+        original_value: number;
+        amortization: number;
         net_value: number;
       }>;
     };

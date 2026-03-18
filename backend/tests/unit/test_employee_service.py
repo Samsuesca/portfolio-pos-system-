@@ -8,6 +8,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import date
 from decimal import Decimal
+from app.utils.timezone import get_colombia_date
 from uuid import uuid4
 
 from app.models.payroll import Employee, EmployeeBonus, BonusType, PaymentFrequency
@@ -97,7 +98,7 @@ async def test_delete_employee_sets_inactive(mock_db_session, employee_service_i
 
     assert result is True
     assert mock_employee.is_active is False
-    assert mock_employee.termination_date == date.today()
+    assert mock_employee.termination_date == get_colombia_date()
 
 
 @pytest.mark.asyncio

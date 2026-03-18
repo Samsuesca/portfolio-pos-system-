@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from fastapi import FastAPI, Request
@@ -13,17 +14,126 @@ from slowapi.errors import RateLimitExceeded
 
 from app.core.config import settings
 from app.core.limiter import limiter
+from app.services.telegram import fire_and_forget_alert
+from app.services.monitoring import metrics
 
 logger = logging.getLogger(__name__)
-from app.api.routes import health, auth, schools, products, clients, sales, orders, inventory, users, reports, accounting, global_products, global_accounting, global_reports, contacts, payment_accounts, delivery_zones, dashboard, documents, fixed_expenses, employees, payroll, alterations, notifications, school_users, custom_roles, inventory_logs, global_roles, cash_drawer, business_settings, email_logs, print_queue, cfo_dashboard, workforce_shifts, workforce_attendance, workforce_checklists, workforce_performance, workforce_responsibilities
+from app.api.routes import health, auth, schools, products, clients, sales, orders, inventory, users, reports, accounting, global_products, global_accounting, global_reports, contacts, payment_accounts, delivery_zones, dashboard, documents, fixed_expenses, employees, payroll, alterations, notifications, school_users, custom_roles, inventory_logs, global_roles, cash_drawer, business_settings, email_logs, print_queue, cfo_dashboard, workforce_shifts, workforce_attendance, workforce_checklists, workforce_performance, workforce_responsibilities, payments, telegram_alerts
+
+
+async def _email_log_flush_loop():
+    """Background task: flush email log queue to DB every 10 seconds."""
+    from app.db.session import AsyncSessionLocal
+    from app.services.email import process_email_log_queue, get_email_log_queue_size
+
+    while True:
+        await asyncio.sleep(10)
+        if get_email_log_queue_size() > 0:
+            try:
+                async with AsyncSessionLocal() as db:
+                    await process_email_log_queue(db)
+            except Exception as e:
+                logger.error(f"Email log flush failed: {e}")
+
+
+async def _health_sample_loop():
+    """Background task: periodic health sampling + Telegram alerts."""
+    from app.db.session import AsyncSessionLocal
+    from app.services.monitoring import collect_health_sample
+    from app.services.telegram import get_telegram_service
+
+    interval = settings.HEALTH_SAMPLE_INTERVAL
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            async with AsyncSessionLocal() as db:
+                sample = await collect_health_sample(db)
+
+            telegram = get_telegram_service()
+
+            if not sample.db_ok:
+                await telegram.send_alert(
+                    "<b>DB Connection Failed</b>\n"
+                    "Health check could not reach PostgreSQL.",
+                    alert_type="db_down",
+                    cooldown=300,
+                )
+
+            if sample.disk_usage_pct > settings.DISK_ALERT_THRESHOLD_PCT:
+                await telegram.send_alert(
+                    f"<b>Disk Usage High</b>\n"
+                    f"Usage: {sample.disk_usage_pct}% "
+                    f"(threshold: {settings.DISK_ALERT_THRESHOLD_PCT}%)",
+                    alert_type="disk_high",
+                    cooldown=1800,
+                )
+
+            if sample.memory_usage_pct > 85:
+                await telegram.send_alert(
+                    f"<b>Memory Usage High</b>\n"
+                    f"Usage: {sample.memory_usage_pct}%",
+                    alert_type="mem_high",
+                    cooldown=1800,
+                )
+
+        except Exception as e:
+            logger.error("Health sample failed: %s", e)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     print("🚀 Starting Uniformes System API")
+
+    # Preload business info cache
+    from app.db.session import AsyncSessionLocal
+    from app.services.email import load_business_info
+    try:
+        async with AsyncSessionLocal() as db:
+            await load_business_info(db)
+    except Exception as e:
+        logger.warning(f"Could not preload business info: {e}")
+
+    # Start background tasks
+    flush_task = asyncio.create_task(_email_log_flush_loop())
+    health_task = asyncio.create_task(_health_sample_loop())
+
+    # Start Telegram digest/reminders loop
+    from app.services.telegram_digest import telegram_digest_loop
+    digest_task = asyncio.create_task(telegram_digest_loop())
+
+    # Send startup notification
+    from app.services.telegram import get_telegram_service
+    telegram = get_telegram_service()
+    if telegram.enabled:
+        await telegram.send_alert(
+            f"<b>UCR API Started</b>\n"
+            f"Version: <code>{settings.VERSION}</code>\n"
+            f"Env: <code>{settings.ENV}</code>",
+            alert_type="startup",
+            cooldown=0,
+        )
+
     yield
+
     # Shutdown
+    flush_task.cancel()
+    health_task.cancel()
+    digest_task.cancel()
+    for task in (flush_task, health_task, digest_task):
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    # Final flush of any remaining email logs
+    try:
+        async with AsyncSessionLocal() as db:
+            from app.services.email import process_email_log_queue
+            await process_email_log_queue(db)
+    except Exception:
+        pass
+
     print("🛑 Shutting down Uniformes System API")
 
 
@@ -91,16 +201,51 @@ async def pydantic_validation_exception_handler(request: Request, exc: PydanticV
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.exception(f"Unhandled exception on {request.method} {request.url}: {exc}")
+    metrics.total_errors_5xx += 1
+    fire_and_forget_alert(
+        f"<b>Error 500</b>\n"
+        f"Path: <code>{request.method} {request.url.path}</code>\n"
+        f"Type: <code>{type(exc).__name__}</code>\n"
+        f"Error: <code>{str(exc)[:200]}</code>",
+        alert_type=f"error_500_{type(exc).__name__}",
+    )
     return JSONResponse(
         status_code=500,
-        content={"detail": f"Internal server error: {str(exc)}"}
+        content={"detail": "Internal server error"}
     )
 
 
 # Middleware to log requests for debugging and add cache headers
 from starlette.middleware.base import BaseHTTPMiddleware
-from app.services.email import get_email_log_queue_size, process_email_log_queue
-from app.db.session import AsyncSessionLocal
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Middleware para agregar headers de seguridad HTTP"""
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+
+        # Headers siempre presentes
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+
+        # Content Security Policy (restrictivo por defecto)
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: https:; "
+            "connect-src 'self'"
+        )
+
+        # HSTS solo si está detrás de HTTPS (verificar con Nginx)
+        # Nginx debe tener proxy_set_header X-Forwarded-Proto $scheme;
+        if request.headers.get("x-forwarded-proto") == "https" or settings.ENV == "production":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+        return response
+
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -121,15 +266,10 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             response.headers["Cache-Control"] = "no-cache, must-revalidate"
             response.headers["Pragma"] = "no-cache"
 
-        # Process pending email logs after each request (if any)
-        if get_email_log_queue_size() > 0:
-            try:
-                async with AsyncSessionLocal() as db:
-                    await process_email_log_queue(db)
-            except Exception as e:
-                logger.error(f"Failed to process email log queue: {e}")
-
         return response
+
+# Security headers middleware
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Logging middleware (added first so it runs after CORS)
 app.add_middleware(RequestLoggingMiddleware)
@@ -141,8 +281,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.BACKEND_CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With", "Cache-Control"],
 )
 
 # Routes
@@ -190,6 +330,8 @@ app.include_router(workforce_attendance.router, prefix=f"{settings.API_V1_STR}")
 app.include_router(workforce_checklists.router, prefix=f"{settings.API_V1_STR}")  # Workforce: checklists
 app.include_router(workforce_performance.router, prefix=f"{settings.API_V1_STR}")  # Workforce: performance metrics & reviews
 app.include_router(workforce_responsibilities.router, prefix=f"{settings.API_V1_STR}")  # Workforce: position responsibilities
+app.include_router(payments.router, prefix=f"{settings.API_V1_STR}")  # Wompi payment gateway
+app.include_router(telegram_alerts.router, prefix=f"{settings.API_V1_STR}")  # Telegram alert subscriptions
 
 # Mount static files for uploads (payment proofs, etc.)
 # Use environment-based path: production uses /var/www/..., development uses relative path

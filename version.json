@@ -1,9 +1,9 @@
 {
-  "system": "2.5.0",
+  "system": "2.8.0",
   "apps": {
-    "backend": "2.5.0",
-    "frontend": "2.5.0",
-    "webPortal": "1.2.0",
-    "adminPortal": "1.3.0"
+    "backend": "2.8.0",
+    "frontend": "2.8.0",
+    "webPortal": "1.5.0",
+    "adminPortal": "1.5.0"
   }
 }

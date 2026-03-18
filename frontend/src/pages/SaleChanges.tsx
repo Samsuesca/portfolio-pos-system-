@@ -10,6 +10,7 @@ import SaleChangeDetailModal from '../components/SaleChangeDetailModal';
 import { RefreshCw, CheckCircle, XCircle, Clock, AlertCircle, Loader2, Eye, Search, Plus, ShoppingCart, Package, ClipboardList, Info } from 'lucide-react';
 import { formatDateTimeSpanish } from '../components/DatePicker';
 import DateFilter, { DateRange } from '../components/DateFilter';
+import PaymentMethodSelector from '../components/PaymentMethodSelector';
 import { saleChangeService } from '../services/saleChangeService';
 import { saleService } from '../services/saleService';
 import { orderChangeService } from '../services/orderChangeService';
@@ -1278,27 +1279,16 @@ export default function SaleChanges() {
                   </div>
 
                   {/* Payment Method Selection */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      {approveChangeData.priceAdjustment < 0 ? 'Metodo de Reembolso:' : 'Metodo de Pago:'}
-                    </label>
-                    <select
-                      value={approvePaymentMethod}
-                      onChange={(e) => setApprovePaymentMethod(e.target.value as 'cash' | 'nequi' | 'transfer' | 'card')}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
-                    >
-                      <option value="cash">Efectivo</option>
-                      <option value="nequi">Nequi</option>
-                      <option value="transfer">Transferencia</option>
-                      <option value="card">Tarjeta</option>
-                    </select>
-                    <p className="mt-1 text-xs text-gray-500">
-                      {approveChangeData.priceAdjustment < 0
-                        ? 'Selecciona como se realizara el reembolso al cliente'
-                        : 'Selecciona como pagara el cliente la diferencia'
-                      }
-                    </p>
-                  </div>
+                  <PaymentMethodSelector
+                    value={approvePaymentMethod}
+                    onChange={(method) => setApprovePaymentMethod(method as 'cash' | 'nequi' | 'transfer' | 'card')}
+                    label={approveChangeData.priceAdjustment < 0 ? 'Metodo de Reembolso:' : 'Metodo de Pago:'}
+                    includePlaceholder={false}
+                    hint={approveChangeData.priceAdjustment < 0
+                      ? 'Selecciona como se realizara el reembolso al cliente'
+                      : 'Selecciona como pagara el cliente la diferencia'
+                    }
+                  />
                 </>
               ) : (
                 /* No price adjustment - simple confirmation */
@@ -1413,27 +1403,16 @@ export default function SaleChanges() {
                     </p>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      {orderApproveChangeData.priceAdjustment < 0 ? 'Metodo de Reembolso:' : 'Metodo de Pago:'}
-                    </label>
-                    <select
-                      value={orderApprovePaymentMethod}
-                      onChange={(e) => setOrderApprovePaymentMethod(e.target.value as 'cash' | 'nequi' | 'transfer' | 'card')}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
-                    >
-                      <option value="cash">Efectivo</option>
-                      <option value="nequi">Nequi</option>
-                      <option value="transfer">Transferencia</option>
-                      <option value="card">Tarjeta</option>
-                    </select>
-                    <p className="mt-1 text-xs text-gray-500">
-                      {orderApproveChangeData.priceAdjustment < 0
-                        ? 'Selecciona como se realizara el reembolso al cliente'
-                        : 'Selecciona como pagara el cliente la diferencia'
-                      }
-                    </p>
-                  </div>
+                  <PaymentMethodSelector
+                    value={orderApprovePaymentMethod}
+                    onChange={(method) => setOrderApprovePaymentMethod(method as 'cash' | 'nequi' | 'transfer' | 'card')}
+                    label={orderApproveChangeData.priceAdjustment < 0 ? 'Metodo de Reembolso:' : 'Metodo de Pago:'}
+                    includePlaceholder={false}
+                    hint={orderApproveChangeData.priceAdjustment < 0
+                      ? 'Selecciona como se realizara el reembolso al cliente'
+                      : 'Selecciona como pagara el cliente la diferencia'
+                    }
+                  />
                 </>
               ) : (
                 <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">

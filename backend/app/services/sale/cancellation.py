@@ -184,13 +184,16 @@ class SaleCancellationMixin:
             self.db.add(reverse_transaction)
             await self.db.flush()
 
-            # Aplicar a balance (restar de Caja/Banco)
+            # Aplicar a balance (restar de la misma cuenta donde entró el dinero)
+            # force_income_map=True asegura que CASH reste de Caja Menor (no Caja Mayor)
             try:
-                await balance_service.apply_transaction_to_balance(reverse_transaction, cancelled_by)
+                await balance_service.apply_transaction_to_balance(
+                    reverse_transaction, cancelled_by, force_income_map=True
+                )
                 logger.info(f"Created reverse transaction for sale {sale.code}: {txn.amount} via {actual_refund_method}")
             except Exception as e:
                 logger.error(f"Error applying reverse transaction to balance: {e}")
-                # No fallar, continuar con el proceso
+                raise ValueError(f"Error al revertir transacción contable: {str(e)}")
 
         if transactions:
             transactions_reversed = True

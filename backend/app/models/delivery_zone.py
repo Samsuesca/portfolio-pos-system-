@@ -2,6 +2,7 @@
 Delivery Zone Model - Zonas de envío con tarifas
 """
 from datetime import datetime
+from decimal import Decimal
 from sqlalchemy import String, DateTime, Numeric, Integer, Text, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
@@ -28,7 +29,7 @@ class DeliveryZone(Base):
     description: Mapped[str | None] = mapped_column(Text)
 
     # Tarifa de envío para esta zona
-    delivery_fee: Mapped[float] = mapped_column(
+    delivery_fee: Mapped[Decimal] = mapped_column(
         Numeric(10, 2),
         default=0,
         nullable=False

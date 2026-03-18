@@ -180,17 +180,20 @@ class Transaction(Base):
     sale_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("sales.id", ondelete="SET NULL"),
-        nullable=True
+        nullable=True,
+        index=True
     )
     order_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("orders.id", ondelete="SET NULL"),
-        nullable=True
+        nullable=True,
+        index=True
     )
     expense_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("expenses.id", ondelete="SET NULL"),
-        nullable=True
+        nullable=True,
+        index=True
     )
     alteration_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
@@ -211,14 +214,16 @@ class Transaction(Base):
     transfer_to_account_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("balance_accounts.id", ondelete="SET NULL"),
-        nullable=True
+        nullable=True,
+        index=True
     )
 
     # Audit
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
-        nullable=True
+        nullable=True,
+        index=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
@@ -321,7 +326,8 @@ class Expense(Base):
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
-        nullable=True
+        nullable=True,
+        index=True
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -341,7 +347,8 @@ class Expense(Base):
     payment_account_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("balance_accounts.id", ondelete="SET NULL"),
-        nullable=True
+        nullable=True,
+        index=True
     )
     paid_at: Mapped[datetime | None] = mapped_column(DateTime)
 
@@ -447,7 +454,8 @@ class DailyCashRegister(Base):
     closed_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
-        nullable=True
+        nullable=True,
+        index=True
     )
 
     notes: Mapped[str | None] = mapped_column(Text)
@@ -485,6 +493,7 @@ class AccountType(str, enum.Enum):
     # Activos
     ASSET_CURRENT = "asset_current"           # Activo Corriente (efectivo, cuentas por cobrar, inventario)
     ASSET_FIXED = "asset_fixed"               # Activo Fijo (equipos, muebles, maquinaria)
+    ASSET_INTANGIBLE = "asset_intangible"     # Activo Intangible (software, licencias, patentes, marcas)
     ASSET_OTHER = "asset_other"               # Otros Activos
 
     # Pasivos
@@ -560,7 +569,8 @@ class BalanceAccount(Base):
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
-        nullable=True
+        nullable=True,
+        index=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
@@ -633,7 +643,8 @@ class BalanceEntry(Base):
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
-        nullable=True
+        nullable=True,
+        index=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
@@ -684,7 +695,8 @@ class AccountsReceivable(Base):
     sale_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("sales.id", ondelete="SET NULL"),
-        nullable=True
+        nullable=True,
+        index=True
     )
     order_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
@@ -715,7 +727,8 @@ class AccountsReceivable(Base):
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
-        nullable=True
+        nullable=True,
+        index=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
@@ -799,7 +812,8 @@ class ExpenseAdjustment(Base):
     previous_payment_account_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("balance_accounts.id", ondelete="SET NULL"),
-        nullable=True
+        nullable=True,
+        index=True
     )
 
     # New values (after adjustment)
@@ -809,7 +823,8 @@ class ExpenseAdjustment(Base):
     new_payment_account_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("balance_accounts.id", ondelete="SET NULL"),
-        nullable=True
+        nullable=True,
+        index=True
     )
 
     # Delta (net change in payment)
@@ -825,20 +840,23 @@ class ExpenseAdjustment(Base):
         UUID(as_uuid=True),
         ForeignKey("balance_entries.id", ondelete="SET NULL"),
         nullable=True,
-        comment="Balance entry for refund/reversal (positive entry)"
+        comment="Balance entry for refund/reversal (positive entry)",
+        index=True
     )
     new_payment_entry_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("balance_entries.id", ondelete="SET NULL"),
         nullable=True,
-        comment="Balance entry for new payment (negative entry, account correction)"
+        comment="Balance entry for new payment (negative entry, account correction)",
+        index=True
     )
 
     # Audit
     adjusted_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
-        nullable=True
+        nullable=True,
+        index=True
     )
     adjusted_at: Mapped[datetime] = mapped_column(
         DateTime,
@@ -918,7 +936,8 @@ class AccountsPayable(Base):
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
-        nullable=True
+        nullable=True,
+        index=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
@@ -1002,7 +1021,8 @@ class DebtPaymentSchedule(Base):
     payment_account_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("balance_accounts.id", ondelete="SET NULL"),
-        nullable=True
+        nullable=True,
+        index=True
     )
 
     # Link to related records (optional)
@@ -1010,13 +1030,15 @@ class DebtPaymentSchedule(Base):
         UUID(as_uuid=True),
         ForeignKey("balance_accounts.id", ondelete="SET NULL"),
         nullable=True,
-        comment="Link to liability account if this payment is for a tracked debt"
+        comment="Link to liability account if this payment is for a tracked debt",
+        index=True
     )
     accounts_payable_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("accounts_payable.id", ondelete="SET NULL"),
         nullable=True,
-        comment="Link to accounts payable if applicable"
+        comment="Link to accounts payable if applicable",
+        index=True
     )
 
     # Category for grouping in reports
@@ -1028,7 +1050,8 @@ class DebtPaymentSchedule(Base):
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
-        nullable=True
+        nullable=True,
+        index=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
@@ -1103,7 +1126,8 @@ class CajaMenorConfig(Base):
     updated_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
-        nullable=True
+        nullable=True,
+        index=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
@@ -1179,7 +1203,8 @@ class FinancialSnapshot(Base):
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id"),
-        nullable=True
+        nullable=True,
+        index=True
     )
 
     created_at: Mapped[datetime] = mapped_column(

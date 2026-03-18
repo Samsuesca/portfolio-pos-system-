@@ -25,7 +25,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
       console.log('[AuthGuard] Auth verification result:', isValid);
       if (!isValid) {
         console.log('[AuthGuard] Not authenticated, redirecting to /login');
-        router.push('/login');
+        router.push('/login?session=expired');
       }
       setIsChecking(false);
     };

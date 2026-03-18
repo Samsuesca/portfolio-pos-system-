@@ -1,5 +1,11 @@
 """
 Rate Limiter Configuration
+Usa Redis en producción para rate limiting distribuido.
+
+Default limits (applied to all endpoints unless overridden):
+- 120/minute for all endpoints (general)
+- Specific endpoints can override with @limiter.limit()
+  e.g. auth login uses "5/minute"
 """
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -13,15 +19,27 @@ def get_rate_limit_key(request) -> str:
     Returns empty string during testing to effectively disable rate limiting.
     """
     if settings.TESTING:
-        # Return a unique key per request to bypass rate limiting in tests
         return ""
     return get_remote_address(request)
 
 
-# Rate limiter global - usa memoria en desarrollo
-# En produccion se puede configurar Redis como backend
-# During testing (TESTING=True), rate limiting is effectively disabled
-limiter = Limiter(
-    key_func=get_rate_limit_key,
-    enabled=not settings.TESTING  # Disable limiter completely during tests
-)
+# Default rate limits applied to all endpoints
+_default_limits = ["120/minute"]
+
+# Rate limiter global
+# En producción usa Redis como backend para rate limiting distribuido
+# En desarrollo usa memoria in-memory
+# Durante tests (TESTING=True), rate limiting está deshabilitado
+if settings.ENV == "production":
+    limiter = Limiter(
+        key_func=get_rate_limit_key,
+        default_limits=_default_limits,
+        storage_uri=settings.REDIS_URL,
+        enabled=not settings.TESTING
+    )
+else:
+    limiter = Limiter(
+        key_func=get_rate_limit_key,
+        default_limits=_default_limits,
+        enabled=not settings.TESTING
+    )

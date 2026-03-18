@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { type GarmentTypeImage, API_BASE_URL, getProductImage } from '@/lib/api';
+import Image from 'next/image';
+import { type GarmentTypeImage, API_BASE_URL } from '@/lib/api';
+import GarmentIcon from './GarmentIcon';
 
 interface ProductImageGalleryProps {
   images?: GarmentTypeImage[];
@@ -37,21 +39,20 @@ export default function ProductImageGallery({
     // Try primary image URL if available
     if (primaryImageUrl) {
       return (
-        <div className={`aspect-square bg-gradient-to-br from-brand-50 to-surface-100 flex items-center justify-center overflow-hidden ${className}`}>
-          <img
+        <div className={`aspect-square bg-gradient-to-br from-brand-50 to-surface-100 flex items-center justify-center overflow-hidden relative ${className}`}>
+          <Image
             src={getFullImageUrl(primaryImageUrl)}
             alt={productName}
-            className="w-full h-full object-cover"
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+            className="object-cover"
+            unoptimized
             onError={(e) => {
-              // If image fails to load, show emoji
               const target = e.target as HTMLImageElement;
               target.style.display = 'none';
               const parent = target.parentElement;
               if (parent) {
-                const emoji = document.createElement('span');
-                emoji.className = 'text-6xl';
-                emoji.textContent = getProductImage(productName);
-                parent.appendChild(emoji);
+                parent.classList.add('flex', 'items-center', 'justify-center');
               }
             }}
           />
@@ -59,10 +60,10 @@ export default function ProductImageGallery({
       );
     }
 
-    // No images at all - show emoji
+    // No images at all - show garment icon
     return (
       <div className={`aspect-square bg-gradient-to-br from-brand-50 to-surface-100 flex items-center justify-center ${className}`}>
-        <span className="text-6xl">{getProductImage(productName)}</span>
+        <GarmentIcon productName={productName} className="w-16 h-16 text-stone-400" />
       </div>
     );
   }
@@ -73,21 +74,21 @@ export default function ProductImageGallery({
   // Single image - no navigation needed
   if (sortedImages.length === 1) {
     return (
-      <div className={`aspect-square bg-gradient-to-br from-brand-50 to-surface-100 overflow-hidden ${className}`}>
-        <img
+      <div className={`aspect-square bg-gradient-to-br from-brand-50 to-surface-100 overflow-hidden relative ${className}`}>
+        <Image
           src={getFullImageUrl(sortedImages[0].image_url)}
           alt={productName}
-          className="w-full h-full object-cover"
+          fill
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+          className="object-cover"
+          unoptimized
           onError={(e) => {
             const target = e.target as HTMLImageElement;
             target.style.display = 'none';
             const parent = target.parentElement;
             if (parent) {
               parent.classList.add('flex', 'items-center', 'justify-center');
-              const emoji = document.createElement('span');
-              emoji.className = 'text-6xl';
-              emoji.textContent = getProductImage(productName);
-              parent.appendChild(emoji);
+              parent.classList.add('flex', 'items-center', 'justify-center');
             }
           }}
         />
@@ -109,21 +110,21 @@ export default function ProductImageGallery({
   return (
     <div className={`relative group ${className}`}>
       {/* Main Image */}
-      <div className="aspect-square bg-gradient-to-br from-brand-50 to-surface-100 overflow-hidden">
-        <img
+      <div className="aspect-square bg-gradient-to-br from-brand-50 to-surface-100 overflow-hidden relative">
+        <Image
           src={getFullImageUrl(sortedImages[currentIndex].image_url)}
           alt={`${productName} - Imagen ${currentIndex + 1}`}
-          className="w-full h-full object-cover transition-opacity duration-300"
+          fill
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+          className="object-cover transition-opacity duration-300"
+          unoptimized
           onError={(e) => {
             const target = e.target as HTMLImageElement;
             target.style.display = 'none';
             const parent = target.parentElement;
             if (parent) {
               parent.classList.add('flex', 'items-center', 'justify-center');
-              const emoji = document.createElement('span');
-              emoji.className = 'text-6xl';
-              emoji.textContent = getProductImage(productName);
-              parent.appendChild(emoji);
+              parent.classList.add('flex', 'items-center', 'justify-center');
             }
           }}
         />

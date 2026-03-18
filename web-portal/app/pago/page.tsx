@@ -3,266 +3,255 @@
 /**
  * Payment Information Page
  *
- * Displays active payment methods (bank accounts, Nequi, QR codes)
- * configured by admin for customers to make payments.
+ * Modern payment page showing Wompi online payments as primary method
+ * and in-person payment as secondary option.
  */
 
 import { useEffect, useState } from 'react';
-import { Building2, Smartphone, CreditCard, QrCode, Copy, Check } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import Image from 'next/image';
+import {
+  CreditCard,
+  Shield,
+  Smartphone,
+  Building2,
+  Store,
+  ArrowLeft,
+  ArrowRight,
+  Clock,
+  CheckCircle,
+  QrCode,
+} from 'lucide-react';
+import { paymentsApi } from '@/lib/api';
 
-interface PaymentAccount {
-  id: string;
-  method_type: string;
-  account_name: string;
-  account_number: string;
-  account_holder: string;
-  bank_name: string | null;
-  account_type: string | null;
-  qr_code_url: string | null;
-  instructions: string | null;
-  display_order: number;
-}
-
-const METHOD_TYPE_LABELS: Record<string, string> = {
-  nequi: 'Nequi',
-  bank_account: 'Cuenta Bancaria',
-  daviplata: 'Daviplata',
-  other: 'Otro'
-};
-
-const METHOD_TYPE_ICONS: Record<string, any> = {
-  nequi: Smartphone,
-  bank_account: Building2,
-  daviplata: Smartphone,
-  other: CreditCard
-};
+const PAYMENT_METHODS = [
+  { name: 'Tarjetas', desc: 'Visa, Mastercard, Amex', icon: CreditCard },
+  { name: 'PSE', desc: 'Debito bancario', icon: Building2 },
+  { name: 'Nequi', desc: 'Pago desde la app', icon: Smartphone },
+  { name: 'Daviplata', desc: 'Pago desde la app', icon: Smartphone },
+  { name: 'Bancolombia QR', desc: 'Escanea y paga', icon: QrCode },
+];
 
 export default function PaymentPage() {
-  const [accounts, setAccounts] = useState<PaymentAccount[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const router = useRouter();
+  const [wompiEnabled, setWompiEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
-    loadPaymentAccounts();
+    paymentsApi
+      .getConfig()
+      .then((config) => setWompiEnabled(config.enabled))
+      .catch(() => setWompiEnabled(false));
   }, []);
 
-  const loadPaymentAccounts = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/payment-accounts/public`);
-
-      if (response.ok) {
-        const data = await response.json();
-        setAccounts(data);
-      }
-    } catch (error) {
-      console.error('Error loading payment accounts:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const copyToClipboard = async (text: string, id: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedId(id);
-      setTimeout(() => setCopiedId(null), 2000);
-    } catch (err) {
-      console.error('Error copying to clipboard:', err);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-green-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Cargando información de pago...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Métodos de Pago
-          </h1>
-          <p className="text-lg text-gray-600">
-            Realiza tu pago a través de cualquiera de nuestras cuentas
-          </p>
+    <div className="min-h-screen bg-gradient-to-br from-surface-50 via-white to-green-50/30">
+      {/* Header */}
+      <header className="bg-white border-b border-surface-200">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <button
+            onClick={() => router.push('/')}
+            className="flex items-center text-slate-600 hover:text-primary transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5 mr-2" />
+            Volver al Inicio
+          </button>
         </div>
+      </header>
 
-        {/* Payment Accounts */}
-        {accounts.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-lg shadow">
-            <CreditCard className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-            <p className="text-gray-500">No hay métodos de pago configurados</p>
+      <div className="py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-4xl mx-auto">
+          {/* Hero */}
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center justify-center bg-green-50 rounded-2xl px-8 py-4 mb-6 border border-green-100">
+              <Image
+                src="/wompi-logo.png"
+                alt="Wompi - Pasarela de pagos"
+                width={180}
+                height={90}
+                className="h-12 sm:h-16 w-auto"
+                style={{ width: 'auto' }}
+                priority
+              />
+            </div>
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-3 font-display">
+              Pagos Seguros
+            </h1>
+            <p className="text-lg text-gray-600 max-w-xl mx-auto">
+              Realiza tus pagos de forma segura y rapida con Wompi, nuestra pasarela de pagos certificada
+            </p>
           </div>
-        ) : (
-          <div className="space-y-6">
-            {accounts.map((account) => {
-              const Icon = METHOD_TYPE_ICONS[account.method_type] || CreditCard;
 
-              return (
-                <div
-                  key={account.id}
-                  className="bg-white rounded-lg shadow-lg border-2 border-gray-200 overflow-hidden hover:border-green-500 transition"
-                >
-                  {/* Header */}
-                  <div className="bg-gradient-to-r from-green-600 to-green-700 text-white px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-white bg-opacity-20 rounded-lg">
-                        <Icon className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <h2 className="text-xl font-bold">{account.account_name}</h2>
-                        <p className="text-green-100 text-sm">
-                          {METHOD_TYPE_LABELS[account.method_type]}
-                        </p>
-                      </div>
-                    </div>
+          {/* Online Payment Card */}
+          <div className="bg-white rounded-2xl shadow-lg border border-surface-200 overflow-hidden mb-6">
+            <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 sm:px-8 py-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
+                  <CreditCard className="w-7 h-7" />
+                </div>
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold">Pago en Linea</h2>
+                  <p className="text-green-100 text-sm sm:text-base">
+                    Paga al instante desde cualquier lugar
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 sm:p-8">
+              {/* Accepted methods */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
+                {PAYMENT_METHODS.map((method) => (
+                  <div
+                    key={method.name}
+                    className="flex flex-col items-center p-3 rounded-xl bg-surface-50 border border-surface-100"
+                  >
+                    <method.icon className="w-6 h-6 text-green-600 mb-2" />
+                    <span className="text-sm font-semibold text-gray-800">{method.name}</span>
+                    <span className="text-xs text-gray-500 text-center">{method.desc}</span>
                   </div>
+                ))}
+              </div>
 
-                  {/* Content */}
-                  <div className="p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Account Details */}
-                      <div className="space-y-4">
-                        {/* Account Holder */}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-500 mb-1">
-                            Titular
-                          </label>
-                          <p className="text-lg font-semibold text-gray-900">
-                            {account.account_holder}
-                          </p>
-                        </div>
-
-                        {/* Account Number */}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-500 mb-1">
-                            Número de Cuenta
-                          </label>
-                          <div className="flex items-center gap-2">
-                            <p className="text-lg font-semibold text-gray-900 flex-1">
-                              {account.account_number}
-                            </p>
-                            <button
-                              onClick={() => copyToClipboard(account.account_number, `number-${account.id}`)}
-                              className="p-2 hover:bg-gray-100 rounded-lg transition"
-                              title="Copiar número"
-                            >
-                              {copiedId === `number-${account.id}` ? (
-                                <Check className="w-5 h-5 text-green-600" />
-                              ) : (
-                                <Copy className="w-5 h-5 text-gray-400" />
-                              )}
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Bank Name */}
-                        {account.bank_name && (
-                          <div>
-                            <label className="block text-sm font-medium text-gray-500 mb-1">
-                              Banco
-                            </label>
-                            <p className="text-lg font-semibold text-gray-900">
-                              {account.bank_name}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Account Type */}
-                        {account.account_type && (
-                          <div>
-                            <label className="block text-sm font-medium text-gray-500 mb-1">
-                              Tipo de Cuenta
-                            </label>
-                            <p className="text-lg font-semibold text-gray-900">
-                              {account.account_type}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* QR Code */}
-                      {account.qr_code_url && (
-                        <div className="flex flex-col items-center justify-center bg-gray-50 rounded-lg p-4">
-                          <div className="mb-3 flex items-center gap-2 text-gray-700">
-                            <QrCode className="w-5 h-5" />
-                            <span className="font-medium">Código QR</span>
-                          </div>
-                          <img
-                            src={account.qr_code_url}
-                            alt={`QR Code ${account.account_name}`}
-                            className="w-48 h-48 object-contain border-2 border-gray-300 rounded-lg"
-                          />
-                          <p className="text-sm text-gray-500 mt-2 text-center">
-                            Escanea para pagar con tu app
-                          </p>
-                        </div>
-                      )}
+              {/* How it works */}
+              <div className="bg-green-50 border border-green-100 rounded-xl p-5 mb-6">
+                <h3 className="font-bold text-green-900 mb-3">Como funciona</h3>
+                <div className="space-y-3">
+                  {[
+                    'Realiza tu pedido en linea o en la tienda',
+                    'Selecciona "Pagar en linea" desde tu cuenta o al finalizar la compra',
+                    'Seras redirigido a Wompi, nuestra pasarela de pagos certificada',
+                    'Tu pago se confirma automaticamente y procesamos tu pedido',
+                  ].map((step, i) => (
+                    <div key={i} className="flex items-start gap-3">
+                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-green-600 text-white text-xs font-bold flex items-center justify-center mt-0.5">
+                        {i + 1}
+                      </span>
+                      <p className="text-green-800 text-sm">{step}</p>
                     </div>
+                  ))}
+                </div>
+              </div>
 
-                    {/* Instructions */}
-                    {account.instructions && (
-                      <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                        <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
-                          <span>📋</span> Instrucciones
-                        </h3>
-                        <p className="text-blue-800 whitespace-pre-wrap">
-                          {account.instructions}
-                        </p>
-                      </div>
-                    )}
+              {/* CTA */}
+              {wompiEnabled && (
+                <button
+                  onClick={() => router.push('/mi-cuenta')}
+                  className="w-full flex items-center justify-center gap-2 py-4 px-6 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all font-semibold text-lg shadow-md shadow-green-200 hover:shadow-lg hover:shadow-green-200"
+                >
+                  Ir a Mis Pedidos para Pagar
+                  <ArrowRight className="w-5 h-5" />
+                </button>
+              )}
+
+              {wompiEnabled === false && (
+                <div className="text-center py-3 px-4 bg-amber-50 border border-amber-200 rounded-xl">
+                  <p className="text-amber-800 text-sm">
+                    Pagos en linea temporalmente no disponibles. Usa pago presencial.
+                  </p>
+                </div>
+              )}
+
+              {/* Trust badges */}
+              <div className="flex flex-col items-center gap-4 mt-6 pt-6 border-t border-surface-100">
+                <div className="flex items-center justify-center gap-6">
+                  <div className="flex items-center gap-2 text-gray-500 text-xs">
+                    <Shield className="w-4 h-4" />
+                    <span>Encriptado SSL</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-gray-500 text-xs">
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Pagos seguros</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-gray-500 text-xs">
+                    <Clock className="w-4 h-4" />
+                    <span>Confirmacion inmediata</span>
                   </div>
                 </div>
-              );
-            })}
+                <div className="flex items-center gap-2 opacity-60">
+                  <span className="text-xs text-gray-400">Procesado por</span>
+                  <Image
+                    src="/wompi-logo.png"
+                    alt="Wompi"
+                    width={80}
+                    height={40}
+                    className="h-5 w-auto"
+                    style={{ width: 'auto' }}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
-        )}
 
-        {/* Footer Information */}
-        <div className="mt-12 bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-          <h3 className="font-semibold text-yellow-900 mb-3 text-lg">
-            ⚠️ Importante
-          </h3>
-          <ul className="space-y-2 text-yellow-800">
-            <li className="flex items-start gap-2">
-              <span className="text-yellow-600 mt-1">•</span>
-              <span>
-                Después de realizar el pago, guarda el comprobante de transferencia
-              </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-yellow-600 mt-1">•</span>
-              <span>
-                Envía el comprobante al WhatsApp: <strong>300-123-4567</strong> o <strong>300-765-4321</strong>
-              </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-yellow-600 mt-1">•</span>
-              <span>
-                Tu pedido será procesado una vez confirmemos el pago
-              </span>
-            </li>
-          </ul>
-        </div>
+          {/* In-Person Payment Card */}
+          <div className="bg-white rounded-2xl shadow-md border border-surface-200 overflow-hidden mb-8">
+            <div className="px-6 sm:px-8 py-5 border-b border-surface-100">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-amber-100 rounded-xl">
+                  <Store className="w-6 h-6 text-amber-700" />
+                </div>
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold text-gray-900">
+                    Pago Presencial
+                  </h2>
+                  <p className="text-gray-500 text-sm">
+                    Paga directamente en nuestra tienda
+                  </p>
+                </div>
+              </div>
+            </div>
 
-        {/* Contact */}
-        <div className="mt-8 text-center">
-          <p className="text-gray-600 mb-2">¿Tienes dudas sobre el pago?</p>
-          <a
-            href="mailto:contact@example.com"
-            className="text-green-600 hover:text-green-700 font-medium"
-          >
-            contact@example.com
-          </a>
+            <div className="p-6 sm:p-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <div className="flex items-start gap-3 p-4 bg-surface-50 rounded-xl">
+                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-semibold text-gray-800 text-sm">Efectivo</p>
+                    <p className="text-gray-500 text-xs">Pago en pesos colombianos</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-4 bg-surface-50 rounded-xl">
+                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-semibold text-gray-800 text-sm">Contra entrega</p>
+                    <p className="text-gray-500 text-xs">Paga cuando recibas tu pedido</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
+                <p className="text-amber-800 text-sm">
+                  <strong>Horario de atencion:</strong> Lunes a Sabado, 8:00 AM - 6:00 PM
+                </p>
+                <p className="text-amber-700 text-xs mt-1">
+                  Comunicate con nosotros para coordinar la entrega o recogida de tu pedido.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Contact */}
+          <div className="text-center">
+            <p className="text-gray-500 text-sm mb-2">
+              Preguntas sobre tu pago?
+            </p>
+            <div className="flex items-center justify-center gap-4">
+              <a
+                href="https://wa.me/573001234567"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-green-600 hover:text-green-700 font-medium text-sm"
+              >
+                WhatsApp: 300-123-4567
+              </a>
+              <span className="text-gray-300">|</span>
+              <a
+                href="mailto:contact@example.com"
+                className="text-green-600 hover:text-green-700 font-medium text-sm"
+              >
+                contact@example.com
+              </a>
+            </div>
+          </div>
         </div>
       </div>
     </div>

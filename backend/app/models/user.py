@@ -5,6 +5,10 @@ from datetime import datetime
 from sqlalchemy import String, Boolean, DateTime, ForeignKey, Enum as SQLEnum, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.telegram_subscription import TelegramAlertSubscription
 import uuid
 import enum
 
@@ -61,7 +65,14 @@ class User(Base):
     )
     last_login: Mapped[datetime | None] = mapped_column(DateTime)
 
+    # Telegram integration
+    telegram_chat_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
     # Relationships
+    telegram_subscriptions: Mapped[list["TelegramAlertSubscription"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
     school_roles: Mapped[list["UserSchoolRole"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan"

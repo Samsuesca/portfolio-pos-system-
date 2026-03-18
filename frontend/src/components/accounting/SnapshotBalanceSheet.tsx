@@ -20,6 +20,7 @@ const SnapshotBalanceSheet: React.FC<SnapshotBalanceSheetProps> = ({ data }) => 
   const cashAccounts = arr(currentAssets.cash_accounts);
   const inventory = (currentAssets.inventory ?? {}) as Record<string, unknown>;
   const fixedAssets = arr(data.fixed_assets);
+  const intangibleAssets = arr(data.intangible_assets);
   const currentLiabilities = (data.current_liabilities ?? {}) as Record<string, unknown>;
   const shortTermDebt = arr(currentLiabilities.short_term_debt);
   const longTermLiabilities = arr(data.long_term_liabilities);
@@ -80,10 +81,29 @@ const SnapshotBalanceSheet: React.FC<SnapshotBalanceSheetProps> = ({ data }) => 
             </div>
           )}
 
+          {/* Activos Intangibles */}
+          {intangibleAssets.length > 0 && (
+            <div className="mb-4">
+              <p className="text-sm font-medium text-gray-600 mb-2">Intangibles</p>
+              <div className="space-y-1 text-sm">
+                {intangibleAssets.map((acc, i) => (
+                  <div key={str(acc.id) || i} className="flex justify-between">
+                    <span className="text-gray-600">{str(acc.name)}</span>
+                    <span>{formatCurrency(num(acc.net_value))}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-between font-medium border-t mt-2 pt-2">
+                <span>TOTAL ACTIVOS INTANGIBLES</span>
+                <span>{formatCurrency(num(data.total_intangible_assets))}</span>
+              </div>
+            </div>
+          )}
+
           {/* Total Activos */}
           <div className="flex justify-between font-bold text-lg border-t-2 border-gray-800 pt-2 mt-4">
             <span>TOTAL ACTIVOS</span>
-            <span className="text-blue-600">{formatCurrency(num(data.total_assets))}</span>
+            <span className="text-brand-600">{formatCurrency(num(data.total_assets))}</span>
           </div>
         </div>
 
@@ -180,7 +200,7 @@ const SnapshotBalanceSheet: React.FC<SnapshotBalanceSheetProps> = ({ data }) => 
           {/* Total Pasivos + Patrimonio */}
           <div className="flex justify-between font-bold text-lg border-t-2 border-gray-800 pt-2 mt-4">
             <span>PASIVOS + PATRIMONIO</span>
-            <span className="text-blue-600">{formatCurrency(num(data.total_liabilities) + num(data.total_equity))}</span>
+            <span className="text-brand-600">{formatCurrency(num(data.total_liabilities) + num(data.total_equity))}</span>
           </div>
         </div>
       </div>

@@ -1,0 +1,141 @@
+name: CD
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: cd-production
+  cancel-in-progress: false
+
+jobs:
+  # Run tests before deploying
+  tests:
+    uses: ./.github/workflows/tests.yml
+
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [tests]
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+
+    steps:
+      - name: Extract version from tag
+        id: tag
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "🚀 Deploying $VERSION to production"
+
+      - name: Deploy to VPS
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/var/www/uniformes-system-v2' }}
+          TAG: ${{ steps.tag.outputs.version }}
+        run: |
+          # Setup SSH
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          ssh -i ~/.ssh/deploy_key "${SSH_USER}@${SSH_HOST}" bash -s <<DEPLOY_SCRIPT
+            set -e
+            echo "=========================================="
+            echo "🚀 Deploying ${TAG} to production"
+            echo "=========================================="
+
+            cd ${DEPLOY_PATH}
+
+            # 1. Verify uploads directory exists (user-uploaded files, NOT in git)
+            UPLOADS_DIR="${DEPLOY_PATH}/uploads"
+            mkdir -p "\$UPLOADS_DIR/school-logos" "\$UPLOADS_DIR/documents"
+
+            # 2. Fetch and checkout tag
+            echo "📥 Fetching ${TAG}..."
+            # NOTE: Do NOT use --include-untracked - that would sweep user-uploaded files
+            # (uploads/) into the stash and lose them. uploads/ is gitignored so
+            # git checkout will never touch it; a plain stash covers only tracked file changes.
+            git stash || true
+            git fetch origin --tags
+            git checkout ${TAG}
+
+            # 3. Verify uploads survived checkout (git shouldn't touch .gitignored dirs)
+            if [ ! -d "\$UPLOADS_DIR/school-logos" ]; then
+              echo "⚠️ uploads/school-logos was deleted during checkout, recreating..."
+              mkdir -p "\$UPLOADS_DIR/school-logos" "\$UPLOADS_DIR/documents"
+            fi
+
+            # 4. Backup database (PostgreSQL nativo, no Docker)
+            echo "💾 Backing up database..."
+            BACKUP_DIR="${DEPLOY_PATH}/backups"
+            mkdir -p "\$BACKUP_DIR"
+            sudo -u postgres pg_dump uniformes_db \
+              | gzip > "\$BACKUP_DIR/pre-deploy-${TAG}-\$(date +%Y%m%d_%H%M%S).sql.gz"
+            echo "✅ Backup complete"
+
+            # 3. Backend: deps + migrations + restart
+            echo "🐍 Updating backend..."
+            cd ${DEPLOY_PATH}/backend
+            source venv/bin/activate
+            pip install -r requirements.txt --quiet
+            alembic upgrade head
+            sudo systemctl restart uniformes-api
+            echo "✅ Backend restarted"
+
+            # 4. Web Portal: build + restart PM2
+            echo "🌐 Building web portal..."
+            cd ${DEPLOY_PATH}/web-portal
+            npm install --legacy-peer-deps
+            npm run build
+            pm2 restart uniformes-web
+            echo "✅ Web portal restarted"
+
+            # 5. Admin Portal: build + restart PM2
+            echo "🔧 Building admin portal..."
+            cd ${DEPLOY_PATH}/admin-portal
+            npm install --legacy-peer-deps
+            npm run build
+            pm2 restart uniformes-admin
+            echo "✅ Admin portal restarted"
+
+            # 6. Health check
+            echo "🏥 Running health checks..."
+            sleep 5
+
+            # Check backend API
+            HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/docs || echo "000")
+            if [ "\$HTTP_CODE" = "200" ]; then
+              echo "✅ Backend API healthy (HTTP \$HTTP_CODE)"
+            else
+              echo "⚠️ Backend returned HTTP \$HTTP_CODE"
+            fi
+
+            # Check systemd service
+            if systemctl is-active --quiet uniformes-api; then
+              echo "✅ uniformes-api service active"
+            else
+              echo "❌ uniformes-api service failed!"
+              journalctl -u uniformes-api --no-pager -n 20
+              exit 1
+            fi
+
+            # Check PM2 processes
+            pm2 list
+
+            # Cleanup old backups (keep last 10)
+            ls -t "\$BACKUP_DIR"/*.sql.gz 2>/dev/null | tail -n +11 | xargs -r rm
+
+            echo "=========================================="
+            echo "✅ Deploy ${TAG} complete!"
+            echo "=========================================="
+          DEPLOY_SCRIPT
+
+          rm -f ~/.ssh/deploy_key
+
+      - name: Deploy skipped
+        if: ${{ vars.DEPLOY_ENABLED != 'true' }}
+        run: echo "⏭️ Deploy disabled. Set DEPLOY_ENABLED=true in repo variables to enable."

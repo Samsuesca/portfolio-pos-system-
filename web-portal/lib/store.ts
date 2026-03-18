@@ -7,11 +7,12 @@ export interface CartItem {
   school: School;
   quantity: number;
   isOrder?: boolean; // true = producto sin stock (encargo), false/undefined = producto con stock (venta)
+  isGlobal?: boolean; // true = producto global (zapatos, medias, etc.), false/undefined = producto de colegio
 }
 
 interface CartStore {
   items: CartItem[];
-  addItem: (product: Product, school: School, isOrder?: boolean) => void;
+  addItem: (product: Product, school: School, isOrder?: boolean, isGlobal?: boolean) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
@@ -26,7 +27,7 @@ export const useCartStore = create<CartStore>()(
     (set, get) => ({
       items: [],
 
-      addItem: (product: Product, school: School, isOrder?: boolean) => {
+      addItem: (product: Product, school: School, isOrder?: boolean, isGlobal?: boolean) => {
         const items = get().items;
         const existingItem = items.find((item) => item.product.id === product.id);
 
@@ -41,7 +42,7 @@ export const useCartStore = create<CartStore>()(
           });
         } else {
           // Si no existe, agregar nuevo item
-          set({ items: [...items, { product, school, quantity: 1, isOrder }] });
+          set({ items: [...items, { product, school, quantity: 1, isOrder, isGlobal }] });
         }
       },
 

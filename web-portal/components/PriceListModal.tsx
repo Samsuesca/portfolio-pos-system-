@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { X, Printer, FileText, Download, Loader2 } from 'lucide-react';
+import { X, Printer, FileText, Download, Loader2, Lightbulb } from 'lucide-react';
 import { formatNumber } from '@/lib/utils';
 import type { Product, School } from '@/lib/api';
 import jsPDF from 'jspdf';
@@ -777,7 +777,7 @@ export default function PriceListModal({
         <div className="px-6 py-3 border-t bg-blue-50 print:hidden">
           <div className="flex items-center gap-3 text-blue-700">
             <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-              <span className="text-lg">💡</span>
+              <Lightbulb className="w-5 h-5" />
             </div>
             <p className="text-sm">
               <strong>Tip:</strong> Puedes agregar productos a tu carrito desde el catálogo y ver el total de tu cotización antes de hacer el pedido.

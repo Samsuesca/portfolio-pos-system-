@@ -113,6 +113,18 @@ async def request_drawer_access(
             detail="No se pudo enviar el codigo a los administradores"
         )
 
+    # Telegram alert
+    try:
+        from app.services.telegram import fire_and_forget_routed_alert
+        from app.services.telegram_messages import TelegramMessageBuilder
+
+        msg = TelegramMessageBuilder.cash_drawer_access(
+            requester_name=requester_name,
+        )
+        fire_and_forget_routed_alert("cash_drawer_access", msg)
+    except Exception:
+        pass
+
     return {
         "message": f"Codigo enviado a {emails_sent} administrador(es)",
         "expires_in": CODE_EXPIRY_MINUTES * 60,  # seconds

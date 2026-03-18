@@ -72,7 +72,7 @@ const getStatusBadge = (status: string, daysUntilDue: number | null) => {
         );
       }
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-brand-100 text-brand-700">
           <Calendar size={12} />
           Pendiente
         </span>
@@ -159,7 +159,7 @@ const DebtSchedulePanel: React.FC<DebtSchedulePanelProps> = ({
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 h-full">
         <div className="flex items-center justify-center h-48">
-          <Loader2 className="animate-spin text-blue-500" size={32} />
+          <Loader2 className="animate-spin text-brand-500" size={32} />
         </div>
       </div>
     );
@@ -199,7 +199,7 @@ const DebtSchedulePanel: React.FC<DebtSchedulePanelProps> = ({
           </button>
           <button
             onClick={() => setShowModal(true)}
-            className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700"
+            className="flex items-center gap-1 px-3 py-1.5 bg-brand-500 text-white rounded-md text-sm hover:bg-brand-600"
           >
             <Plus size={16} />
             Nueva Deuda
@@ -212,7 +212,7 @@ const DebtSchedulePanel: React.FC<DebtSchedulePanelProps> = ({
         <div className={`mb-4 p-3 rounded-lg text-sm ${
           importResult.total_imported > 0
             ? 'bg-green-50 border border-green-200 text-green-800'
-            : 'bg-blue-50 border border-blue-200 text-blue-800'
+            : 'bg-brand-50 border border-brand-200 text-brand-800'
         }`}>
           <p className="font-medium">{importResult.message}</p>
           {importResult.total_imported > 0 && (
@@ -240,7 +240,7 @@ const DebtSchedulePanel: React.FC<DebtSchedulePanelProps> = ({
         <div className={`mb-4 p-3 rounded-lg text-sm ${
           interestResult.total_generated > 0
             ? 'bg-purple-50 border border-purple-200 text-purple-800'
-            : 'bg-blue-50 border border-blue-200 text-blue-800'
+            : 'bg-brand-50 border border-brand-200 text-brand-800'
         }`}>
           <p className="font-medium">{interestResult.message}</p>
           {interestResult.total_generated > 0 && (
@@ -264,9 +264,9 @@ const DebtSchedulePanel: React.FC<DebtSchedulePanelProps> = ({
       {/* Summary Cards */}
       {debtPayments && (
         <div className="grid grid-cols-3 gap-2 mb-4 text-sm">
-          <div className="bg-blue-50 rounded p-2">
+          <div className="bg-brand-50 rounded p-2">
             <p className="text-gray-500">Pendiente</p>
-            <p className="font-semibold text-blue-600">{formatCurrency(debtPayments.pending_total)}</p>
+            <p className="font-semibold text-brand-600">{formatCurrency(debtPayments.pending_total)}</p>
           </div>
           <div className="bg-red-50 rounded p-2">
             <p className="text-gray-500">Vencido</p>
@@ -292,7 +292,7 @@ const DebtSchedulePanel: React.FC<DebtSchedulePanelProps> = ({
             onClick={() => setStatusFilter(tab.value as typeof statusFilter)}
             className={`px-3 py-1 text-sm rounded ${
               statusFilter === tab.value
-                ? 'bg-blue-100 text-blue-700'
+                ? 'bg-brand-100 text-brand-700'
                 : 'text-gray-600 hover:bg-gray-100'
             }`}
           >
@@ -350,7 +350,7 @@ const DebtSchedulePanel: React.FC<DebtSchedulePanelProps> = ({
                       {formatDate(debt.due_date)}
                     </span>
                     {debt.is_recurring && (
-                      <span className="text-blue-600">Recurrente (dia {debt.recurrence_day})</span>
+                      <span className="text-brand-600">Recurrente (dia {debt.recurrence_day})</span>
                     )}
                   </div>
                 </div>

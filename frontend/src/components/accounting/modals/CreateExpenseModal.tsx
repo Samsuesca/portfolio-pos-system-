@@ -148,9 +148,9 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
+        <div className="flex items-center justify-between px-6 py-4 border-b bg-gradient-to-r from-violet-50 to-indigo-50">
           <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-            <Receipt className="w-6 h-6 text-blue-600" />
+            <Receipt className="w-6 h-6 text-brand-600" />
             Nuevo Gasto
           </h2>
           <button
@@ -184,7 +184,7 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
                       onClick={() => updateField('category', cat.code as ExpenseCategory)}
                       className={`px-3 py-2 text-sm font-medium rounded-lg border-2 transition-all ${
                         form.category === cat.code
-                          ? 'border-blue-600 ring-2 ring-blue-100'
+                          ? 'border-brand-500 ring-2 ring-brand-100'
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
                       style={{
@@ -228,7 +228,7 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
               value={form.description}
               onChange={(e) => updateField('description', e.target.value)}
               placeholder="Ej: Pago de arriendo local"
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-400"
             />
           </div>
 
@@ -283,7 +283,7 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
               value={form.vendor}
               onChange={(e) => updateField('vendor', e.target.value)}
               placeholder="Ej: EPM, Propietario"
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-400"
             />
           </div>
 
@@ -298,7 +298,7 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
               value={form.receipt_number}
               onChange={(e) => updateField('receipt_number', e.target.value)}
               placeholder="Opcional"
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-400"
             />
           </div>
 
@@ -313,7 +313,7 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
               onChange={(e) => updateField('notes', e.target.value)}
               placeholder="Notas adicionales (opcional)"
               rows={2}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-400 resize-none"
             />
           </div>
 
@@ -337,7 +337,7 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
           <button
             onClick={handleSubmit}
             disabled={submitting || loadingCategories}
-            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 flex items-center gap-2 transition"
+            className="px-6 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-medium disabled:opacity-50 flex items-center gap-2 transition"
           >
             {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
             Crear Gasto

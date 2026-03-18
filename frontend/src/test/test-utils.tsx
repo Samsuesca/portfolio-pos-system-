@@ -1,14 +1,14 @@
 import React, { ReactElement } from 'react'
 import { render, RenderOptions } from '@testing-library/react'
 import { BrowserRouter } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from 'react-query'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 // Create a test query client
 const createTestQueryClient = () => new QueryClient({
   defaultOptions: {
     queries: {
       retry: false,
-      cacheTime: 0,
+      gcTime: 0,
       staleTime: 0
     }
   }

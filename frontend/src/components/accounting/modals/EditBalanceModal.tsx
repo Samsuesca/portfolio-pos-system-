@@ -91,7 +91,7 @@ const EditBalanceModal: React.FC<EditBalanceModalProps> = ({
                 const val = e.target.value.replace(/[^0-9.]/g, '');
                 onBalanceChange(val === '' ? 0 : parseFloat(val));
               }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
               placeholder="Ingrese el nuevo balance"
             />
           </div>
@@ -109,7 +109,7 @@ const EditBalanceModal: React.FC<EditBalanceModalProps> = ({
           <button
             onClick={onSave}
             disabled={submitting}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 disabled:opacity-50 flex items-center gap-2"
           >
             {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
             Guardar
