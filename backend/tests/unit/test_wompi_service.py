@@ -107,6 +107,8 @@ def _make_payment_tx(
     tx.wompi_response_data = None
     tx.completed_at = None
     tx.integrity_signature = "abc123"
+    tx.wompi_fee_cents = None
+    tx.wompi_fee_tax_cents = None
     return tx
 
 

@@ -46,6 +46,23 @@ def _reset_telegram_module():
     tg_mod._cooldowns.clear()
 
 
+def _make_enabled_service() -> "TelegramService":
+    """Create a TelegramService with _enabled=True, bypassing settings.
+
+    In CI (ENV=testing), the constructor sets _enabled=False.
+    For tests that need an enabled service, we set attributes directly.
+    The constructor logic is tested in TestTelegramServiceInit.
+    """
+    from app.services.telegram import TelegramService
+
+    svc = TelegramService.__new__(TelegramService)
+    svc._enabled = True
+    svc._token = "123456:ABC-FAKE-TOKEN"
+    svc._chat_id = "-1001234567890"
+    svc._url = f"https://api.telegram.org/bot{svc._token}/sendMessage"
+    return svc
+
+
 def _mock_httpx_client(mock_post: AsyncMock) -> MagicMock:
     """Create a mock httpx.AsyncClient that works as an async context manager.
 
@@ -172,13 +189,8 @@ class TestSendAlert:
         mock_post = AsyncMock(return_value=mock_response)
         mock_client_class = _mock_httpx_client(mock_post)
 
-        with (
-            patch("app.services.telegram.settings", _make_settings()),
-            patch("app.services.telegram.httpx.AsyncClient", mock_client_class),
-        ):
-            from app.services.telegram import TelegramService
-
-            svc = TelegramService()
+        with patch("app.services.telegram.httpx.AsyncClient", mock_client_class):
+            svc = _make_enabled_service()
             result = await svc.send_alert("Test message", alert_type="test_ok")
 
             assert result is True
@@ -201,8 +213,6 @@ class TestSendAlert:
     @pytest.mark.unit
     async def test_send_alert_cooldown_prevents_resend(self):
         """Same alert_type within cooldown window returns False."""
-        import app.services.telegram as tg_mod
-
         _reset_telegram_module()
 
         mock_response = MagicMock()
@@ -210,11 +220,8 @@ class TestSendAlert:
         mock_post = AsyncMock(return_value=mock_response)
         mock_client_class = _mock_httpx_client(mock_post)
 
-        with (
-            patch("app.services.telegram.settings", _make_settings()),
-            patch("app.services.telegram.httpx.AsyncClient", mock_client_class),
-        ):
-            svc = tg_mod.TelegramService()
+        with patch("app.services.telegram.httpx.AsyncClient", mock_client_class):
+            svc = _make_enabled_service()
 
             # First call succeeds
             result1 = await svc.send_alert("msg1", alert_type="cd_test", cooldown=300)
@@ -227,8 +234,6 @@ class TestSendAlert:
     @pytest.mark.unit
     async def test_send_alert_different_types_bypass_cooldown(self):
         """Different alert_type values have independent cooldowns."""
-        import app.services.telegram as tg_mod
-
         _reset_telegram_module()
 
         mock_response = MagicMock()
@@ -236,11 +241,8 @@ class TestSendAlert:
         mock_post = AsyncMock(return_value=mock_response)
         mock_client_class = _mock_httpx_client(mock_post)
 
-        with (
-            patch("app.services.telegram.settings", _make_settings()),
-            patch("app.services.telegram.httpx.AsyncClient", mock_client_class),
-        ):
-            svc = tg_mod.TelegramService()
+        with patch("app.services.telegram.httpx.AsyncClient", mock_client_class):
+            svc = _make_enabled_service()
 
             r1 = await svc.send_alert("msg1", alert_type="type_a", cooldown=300)
             r2 = await svc.send_alert("msg2", alert_type="type_b", cooldown=300)
@@ -250,8 +252,6 @@ class TestSendAlert:
     @pytest.mark.unit
     async def test_send_alert_zero_cooldown_always_sends(self):
         """cooldown=0 effectively disables cooldown gating."""
-        import app.services.telegram as tg_mod
-
         _reset_telegram_module()
 
         mock_response = MagicMock()
@@ -259,11 +259,8 @@ class TestSendAlert:
         mock_post = AsyncMock(return_value=mock_response)
         mock_client_class = _mock_httpx_client(mock_post)
 
-        with (
-            patch("app.services.telegram.settings", _make_settings()),
-            patch("app.services.telegram.httpx.AsyncClient", mock_client_class),
-        ):
-            svc = tg_mod.TelegramService()
+        with patch("app.services.telegram.httpx.AsyncClient", mock_client_class):
+            svc = _make_enabled_service()
 
             r1 = await svc.send_alert("msg1", alert_type="zero_cd", cooldown=0)
             r2 = await svc.send_alert("msg2", alert_type="zero_cd", cooldown=0)
@@ -284,13 +281,8 @@ class TestSendAlert:
         )
         mock_client_class = _mock_httpx_client(mock_post)
 
-        with (
-            patch("app.services.telegram.settings", _make_settings()),
-            patch("app.services.telegram.httpx.AsyncClient", mock_client_class),
-        ):
-            from app.services.telegram import TelegramService
-
-            svc = TelegramService()
+        with patch("app.services.telegram.httpx.AsyncClient", mock_client_class):
+            svc = _make_enabled_service()
             result = await svc.send_alert("fail", alert_type="http_err")
             assert result is False
 
@@ -304,13 +296,8 @@ class TestSendAlert:
         )
         mock_client_class = _mock_httpx_client(mock_post)
 
-        with (
-            patch("app.services.telegram.settings", _make_settings()),
-            patch("app.services.telegram.httpx.AsyncClient", mock_client_class),
-        ):
-            from app.services.telegram import TelegramService
-
-            svc = TelegramService()
+        with patch("app.services.telegram.httpx.AsyncClient", mock_client_class):
+            svc = _make_enabled_service()
             result = await svc.send_alert("fail", alert_type="net_err")
             assert result is False
 
@@ -324,13 +311,8 @@ class TestSendAlert:
         mock_post = AsyncMock(return_value=mock_response)
         mock_client_class = _mock_httpx_client(mock_post)
 
-        with (
-            patch("app.services.telegram.settings", _make_settings()),
-            patch("app.services.telegram.httpx.AsyncClient", mock_client_class),
-        ):
-            from app.services.telegram import TelegramService
-
-            svc = TelegramService()
+        with patch("app.services.telegram.httpx.AsyncClient", mock_client_class):
+            svc = _make_enabled_service()
             await svc.send_alert("<b>Hello</b>", alert_type="payload_test")
 
             mock_post.assert_called_once()
