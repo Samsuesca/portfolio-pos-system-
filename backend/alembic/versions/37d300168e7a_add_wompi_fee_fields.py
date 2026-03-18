@@ -1,7 +1,7 @@
 """add wompi fee fields to payment_transactions
 
-Revision ID: a1b2c3d4e5f6
-Revises: z0a1b2c3d4e5
+Revision ID: 37d300168e7a
+Revises: b1c2d3e4f5g6
 Create Date: 2026-03-18 12:00:00.000000
 
 """
@@ -9,8 +9,8 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = "a1b2c3d4e5f6"
-down_revision = "z0a1b2c3d4e5"
+revision = "37d300168e7a"
+down_revision = "b1c2d3e4f5g6"
 branch_labels = None
 depends_on = None
 
