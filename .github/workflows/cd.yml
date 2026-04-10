@@ -9,6 +9,10 @@ concurrency:
   group: cd-production
   cancel-in-progress: false
 
+permissions:
+  actions: read
+  contents: read
+
 jobs:
   # Tests already run on push to main/develop.
   # Tags are always created from commits that passed those checks.
@@ -30,7 +34,8 @@ jobs:
             # Tags share the same SHA as the branch commit, so this always works
             # regardless of whether GitHub associates check-runs with the tag ref.
             WF_RESULT=$(gh api "repos/${REPO}/actions/workflows/tests.yml/runs?head_sha=${COMMIT_SHA}&per_page=1" \
-              --jq '(.workflow_runs[0].status // "not_found") + "|" + (.workflow_runs[0].conclusion // "pending")' 2>/dev/null)
+              --jq '(.workflow_runs[0].status // "not_found") + "|" + (.workflow_runs[0].conclusion // "pending")' 2>&1) || true
+            echo "  API result: '$WF_RESULT'"
             WF_STATUS=$(echo "$WF_RESULT" | cut -d'|' -f1)
             WF_CONCLUSION=$(echo "$WF_RESULT" | cut -d'|' -f2)
 
