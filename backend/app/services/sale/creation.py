@@ -1,8 +1,14 @@
-"""
-Sale Creation Mixin
+"""Sale creation orchestrator.
 
-Contains sale creation methods:
-- create_sale
+Handles the full lifecycle of creating a sale: product validation,
+inventory reservation, payment processing, accounting entries, and
+non-critical side effects (print queue, Telegram alerts, welcome emails).
+
+Transaction strategy:
+    All DB mutations use flush() — the caller (router) controls commit.
+    If any step fails, the entire operation rolls back automatically.
+    Side effects (Telegram, SSE, print queue) are fire-and-forget so they
+    never block or fail the sale.
 """
 import logging
 from uuid import UUID
@@ -13,7 +19,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.sale import Sale, SaleItem, SalePayment, SaleStatus, PaymentMethod
 from app.models.product import Product, GlobalProduct, Inventory, GlobalInventory
-from app.models.accounting import Transaction, TransactionType, AccPaymentMethod, AccountsReceivable
+from app.models.accounting import TransactionType, AccountsReceivable
+from app.utils.payment_methods import to_acc_payment_method
 from app.models.inventory_log import InventoryMovementType
 from app.schemas.sale import SaleCreate
 from app.services.global_product import GlobalInventoryService
@@ -23,26 +30,47 @@ logger = logging.getLogger(__name__)
 
 
 class SaleCreationMixin:
-    """Mixin providing sale creation methods for SaleService"""
+    """Provides ``create_sale`` to :class:`SaleService` via mixin composition.
 
-    db: AsyncSession  # Type hint for IDE support
+    Depends on ``self.db`` (AsyncSession) and ``self._generate_sale_code``
+    from :class:`SaleUtilityMixin`.
+    """
+
+    db: AsyncSession
 
     async def create_sale(
         self,
         sale_data: SaleCreate,
         user_id: UUID | None = None
     ) -> Sale:
-        """
-        Create a new sale with items (supports both school and global products)
+        """Create a sale with items, payments, and accounting entries.
+
+        Orchestrates seven sequential phases within a single DB transaction:
+
+        1. **Validation** — batch-load products and inventory, verify stock
+        2. **Sale record** — generate code, persist Sale row
+        3. **Items + inventory** — create SaleItems, reserve stock
+        4. **Payments** — validate split payments, create SalePayment rows
+        5. **Accounting** — create Transaction + update balance accounts;
+           CREDIT payments generate AccountsReceivable instead
+        6. **Notifications** — welcome email/WhatsApp on first purchase
+        7. **Side effects** — print queue (cash), Telegram alert
+
+        Historical sales (``is_historical=True``) skip inventory reservation
+        and accounting — used for migrating legacy data.
 
         Args:
-            sale_data: Sale creation data including items
+            sale_data: Validated sale payload including items and optional
+                split payments. See :class:`SaleCreate` for field details.
+            user_id: Authenticated user creating the sale. Falls back to
+                ``sale_data.school_id`` for system-generated sales.
 
         Returns:
-            Created sale with items
+            The persisted Sale with ``items`` and ``payments`` eagerly loaded.
 
         Raises:
-            ValueError: If products not found or insufficient inventory
+            ValueError: Product not found, insufficient stock, payment sum
+                mismatch, or no valid payment method provided.
         """
         from app.services.inventory import InventoryService
         from app.schemas.product import GlobalInventoryAdjust
@@ -50,20 +78,16 @@ class SaleCreationMixin:
         inv_service = InventoryService(self.db)
         global_inv_service = GlobalInventoryService(self.db)
 
-        # Check if this is a historical sale (migration)
         is_historical = sale_data.is_historical
 
-        # Debug logging for historical sales
         logger.info(f"Creating sale - is_historical: {is_historical}, sale_date from request: {sale_data.sale_date}")
 
-        # Generate sale code
         code = await self._generate_sale_code(sale_data.school_id)
 
-        # Calculate totals and validate products
+        # ── Phase 1: Batch-load products and inventory ──────────────
         items_data = []
         subtotal = Decimal("0")
 
-        # Batch-load all products to avoid N+1 queries
         global_product_ids = [i.product_id for i in sale_data.items if i.is_global]
         school_product_ids = [i.product_id for i in sale_data.items if not i.is_global]
 
@@ -89,7 +113,6 @@ class SaleCreationMixin:
             )
             school_products_map = {p.id: p for p in result.scalars().all()}
 
-        # Batch-load all inventory records to avoid N+1 queries during validation
         global_inventory_map: dict[UUID, GlobalInventory] = {}
         school_inventory_map: dict[UUID, Inventory] = {}
 
@@ -115,15 +138,14 @@ class SaleCreationMixin:
                     inv.product_id: inv for inv in result.scalars().all()
                 }
 
+        # ── Validate each item and build items_data ─────────────────
         for item_data in sale_data.items:
             if item_data.is_global:
-                # Handle global product
                 global_product = global_products_map.get(item_data.product_id)
 
                 if not global_product:
                     raise ValueError(f"Producto global {item_data.product_id} no encontrado")
 
-                # Check global inventory ONLY for non-historical sales
                 if not is_historical:
                     global_inv = global_inventory_map.get(global_product.id)
                     if not global_inv or global_inv.quantity < item_data.quantity:
@@ -131,7 +153,6 @@ class SaleCreationMixin:
                             f"Stock insuficiente para el producto global {global_product.code}"
                         )
 
-                # Calculate item totals
                 unit_price = global_product.price
                 item_subtotal = unit_price * item_data.quantity
 
@@ -146,13 +167,11 @@ class SaleCreationMixin:
 
                 subtotal += item_subtotal
             else:
-                # Handle school product
                 product = school_products_map.get(item_data.product_id)
 
                 if not product:
                     raise ValueError(f"Producto {item_data.product_id} no encontrado")
 
-                # Check inventory ONLY for non-historical sales
                 if not is_historical:
                     school_inv = school_inventory_map.get(product.id)
                     if not school_inv or school_inv.quantity < item_data.quantity:
@@ -160,7 +179,6 @@ class SaleCreationMixin:
                             f"Stock insuficiente para el producto {product.code}"
                         )
 
-                # Calculate item totals
                 unit_price = product.price
                 item_subtotal = unit_price * item_data.quantity
 
@@ -175,32 +193,27 @@ class SaleCreationMixin:
 
                 subtotal += item_subtotal
 
-        # Total = subtotal (no tax for now)
         total = subtotal
 
-        # Determine sale date (use custom date for historical sales)
-        # Colombia timezone is UTC-5
+        # ── Phase 2: Create Sale record ─────────────────────────────
         colombia_tz = timezone(timedelta(hours=-5))
 
         if is_historical and sale_data.sale_date:
-            # Use the date provided for historical sales (keep as-is, it's already a date)
             sale_date = sale_data.sale_date
             logger.info(f"Using custom sale_date for historical sale: {sale_date}")
         else:
-            # For current sales, use Colombia time
             sale_date = datetime.now(colombia_tz).replace(tzinfo=None)
             logger.info(f"Using Colombia datetime: {sale_date} (is_historical={is_historical}, sale_data.sale_date={sale_data.sale_date})")
 
-        # Create sale (only use fields that exist in the model)
         sale = Sale(
             school_id=sale_data.school_id,
             code=code,
             client_id=sale_data.client_id,
-            user_id=user_id or sale_data.school_id,  # Use provided user_id or fallback
+            user_id=user_id or sale_data.school_id,
             status=SaleStatus.COMPLETED,
             payment_method=sale_data.payment_method,
             total=total,
-            paid_amount=total,  # Assuming full payment
+            paid_amount=total,
             is_historical=is_historical,
             sale_date=sale_date,
             notes=sale_data.notes
@@ -210,16 +223,14 @@ class SaleCreationMixin:
         await self.db.flush()
         await self.db.refresh(sale)
 
-        # Create sale items and reserve inventory (SKIP inventory for historical sales)
+        # ── Phase 3: Create items and reserve inventory ─────────────
         for item_dict in items_data:
             item_dict["sale_id"] = sale.id
             sale_item = SaleItem(**item_dict)
             self.db.add(sale_item)
 
-            # Only adjust inventory for NON-historical sales
             if not is_historical:
                 if item_dict["is_global_product"]:
-                    # Reserve global stock with logging
                     await global_inv_service.adjust_quantity(
                         item_dict["global_product_id"],
                         GlobalInventoryAdjust(
@@ -232,7 +243,6 @@ class SaleCreationMixin:
                         school_id=sale_data.school_id,
                     )
                 else:
-                    # Reserve school stock with logging
                     await inv_service.reserve_stock(
                         item_dict["product_id"],
                         sale_data.school_id,
@@ -243,10 +253,8 @@ class SaleCreationMixin:
 
         await self.db.flush()
 
-        # === PAGOS MULTIPLES ===
-        # Si se proporcionan pagos multiples, crearlos
+        # ── Phase 4: Split payments ─────────────────────────────────
         if sale_data.payments:
-            # Validar que la suma de pagos iguale el total
             total_payments = sum(p.amount for p in sale_data.payments)
             if total_payments != total:
                 raise ValueError(
@@ -254,7 +262,6 @@ class SaleCreationMixin:
                 )
 
             for payment_data in sale_data.payments:
-                # Calculate change for cash payments
                 amount_received = None
                 change_given = None
 
@@ -280,83 +287,52 @@ class SaleCreationMixin:
 
             await self.db.flush()
 
-        # === CONTABILIDAD ===
-        # Solo para ventas no historicas
+        # ── Phase 5: Accounting entries ─────────────────────────────
         if not is_historical and sale.total > Decimal("0"):
-            # Mapear payment_method de Sale a AccPaymentMethod
-            payment_method_map = {
-                PaymentMethod.CASH: AccPaymentMethod.CASH,
-                PaymentMethod.NEQUI: AccPaymentMethod.NEQUI,
-                PaymentMethod.TRANSFER: AccPaymentMethod.TRANSFER,
-                PaymentMethod.CARD: AccPaymentMethod.CARD,
-                PaymentMethod.CREDIT: AccPaymentMethod.CREDIT,
-            }
+            from app.services.accounting.transactions import TransactionService
+            txn_service = TransactionService(self.db)
 
-            # Determinar pagos a procesar
-            # Si hay multiples pagos, procesarlos individualmente
-            # Si hay un solo payment_method, usarlo para toda la venta
             payments_to_process = []
 
             if sale_data.payments:
-                # Multiples pagos - procesar cada uno
                 for payment_data in sale_data.payments:
                     payments_to_process.append({
                         "amount": payment_data.amount,
                         "method": payment_data.payment_method
                     })
             elif sale.payment_method:
-                # Pago unico tradicional
                 payments_to_process.append({
                     "amount": sale.total,
                     "method": sale.payment_method
                 })
 
-            # Validar que hay pagos para procesar
             if not payments_to_process:
                 raise ValueError(
                     "No se proporcionaron pagos validos. Use 'payments' con montos > 0 "
                     "o especifique 'payment_method'"
                 )
 
-            # Procesar cada pago
             credit_total = Decimal("0")
+            sale_date = sale.sale_date.date() if hasattr(sale.sale_date, 'date') else sale.sale_date
             for payment_info in payments_to_process:
-                acc_payment_method = payment_method_map.get(
-                    payment_info["method"],
-                    AccPaymentMethod.CASH
-                )
-
-                # CREDIT no afecta cuentas de balance - solo genera cuenta por cobrar
                 if payment_info["method"] == PaymentMethod.CREDIT:
                     credit_total += payment_info["amount"]
                 else:
-                    # Ventas efectivas: crear transaccion de ingreso
-                    transaction = Transaction(
-                        school_id=sale.school_id,
+                    method_label = payment_info['method'].value if hasattr(payment_info['method'], 'value') else payment_info['method']
+                    desc = f"Venta {sale.code}" + (f" ({method_label})" if len(payments_to_process) > 1 else "")
+                    await txn_service.record(
                         type=TransactionType.INCOME,
                         amount=payment_info["amount"],
-                        payment_method=acc_payment_method,
-                        description=f"Venta {sale.code}" + (f" ({payment_info['method'].value if hasattr(payment_info['method'], 'value') else payment_info['method']})" if len(payments_to_process) > 1 else ""),
+                        payment_method=to_acc_payment_method(payment_info["method"]),
+                        description=desc,
+                        school_id=sale.school_id,
                         category="sales",
                         reference_code=sale.code,
-                        transaction_date=sale.sale_date.date() if hasattr(sale.sale_date, 'date') else sale.sale_date,
+                        transaction_date=sale_date,
                         sale_id=sale.id,
-                        created_by=user_id
+                        created_by=user_id,
                     )
-                    self.db.add(transaction)
-                    await self.db.flush()
 
-                    # Apply balance integration (agrega a Caja/Banco)
-                    # Wrapped in try-catch so sales don't fail if balance integration has issues
-                    try:
-                        from app.services.balance_integration import BalanceIntegrationService
-                        balance_service = BalanceIntegrationService(self.db)
-                        await balance_service.apply_transaction_to_balance(transaction, user_id)
-                    except Exception as e:
-                        # Log the error but don't fail the sale
-                        logging.error(f"Balance integration failed for sale {sale.code}: {e}")
-
-            # Crear cuenta por cobrar si hay monto a credito
             if credit_total > Decimal("0"):
                 receivable = AccountsReceivable(
                     school_id=sale.school_id,
@@ -365,19 +341,15 @@ class SaleCreationMixin:
                     amount=credit_total,
                     description=f"Venta a credito {sale.code}",
                     invoice_date=sale.sale_date.date() if hasattr(sale.sale_date, 'date') else sale.sale_date,
-                    due_date=None,  # Sin fecha de vencimiento definida
+                    due_date=None,
                     created_by=user_id
                 )
                 self.db.add(receivable)
 
         await self.db.flush()
-
-        # Refresh sale with items and payments loaded
         await self.db.refresh(sale, ["items", "payments"])
 
-        # === ENVIAR NOTIFICACION DE BIENVENIDA EN PRIMERA TRANSACCION ===
-        # Solo para ventas no historicas con cliente asociado
-        # Usa multi-canal (email + WhatsApp) segun preferencias del cliente
+        # ── Phase 6: Welcome notification (first purchase) ──────────
         if not is_historical and sale.client_id:
             await send_welcome_notification_if_first_transaction(
                 db=self.db,
@@ -386,12 +358,10 @@ class SaleCreationMixin:
                 transaction_type="compra"
             )
 
-        # === ENCOLAR PARA IMPRESION SI ES EFECTIVO ===
-        # Solo para ventas no historicas con pago en efectivo
+        # ── Phase 7: Side effects (non-critical) ───────────────────
         if not is_historical and sale.total > Decimal("0"):
             has_cash_payment = False
 
-            # Check if any payment is cash
             if sale_data.payments:
                 has_cash_payment = any(
                     p.payment_method == PaymentMethod.CASH
@@ -407,7 +377,6 @@ class SaleCreationMixin:
                     from app.models.client import Client
                     from app.models.school import School
 
-                    # Get client and school names for display
                     client_name = None
                     school_name = None
 
@@ -424,10 +393,8 @@ class SaleCreationMixin:
                     school = school_result.scalar_one_or_none()
                     school_name = school.name if school else None
 
-                    # Determine source device
                     source_device = sale.source.value if sale.source else "unknown"
 
-                    # Enqueue for printing
                     print_queue_service = PrintQueueService(self.db)
                     queue_item = await print_queue_service.enqueue_sale(
                         sale=sale,
@@ -437,7 +404,6 @@ class SaleCreationMixin:
                         school_name=school_name
                     )
 
-                    # Broadcast SSE event
                     await sse_manager.broadcast_print_queue_event(
                         "new_sale",
                         {
@@ -454,10 +420,8 @@ class SaleCreationMixin:
                     )
                     logger.info(f"Print queue: Enqueued sale {sale.code} from {source_device}")
                 except Exception as e:
-                    # Log but don't fail the sale
                     logger.error(f"Print queue enqueue failed for sale {sale.code}: {e}")
 
-        # === TELEGRAM ALERT ===
         if not is_historical:
             try:
                 from app.services.telegram import fire_and_forget_routed_alert

@@ -28,9 +28,9 @@ class TestSaleCodeGeneration:
 
     @pytest.mark.asyncio
     async def test_generate_first_sale_code(self, mock_db_session):
-        """Should generate VNT-YYYY-0001 for first sale"""
+        """Should generate VNT-YYYY-0001 when no previous sales exist"""
         mock_db_session.execute = AsyncMock(
-            return_value=MagicMock(scalar_one=MagicMock(return_value=0))
+            return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None))
         )
         service = SaleService(mock_db_session)
 
@@ -41,15 +41,17 @@ class TestSaleCodeGeneration:
 
     @pytest.mark.asyncio
     async def test_generate_sequential_sale_code(self, mock_db_session):
-        """Should increment sequence for new sales"""
+        """Should increment sequence based on MAX(code)"""
+        current_year = datetime.now().year
         mock_db_session.execute = AsyncMock(
-            return_value=MagicMock(scalar_one=MagicMock(return_value=15))
+            return_value=MagicMock(
+                scalar_one_or_none=MagicMock(return_value=f"VNT-{current_year}-0015")
+            )
         )
         service = SaleService(mock_db_session)
 
         code = await service._generate_sale_code(str(uuid4()))
 
-        current_year = datetime.now().year
         assert code == f"VNT-{current_year}-0016"
 
 

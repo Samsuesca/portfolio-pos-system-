@@ -19,18 +19,12 @@ from app.schemas.alteration import (
     AlterationCreate, AlterationUpdate, AlterationPaymentCreate,
     AlterationsSummary, AlterationListResponse
 )
-from app.services.balance_integration import BalanceIntegrationService
+from app.utils.payment_methods import STR_TO_ACC
 
 logger = logging.getLogger(__name__)
 
 
-# Mapeo de payment_method string a AccPaymentMethod enum
-PAYMENT_METHOD_MAP = {
-    'cash': AccPaymentMethod.CASH,
-    'nequi': AccPaymentMethod.NEQUI,
-    'transfer': AccPaymentMethod.TRANSFER,
-    'card': AccPaymentMethod.CARD,
-}
+PAYMENT_METHOD_MAP = STR_TO_ACC
 
 
 class AlterationService:
@@ -308,9 +302,9 @@ class AlterationService:
                 AccPaymentMethod.CASH
             )
 
-            # Create transaction
-            transaction = Transaction(
-                school_id=None,  # Global transaction
+            from app.services.accounting.transactions import TransactionService
+            txn_service = TransactionService(self.db)
+            transaction = await txn_service.record(
                 type=TransactionType.INCOME,
                 amount=data.amount,
                 payment_method=acc_payment_method,
@@ -319,24 +313,9 @@ class AlterationService:
                 reference_code=alteration.code,
                 transaction_date=get_colombia_date(),
                 alteration_id=alteration_id,
-                created_by=created_by
+                created_by=created_by,
             )
-            self.db.add(transaction)
-            await self.db.flush()
-
-            # Link payment to transaction
             payment.transaction_id = transaction.id
-
-            # Apply to balance account
-            try:
-                balance_service = BalanceIntegrationService(self.db)
-                await balance_service.apply_transaction_to_balance(
-                    transaction,
-                    created_by=created_by
-                )
-            except Exception as e:
-                logger.error(f"Balance integration failed for alteration {alteration.code}: {e}")
-                # Don't fail the payment, just log the error
 
         # Update alteration paid amount
         alteration.amount_paid += data.amount

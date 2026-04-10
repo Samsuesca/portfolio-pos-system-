@@ -1,7 +1,7 @@
 /**
  * UserDetailModal - Modal for viewing user details and managing multi-school roles
  */
-import { X, Building2, Loader2, Lock, Mail, Save, Eye, EyeOff, Plus, Trash2, Shield } from 'lucide-react';
+import { X, Building2, Loader2, Lock, Mail, Save, Eye, EyeOff, Plus, Trash2, Shield, UserX, UserCheck } from 'lucide-react';
 import type { SchoolUser, School, CustomRole, UserRole, UserSchoolRole } from '../types';
 import type { User } from '../../../types/api';
 
@@ -26,6 +26,8 @@ interface UserDetailModalProps {
   onAdminChangeEmail: () => void;
   onAdminResetPassword: () => void;
   onToggleSuperuser: () => void;
+  onToggleActive?: (user: SchoolUser) => void;
+  onDeleteUser?: () => void;
   onAddSchoolRole: (schoolId: string, role: UserRole, customRoleId?: string) => void;
   onUpdateSchoolRole: (schoolId: string, role: UserRole, customRoleId?: string) => void;
   onRemoveSchoolRole: (schoolId: string) => void;
@@ -55,6 +57,8 @@ export default function UserDetailModal({
   onAdminChangeEmail,
   onAdminResetPassword,
   onToggleSuperuser,
+  onToggleActive,
+  onDeleteUser,
   onAddSchoolRole,
   onUpdateSchoolRole,
   onRemoveSchoolRole,
@@ -97,25 +101,79 @@ export default function UserDetailModal({
           {/* User Info */}
           <div className="bg-gray-50 rounded-lg p-4">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center">
-                <span className="text-2xl font-bold text-indigo-600">
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center ${
+                selectedUser.is_active ? 'bg-indigo-100' : 'bg-red-100'
+              }`}>
+                <span className={`text-2xl font-bold ${
+                  selectedUser.is_active ? 'text-indigo-600' : 'text-red-400'
+                }`}>
                   {selectedUser.full_name?.[0]?.toUpperCase() ||
                     selectedUser.username[0].toUpperCase()}
                 </span>
               </div>
-              <div>
-                <h4 className="text-lg font-semibold text-gray-900">
-                  {selectedUser.full_name || selectedUser.username}
-                </h4>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <h4 className="text-lg font-semibold text-gray-900">
+                    {selectedUser.full_name || selectedUser.username}
+                  </h4>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                    selectedUser.is_active
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-red-100 text-red-700'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${selectedUser.is_active ? 'bg-green-500' : 'bg-red-500'}`} />
+                    {selectedUser.is_active ? 'Activo' : 'Inactivo'}
+                  </span>
+                </div>
                 <p className="text-sm text-gray-500">@{selectedUser.username}</p>
                 <p className="text-sm text-gray-500">{selectedUser.email}</p>
-                {selectedUser.is_superuser && (
-                  <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
-                    Superusuario
-                  </span>
-                )}
+                <div className="flex items-center gap-2 mt-1">
+                  {selectedUser.is_superuser && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
+                      Superusuario
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
+
+            {/* Quick actions: Activate/Deactivate + Delete */}
+            {currentUser?.is_superuser && selectedUser.id !== currentUser.id && (
+              <div className="flex gap-2 mt-3 pt-3 border-t border-gray-200">
+                {onToggleActive && (
+                  <button
+                    onClick={() => onToggleActive(selectedUser)}
+                    disabled={saving}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition disabled:opacity-50 ${
+                      selectedUser.is_active
+                        ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                        : 'bg-green-100 text-green-700 hover:bg-green-200'
+                    }`}
+                  >
+                    {selectedUser.is_active ? (
+                      <>
+                        <UserX className="w-4 h-4" />
+                        Desactivar
+                      </>
+                    ) : (
+                      <>
+                        <UserCheck className="w-4 h-4" />
+                        Activar
+                      </>
+                    )}
+                  </button>
+                )}
+                {onDeleteUser && (
+                  <button
+                    onClick={onDeleteUser}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition ml-auto"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Eliminar
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Admin: Change Email and Password (superusers can edit anyone except themselves) */}

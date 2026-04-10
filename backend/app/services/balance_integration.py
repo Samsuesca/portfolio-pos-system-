@@ -24,7 +24,7 @@ FLUJO DE EFECTIVO:
 from uuid import UUID
 from decimal import Decimal
 from datetime import datetime, date
-from sqlalchemy import select
+from sqlalchemy import select, update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.utils.timezone import get_colombia_date
@@ -37,6 +37,8 @@ from app.models.accounting import (
     AccountType
 )
 
+
+LOW_BALANCE_THRESHOLD = Decimal("100000")  # 100k COP
 
 # Códigos estándar de contabilidad para cuentas default GLOBALES
 DEFAULT_ACCOUNTS = {
@@ -189,6 +191,26 @@ class BalanceIntegrationService:
         )
         return result.scalar_one_or_none()
 
+    async def _get_global_account_for_update(self, code: str) -> BalanceAccount | None:
+        """SELECT ... FOR UPDATE on a global account. Prevents lost updates under concurrency."""
+        result = await self.db.execute(
+            select(BalanceAccount).where(
+                BalanceAccount.code == code,
+                BalanceAccount.school_id.is_(None),
+                BalanceAccount.is_active == True
+            ).with_for_update().limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    async def _get_account_for_update(self, account_id: UUID) -> BalanceAccount | None:
+        """SELECT ... FOR UPDATE on an account by ID."""
+        result = await self.db.execute(
+            select(BalanceAccount).where(
+                BalanceAccount.id == account_id
+            ).with_for_update()
+        )
+        return result.scalar_one_or_none()
+
     async def get_account_for_payment_method(
         self,
         payment_method: AccPaymentMethod
@@ -260,34 +282,27 @@ class BalanceIntegrationService:
             return None
 
         account_code = DEFAULT_ACCOUNTS[account_key]["code"]
-        account = await self.get_global_account(account_code)
+        account = await self._get_global_account_for_update(account_code)
         if not account:
             accounts_map = await self.get_or_create_global_accounts()
             account_id = accounts_map.get(account_key)
             if not account_id:
                 return None
-            result = await self.db.execute(
-                select(BalanceAccount).where(BalanceAccount.id == account_id)
-            )
-            account = result.scalar_one_or_none()
+            account = await self._get_account_for_update(account_id)
 
         if not account:
             return None
 
         account_id = account.id
 
-        # Calcular delta según tipo de transacción
-        # INCOME = +amount (dinero entra)
-        # EXPENSE = -amount (dinero sale)
         if transaction.type == TransactionType.INCOME:
             delta = transaction.amount
         elif transaction.type == TransactionType.EXPENSE:
             delta = -transaction.amount
         else:
-            # TRANSFER: se maneja diferente (requiere cuenta origen y destino)
             return None
 
-        # Actualizar balance de la cuenta
+        # Atomic balance update — with_for_update() guarantees no lost updates
         new_balance = account.balance + delta
         account.balance = new_balance
 
@@ -310,6 +325,19 @@ class BalanceIntegrationService:
 
         await self.db.flush()
 
+        if Decimal("0") <= new_balance < LOW_BALANCE_THRESHOLD:
+            try:
+                from app.services.telegram import fire_and_forget_routed_alert
+                from app.services.telegram_messages import TelegramMessageBuilder
+                msg = TelegramMessageBuilder.low_balance_warning(
+                    account_name=account.name,
+                    balance=new_balance,
+                    threshold=LOW_BALANCE_THRESHOLD,
+                )
+                fire_and_forget_routed_alert("low_balance", msg)
+            except Exception:
+                pass
+
         return entry
 
     async def apply_transfer(
@@ -331,17 +359,8 @@ class BalanceIntegrationService:
         Returns:
             Tupla con (entry_from, entry_to)
         """
-        # Obtener cuenta origen
-        result = await self.db.execute(
-            select(BalanceAccount).where(BalanceAccount.id == from_account_id)
-        )
-        from_account = result.scalar_one_or_none()
-
-        # Obtener cuenta destino
-        result = await self.db.execute(
-            select(BalanceAccount).where(BalanceAccount.id == to_account_id)
-        )
-        to_account = result.scalar_one_or_none()
+        from_account = await self._get_account_for_update(from_account_id)
+        to_account = await self._get_account_for_update(to_account_id)
 
         if not from_account or not to_account:
             raise ValueError("Cuentas de transferencia no encontradas")
@@ -483,14 +502,7 @@ class BalanceIntegrationService:
         for account_key, account_config in DEFAULT_ACCOUNTS.items():
             initial_balance = initial_balances.get(account_key, Decimal("0"))
 
-            # Buscar cuenta global existente
-            result = await self.db.execute(
-                select(BalanceAccount).where(
-                    BalanceAccount.school_id.is_(None),  # Global
-                    BalanceAccount.code == account_config["code"]
-                ).limit(1)
-            )
-            account = result.scalar_one_or_none()
+            account = await self._get_global_account_for_update(account_config["code"])
 
             if account:
                 # Actualizar balance si ya existe
@@ -600,25 +612,20 @@ class BalanceIntegrationService:
             return None
 
         account_code = DEFAULT_ACCOUNTS[account_key]["code"]
-        account = await self.get_global_account(account_code)
+        account = await self._get_global_account_for_update(account_code)
 
         if not account:
-            # Si no existe, crear cuentas globales y obtener la correcta
             accounts_map = await self.get_or_create_global_accounts()
             account_id = accounts_map.get(account_key)
             if not account_id:
                 return None
-            result = await self.db.execute(
-                select(BalanceAccount).where(BalanceAccount.id == account_id)
-            )
-            account = result.scalar_one_or_none()
+            account = await self._get_account_for_update(account_id)
 
         if not account:
             return None
 
         account_id = account.id
 
-        # Validar fondos suficientes
         new_balance = account.balance - amount
         if new_balance < 0 and not allow_negative:
             raise ValueError(
@@ -673,22 +680,25 @@ class BalanceIntegrationService:
         if payment_method == AccPaymentMethod.CREDIT:
             return None
 
-        # Obtener cuenta según método de pago
-        account_id = await self.get_account_for_payment_method(payment_method)
-
-        if not account_id:
+        account_key = INCOME_ACCOUNT_MAP.get(payment_method)
+        if account_key is None:
             return None
 
-        # Obtener cuenta
-        result = await self.db.execute(
-            select(BalanceAccount).where(BalanceAccount.id == account_id)
-        )
-        account = result.scalar_one_or_none()
+        account_code = DEFAULT_ACCOUNTS[account_key]["code"]
+        account = await self._get_global_account_for_update(account_code)
+
+        if not account:
+            accounts_map = await self.get_or_create_global_accounts()
+            account_id = accounts_map.get(account_key)
+            if not account_id:
+                return None
+            account = await self._get_account_for_update(account_id)
 
         if not account:
             return None
 
-        # Sumar al balance (ingreso = dinero entra)
+        account_id = account.id
+
         new_balance = account.balance + amount
         account.balance = new_balance
 
@@ -769,19 +779,11 @@ class BalanceIntegrationService:
         if not account_info:
             return None
 
-        # Obtener cuenta por código
-        result = await self.db.execute(
-            select(BalanceAccount).where(
-                BalanceAccount.code == account_info["code"],
-                BalanceAccount.school_id.is_(None)
-            ).limit(1)
-        )
-        account = result.scalar_one_or_none()
+        account = await self._get_global_account_for_update(account_info["code"])
 
         if not account:
             return None
 
-        # Validar fondos suficientes
         new_balance = account.balance - amount
         if new_balance < 0 and not allow_negative:
             raise ValueError(

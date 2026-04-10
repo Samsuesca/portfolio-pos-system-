@@ -311,6 +311,10 @@ async def upload_school_logo(
     school = await school_service.update(school_id, {"logo_url": logo_url})
     await db.commit()
 
+    # Invalidate school list cache so logo appears immediately
+    from app.utils.cache import invalidate_school_cache
+    await invalidate_school_cache()
+
     return SchoolResponse.model_validate(school)
 
 
@@ -345,3 +349,7 @@ async def delete_school_logo(
     # Update school to remove logo URL
     await school_service.update(school_id, {"logo_url": None})
     await db.commit()
+
+    # Invalidate school list cache
+    from app.utils.cache import invalidate_school_cache
+    await invalidate_school_cache()

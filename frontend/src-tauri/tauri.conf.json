@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "productName": "Uniformes Consuelo Rios",
-  "version": "2.8.0",
+  "version": "2.9.0",
   "identifier": "com.uniformes.system",
   "build": {
     "beforeBuildCommand": "npm run build",

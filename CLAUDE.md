@@ -1004,4 +1004,4 @@ POST   /telegram-alerts/link                      // Vincular cuenta con Telegra
 
 ---
 
-*Ultima actualizacion: 2026-03-15 | Version: v2.7.0*
+*Ultima actualizacion: 2026-04-09 | Version: v2.9.0*

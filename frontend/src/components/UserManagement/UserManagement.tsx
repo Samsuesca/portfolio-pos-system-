@@ -2,7 +2,7 @@
  * UserManagement - Users tab main component
  */
 import { useState, useEffect } from 'react';
-import { Building2, Search, Filter, Plus, UserPlus, Users } from 'lucide-react';
+import { Building2, Search, Filter, Plus, UserPlus, Users, Trash2, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { type School } from '../../services/schoolService';
 import { userService, type UserCreate, type UserSchoolRole } from '../../services/userService';
@@ -104,6 +104,10 @@ export default function UserManagement({
   const [adminEmailSaving, setAdminEmailSaving] = useState(false);
   const [adminPasswordSaving, setAdminPasswordSaving] = useState(false);
   const [superuserSaving, setSuperuserSaving] = useState(false);
+
+  // Delete user state
+  const [showDeleteUserModal, setShowDeleteUserModal] = useState(false);
+  const [deletingUser, setDeletingUser] = useState(false);
 
   const selectedSchool = schools.find((s) => s.id === selectedSchoolId);
 
@@ -415,6 +419,58 @@ export default function UserManagement({
     }
   };
 
+  // Toggle user active status
+  const handleToggleUserActive = async (schoolUser: SchoolUser) => {
+    if (!user?.is_superuser || schoolUser.id === user.id) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const newStatus = !schoolUser.is_active;
+      await userService.updateUser(schoolUser.id, { is_active: newStatus });
+      setSuccess(
+        newStatus
+          ? `${schoolUser.full_name || schoolUser.username} activado`
+          : `${schoolUser.full_name || schoolUser.username} desactivado`
+      );
+      // Update local state immediately
+      setSchoolUsers((prev) =>
+        prev.map((u) => (u.id === schoolUser.id ? { ...u, is_active: newStatus } : u))
+      );
+      // Also update selected user if open in detail modal
+      if (selectedSchoolUser?.id === schoolUser.id) {
+        setSelectedSchoolUser({ ...selectedSchoolUser, is_active: newStatus });
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Error al cambiar estado del usuario');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Delete user permanently
+  const handleDeleteUser = async () => {
+    if (!selectedSchoolUser || !user?.is_superuser) return;
+    setDeletingUser(true);
+    setError(null);
+    try {
+      const result = await userService.deleteUser(selectedSchoolUser.id);
+      // Backend returns action: "deleted" or "deactivated"
+      setSuccess(
+        typeof result === 'object' && (result as any)?.message
+          ? (result as any).message
+          : `Usuario ${selectedSchoolUser.full_name || selectedSchoolUser.username} eliminado`
+      );
+      setShowDeleteUserModal(false);
+      setShowUserDetailModal(false);
+      setSelectedSchoolUser(null);
+      loadSchoolUsers();
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Error al eliminar usuario');
+    } finally {
+      setDeletingUser(false);
+    }
+  };
+
   const handleRemoveUser = async () => {
     if (!selectedSchoolId || !selectedSchoolUser) return;
     setSaving(true);
@@ -575,6 +631,12 @@ export default function UserManagement({
             setSelectedSchoolUser(schoolUser);
             setShowRemoveUserModal(true);
           }}
+          onToggleActive={handleToggleUserActive}
+          onDeleteUser={(schoolUser) => {
+            setSelectedSchoolUser(schoolUser);
+            setShowDeleteUserModal(true);
+          }}
+          saving={saving}
         />
       </div>
 
@@ -657,6 +719,8 @@ export default function UserManagement({
         onAdminChangeEmail={handleAdminChangeEmail}
         onAdminResetPassword={handleAdminResetPassword}
         onToggleSuperuser={handleToggleSuperuser}
+        onToggleActive={handleToggleUserActive}
+        onDeleteUser={() => setShowDeleteUserModal(true)}
         onAddSchoolRole={handleAddSchoolRole}
         onUpdateSchoolRole={handleUpdateSchoolRole}
         onRemoveSchoolRole={handleRemoveSchoolRole}
@@ -666,6 +730,59 @@ export default function UserManagement({
         saving={saving}
         error={error}
       />
+
+      {/* Delete User Confirmation Modal */}
+      {showDeleteUserModal && selectedSchoolUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70]">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Eliminar Usuario</h3>
+                <p className="text-sm text-gray-500">Esta accion no se puede deshacer</p>
+              </div>
+            </div>
+
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+              <p className="text-sm text-red-800">
+                Estas a punto de eliminar a <strong>{selectedSchoolUser.full_name || selectedSchoolUser.username}</strong> ({selectedSchoolUser.email}).
+              </p>
+              <p className="text-xs text-red-600 mt-1">
+                Si el usuario tiene ventas asociadas, sera desactivado en lugar de eliminado.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowDeleteUserModal(false)}
+                disabled={deletingUser}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteUser}
+                disabled={deletingUser}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm flex items-center gap-2 disabled:opacity-50"
+              >
+                {deletingUser ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Eliminando...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Eliminar Usuario
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -1,8 +1,7 @@
-"""
-Sale Update Mixin
+"""Sale metadata updates (client assignment, notes).
 
-Contains update methods for sale operations:
-- update_sale (client_id, notes)
+Only modifies non-financial fields — no inventory or accounting impact.
+Uses flush() to delegate commit control to the caller.
 """
 import logging
 from uuid import UUID
@@ -18,9 +17,9 @@ logger = logging.getLogger(__name__)
 
 
 class SaleUpdateMixin:
-    """Mixin providing update methods for SaleService"""
+    """Provides sale metadata update methods to :class:`SaleService`."""
 
-    db: AsyncSession  # Type hint for IDE support
+    db: AsyncSession
 
     async def update_sale(
         self,
@@ -28,21 +27,27 @@ class SaleUpdateMixin:
         school_id: UUID,
         data: SaleUpdate
     ) -> Sale:
-        """
-        Update a sale's editable fields (client_id, notes).
+        """Update a sale's editable fields.
+
+        Only ``client_id`` and ``notes`` can be modified. Financial fields
+        (total, paid_amount, payment_method) are immutable through this method.
+
+        Client validation: clients are GLOBAL (not school-scoped), so only
+        existence and active status are checked — no school_id filter.
 
         Args:
-            sale_id: Sale UUID
-            school_id: School UUID
-            data: SaleUpdate schema with fields to update
+            sale_id: Sale UUID.
+            school_id: School UUID for tenant isolation.
+            data: Partial update schema. Only fields present in
+                ``model_fields_set`` are applied (supports explicit None
+                for client removal).
 
         Returns:
-            Updated Sale
+            Updated Sale.
 
         Raises:
-            HTTPException: If sale not found or client not found
+            HTTPException 404: Sale or client not found.
         """
-        # Get the sale
         result = await self.db.execute(
             select(Sale).where(
                 Sale.id == sale_id,
@@ -57,19 +62,14 @@ class SaleUpdateMixin:
                 detail="Venta no encontrada"
             )
 
-        # Track if any field was updated
         updated = False
 
-        # Update client_id if explicitly provided in the request
-        # Note: Clients are GLOBAL (not tied to schools), so we only validate existence
         if 'client_id' in data.model_fields_set:
             if data.client_id is None:
-                # Explicitly remove client from sale
                 sale.client_id = None
                 updated = True
                 logger.info(f"Sale {sale.code}: client removed")
             else:
-                # Validate client exists and is active (no school_id filter - clients are global)
                 client_result = await self.db.execute(
                     select(Client).where(
                         Client.id == data.client_id,
@@ -88,13 +88,12 @@ class SaleUpdateMixin:
                 updated = True
                 logger.info(f"Sale {sale.code}: client updated to {client.name}")
 
-        # Update notes if provided
         if data.notes is not None:
             sale.notes = data.notes
             updated = True
 
         if updated:
-            await self.db.commit()
+            await self.db.flush()
             await self.db.refresh(sale)
 
         return sale
@@ -105,18 +104,7 @@ class SaleUpdateMixin:
         school_id: UUID,
         client_id: UUID
     ) -> Sale:
-        """
-        Assign or change the client for a sale.
-        Convenience method that wraps update_sale.
-
-        Args:
-            sale_id: Sale UUID
-            school_id: School UUID
-            client_id: Client UUID to assign
-
-        Returns:
-            Updated Sale
-        """
+        """Convenience wrapper: assign a client to a sale."""
         return await self.update_sale(
             sale_id=sale_id,
             school_id=school_id,
@@ -128,17 +116,7 @@ class SaleUpdateMixin:
         sale_id: UUID,
         school_id: UUID
     ) -> Sale:
-        """
-        Remove the client from a sale (set to None).
-
-        Args:
-            sale_id: Sale UUID
-            school_id: School UUID
-
-        Returns:
-            Updated Sale with client_id = None
-        """
-        # Get the sale
+        """Convenience wrapper: remove the client from a sale."""
         result = await self.db.execute(
             select(Sale).where(
                 Sale.id == sale_id,
@@ -154,7 +132,7 @@ class SaleUpdateMixin:
             )
 
         sale.client_id = None
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(sale)
 
         logger.info(f"Sale {sale.code}: client removed")

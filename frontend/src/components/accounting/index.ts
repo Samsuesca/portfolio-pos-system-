@@ -36,5 +36,8 @@ export { default as DebtSchedulePanel } from './DebtSchedulePanel';
 // Modals
 export * from './modals';
 
+// Financial Model
+export { FinancialModelTab } from './financial-model';
+
 // Types
 export * from './types';

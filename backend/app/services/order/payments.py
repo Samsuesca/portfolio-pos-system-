@@ -76,25 +76,20 @@ class OrderPaymentMixin:
 
         # === CONTABILIDAD ===
         # Crear transaccion de ingreso por el abono
-        transaction = Transaction(
-            school_id=school_id,
+        from app.services.accounting.transactions import TransactionService
+        txn_service = TransactionService(self.db)
+        await txn_service.record(
             type=TransactionType.INCOME,
             amount=payment_data.amount,
             payment_method=payment_method,
             description=f"Abono encargo {order.code}",
+            school_id=school_id,
             category="orders",
             reference_code=order.code,
             transaction_date=get_colombia_date(),
             order_id=order.id,
-            created_by=user_id
+            created_by=user_id,
         )
-        self.db.add(transaction)
-        await self.db.flush()
-
-        # Apply balance integration (agrega a Caja/Banco)
-        from app.services.balance_integration import BalanceIntegrationService
-        balance_service = BalanceIntegrationService(self.db)
-        await balance_service.apply_transaction_to_balance(transaction, user_id)
 
         # Actualizar cuenta por cobrar si existe
         result = await self.db.execute(

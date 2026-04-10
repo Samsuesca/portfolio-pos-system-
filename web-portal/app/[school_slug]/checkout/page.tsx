@@ -2,12 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, CheckCircle, School as SchoolIcon, Package, Eye, EyeOff, Mail, AlertCircle, Loader2, User, X, CreditCard, Upload, Store, Truck } from 'lucide-react';
+import { ArrowLeft, CheckCircle, School as SchoolIcon, Package, Eye, EyeOff, Mail, AlertCircle, Loader2, User, X, CreditCard, Store, Truck } from 'lucide-react';
 import { useCartStore } from '@/lib/store';
 import { clientsApi, ordersApi, deliveryZonesApi, paymentsApi, DeliveryZone, DeliveryType } from '@/lib/api';
 import { useClientAuth } from '@/lib/clientAuth';
 import { formatNumber } from '@/lib/utils';
-import UploadPaymentProofModal from '@/components/UploadPaymentProofModal';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -25,11 +24,9 @@ export default function CheckoutPage() {
   const [firstOrderId, setFirstOrderId] = useState(''); // Store first order ID for upload
   // Multi-school order results
   const [orderResults, setOrderResults] = useState<{schoolName: string; orderCode: string; orderId: string; total: number}[]>([]);
-  const [wompiEnabled, setWompiEnabled] = useState(false);
   const [payingOrderId, setPayingOrderId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [error, setError] = useState('');
-  const [showUploadModal, setShowUploadModal] = useState(false);
 
   // Step management for new users
   const [step, setStep] = useState<CheckoutStep>('email');
@@ -107,14 +104,6 @@ export default function CheckoutPage() {
     }
   }, [resendCooldown]);
 
-  // Check Wompi config when order succeeds
-  useEffect(() => {
-    if (success) {
-      paymentsApi.getConfig()
-        .then(config => setWompiEnabled(config.enabled))
-        .catch(() => {});
-    }
-  }, [success]);
 
   const handlePayOnline = async (orderId: string) => {
     setPayingOrderId(orderId);
@@ -368,8 +357,22 @@ export default function CheckoutPage() {
       setOrderResults(results);
       // For backwards compatibility, set orderCode to first result
       setOrderCode(results.length > 0 ? results[0].orderCode : '');
-      setSuccess(true);
       clearCart();
+
+      // Auto-redirect to Wompi for first order with amount > 0
+      const payableOrder = results.find(r => r.total > 0);
+      if (payableOrder) {
+        try {
+          const session = await paymentsApi.createSession({ order_id: payableOrder.orderId });
+          const checkoutUrl = paymentsApi.buildCheckoutUrl(session);
+          window.location.href = checkoutUrl;
+          return;
+        } catch {
+          // If Wompi redirect fails, show success page with pay button
+        }
+      }
+
+      setSuccess(true);
     } catch (error: any) {
       console.error('Error creating order:', error);
       let errorMessage = error.message || error.response?.data?.detail || 'Error al crear el pedido. Por favor intenta de nuevo.';
@@ -475,39 +478,16 @@ export default function CheckoutPage() {
             )}
 
             {/* Next Steps */}
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-6">
-              <h3 className="font-bold text-blue-900 text-lg mb-3">
-                Proximos pasos
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 mb-6">
+              <h3 className="font-bold text-amber-900 text-lg mb-3">
+                Pago pendiente
               </h3>
-              <ol className="space-y-2 text-blue-800">
-                {wompiEnabled ? (
-                  <>
-                    <li className="flex items-start gap-2">
-                      <span className="font-bold mt-0.5">1.</span>
-                      <span>Paga en linea con tarjeta, PSE, Nequi o Daviplata usando el boton de abajo</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="font-bold mt-0.5">2.</span>
-                      <span>Tu pago se confirma automaticamente y procesamos tu pedido</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="font-bold mt-0.5">3.</span>
-                      <span>Tambien puedes pagar presencialmente en nuestra tienda o contra entrega</span>
-                    </li>
-                  </>
-                ) : (
-                  <>
-                    <li className="flex items-start gap-2">
-                      <span className="font-bold mt-0.5">1.</span>
-                      <span>Realiza el pago presencialmente en nuestra tienda o contra entrega</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="font-bold mt-0.5">2.</span>
-                      <span>Espera la confirmacion y procesaremos tu pedido</span>
-                    </li>
-                  </>
-                )}
-              </ol>
+              <p className="text-amber-800 mb-2">
+                Tu pedido fue creado pero <span className="font-bold">requiere pago en linea</span> para ser procesado.
+              </p>
+              <p className="text-amber-700 text-sm">
+                Usa el boton de abajo para completar tu pago con tarjeta, PSE, Nequi o Daviplata.
+              </p>
             </div>
 
             {/* Delivery address info */}
@@ -533,8 +513,8 @@ export default function CheckoutPage() {
 
             {/* Action Buttons */}
             <div className="space-y-3 mb-6">
-              {/* Wompi Online Payment */}
-              {wompiEnabled && totalAmount > 0 && (
+              {/* Wompi Online Payment (mandatory) */}
+              {totalAmount > 0 && (
                 <div className="space-y-2">
                   {!hasMultipleOrders && firstOrderId && (
                     <button
@@ -543,7 +523,7 @@ export default function CheckoutPage() {
                       className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <CreditCard className="w-5 h-5" />
-                      {payingOrderId === firstOrderId ? 'Redirigiendo a pago...' : 'Pagar en línea'}
+                      {payingOrderId === firstOrderId ? 'Redirigiendo a pago...' : 'Pagar ahora'}
                     </button>
                   )}
                   {hasMultipleOrders && orderResults.filter(r => r.total > 0).map((result) => (
@@ -556,21 +536,13 @@ export default function CheckoutPage() {
                       <CreditCard className="w-5 h-5" />
                       {payingOrderId === result.orderId
                         ? 'Redirigiendo a pago...'
-                        : `Pagar en línea - ${result.orderCode} ($${formatNumber(result.total)})`
+                        : `Pagar ahora - ${result.orderCode} ($${formatNumber(result.total)})`
                       }
                     </button>
                   ))}
                 </div>
               )}
 
-              {/* Secondary options */}
-              <button
-                onClick={() => window.open('/pago', '_blank')}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 border-2 border-surface-200 text-gray-700 rounded-xl hover:bg-surface-50 transition-colors font-semibold"
-              >
-                <Store className="w-5 h-5" />
-                Informacion sobre Pagos
-              </button>
             </div>
 
             {/* Account created info */}
@@ -603,18 +575,6 @@ export default function CheckoutPage() {
           </div>
         </div>
 
-        {/* Upload Payment Proof Modal */}
-        {firstOrderId && (
-          <UploadPaymentProofModal
-            isOpen={showUploadModal}
-            onClose={() => setShowUploadModal(false)}
-            orderId={firstOrderId}
-            onUploadSuccess={() => {
-              // Could show additional success message or redirect
-              console.log('Payment proof uploaded successfully');
-            }}
-          />
-        )}
       </>
     );
   }

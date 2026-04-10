@@ -737,6 +737,7 @@ async def get_client_orders(
             "status": order.status.value,
             "source": order.source.value if order.source else "desktop_app",  # Origen del pedido
             "total": float(order.total),
+            "paid_amount": float(order.paid_amount) if order.paid_amount else 0,
             "balance": float(order.balance),
             "created_at": order.created_at.isoformat() if order.created_at else None,
             "delivery_date": order.delivery_date.isoformat() if order.delivery_date else None,

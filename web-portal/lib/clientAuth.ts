@@ -31,6 +31,7 @@ export interface ClientOrder {
   status: string;
   source: OrderSource;  // Origen del pedido (web, tienda física, app desktop)
   total: number;
+  paid_amount: number;
   balance: number;
   created_at: string;
   delivery_date?: string;

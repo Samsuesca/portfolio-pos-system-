@@ -54,7 +54,7 @@ class OrderCancellationMixin:
         """
         from app.services.inventory import InventoryService
         from app.services.global_product import GlobalInventoryService
-        from app.services.balance_integration import BalanceIntegrationService
+        from app.services.accounting.transactions import TransactionService
         from app.models.inventory_log import InventoryMovementType
 
         order = await self.get_order_with_items(order_id, school_id)
@@ -69,7 +69,7 @@ class OrderCancellationMixin:
 
         inventory_service = InventoryService(self.db)
         global_inv_service = GlobalInventoryService(self.db)
-        balance_service = BalanceIntegrationService(self.db)
+        txn_service = TransactionService(self.db)
 
         # === PASO 1: LIBERAR STOCK RESERVADO ===
         for item in order.items:
@@ -122,29 +122,21 @@ class OrderCancellationMixin:
         transactions = txn_result.scalars().all()
 
         for txn in transactions:
-            # Crear transaccion inversa (EXPENSE para devolver anticipo)
-            reverse_transaction = Transaction(
-                school_id=order.school_id,
+            desc = f"Devolucion anticipo: Cancelacion encargo {order.code}" + (f" - {reason}" if reason else "")
+            await txn_service.record(
                 type=TransactionType.EXPENSE,
                 amount=txn.amount,
                 payment_method=txn.payment_method,
-                description=f"Devolucion anticipo: Cancelacion encargo {order.code}" + (f" - {reason}" if reason else ""),
+                description=desc,
+                school_id=order.school_id,
                 category="order_cancellation",
                 reference_code=f"CANC-{order.code}",
                 transaction_date=get_colombia_date(),
                 order_id=order.id,
-                created_by=user_id
+                created_by=user_id,
+                force_income_map=True,
             )
-            self.db.add(reverse_transaction)
-            await self.db.flush()
-
-            # Aplicar a balance (restar de la misma cuenta donde entró el dinero)
-            try:
-                await balance_service.apply_transaction_to_balance(reverse_transaction, user_id, force_income_map=True)
-                logger.info(f"Created reverse transaction for order {order.code}: {txn.amount} via {txn.payment_method}")
-            except Exception as e:
-                logger.error(f"Error applying reverse transaction to balance: {e}")
-                raise ValueError(f"Error al revertir transacción contable: {str(e)}")
+            logger.info(f"Created reverse transaction for order {order.code}: {txn.amount} via {txn.payment_method}")
 
         # === PASO 3: CANCELAR CUENTAS POR COBRAR ===
         rec_result = await self.db.execute(

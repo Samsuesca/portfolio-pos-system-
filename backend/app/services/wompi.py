@@ -21,6 +21,7 @@ from app.core.config import settings
 from app.utils.timezone import get_colombia_now_naive, get_colombia_date
 from app.models.payment_transaction import PaymentTransaction, WompiTransactionStatus
 from app.models.order import Order
+from app.models.sale import SaleSource
 from app.models.accounting import (
     AccountsReceivable,
     Transaction,
@@ -413,27 +414,20 @@ class WompiService:
             logger.error(f"Payment {payment_tx.reference} has no order or receivable")
             return
 
-        # Create accounting transaction
-        transaction = Transaction(
-            school_id=payment_tx.school_id,
+        from app.services.accounting.transactions import TransactionService
+        txn_service = TransactionService(self.db)
+        transaction = await txn_service.record(
             type=TransactionType.INCOME,
             amount=amount_cop,
             payment_method=acc_method,
             description=description,
+            school_id=payment_tx.school_id,
             category="orders" if payment_tx.order_id else "receivables",
             reference_code=reference_code,
             transaction_date=get_colombia_date(),
             order_id=payment_tx.order_id,
-            created_by=None,  # System-generated (no user)
+            created_by=None,
         )
-        self.db.add(transaction)
-        await self.db.flush()
-
-        # Apply to balance accounts (Caja/Banco/Nequi)
-        from app.services.balance_integration import BalanceIntegrationService
-
-        balance_service = BalanceIntegrationService(self.db)
-        await balance_service.apply_transaction_to_balance(transaction)
 
         # Mark as applied (idempotency)
         payment_tx.accounting_applied = True
@@ -447,6 +441,10 @@ class WompiService:
             f"Applied Wompi payment {payment_tx.reference}: "
             f"${amount_cop} via {acc_method.value}"
         )
+
+        # Notify about web order now that payment is confirmed
+        if payment_tx.order_id and order and order.source == SaleSource.WEB_PORTAL:
+            await self._notify_web_order_paid(order)
 
     async def _record_wompi_fee_expense(
         self, payment_tx: PaymentTransaction, reference_code: str
@@ -492,9 +490,9 @@ class WompiService:
         self.db.add(expense)
         await self.db.flush()
 
-        # Create expense transaction
-        expense_tx = Transaction(
-            school_id=None,
+        from app.services.accounting.transactions import TransactionService
+        txn_service = TransactionService(self.db)
+        await txn_service.record(
             type=TransactionType.EXPENSE,
             amount=total_fee_cop,
             payment_method=AccPaymentMethod.TRANSFER,
@@ -505,19 +503,41 @@ class WompiService:
             expense_id=expense.id,
             created_by=None,
         )
-        self.db.add(expense_tx)
-        await self.db.flush()
-
-        # Apply expense to balance (deduct from Banco)
-        from app.services.balance_integration import BalanceIntegrationService
-
-        balance_service = BalanceIntegrationService(self.db)
-        await balance_service.apply_transaction_to_balance(expense_tx)
 
         logger.info(
             f"Recorded Wompi fee expense for {payment_tx.reference}: "
             f"${total_fee_cop} (comisión ${fee_cop} + IVA ${fee_tax_cop})"
         )
+
+    async def _notify_web_order_paid(self, order: Order):
+        """Send internal notification + Telegram alert for a web order whose payment was confirmed."""
+        try:
+            from app.services.notification import NotificationService
+            notification_service = NotificationService(self.db)
+            await notification_service.notify_new_web_order(order)
+        except Exception as e:
+            logger.error(f"Internal notification failed for web order {order.code}: {e}")
+
+        try:
+            from app.services.telegram import fire_and_forget_routed_alert
+            from app.services.telegram_messages import TelegramMessageBuilder
+            from app.models.school import School
+
+            school_result = await self.db.execute(
+                select(School).where(School.id == order.school_id)
+            )
+            school_obj = school_result.scalar_one_or_none()
+            school_name = school_obj.name if school_obj else "N/A"
+
+            msg = TelegramMessageBuilder.web_order_created(
+                code=order.code,
+                total=order.total,
+                school_name=school_name,
+                delivery_type=order.delivery_type.value if order.delivery_type else None,
+            )
+            fire_and_forget_routed_alert("web_order_created", msg)
+        except Exception as e:
+            logger.error(f"Telegram alert failed for web order {order.code}: {e}")
 
     async def _fetch_and_store_fees(self, payment_tx: PaymentTransaction):
         """Query Wompi API to get fee details for an approved transaction."""

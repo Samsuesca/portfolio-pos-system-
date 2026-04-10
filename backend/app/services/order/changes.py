@@ -212,11 +212,11 @@ class OrderChangeMixin:
             ValueError: If change not found or already processed
         """
         from app.services.inventory import InventoryService
-        from app.services.balance_integration import BalanceIntegrationService
+        from app.services.accounting.transactions import TransactionService
 
         inv_service = InventoryService(self.db)
         global_inv_service = GlobalInventoryService(self.db)
-        balance_service = BalanceIntegrationService(self.db)
+        txn_service = TransactionService(self.db)
 
         # Get change with related data
         result = await self.db.execute(
@@ -380,39 +380,23 @@ class OrderChangeMixin:
         payment_method_str = payment_method.value if hasattr(payment_method, 'value') else str(payment_method)
         if change.price_adjustment != 0 and payment_method_str != 'credit':
             acc_payment_method = AccPaymentMethod(payment_method_str)
+            txn_type = TransactionType.INCOME if change.price_adjustment > 0 else TransactionType.EXPENSE
+            desc = (f"Diferencia cobrada - Cambio encargo {order.code}"
+                    if change.price_adjustment > 0
+                    else f"Reembolso - Cambio encargo {order.code}")
 
-            if change.price_adjustment > 0:
-                # Customer pays more -> INCOME
-                transaction = Transaction(
-                    school_id=school_id,
-                    type=TransactionType.INCOME,
-                    amount=Decimal(str(abs(change.price_adjustment))),
-                    payment_method=acc_payment_method,
-                    description=f"Diferencia cobrada - Cambio encargo {order.code}",
-                    category="order_changes",
-                    reference_code=f"OCHG-{order.code}",
-                    transaction_date=get_colombia_date(),
-                    order_id=order.id,
-                    created_by=approved_by
-                )
-            else:
-                # Refund to customer -> EXPENSE
-                transaction = Transaction(
-                    school_id=school_id,
-                    type=TransactionType.EXPENSE,
-                    amount=Decimal(str(abs(change.price_adjustment))),
-                    payment_method=acc_payment_method,
-                    description=f"Reembolso - Cambio encargo {order.code}",
-                    category="order_changes",
-                    reference_code=f"OCHG-{order.code}",
-                    transaction_date=get_colombia_date(),
-                    order_id=order.id,
-                    created_by=approved_by
-                )
-
-            self.db.add(transaction)
-            await self.db.flush()
-            await balance_service.apply_transaction_to_balance(transaction, approved_by)
+            await txn_service.record(
+                type=txn_type,
+                amount=Decimal(str(abs(change.price_adjustment))),
+                payment_method=acc_payment_method,
+                description=desc,
+                school_id=school_id,
+                category="order_changes",
+                reference_code=f"OCHG-{order.code}",
+                transaction_date=get_colombia_date(),
+                order_id=order.id,
+                created_by=approved_by,
+            )
 
         # Update accounts receivable if exists for this order
         if change.price_adjustment != 0:

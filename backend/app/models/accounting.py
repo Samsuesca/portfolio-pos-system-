@@ -639,6 +639,18 @@ class BalanceEntry(Base):
     description: Mapped[str] = mapped_column(String(500), nullable=False)
     reference: Mapped[str | None] = mapped_column(String(100))  # Invoice #, receipt, etc.
 
+    # Double-entry foundation (nullable — populated only for new entries)
+    entry_type: Mapped[str | None] = mapped_column(
+        String(10),
+        comment="debit or credit (NULL for legacy entries)"
+    )
+    counterpart_entry_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("balance_entries.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="Links to the other side of a double-entry pair"
+    )
+
     # Audit
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),

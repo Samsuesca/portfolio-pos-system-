@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.utils.timezone import get_colombia_date
 from app.models.accounting import (
-    Transaction, TransactionType, AccountsReceivable
+    TransactionType, AccountsReceivable
 )
 from app.schemas.accounting import (
     AccountsReceivableCreate, AccountsReceivableUpdate, AccountsReceivablePayment
@@ -84,24 +84,16 @@ class AccountsReceivableService(SchoolIsolatedService[AccountsReceivable]):
         receivable.amount_paid = new_paid
         receivable.is_paid = (new_paid >= receivable.amount)
 
-        # Create income transaction
-        transaction = Transaction(
-            school_id=school_id,
+        await self.transaction_service.record(
             type=TransactionType.INCOME,
             amount=payment.amount,
             payment_method=payment.payment_method,
             description=f"Cobro cuenta por cobrar: {receivable.description[:50]}",
+            school_id=school_id,
             category="receivables",
             transaction_date=get_colombia_date(),
-            created_by=created_by
+            created_by=created_by,
         )
-        self.db.add(transaction)
-        await self.db.flush()
-
-        # Apply balance integration (agrega a Caja/Banco)
-        from app.services.balance_integration import BalanceIntegrationService
-        balance_service = BalanceIntegrationService(self.db)
-        await balance_service.apply_transaction_to_balance(transaction, created_by)
 
         await self.db.refresh(receivable)
         return receivable

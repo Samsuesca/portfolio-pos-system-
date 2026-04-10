@@ -9,8 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.utils.timezone import get_colombia_date
 from app.models.accounting import (
-    Transaction, TransactionType,
-    Expense, ExpenseCategory
+    TransactionType, Expense, ExpenseCategory
 )
 from app.schemas.accounting import (
     ExpenseCreate, ExpenseUpdate, ExpensePayment, ExpensesByCategory
@@ -102,27 +101,18 @@ class ExpenseService(SchoolIsolatedService[Expense]):
 
         await self.db.flush()
 
-        # Create expense transaction
-        # category can be string or enum, handle both cases
         cat_value = expense.category.value if hasattr(expense.category, 'value') else expense.category
-        transaction = Transaction(
-            school_id=school_id,
+        await self.transaction_service.record(
             type=TransactionType.EXPENSE,
             amount=payment.amount,
             payment_method=payment.payment_method,
             description=f"Pago: {expense.description}",
+            school_id=school_id,
             category=cat_value,
             transaction_date=get_colombia_date(),
             expense_id=expense.id,
-            created_by=created_by
+            created_by=created_by,
         )
-        self.db.add(transaction)
-        await self.db.flush()
-
-        # Apply balance integration (descuenta de Caja/Banco)
-        from app.services.balance_integration import BalanceIntegrationService
-        balance_service = BalanceIntegrationService(self.db)
-        await balance_service.apply_transaction_to_balance(transaction, created_by)
 
         # Telegram alert
         try:

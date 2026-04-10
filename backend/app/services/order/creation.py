@@ -364,25 +364,20 @@ class OrderCreationMixin:
         # === CONTABILIDAD ===
         # Si hay anticipo, crear transaccion de ingreso + actualizar balance
         if paid_amount > Decimal("0"):
-            transaction = Transaction(
-                school_id=order_data.school_id,
+            from app.services.accounting.transactions import TransactionService
+            txn_service = TransactionService(self.db)
+            await txn_service.record(
                 type=TransactionType.INCOME,
                 amount=paid_amount,
                 payment_method=payment_method,
                 description=f"Anticipo encargo {order.code}",
+                school_id=order_data.school_id,
                 category="orders",
                 reference_code=order.code,
                 transaction_date=get_colombia_date(),
                 order_id=order.id,
-                created_by=user_id
+                created_by=user_id,
             )
-            self.db.add(transaction)
-            await self.db.flush()
-
-            # Apply balance integration (agrega a Caja/Banco)
-            from app.services.balance_integration import BalanceIntegrationService
-            balance_service = BalanceIntegrationService(self.db)
-            await balance_service.apply_transaction_to_balance(transaction, user_id)
 
         # Crear cuenta por cobrar por el saldo pendiente
         balance = total - paid_amount
@@ -794,25 +789,20 @@ class OrderCreationMixin:
         # Para pedidos web, el anticipo es generalmente 0 (pago contra entrega)
         # Si hay anticipo, crear transaccion de ingreso + actualizar balance
         if paid_amount > Decimal("0"):
-            transaction = Transaction(
-                school_id=school_id,  # Use resolved school_id
+            from app.services.accounting.transactions import TransactionService
+            txn_service = TransactionService(self.db)
+            await txn_service.record(
                 type=TransactionType.INCOME,
                 amount=paid_amount,
-                payment_method=AccPaymentMethod.TRANSFER,  # Web orders typically via transfer
+                payment_method=AccPaymentMethod.TRANSFER,
                 description=f"Anticipo encargo web {order.code}",
+                school_id=school_id,
                 category="orders",
                 reference_code=order.code,
                 transaction_date=get_colombia_date(),
                 order_id=order.id,
-                created_by=None
+                created_by=None,
             )
-            self.db.add(transaction)
-            await self.db.flush()
-
-            # Apply balance integration (agrega a Banco para transferencias web)
-            from app.services.balance_integration import BalanceIntegrationService
-            balance_service = BalanceIntegrationService(self.db)
-            await balance_service.apply_transaction_to_balance(transaction, None)
 
         # Crear cuenta por cobrar por el saldo pendiente
         balance = total - paid_amount
@@ -831,33 +821,5 @@ class OrderCreationMixin:
 
         await self.db.flush()
         await self.db.refresh(order)
-
-        # === NOTIFICATION ===
-        # Notify about new web order
-        from app.services.notification import NotificationService
-        notification_service = NotificationService(self.db)
-        await notification_service.notify_new_web_order(order)
-
-        # === TELEGRAM ALERT (web order) ===
-        try:
-            from app.services.telegram import fire_and_forget_routed_alert
-            from app.services.telegram_messages import TelegramMessageBuilder
-            from app.models.school import School
-
-            school_result = await self.db.execute(
-                select(School).where(School.id == order.school_id)
-            )
-            school_obj = school_result.scalar_one_or_none()
-            s_name = school_obj.name if school_obj else "N/A"
-
-            msg = TelegramMessageBuilder.web_order_created(
-                code=order.code,
-                total=order.total,
-                school_name=s_name,
-                delivery_type=order.delivery_type.value if order.delivery_type else None,
-            )
-            fire_and_forget_routed_alert("web_order_created", msg)
-        except Exception as e:
-            logger.error(f"Telegram alert failed for web order {order.code}: {e}")
 
         return order

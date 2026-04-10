@@ -123,8 +123,9 @@ export const userService = {
   /**
    * Delete user
    */
-  async deleteUser(userId: string): Promise<void> {
-    await apiClient.delete(`/users/${userId}`);
+  async deleteUser(userId: string): Promise<{ action: string; message: string }> {
+    const response = await apiClient.delete<{ action: string; message: string }>(`/users/${userId}`);
+    return response.data;
   },
 
   // ==========================================

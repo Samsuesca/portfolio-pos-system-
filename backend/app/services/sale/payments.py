@@ -1,8 +1,14 @@
-"""
-Sale Payment Mixin
+"""Retroactive payment addition for existing sales.
 
-Contains payment methods for sale operations:
-- add_payment_to_sale
+Handles the case where a sale was created without full payment records
+(e.g., legacy data or manual corrections). Creates SalePayment entries
+and optionally applies accounting (Transaction + balance update).
+
+Accounting policy:
+    Balance integration errors propagate — if the accounting system
+    can't record the payment, the entire operation rolls back. This
+    prevents financial inconsistencies between sale_payments and
+    balance_accounts.
 """
 import logging
 from uuid import UUID
@@ -12,15 +18,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.sale import Sale, SalePayment, PaymentMethod
-from app.models.accounting import Transaction, TransactionType, AccPaymentMethod, AccountsReceivable
+from app.models.accounting import TransactionType, AccountsReceivable
+from app.utils.payment_methods import to_acc_payment_method
 
 logger = logging.getLogger(__name__)
 
 
 class SalePaymentMixin:
-    """Mixin providing payment methods for SaleService"""
+    """Provides ``add_payment_to_sale`` to :class:`SaleService`."""
 
-    db: AsyncSession  # Type hint for IDE support
+    db: AsyncSession
 
     async def add_payment_to_sale(
         self,
@@ -29,22 +36,31 @@ class SalePaymentMixin:
         payment_data,
         user_id: UUID
     ) -> SalePayment:
-        """
-        Add a payment to an existing sale (for fixing sales without payment records)
+        """Add a payment to an existing sale.
+
+        Validates that the payment amount doesn't exceed the remaining
+        balance. For cash payments, tracks amount_received and change_given.
+
+        When ``payment_data.apply_accounting`` is True, also creates:
+        - **CREDIT** payments → AccountsReceivable
+        - **All other methods** → Transaction (INCOME) + balance update
 
         Args:
-            sale_id: Sale UUID
-            school_id: School UUID
-            payment_data: Payment data including amount, method, and accounting flag
-            user_id: User adding the payment
+            sale_id: Target sale UUID.
+            school_id: School UUID for tenant isolation.
+            payment_data: Payment details including amount, method,
+                optional ``apply_accounting`` flag, and cash-specific
+                ``amount_received``.
+            user_id: User adding the payment (recorded in accounting).
 
         Returns:
-            Created SalePayment
+            The created SalePayment with updated sale.paid_amount.
 
         Raises:
-            ValueError: If sale not found or payment exceeds remaining balance
+            ValueError: Sale not found, amount exceeds remaining balance,
+                cash received less than amount due, or balance integration
+                fails (when apply_accounting=True).
         """
-        # Get sale with payments
         result = await self.db.execute(
             select(Sale)
             .options(selectinload(Sale.payments))
@@ -58,17 +74,14 @@ class SalePaymentMixin:
         if not sale:
             raise ValueError("Venta no encontrada")
 
-        # Calculate existing payments total
         existing_payments_total = sum(p.amount for p in sale.payments)
         remaining_balance = sale.total - existing_payments_total
 
-        # Validate payment amount doesn't exceed remaining
         if payment_data.amount > remaining_balance:
             raise ValueError(
                 f"El monto ({payment_data.amount}) excede el saldo pendiente ({remaining_balance})"
             )
 
-        # Calculate change for cash payments
         amount_received = None
         change_given = None
 
@@ -82,7 +95,6 @@ class SalePaymentMixin:
                 amount_received = payment_data.amount_received
                 change_given = payment_data.amount_received - payment_data.amount
 
-        # Create SalePayment record
         payment = SalePayment(
             sale_id=sale.id,
             amount=payment_data.amount,
@@ -94,23 +106,8 @@ class SalePaymentMixin:
         self.db.add(payment)
         await self.db.flush()
 
-        # Apply accounting if requested
         if payment_data.apply_accounting and payment_data.amount > Decimal("0"):
-            payment_method_map = {
-                PaymentMethod.CASH: AccPaymentMethod.CASH,
-                PaymentMethod.NEQUI: AccPaymentMethod.NEQUI,
-                PaymentMethod.TRANSFER: AccPaymentMethod.TRANSFER,
-                PaymentMethod.CARD: AccPaymentMethod.CARD,
-                PaymentMethod.CREDIT: AccPaymentMethod.CREDIT,
-            }
-
-            acc_payment_method = payment_method_map.get(
-                payment_data.payment_method,
-                AccPaymentMethod.CASH
-            )
-
             if payment_data.payment_method == PaymentMethod.CREDIT:
-                # Credit payment -> Create AccountsReceivable
                 receivable = AccountsReceivable(
                     school_id=sale.school_id,
                     client_id=sale.client_id,
@@ -124,39 +121,27 @@ class SalePaymentMixin:
                 self.db.add(receivable)
                 logger.info(f"Created AccountsReceivable for sale {sale.code}: {payment_data.amount}")
             else:
-                # Effective payment -> Create Transaction + Update Balance
-                transaction = Transaction(
-                    school_id=sale.school_id,
+                from app.services.accounting.transactions import TransactionService
+                txn_service = TransactionService(self.db)
+                acc_method = to_acc_payment_method(payment_data.payment_method)
+                transaction = await txn_service.record(
                     type=TransactionType.INCOME,
                     amount=payment_data.amount,
-                    payment_method=acc_payment_method,
+                    payment_method=acc_method,
                     description=f"Pago agregado a venta {sale.code}",
+                    school_id=sale.school_id,
                     category="sales",
                     reference_code=sale.code,
                     transaction_date=sale.sale_date.date() if hasattr(sale.sale_date, 'date') else sale.sale_date,
                     sale_id=sale.id,
-                    created_by=user_id
+                    created_by=user_id,
                 )
-                self.db.add(transaction)
-                await self.db.flush()
-
-                # Link transaction to payment
                 payment.transaction_id = transaction.id
-
-                # Apply balance integration
-                try:
-                    from app.services.balance_integration import BalanceIntegrationService
-                    balance_service = BalanceIntegrationService(self.db)
-                    await balance_service.apply_transaction_to_balance(transaction, user_id)
-                    logger.info(f"Applied balance for sale {sale.code}: {payment_data.amount} via {acc_payment_method.value}")
-                except Exception as e:
-                    logger.error(f"Balance integration failed for payment on sale {sale.code}: {e}")
-                    raise ValueError(f"Error al aplicar contabilidad: {str(e)}")
+                logger.info(f"Applied balance for sale {sale.code}: {payment_data.amount} via {acc_method.value}")
 
         await self.db.flush()
         await self.db.refresh(payment)
 
-        # Update sale's paid_amount
         sale.paid_amount = existing_payments_total + payment_data.amount
         await self.db.flush()
 

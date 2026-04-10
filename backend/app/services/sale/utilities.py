@@ -1,12 +1,10 @@
-"""
-Sale Utility Mixin
+"""Sale utility methods.
 
-Contains utility methods for sale operations:
-- _generate_sale_code
+Internal helpers shared across sale mixins. Not part of the public
+service API — prefixed with underscore by convention.
 """
 import logging
 from uuid import UUID
-from datetime import datetime
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,22 +15,50 @@ logger = logging.getLogger(__name__)
 
 
 class SaleUtilityMixin:
-    """Mixin providing utility methods for SaleService"""
+    """Provides ``_generate_sale_code`` to :class:`SaleService`."""
 
-    db: AsyncSession  # Type hint for IDE support
+    db: AsyncSession
 
     async def _generate_sale_code(self, school_id: UUID) -> str:
-        """Generate sale code: VNT-YYYY-NNNN"""
+        """Generate a sequential sale code: ``VNT-{year}-{sequence:04d}``.
+
+        Uses ``ORDER BY code DESC LIMIT 1 FOR UPDATE`` to lock the highest
+        code row, preventing duplicate codes when two concurrent requests
+        create sales for the same school. The row-level lock makes the
+        second transaction wait until the first commits.
+
+        Falls back to sequence 1 if no sales exist for the current year.
+
+        Args:
+            school_id: School UUID to scope the sequence.
+
+        Returns:
+            Sale code string, e.g. ``VNT-2026-0042``.
+        """
         year = get_colombia_date().year
         prefix = f"VNT-{year}-"
 
-        # Count sales for this year
-        count = await self.db.execute(
-            select(func.count(Sale.id)).where(
+        # FOR UPDATE is not allowed with aggregate functions (MAX),
+        # so we select the actual row and lock it instead
+        result = await self.db.execute(
+            select(Sale.code)
+            .where(
                 Sale.school_id == school_id,
                 Sale.code.like(f"{prefix}%")
             )
+            .order_by(Sale.code.desc())
+            .limit(1)
+            .with_for_update()
         )
 
-        sequence = count.scalar_one() + 1
+        max_code = result.scalar_one_or_none()
+
+        if max_code:
+            try:
+                sequence = int(max_code.split("-")[-1]) + 1
+            except (ValueError, IndexError):
+                sequence = 1
+        else:
+            sequence = 1
+
         return f"{prefix}{sequence:04d}"

@@ -1,6 +1,6 @@
 {
   "name": "uniformes-system-frontend",
-  "version": "2.7.0",
+  "version": "2.9.0",
   "description": "Sistema de Gestión de Uniformes - Frontend",
   "type": "module",
   "scripts": {
@@ -25,18 +25,19 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.62.0",
     "@tauri-apps/plugin-dialog": "^2",
     "@tauri-apps/plugin-fs": "^2",
     "@tauri-apps/plugin-http": "^2",
     "@tauri-apps/plugin-shell": "^2",
     "axios": "^1.6.0",
-    "jspdf": "^2.5.1",
+    "jspdf": "4.2.1",
     "lucide-react": "^0.294.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hot-toast": "^2.6.0",
-    "@tanstack/react-query": "^5.62.0",
     "react-router-dom": "^6.20.0",
+    "recharts": "^3.8.0",
     "zustand": "^4.4.6"
   },
   "devDependencies": {

@@ -266,3 +266,17 @@ class TelegramMessageBuilder:
             f"<b>Gastos:</b> ${expenses_total:,.0f}\n"
             f"{emoji} <b>Resultado neto:</b> ${net_result:,.0f}"
         )
+
+    @staticmethod
+    def low_balance_warning(
+        account_name: str,
+        balance: Decimal,
+        threshold: Decimal,
+    ) -> str:
+        return "\n".join([
+            f"<b>Alerta: Saldo Bajo</b>",
+            f"Cuenta: {account_name}",
+            f"Saldo actual: <b>${balance:,.0f}</b>",
+            f"Umbral: ${threshold:,.0f}",
+            f"Atencion requerida.",
+        ])

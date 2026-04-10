@@ -1,12 +1,16 @@
-"""
-Sale Service (Ventas)
+"""SaleService — composed service for all sale operations.
 
-Contabilidad de Ventas:
-- Las ventas efectivas (CASH, TRANSFER, CARD) crean transaccion de ingreso + actualizan balance
-- Las ventas a credito (CREDIT) solo crean cuenta por cobrar, no afectan Caja/Banco
-- Las ventas historicas pueden saltarse la creacion de transacciones
+Uses mixin composition to split a large service into focused modules
+while sharing a single ``AsyncSession``. All mixins operate on the same
+DB session, so the entire sale lifecycle (creation, changes, payments,
+cancellation) runs within one transaction controlled by the caller.
 
-This module composes all sale-related mixins into a single SaleService class.
+Example::
+
+    async with get_db() as db:
+        service = SaleService(db)
+        sale = await service.create_sale(data, user_id)
+        await db.commit()
 """
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,18 +36,26 @@ class SaleService(
     SaleCancellationMixin,
     SaleUpdateMixin
 ):
-    """
-    Service for Sale (Ventas) operations.
+    """Unified service for sale (venta) operations.
 
-    This class composes all sale-related functionality through mixins:
-    - SaleCreationMixin: create_sale
-    - SaleChangeMixin: create_sale_change, _create_change_with_order, approve_sale_change,
-                       reject_sale_change, complete_change_from_order, get_sale_changes
-    - SalePaymentMixin: add_payment_to_sale
-    - SaleQueryMixin: get_sale_with_items
-    - SaleUtilityMixin: _generate_sale_code
-    - SaleCancellationMixin: cancel_sale
-    - SaleUpdateMixin: update_sale, assign_client_to_sale, remove_client_from_sale
+    Inherits from :class:`SchoolIsolatedService` which provides multi-tenant
+    CRUD with automatic ``school_id`` filtering. Each mixin adds domain-specific
+    behavior:
+
+    - **SaleCreationMixin** — ``create_sale``: full sale lifecycle with inventory,
+      payments, accounting, and notifications.
+    - **SaleChangeMixin** — ``create_sale_change``, ``approve_sale_change``,
+      ``reject_sale_change``, ``complete_change_from_order``: product exchanges,
+      returns, and defect handling with optional order creation when stock is unavailable.
+    - **SalePaymentMixin** — ``add_payment_to_sale``: retroactive payment addition
+      with optional accounting integration.
+    - **SaleQueryMixin** — ``get_sale_with_items``: eager-loaded sale retrieval.
+    - **SaleUtilityMixin** — ``_generate_sale_code``: sequential code generation
+      with row-level locking to prevent duplicates under concurrency.
+    - **SaleCancellationMixin** — ``cancel_sale``: full reversal of inventory,
+      accounting, and receivables.
+    - **SaleUpdateMixin** — ``update_sale``, ``assign_client_to_sale``,
+      ``remove_client_from_sale``: metadata updates.
     """
 
     def __init__(self, db: AsyncSession):

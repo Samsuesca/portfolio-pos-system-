@@ -1,13 +1,29 @@
-"""
-Sale Changes Mixin
+"""Sale change (cambios y devoluciones) workflow.
 
-Contains sale change (cambios y devoluciones) methods:
-- create_sale_change
-- _create_change_with_order
-- approve_sale_change
-- reject_sale_change
-- complete_change_from_order
-- get_sale_changes
+Handles four types of post-sale product modifications:
+- **SIZE_CHANGE** — same product, different size
+- **PRODUCT_CHANGE** — swap for a different product
+- **RETURN** — return without replacement (full refund)
+- **DEFECT** — exchange due to manufacturing defect
+
+State machine::
+
+    PENDING ──approve──▸ APPROVED
+         │                  ▲
+         ├──reject──▸ REJECTED
+         │
+         └──(no stock)──▸ PENDING_STOCK ──complete──▸ APPROVED
+                              │
+                              └── Creates an Order for the new product.
+                                  Original product returned to inventory
+                                  immediately. Accounting settled at creation.
+
+When stock is unavailable and ``create_order_if_no_stock=True``, the system:
+1. Returns the original product to inventory immediately
+2. Settles accounting (price adjustment) immediately
+3. Creates an Order for the new product
+4. Sets change status to PENDING_STOCK
+5. When the order is fulfilled, ``complete_change_from_order`` marks it APPROVED
 """
 import logging
 from uuid import UUID
@@ -22,7 +38,7 @@ from app.models.sale import (
     Sale, SaleItem, SaleStatus, SaleChange, ChangeStatus, ChangeType, PaymentMethod
 )
 from app.models.product import Product, GlobalProduct
-from app.models.accounting import Transaction, TransactionType, AccPaymentMethod
+from app.models.accounting import TransactionType, AccPaymentMethod
 from app.models.inventory_log import InventoryMovementType
 from app.schemas.sale import SaleChangeCreate
 from app.services.global_product import GlobalInventoryService
@@ -31,9 +47,17 @@ logger = logging.getLogger(__name__)
 
 
 class SaleChangeMixin:
-    """Mixin providing sale change methods for SaleService"""
+    """Provides sale change operations to :class:`SaleService`.
 
-    db: AsyncSession  # Type hint for IDE support
+    Methods:
+        create_sale_change: Create a change request (PENDING or PENDING_STOCK).
+        approve_sale_change: Execute inventory + accounting for a PENDING change.
+        reject_sale_change: Reject a PENDING change with reason.
+        complete_change_from_order: Finalize a PENDING_STOCK change.
+        get_sale_changes: List all changes for a sale.
+    """
+
+    db: AsyncSession
 
     async def create_sale_change(
         self,
@@ -42,28 +66,36 @@ class SaleChangeMixin:
         user_id: UUID,
         change_data: SaleChangeCreate
     ) -> SaleChange:
-        """
-        Create a sale change request (size change, product change, return, defect)
-        Supports both school products and global products.
+        """Create a sale change request.
+
+        Validates the original item exists and has sufficient unreturned
+        quantity (accounting for previously approved changes). For non-RETURN
+        types, checks stock availability of the new product.
+
+        If stock is unavailable and ``change_data.create_order_if_no_stock``
+        is True, delegates to ``_create_change_with_order`` which handles
+        immediate inventory return + order creation.
 
         Args:
-            sale_id: Sale UUID
-            school_id: School UUID
-            user_id: User creating the change
-            change_data: Change request data
+            sale_id: Sale UUID containing the item to change.
+            school_id: School UUID for tenant isolation.
+            user_id: User creating the change request.
+            change_data: Change details including type, quantities, and
+                optional new product. See :class:`SaleChangeCreate`.
 
         Returns:
-            Created SaleChange
+            Created SaleChange with status PENDING or PENDING_STOCK.
 
         Raises:
-            ValueError: If validation fails
+            ValueError: Sale not found/cancelled, item not found, quantity
+                exceeds available, new product not found/inactive, or
+                insufficient stock (when create_order_if_no_stock=False).
         """
         from app.services.inventory import InventoryService
 
         inv_service = InventoryService(self.db)
         global_inv_service = GlobalInventoryService(self.db)
 
-        # 1. Validate sale exists and belongs to school
         sale = await self.get(sale_id, school_id)
         if not sale:
             raise ValueError("Venta no encontrada")
@@ -71,7 +103,6 @@ class SaleChangeMixin:
         if sale.status == SaleStatus.CANCELLED:
             raise ValueError("No se puede modificar una venta cancelada")
 
-        # 2. Get original sale item (load both school and global product)
         original_item_result = await self.db.execute(
             select(SaleItem)
             .options(
@@ -88,7 +119,7 @@ class SaleChangeMixin:
         if not original_item:
             raise ValueError("Producto original de la venta no encontrado")
 
-        # Calculate quantity already returned by APPROVED changes for this item
+        # Guard against over-returning: sum of approved changes for this item
         approved_changes_result = await self.db.execute(
             select(func.coalesce(func.sum(SaleChange.returned_quantity), 0))
             .where(
@@ -109,20 +140,16 @@ class SaleChangeMixin:
             else:
                 raise ValueError("La cantidad a devolver no puede exceder la cantidad original")
 
-        # 3. Initialize change record
         new_unit_price = None
         price_adjustment = Decimal("0")
         new_product_id = None
         new_global_product_id = None
 
-        # 4. Handle change types that require new product
         if change_data.change_type != ChangeType.RETURN:
             if not change_data.new_product_id:
                 raise ValueError(f"{change_data.change_type.value} requiere un nuevo producto")
 
-            # Check if new product is global or school-specific
             if change_data.is_new_global_product:
-                # Get new GLOBAL product
                 new_product_result = await self.db.execute(
                     select(GlobalProduct).where(
                         GlobalProduct.id == change_data.new_product_id,
@@ -134,14 +161,12 @@ class SaleChangeMixin:
                 if not new_product:
                     raise ValueError("Nuevo producto global no encontrado o inactivo")
 
-                # Check global stock availability
                 global_inv = await global_inv_service.get_by_product(new_product.id)
                 has_stock = global_inv and global_inv.quantity >= change_data.new_quantity
 
                 new_global_product_id = new_product.id
                 new_unit_price = new_product.price
             else:
-                # Get new SCHOOL product
                 new_product_result = await self.db.execute(
                     select(Product).where(
                         Product.id == change_data.new_product_id,
@@ -154,7 +179,6 @@ class SaleChangeMixin:
                 if not new_product:
                     raise ValueError("Nuevo producto no encontrado o inactivo")
 
-                # Check school stock availability
                 has_stock = await inv_service.check_availability(
                     new_product.id,
                     school_id,
@@ -164,22 +188,18 @@ class SaleChangeMixin:
                 new_product_id = new_product.id
                 new_unit_price = new_product.price
 
-            # Calculate price adjustment
             price_adjustment = (
                 (new_unit_price * change_data.new_quantity) -
                 (original_item.unit_price * change_data.returned_quantity)
             )
 
-            # Handle no stock scenario
             if not has_stock:
                 if change_data.create_order_if_no_stock:
-                    # Validate sale has a client (required for creating order)
                     if not sale.client_id:
                         raise ValueError(
                             "No se puede crear un encargo automatico porque la venta no tiene cliente registrado. "
                             "Asigne un cliente a la venta primero o agregue stock del producto manualmente."
                         )
-                    # Create order and process change with PENDING_STOCK status
                     return await self._create_change_with_order(
                         sale=sale,
                         original_item=original_item,
@@ -197,10 +217,8 @@ class SaleChangeMixin:
                 else:
                     raise ValueError(f"Stock insuficiente para el producto {new_product.code}")
         else:
-            # Pure return - negative price adjustment (refund)
             price_adjustment = -(original_item.unit_price * change_data.returned_quantity)
 
-        # 5. Create change record (standard flow with stock available)
         change = SaleChange(
             sale_id=sale_id,
             original_item_id=original_item.id,
@@ -238,29 +256,51 @@ class SaleChangeMixin:
         inv_service,
         global_inv_service,
     ) -> SaleChange:
-        """
-        Create a sale change with an associated order when stock is not available.
+        """Handle a change when the new product has no stock.
 
-        Flow:
-        1. Return original product to inventory immediately
-        2. Create accounting transaction for price adjustment
-        3. Create order for the new product
-        4. Create SaleChange with status PENDING_STOCK
+        Unlike the standard flow (which defers inventory to approval),
+        this path acts immediately:
+
+        1. Returns original product to inventory NOW (not at approval)
+        2. Settles accounting for price difference NOW
+        3. Creates an Order for the new product
+        4. Creates SaleChange with PENDING_STOCK status
+
+        When the order is fulfilled, ``complete_change_from_order`` marks
+        the change as APPROVED without additional inventory movement
+        (the product goes directly from supplier to customer).
+
+        Args:
+            sale: Parent sale (must have client_id for order creation).
+            original_item: The SaleItem being returned.
+            change_data: Change request details.
+            school_id: School UUID.
+            user_id: User creating the change.
+            new_product: The Product or GlobalProduct being requested.
+            new_product_id: UUID if school product, None if global.
+            new_global_product_id: UUID if global product, None if school.
+            new_unit_price: Price of the new product.
+            price_adjustment: Calculated difference (positive = customer pays more).
+            inv_service: InventoryService instance.
+            global_inv_service: GlobalInventoryService instance.
+
+        Returns:
+            SaleChange with status PENDING_STOCK and associated order_id.
         """
         from app.services.order import OrderService
         from app.schemas.order import OrderCreate, OrderItemCreate
-        from app.services.balance_integration import BalanceIntegrationService
+        from app.services.accounting.transactions import TransactionService
 
         order_service = OrderService(self.db)
-        balance_service = BalanceIntegrationService(self.db)
+        txn_service = TransactionService(self.db)
 
-        # 1. Return original product to inventory IMMEDIATELY
+        # 1. Return original product to inventory immediately
         if original_item.is_global_product:
             await global_inv_service.release_stock(
                 product_id=original_item.global_product_id,
                 quantity=change_data.returned_quantity,
                 movement_type=InventoryMovementType.CHANGE_RETURN,
-                reference=f"CHG-PENDING",  # Will be updated after change is created
+                reference=f"CHG-PENDING",
                 sale_id=sale.id,
                 school_id=school_id,
                 created_by=user_id,
@@ -276,57 +316,38 @@ class SaleChangeMixin:
                 created_by=user_id,
             )
 
-        # 2. Create accounting transaction for price adjustment if needed
+        # 2. Settle accounting for price difference
         if price_adjustment != 0:
             payment_method = change_data.payment_method or PaymentMethod.CASH
             payment_method_str = payment_method.value if hasattr(payment_method, 'value') else str(payment_method)
 
             if payment_method_str != 'credit':
                 acc_payment_method = AccPaymentMethod(payment_method_str)
+                txn_type = TransactionType.INCOME if price_adjustment > 0 else TransactionType.EXPENSE
+                desc = (f"Diferencia cobrada - Cambio pendiente venta {sale.code}"
+                        if price_adjustment > 0
+                        else f"Reembolso - Cambio pendiente venta {sale.code}")
 
-                if price_adjustment > 0:
-                    # Customer pays more -> INCOME
-                    transaction = Transaction(
-                        school_id=school_id,
-                        type=TransactionType.INCOME,
-                        amount=Decimal(str(abs(price_adjustment))),
-                        payment_method=acc_payment_method,
-                        description=f"Diferencia cobrada - Cambio pendiente venta {sale.code}",
-                        category="sale_changes",
-                        reference_code=f"CHG-{sale.code}",
-                        transaction_date=get_colombia_date(),
-                        sale_id=sale.id,
-                        created_by=user_id
-                    )
-                else:
-                    # Refund to customer -> EXPENSE
-                    transaction = Transaction(
-                        school_id=school_id,
-                        type=TransactionType.EXPENSE,
-                        amount=Decimal(str(abs(price_adjustment))),
-                        payment_method=acc_payment_method,
-                        description=f"Reembolso - Cambio pendiente venta {sale.code}",
-                        category="sale_changes",
-                        reference_code=f"CHG-{sale.code}",
-                        transaction_date=get_colombia_date(),
-                        sale_id=sale.id,
-                        created_by=user_id
-                    )
-
-                self.db.add(transaction)
-                await self.db.flush()
-                await balance_service.apply_transaction_to_balance(transaction, user_id)
+                await txn_service.record(
+                    type=txn_type,
+                    amount=Decimal(str(abs(price_adjustment))),
+                    payment_method=acc_payment_method,
+                    description=desc,
+                    school_id=school_id,
+                    category="sale_changes",
+                    reference_code=f"CHG-{sale.code}",
+                    transaction_date=get_colombia_date(),
+                    sale_id=sale.id,
+                    created_by=user_id,
+                )
 
         # 3. Create order for the new product
-        # Determine garment_type_id based on product type
         garment_type_id = None
         global_garment_type_id = None
 
         if change_data.is_new_global_product:
-            # For global products, get the garment type from the product
             global_garment_type_id = getattr(new_product, 'garment_type_id', None)
         else:
-            # For school products, get the garment type from the product
             garment_type_id = getattr(new_product, 'garment_type_id', None)
 
         order_data = OrderCreate(
@@ -342,7 +363,7 @@ class SaleChangeMixin:
                     quantity=change_data.new_quantity,
                     unit_price=new_unit_price,
                     order_type="catalog",
-                    reserve_stock=False,  # No stock available to reserve
+                    reserve_stock=False,
                     size=getattr(new_product, 'size', None),
                     color=getattr(new_product, 'color', None),
                 )
@@ -351,7 +372,7 @@ class SaleChangeMixin:
 
         order = await order_service.create_order(order_data, user_id)
 
-        # 4. Create SaleChange with PENDING_STOCK status
+        # 4. Create change with PENDING_STOCK status
         change = SaleChange(
             sale_id=sale.id,
             original_item_id=original_item.id,
@@ -382,35 +403,38 @@ class SaleChangeMixin:
         payment_method: PaymentMethod = PaymentMethod.CASH,
         approved_by: UUID | None = None
     ) -> SaleChange:
-        """
-        Approve a sale change and execute inventory + accounting adjustments
-        Supports both school products and global products.
+        """Approve a PENDING change and execute inventory + accounting.
+
+        Performs three operations atomically:
+        1. Returns original product to inventory (school or global)
+        2. Deducts new product from inventory (if applicable)
+        3. Creates accounting transaction for price adjustment
+
+        Price adjustment logic:
+        - ``price_adjustment > 0`` → customer pays more → INCOME transaction
+        - ``price_adjustment < 0`` → refund to customer → EXPENSE transaction
+        - ``price_adjustment == 0`` → no financial transaction
 
         Args:
-            change_id: SaleChange UUID
-            school_id: School UUID
-            payment_method: Payment method for price adjustment (refund/additional payment)
-            approved_by: User ID who approved the change
+            change_id: SaleChange UUID to approve.
+            school_id: School UUID for tenant isolation.
+            payment_method: How the price difference is settled.
+            approved_by: User approving the change.
 
         Returns:
-            Approved SaleChange
+            The approved SaleChange.
 
         Raises:
-            ValueError: If change not found or already processed
-
-        Accounting Logic:
-            - price_adjustment > 0: Customer pays more -> INCOME transaction
-            - price_adjustment < 0: Refund to customer -> EXPENSE transaction
-            - price_adjustment = 0: No financial transaction needed
+            ValueError: Change not found, wrong school, already processed,
+                or new product no longer has stock.
         """
         from app.services.inventory import InventoryService
-        from app.services.balance_integration import BalanceIntegrationService
+        from app.services.accounting.transactions import TransactionService
 
         inv_service = InventoryService(self.db)
         global_inv_service = GlobalInventoryService(self.db)
-        balance_service = BalanceIntegrationService(self.db)
+        txn_service = TransactionService(self.db)
 
-        # Get change with related data (including global product)
         result = await self.db.execute(
             select(SaleChange)
             .options(
@@ -432,11 +456,8 @@ class SaleChangeMixin:
         if change.status != ChangeStatus.PENDING:
             raise ValueError(f"Change already {change.status.value}")
 
-        # Execute inventory adjustments
-
-        # 1. Return original product to inventory (check if global or school)
+        # 1. Return original product to inventory
         if change.original_item.is_global_product:
-            # Return to GLOBAL inventory with proper logging
             await global_inv_service.release_stock(
                 product_id=change.original_item.global_product_id,
                 quantity=change.returned_quantity,
@@ -448,7 +469,6 @@ class SaleChangeMixin:
                 created_by=approved_by,
             )
         else:
-            # Return to SCHOOL inventory
             await inv_service.add_stock(
                 change.original_item.product_id,
                 school_id,
@@ -460,9 +480,8 @@ class SaleChangeMixin:
                 created_by=approved_by,
             )
 
-        # 2. Deduct new product from inventory (if applicable)
+        # 2. Deduct new product from inventory
         if change.new_global_product_id:
-            # Deduct from GLOBAL inventory with proper logging
             await global_inv_service.reserve_stock(
                 product_id=change.new_global_product_id,
                 quantity=change.new_quantity,
@@ -475,7 +494,6 @@ class SaleChangeMixin:
             )
 
         elif change.new_product_id:
-            # Deduct from SCHOOL inventory
             has_stock = await inv_service.check_availability(
                 change.new_product_id,
                 school_id,
@@ -496,49 +514,28 @@ class SaleChangeMixin:
                 created_by=approved_by,
             )
 
-        # 3. Create accounting transaction if there's a price adjustment
-        # Convert payment_method to string for comparison (handles both enum and string)
+        # 3. Create accounting transaction for price adjustment
         payment_method_str = payment_method.value if hasattr(payment_method, 'value') else str(payment_method)
         if change.price_adjustment != 0 and payment_method_str != 'credit':
-            # Map to AccPaymentMethod (accepts string value like 'cash', 'nequi', etc.)
             acc_payment_method = AccPaymentMethod(payment_method_str)
+            txn_type = TransactionType.INCOME if change.price_adjustment > 0 else TransactionType.EXPENSE
+            desc = (f"Diferencia cobrada - Cambio venta {change.sale.code}"
+                    if change.price_adjustment > 0
+                    else f"Reembolso - Cambio venta {change.sale.code}")
 
-            if change.price_adjustment > 0:
-                # Customer pays more -> INCOME
-                transaction = Transaction(
-                    school_id=school_id,
-                    type=TransactionType.INCOME,
-                    amount=Decimal(str(abs(change.price_adjustment))),
-                    payment_method=acc_payment_method,
-                    description=f"Diferencia cobrada - Cambio venta {change.sale.code}",
-                    category="sale_changes",
-                    reference_code=f"CHG-{change.sale.code}",
-                    transaction_date=get_colombia_date(),
-                    sale_id=change.sale_id,
-                    created_by=approved_by
-                )
-            else:
-                # Refund to customer -> EXPENSE
-                transaction = Transaction(
-                    school_id=school_id,
-                    type=TransactionType.EXPENSE,
-                    amount=Decimal(str(abs(change.price_adjustment))),
-                    payment_method=acc_payment_method,
-                    description=f"Reembolso - Cambio venta {change.sale.code}",
-                    category="sale_changes",
-                    reference_code=f"CHG-{change.sale.code}",
-                    transaction_date=get_colombia_date(),
-                    sale_id=change.sale_id,
-                    created_by=approved_by
-                )
+            await txn_service.record(
+                type=txn_type,
+                amount=Decimal(str(abs(change.price_adjustment))),
+                payment_method=acc_payment_method,
+                description=desc,
+                school_id=school_id,
+                category="sale_changes",
+                reference_code=f"CHG-{change.sale.code}",
+                transaction_date=get_colombia_date(),
+                sale_id=change.sale_id,
+                created_by=approved_by,
+            )
 
-            self.db.add(transaction)
-            await self.db.flush()
-
-            # Update balance account (Caja/Banco)
-            await balance_service.apply_transaction_to_balance(transaction, approved_by)
-
-        # 4. Update change status
         change.status = ChangeStatus.APPROVED
         await self.db.flush()
         await self.db.refresh(change)
@@ -551,19 +548,20 @@ class SaleChangeMixin:
         school_id: UUID,
         rejection_reason: str
     ) -> SaleChange:
-        """
-        Reject a sale change request
+        """Reject a PENDING change request.
+
+        No inventory or accounting side effects — simply updates status.
 
         Args:
-            change_id: SaleChange UUID
-            school_id: School UUID
-            rejection_reason: Reason for rejection
+            change_id: SaleChange UUID.
+            school_id: School UUID for tenant isolation.
+            rejection_reason: Reason for rejection (stored on the change).
 
         Returns:
-            Rejected SaleChange
+            The rejected SaleChange.
 
         Raises:
-            ValueError: If change not found or already processed
+            ValueError: Change not found, wrong school, or already processed.
         """
         result = await self.db.execute(
             select(SaleChange)
@@ -594,17 +592,18 @@ class SaleChangeMixin:
         sale_id: UUID,
         school_id: UUID
     ) -> list[SaleChange]:
-        """
-        Get all changes for a sale
+        """List all changes for a sale, most recent first.
 
         Args:
-            sale_id: Sale UUID
-            school_id: School UUID
+            sale_id: Sale UUID.
+            school_id: School UUID for tenant isolation.
 
         Returns:
-            List of SaleChanges
+            List of SaleChange records ordered by created_at DESC.
+
+        Raises:
+            ValueError: Sale not found for this school.
         """
-        # Verify sale belongs to school
         sale = await self.get(sale_id, school_id)
         if not sale:
             raise ValueError("Venta no encontrada")
@@ -623,26 +622,26 @@ class SaleChangeMixin:
         school_id: UUID,
         approved_by: UUID | None = None
     ) -> SaleChange:
-        """
-        Complete a sale change that was waiting for stock (PENDING_STOCK status).
+        """Finalize a PENDING_STOCK change after order fulfillment.
 
-        This is called when the associated order has stock available (typically when
-        the order is marked as READY).
+        Called when the associated order has stock available. Because the
+        PENDING_STOCK flow already handled inventory return and accounting
+        at creation time, this method only updates the change status.
 
-        IMPORTANT: The original product was already returned to inventory when the
-        change was created. The price adjustment was also already processed.
-        We only need to deduct the new product from inventory.
+        The new product goes directly from supplier to customer via the
+        order — no additional inventory movement through our system.
 
         Args:
-            change_id: SaleChange UUID
-            school_id: School UUID
-            approved_by: User ID who is completing the change
+            change_id: SaleChange UUID.
+            school_id: School UUID for tenant isolation.
+            approved_by: User completing the change.
 
         Returns:
-            Approved SaleChange
+            The approved SaleChange.
 
         Raises:
-            ValueError: If change not found, not in PENDING_STOCK status, or no stock
+            ValueError: Change not found, wrong school, not in PENDING_STOCK
+                status, or missing associated order.
         """
         from app.services.inventory import InventoryService
         from app.services.order import OrderService
@@ -652,7 +651,6 @@ class SaleChangeMixin:
         global_inv_service = GlobalInventoryService(self.db)
         order_service = OrderService(self.db)
 
-        # Get change with related data
         result = await self.db.execute(
             select(SaleChange)
             .options(
@@ -675,21 +673,10 @@ class SaleChangeMixin:
         if not change.order_id:
             raise ValueError("Este cambio no tiene un pedido asociado")
 
-        # Verify the order exists and check its status
         order = change.order
         if not order:
             raise ValueError("El pedido asociado no fue encontrado")
 
-        # IMPORTANT: When a change has an associated order (PENDING_STOCK), the product
-        # comes directly from production/supplier via the order fulfillment.
-        # The inventory deduction is NOT needed because:
-        # 1. The order was created with reserve_stock=False (no stock existed)
-        # 2. The product goes directly from supplier -> customer (not through inventory)
-        # 3. The order items track what was delivered
-        #
-        # We only mark the change as APPROVED - no inventory movement needed.
-
-        # Update change status to APPROVED
         change.status = ChangeStatus.APPROVED
         await self.db.flush()
         await self.db.refresh(change)

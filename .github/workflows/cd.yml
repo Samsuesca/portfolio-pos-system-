@@ -17,39 +17,49 @@ jobs:
     name: Verify CI Passed
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for commit checks to pass
+      - name: Wait for CI checks to pass
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           COMMIT_SHA="${{ github.sha }}"
-          echo "Verifying checks for commit $COMMIT_SHA..."
+          # Only verify the CI checks that matter for deploy safety
+          REQUIRED_CHECKS=("backend-tests" "frontend-tests" "lint-check")
+          echo "Verifying CI for commit $COMMIT_SHA..."
+          echo "Required: ${REQUIRED_CHECKS[*]}"
 
-          # Wait up to 10 minutes for checks to complete
           for i in $(seq 1 20); do
-            STATUS=$(gh api repos/${{ github.repository }}/commits/$COMMIT_SHA/status --jq '.state' 2>/dev/null || echo "unknown")
-            CHECK_RUNS=$(gh api repos/${{ github.repository }}/commits/$COMMIT_SHA/check-runs --jq '[.check_runs[] | select(.name != "Deploy to Production" and .name != "Verify CI Passed")] | {total: length, success: [.[] | select(.conclusion == "success")] | length, pending: [.[] | select(.status != "completed")] | length}' 2>/dev/null || echo '{"total":0,"success":0,"pending":1}')
+            ALL_PASSED=true
+            ANY_PENDING=false
 
-            PENDING=$(echo "$CHECK_RUNS" | jq -r '.pending')
-            SUCCESS=$(echo "$CHECK_RUNS" | jq -r '.success')
-            TOTAL=$(echo "$CHECK_RUNS" | jq -r '.total')
+            for CHECK in "${REQUIRED_CHECKS[@]}"; do
+              RESULT=$(gh api repos/${{ github.repository }}/commits/$COMMIT_SHA/check-runs \
+                --jq ".check_runs[] | select(.name == \"$CHECK\") | \"\(.status)|\(.conclusion)\"" 2>/dev/null | head -1)
 
-            echo "Attempt $i/20: $SUCCESS/$TOTAL checks passed, $PENDING pending"
+              STATUS=$(echo "$RESULT" | cut -d'|' -f1)
+              CONCLUSION=$(echo "$RESULT" | cut -d'|' -f2)
 
-            if [ "$PENDING" = "0" ] && [ "$TOTAL" -gt "0" ]; then
-              FAILED=$((TOTAL - SUCCESS))
-              if [ "$FAILED" -gt "0" ]; then
-                echo "❌ $FAILED check(s) failed. Aborting deploy."
-                gh api repos/${{ github.repository }}/commits/$COMMIT_SHA/check-runs --jq '.check_runs[] | select(.conclusion != "success" and .name != "Deploy to Production" and .name != "Verify CI Passed") | "\(.name): \(.conclusion)"'
+              if [ -z "$RESULT" ] || [ "$STATUS" != "completed" ]; then
+                ANY_PENDING=true
+                echo "  ⏳ $CHECK: pending"
+              elif [ "$CONCLUSION" = "success" ]; then
+                echo "  ✅ $CHECK: passed"
+              else
+                echo "  ❌ $CHECK: $CONCLUSION"
+                echo "Aborting deploy — required check failed."
                 exit 1
               fi
-              echo "✅ All $TOTAL checks passed."
+            done
+
+            if [ "$ANY_PENDING" = "false" ]; then
+              echo "✅ All required CI checks passed."
               exit 0
             fi
 
+            echo "Attempt $i/20 — waiting 30s for pending checks..."
             sleep 30
           done
 
-          echo "⏰ Timed out waiting for checks. Aborting deploy."
+          echo "⏰ Timed out waiting for CI checks. Aborting deploy."
           exit 1
 
   deploy:

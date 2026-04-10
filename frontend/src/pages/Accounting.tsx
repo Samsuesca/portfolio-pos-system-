@@ -11,7 +11,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Layout from '../components/Layout';
 import {
-  Calculator, Plus, Loader2, AlertCircle, Receipt, Wallet, DollarSign, LineChart, ArrowRightLeft
+  Calculator, Plus, Loader2, AlertCircle, Receipt, Wallet, DollarSign, LineChart, ArrowRightLeft, BarChart3
 } from 'lucide-react';
 import { getColombiaDateString } from '../utils/formatting';
 
@@ -52,6 +52,7 @@ import {
   type FixedExpenseUpdate,
   getErrorMessage
 } from '../components/accounting';
+import { FinancialModelTab } from '../components/accounting/financial-model';
 
 // Services
 import { globalAccountingService } from '../services/globalAccountingService';
@@ -627,7 +628,8 @@ export default function Accounting() {
           { key: 'expenses', label: 'Gastos', icon: Receipt },
           { key: 'operations', label: 'Operaciones', icon: Wallet },
           { key: 'receivables_payables', label: 'CxC / CxP', icon: DollarSign },
-          { key: 'planning', label: 'Planificacion', icon: LineChart }
+          { key: 'planning', label: 'Planificacion', icon: LineChart },
+          { key: 'financial_model', label: 'Modelo Financiero', icon: BarChart3 }
         ].map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -889,6 +891,10 @@ export default function Accounting() {
             />
           </div>
         </div>
+      )}
+
+      {activeTab === 'financial_model' && (
+        <FinancialModelTab />
       )}
 
       {/* ============= MODALS ============= */}

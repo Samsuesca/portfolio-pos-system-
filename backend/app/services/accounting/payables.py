@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.utils.timezone import get_colombia_date
 from app.models.accounting import (
-    Transaction, TransactionType, AccountsPayable
+    TransactionType, AccountsPayable
 )
 from app.schemas.accounting import (
     AccountsPayableCreate, AccountsPayableUpdate, AccountsPayablePayment
@@ -69,24 +69,16 @@ class AccountsPayableService(SchoolIsolatedService[AccountsPayable]):
         payable.amount_paid = new_paid
         payable.is_paid = (new_paid >= payable.amount)
 
-        # Create expense transaction
-        transaction = Transaction(
-            school_id=school_id,
+        await self.transaction_service.record(
             type=TransactionType.EXPENSE,
             amount=payment.amount,
             payment_method=payment.payment_method,
             description=f"Pago a {payable.vendor}: {payable.description[:50]}",
+            school_id=school_id,
             category="payables",
             transaction_date=get_colombia_date(),
-            created_by=created_by
+            created_by=created_by,
         )
-        self.db.add(transaction)
-        await self.db.flush()
-
-        # Apply balance integration (descuenta de Caja/Banco)
-        from app.services.balance_integration import BalanceIntegrationService
-        balance_service = BalanceIntegrationService(self.db)
-        await balance_service.apply_transaction_to_balance(transaction, created_by)
 
         await self.db.refresh(payable)
         return payable

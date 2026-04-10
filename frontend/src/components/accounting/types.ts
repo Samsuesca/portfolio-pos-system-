@@ -35,7 +35,7 @@ import type {
 import type { PlanningDashboard, CashProjectionResponse, DebtPaymentListResponse } from '../../types/api';
 
 // Tab types
-export type TabType = 'summary' | 'expenses' | 'operations' | 'receivables_payables' | 'planning';
+export type TabType = 'summary' | 'expenses' | 'operations' | 'receivables_payables' | 'planning' | 'financial_model';
 
 // Balance Account Modal Type - uses lowercase values to match backend enum
 export type BalanceAccountModalType = 'asset_fixed' | 'asset_intangible' | 'liability_current' | 'liability_long';

@@ -18,7 +18,7 @@ from app.services.telegram import fire_and_forget_alert
 from app.services.monitoring import metrics
 
 logger = logging.getLogger(__name__)
-from app.api.routes import health, auth, schools, products, clients, sales, orders, inventory, users, reports, accounting, global_products, global_accounting, global_reports, contacts, payment_accounts, delivery_zones, dashboard, documents, fixed_expenses, employees, payroll, alterations, notifications, school_users, custom_roles, inventory_logs, global_roles, cash_drawer, business_settings, email_logs, print_queue, cfo_dashboard, workforce_shifts, workforce_attendance, workforce_checklists, workforce_performance, workforce_responsibilities, payments, telegram_alerts
+from app.api.routes import health, auth, schools, products, clients, sales, orders, inventory, users, reports, accounting, global_products, global_accounting, global_reports, contacts, payment_accounts, delivery_zones, dashboard, documents, fixed_expenses, employees, payroll, alterations, notifications, school_users, custom_roles, inventory_logs, global_roles, cash_drawer, business_settings, email_logs, print_queue, cfo_dashboard, workforce_shifts, workforce_attendance, workforce_checklists, workforce_performance, workforce_responsibilities, payments, telegram_alerts, financial_model
 
 
 async def _email_log_flush_loop():
@@ -327,6 +327,7 @@ app.include_router(email_logs.router, prefix=f"{settings.API_V1_STR}")  # Email 
 app.include_router(print_queue.router, prefix=f"{settings.API_V1_STR}")  # Print queue SSE for cash sale sync
 app.include_router(workforce_shifts.router, prefix=f"{settings.API_V1_STR}")  # Workforce: shift templates & schedules
 app.include_router(workforce_attendance.router, prefix=f"{settings.API_V1_STR}")  # Workforce: attendance & absences
+app.include_router(financial_model.router, prefix=f"{settings.API_V1_STR}")  # Financial model (KPIs, profitability, budgets, etc.)
 app.include_router(workforce_checklists.router, prefix=f"{settings.API_V1_STR}")  # Workforce: checklists
 app.include_router(workforce_performance.router, prefix=f"{settings.API_V1_STR}")  # Workforce: performance metrics & reviews
 app.include_router(workforce_responsibilities.router, prefix=f"{settings.API_V1_STR}")  # Workforce: position responsibilities

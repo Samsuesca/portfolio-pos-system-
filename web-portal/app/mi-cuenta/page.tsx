@@ -27,8 +27,6 @@ import {
   getStatusLabel,
   getStatusColor,
   getSourceLabel,
-  getPaymentProofStatusLabel,
-  getPaymentProofStatusColor,
   type ClientOrder,
 } from '@/lib/clientAuth';
 import { formatNumber } from '@/lib/utils';
@@ -346,15 +344,20 @@ export default function MiCuentaPage() {
   // Computed values
   // -----------------------------------------------------------------------
 
-  const totalInvested = orders.reduce((sum, o) => sum + o.total, 0);
-  const totalPendingBalance = orders.reduce(
+  // Web portal orders without payment are not "effective" — exclude from stats
+  const isEffectiveOrder = (o: ClientOrder) =>
+    o.source !== 'web_portal' || o.paid_amount > 0;
+
+  const effectiveOrders = orders.filter(isEffectiveOrder);
+  const totalInvested = effectiveOrders.reduce((sum, o) => sum + o.total, 0);
+  const totalPendingBalance = effectiveOrders.reduce(
     (sum, o) => sum + (o.balance > 0 ? o.balance : 0),
     0
   );
-  const inProgressCount = orders.filter((o) =>
+  const inProgressCount = effectiveOrders.filter((o) =>
     ['pending', 'in_production'].includes(o.status)
   ).length;
-  const deliveredCount = orders.filter((o) => o.status === 'delivered').length;
+  const deliveredCount = effectiveOrders.filter((o) => o.status === 'delivered').length;
 
   // -----------------------------------------------------------------------
   // Guards
@@ -439,7 +442,7 @@ export default function MiCuentaPage() {
           <StatCard
             icon={ShoppingBag}
             label="Total Pedidos"
-            value={orders.length}
+            value={effectiveOrders.length}
             bgColor="bg-brand-50"
             iconColor="text-brand-600"
           />
@@ -519,6 +522,7 @@ export default function MiCuentaPage() {
             {orders.map((order) => {
               const isExpanded = expandedOrders.has(order.id);
               const paid = order.total - order.balance;
+              const isWebUnpaid = order.source === 'web_portal' && order.paid_amount <= 0;
 
               return (
                 <div
@@ -554,11 +558,37 @@ export default function MiCuentaPage() {
                           )}
                           {getSourceLabel(order.source)}
                         </span>
+                        {isWebUnpaid && (
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" />
+                            Pendiente de pago
+                          </span>
+                        )}
                       </div>
                       <p className="text-lg font-bold text-stone-800 font-tabular whitespace-nowrap">
                         ${formatNumber(order.total)}
                       </p>
                     </div>
+
+                    {/* Web unpaid banner */}
+                    {isWebUnpaid && (
+                      <div className="mb-4 p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-3">
+                        <p className="text-sm text-amber-800">
+                          Este pedido <span className="font-semibold">requiere pago en linea</span> para ser procesado.
+                        </p>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePayOnline(order.id);
+                          }}
+                          disabled={payingOrderId === order.id}
+                          className="flex-shrink-0 inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-green-600 rounded-lg px-4 py-2 hover:bg-green-700 transition-colors disabled:opacity-50"
+                        >
+                          <CreditCard className="w-4 h-4" />
+                          {payingOrderId === order.id ? 'Redirigiendo...' : 'Pagar ahora'}
+                        </button>
+                      </div>
+                    )}
 
                     {/* Row 2: Status Stepper */}
                     <div className="mb-4">
@@ -610,83 +640,12 @@ export default function MiCuentaPage() {
                       </div>
                     )}
 
-                    {/* Row 6: Payment proof status (web orders) */}
-                    {order.source === 'web_portal' && (
-                      <div className="mb-4">
-                        {order.payment_proof_url ? (
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <div
-                              className={`flex items-center gap-2 text-xs rounded-lg px-2.5 py-1.5 border ${getPaymentProofStatusColor(
-                                order.payment_proof_status
-                              )}`}
-                            >
-                              {order.payment_proof_status === 'approved' ? (
-                                <CheckCircle className="w-3.5 h-3.5" />
-                              ) : order.payment_proof_status === 'rejected' ? (
-                                <XCircle className="w-3.5 h-3.5" />
-                              ) : (
-                                <Clock className="w-3.5 h-3.5" />
-                              )}
-                              <span className="font-medium">
-                                {getPaymentProofStatusLabel(
-                                  order.payment_proof_status
-                                )}
-                              </span>
-                            </div>
-                            {order.payment_proof_status !== 'approved' && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedOrderForUpload(order.id);
-                                  setShowUploadModal(true);
-                                }}
-                                className="flex items-center gap-1.5 text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-1.5 hover:bg-blue-100 transition-colors font-medium"
-                              >
-                                <Upload className="w-3.5 h-3.5" />
-                                Cambiar comprobante
-                              </button>
-                            )}
-                          </div>
-                        ) : order.payment_proof_status === 'rejected' ? (
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
-                              <XCircle className="w-3.5 h-3.5" />
-                              <span className="font-medium">
-                                Comprobante rechazado - Sube uno nuevo
-                              </span>
-                            </div>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedOrderForUpload(order.id);
-                                setShowUploadModal(true);
-                              }}
-                              className="flex items-center gap-1.5 text-xs text-brand-700 bg-brand-50 border border-brand-200 rounded-lg px-2.5 py-1.5 hover:bg-brand-100 transition-colors font-medium"
-                            >
-                              <Upload className="w-3.5 h-3.5" />
-                              Subir nuevo comprobante
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedOrderForUpload(order.id);
-                              setShowUploadModal(true);
-                            }}
-                            className="flex items-center gap-1.5 text-xs text-brand-700 bg-brand-50 border border-brand-200 rounded-lg px-2.5 py-1.5 hover:bg-brand-100 transition-colors font-medium"
-                          >
-                            <Upload className="w-3.5 h-3.5" />
-                            Subir comprobante de pago
-                          </button>
-                        )}
-                      </div>
-                    )}
 
                     {/* Row 7: Action buttons */}
                     <div className="flex items-center gap-2 flex-wrap">
-                      {/* Pay online */}
-                      {wompiEnabled &&
+                      {/* Pay online (non-web orders — web orders have the prominent banner) */}
+                      {!isWebUnpaid &&
+                        wompiEnabled &&
                         order.balance > 0 &&
                         order.status !== 'cancelled' && (
                           <button
@@ -704,7 +663,7 @@ export default function MiCuentaPage() {
                           </button>
                         )}
 
-                      {/* Upload proof (non-web or quick access) */}
+                      {/* Upload proof (non-web orders only) */}
                       {order.source !== 'web_portal' &&
                         order.balance > 0 &&
                         order.status !== 'cancelled' && (
