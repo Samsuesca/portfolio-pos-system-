@@ -23,79 +23,36 @@ jobs:
           COMMIT_SHA: ${{ github.sha }}
           REPO: ${{ github.repository }}
         run: |
-          REQUIRED_CHECKS=("backend-tests" "frontend-tests" "lint-check")
           echo "Verifying CI for commit $COMMIT_SHA..."
-          echo "Required: ${REQUIRED_CHECKS[*]}"
 
           for i in $(seq 1 30); do
-            ALL_PASSED=true
-            ANY_PENDING=false
+            # Query the Tests workflow run for this exact commit SHA.
+            # Tags share the same SHA as the branch commit, so this always works
+            # regardless of whether GitHub associates check-runs with the tag ref.
+            WF_RESULT=$(gh api "repos/${REPO}/actions/workflows/tests.yml/runs?head_sha=${COMMIT_SHA}&per_page=1" \
+              --jq '(.workflow_runs[0].status // "not_found") + "|" + (.workflow_runs[0].conclusion // "pending")' 2>/dev/null)
+            WF_STATUS=$(echo "$WF_RESULT" | cut -d'|' -f1)
+            WF_CONCLUSION=$(echo "$WF_RESULT" | cut -d'|' -f2)
 
-            # First try: check-runs API (works when tests run on same ref)
-            CHECK_RUNS_FOUND=false
-            for CHECK in "${REQUIRED_CHECKS[@]}"; do
-              RESULT=$(gh api "repos/${REPO}/commits/${COMMIT_SHA}/check-runs" \
-                --paginate \
-                --jq ".check_runs[] | select(.name == \"${CHECK}\") | \"\(.status)|\(.conclusion)\"" 2>/dev/null | head -1)
-              if [ -n "$RESULT" ]; then
-                CHECK_RUNS_FOUND=true
-                break
-              fi
-            done
-
-            # Fallback: query Tests workflow run directly by SHA
-            # (tag events don't always surface check-runs from branch pushes)
-            if [ "$CHECK_RUNS_FOUND" = "false" ]; then
-              WF_RESULT=$(gh api "repos/${REPO}/actions/workflows/tests.yml/runs?head_sha=${COMMIT_SHA}&per_page=1" \
-                --jq '(.workflow_runs[0].status // "not_found") + "|" + (.workflow_runs[0].conclusion // "pending")' 2>/dev/null)
-              WF_STATUS=$(echo "$WF_RESULT" | cut -d'|' -f1)
-              WF_CONCLUSION=$(echo "$WF_RESULT" | cut -d'|' -f2)
-
-              if [ "$WF_STATUS" = "completed" ] && [ "$WF_CONCLUSION" = "success" ]; then
-                echo "  ✅ Tests workflow: passed (all jobs green)"
-                echo "✅ All required CI checks passed (via workflow query)."
-                exit 0
-              elif [ "$WF_STATUS" = "completed" ] && [ "$WF_CONCLUSION" != "success" ]; then
-                echo "  ❌ Tests workflow: $WF_CONCLUSION"
-                echo "Aborting deploy — Tests workflow failed."
-                exit 1
-              else
-                ANY_PENDING=true
-                echo "  ⏳ Tests workflow: $WF_STATUS (no check-runs found for tag SHA)"
-              fi
-            else
-              # Standard check-runs path
-              for CHECK in "${REQUIRED_CHECKS[@]}"; do
-                RESULT=$(gh api "repos/${REPO}/commits/${COMMIT_SHA}/check-runs" \
-                  --paginate \
-                  --jq ".check_runs[] | select(.name == \"${CHECK}\") | \"\(.status)|\(.conclusion)\"" 2>/dev/null | head -1)
-
-                STATUS=$(echo "$RESULT" | cut -d'|' -f1)
-                CONCLUSION=$(echo "$RESULT" | cut -d'|' -f2)
-
-                if [ -z "$RESULT" ] || [ "$STATUS" != "completed" ]; then
-                  ANY_PENDING=true
-                  echo "  ⏳ $CHECK: pending"
-                elif [ "$CONCLUSION" = "success" ]; then
-                  echo "  ✅ $CHECK: passed"
-                else
-                  echo "  ❌ $CHECK: $CONCLUSION"
-                  echo "Aborting deploy — required check failed."
-                  exit 1
-                fi
-              done
-            fi
-
-            if [ "$ANY_PENDING" = "false" ]; then
+            if [ "$WF_STATUS" = "completed" ] && [ "$WF_CONCLUSION" = "success" ]; then
+              echo "  ✅ Tests workflow: passed"
               echo "✅ All required CI checks passed."
               exit 0
+            elif [ "$WF_STATUS" = "completed" ] && [ "$WF_CONCLUSION" != "success" ]; then
+              echo "  ❌ Tests workflow: $WF_CONCLUSION"
+              echo "Aborting deploy — Tests workflow failed."
+              exit 1
+            elif [ "$WF_STATUS" = "not_found" ]; then
+              echo "  ⏳ Tests workflow: not found yet for this SHA"
+            else
+              echo "  ⏳ Tests workflow: $WF_STATUS"
             fi
 
-            echo "Attempt $i/30 — waiting 30s for pending checks..."
+            echo "Attempt $i/30 — waiting 30s..."
             sleep 30
           done
 
-          echo "⏰ Timed out waiting for CI checks. Aborting deploy."
+          echo "⏰ Timed out waiting for Tests workflow. Aborting deploy."
           exit 1
 
   deploy:
