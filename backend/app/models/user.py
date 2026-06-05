@@ -2,7 +2,7 @@
 User and Authentication Models
 """
 from datetime import datetime
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, Enum as SQLEnum, CheckConstraint
+from sqlalchemy import String, Boolean, DateTime, Integer, ForeignKey, Enum as SQLEnum, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from typing import TYPE_CHECKING
@@ -46,8 +46,12 @@ class User(Base):
     )
     username: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
-    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     full_name: Mapped[str | None] = mapped_column(String(255))
+
+    # Google OAuth
+    google_id: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, nullable=True)
+    auth_provider: Mapped[str | None] = mapped_column(String(20), default="local", nullable=True)
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_superuser: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -64,6 +68,14 @@ class User(Base):
         nullable=False
     )
     last_login: Mapped[datetime | None] = mapped_column(DateTime)
+
+    permissions_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False, server_default="0")
+
+    # Bumped on password change / email change to invalidate live JWTs.
+    # Validado contra el claim `token_version` del JWT en `get_current_user`.
+    # Independiente de `permissions_version` (este invalida el JWT entero,
+    # aquel solo invalida el cache de permisos efectivos).
+    token_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False, server_default="0")
 
     # Telegram integration
     telegram_chat_id: Mapped[str | None] = mapped_column(String(50), nullable=True)

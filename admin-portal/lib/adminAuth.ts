@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { refreshRegistryIfStale } from './services/permissionRegistryService';
 
 export interface UserSchoolRole {
   school_id: string;
@@ -17,7 +18,10 @@ export interface User {
   is_active: boolean;
   is_superuser: boolean;
   last_login?: string;
+  google_id?: string | null;
+  auth_provider?: string | null;
   school_roles?: UserSchoolRole[];
+  permissions_version?: number;
 }
 
 interface AdminAuthState {
@@ -29,9 +33,11 @@ interface AdminAuthState {
 
   // Actions
   login: (username: string, password: string) => Promise<boolean>;
+  googleLogin: (idToken: string) => Promise<boolean>;
   logout: () => void;
   checkAuth: () => Promise<boolean>;
   clearError: () => void;
+  updateUser: (patch: Partial<User>) => void;
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
@@ -81,6 +87,8 @@ export const useAdminAuth = create<AdminAuthState>()(
             error: null,
           });
 
+          refreshRegistryIfStale().catch(() => {});
+
           return true;
         } catch (error: any) {
           set({
@@ -88,7 +96,54 @@ export const useAdminAuth = create<AdminAuthState>()(
             token: null,
             isAuthenticated: false,
             isLoading: false,
-            error: error.message || 'Error al iniciar sesión',
+            error: error.message || 'Error al iniciar sesion',
+          });
+          return false;
+        }
+      },
+
+      googleLogin: async (idToken: string) => {
+        set({ isLoading: true, error: null });
+
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/v1/auth/google-login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_token: idToken }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Error al iniciar sesion con Google');
+          }
+
+          const loginData = await response.json();
+          const token = loginData.token.access_token;
+          const user = loginData.user;
+
+          const hasSchoolRoles = user.school_roles && user.school_roles.length > 0;
+          if (!user.is_superuser && !hasSchoolRoles) {
+            throw new Error('Acceso denegado. Necesitas ser superusuario o tener un rol asignado en algun colegio.');
+          }
+
+          set({
+            user,
+            token,
+            isAuthenticated: true,
+            isLoading: false,
+            error: null,
+          });
+
+          refreshRegistryIfStale().catch(() => {});
+
+          return true;
+        } catch (error: any) {
+          set({
+            user: null,
+            token: null,
+            isAuthenticated: false,
+            isLoading: false,
+            error: error.message || 'Error al iniciar sesion con Google',
           });
           return false;
         }
@@ -144,6 +199,12 @@ export const useAdminAuth = create<AdminAuthState>()(
       },
 
       clearError: () => set({ error: null }),
+
+      updateUser: (patch: Partial<User>) => {
+        const current = get().user;
+        if (!current) return;
+        set({ user: { ...current, ...patch } });
+      },
     }),
     {
       name: 'admin-auth-storage',

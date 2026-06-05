@@ -70,7 +70,7 @@ class PrintQueueItem(Base):
     open_drawer: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Metadata for display (denormalized for performance)
-    sale_code: Mapped[str] = mapped_column(String(30), nullable=False)
+    sale_code: Mapped[str] = mapped_column(String(40), nullable=False)
     sale_total: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     client_name: Mapped[str | None] = mapped_column(String(255))
     school_name: Mapped[str | None] = mapped_column(String(255))

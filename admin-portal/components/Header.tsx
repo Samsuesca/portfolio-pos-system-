@@ -25,7 +25,6 @@ const pathNames: Record<string, string> = {
   '/workforce/shifts': 'Turnos',
   '/schools': 'Colegios',
   '/users': 'Usuarios',
-  '/payment-accounts': 'Cuentas de Pago',
   '/delivery-zones': 'Zonas de Entrega',
   '/documents': 'Documentos',
   '/contacts': 'PQRS',

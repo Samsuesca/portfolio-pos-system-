@@ -8,7 +8,7 @@ assigned to users in any school.
 System roles (viewer, seller, admin, owner) remain unchanged.
 """
 from uuid import UUID
-from fastapi import APIRouter, HTTPException, status, Query
+from fastapi import APIRouter, HTTPException, status, Query, Request
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 
@@ -17,6 +17,8 @@ from app.api.dependencies import (
     CurrentSuperuser,
     DatabaseSession,
 )
+from app.api.error_responses import responses, AUTHENTICATED
+from app.models.audit_log import AuditAction
 from app.models.permission import Permission, CustomRole, RolePermission
 from app.models.user import UserSchoolRole
 
@@ -29,6 +31,8 @@ from app.api.routes.custom_roles import (
     PermissionWithConstraints,
     _update_role_permissions,
 )
+from app.services.audit import audit_service
+from app.services.permission_invalidation import PermissionInvalidator
 
 
 router = APIRouter(prefix="/global/roles", tags=["Global Roles"])
@@ -42,7 +46,9 @@ router = APIRouter(prefix="/global/roles", tags=["Global Roles"])
     "",
     response_model=list[CustomRoleResponse],
     summary="List all custom roles (global)",
-    description="Get all custom roles. These are global roles that can be assigned to users in any school."
+    description="Get all custom roles. These are global roles that can be assigned to users in any school.",
+    responses=AUTHENTICATED,
+    operation_id="listGlobalRoles",
 )
 async def list_global_custom_roles(
     db: DatabaseSession,
@@ -51,6 +57,9 @@ async def list_global_custom_roles(
 ):
     """
     List all custom roles globally.
+
+    **Auth:** Bearer JWT (any authenticated user)
+    **Permission:** None (read-only, any staff)
 
     These roles are not tied to any specific school and can be assigned
     to users across all schools.
@@ -119,18 +128,23 @@ async def list_global_custom_roles(
     response_model=CustomRoleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create global custom role",
-    description="Create a new global custom role. Superuser only."
+    description="Create a new global custom role. Superuser only.",
+    responses=responses(400, 409),
+    operation_id="createGlobalRole",
 )
 async def create_global_custom_role(
     request: CreateCustomRoleRequest,
     db: DatabaseSession,
     current_user: CurrentSuperuser,
+    http_request: Request,
 ):
     """
     Create a new global custom role.
 
+    **Auth:** Bearer JWT (superuser only via `CurrentSuperuser`)
+    **Permission:** Superuser required
+
     Global roles have school_id = NULL and can be assigned to users in any school.
-    Only superusers can create global roles.
     """
     # Check if code already exists (globally)
     existing = await db.execute(
@@ -165,6 +179,21 @@ async def create_global_custom_role(
     # Add permissions
     if request.permissions:
         await _update_role_permissions(db, role.id, request.permissions)
+
+    await audit_service.log(
+        db=db,
+        actor_id=current_user.id,
+        action=AuditAction.PERMISSION_CHANGE,
+        resource_type="global_custom_role",
+        resource_id=str(role.id),
+        description=f"Global role '{role.name}' ({role.code}) created",
+        data_after={
+            "code": role.code,
+            "name": role.name,
+            "permissions": [p.code for p in (request.permissions or [])],
+        },
+        request=http_request,
+    )
 
     await db.commit()
     await db.refresh(role, ["permissions"])
@@ -201,14 +230,21 @@ async def create_global_custom_role(
     "/{role_id}",
     response_model=CustomRoleResponse,
     summary="Get global role details",
-    description="Get details of a specific global custom role."
+    description="Get details of a specific global custom role.",
+    responses=responses(404),
+    operation_id="getGlobalRole",
 )
 async def get_global_role(
     role_id: UUID,
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Get details of a specific global custom role."""
+    """
+    Get details of a specific global custom role.
+
+    **Auth:** Bearer JWT (any authenticated user)
+    **Permission:** None (read-only, any staff)
+    """
     result = await db.execute(
         select(CustomRole)
         .options(selectinload(CustomRole.permissions).selectinload(RolePermission.permission))
@@ -262,15 +298,23 @@ async def get_global_role(
     "/{role_id}",
     response_model=CustomRoleResponse,
     summary="Update global custom role",
-    description="Update a global custom role. Superuser only."
+    description="Update a global custom role. Superuser only.",
+    responses=responses(404),
+    operation_id="updateGlobalRole",
 )
 async def update_global_custom_role(
     role_id: UUID,
     request: UpdateCustomRoleRequest,
     db: DatabaseSession,
     current_user: CurrentSuperuser,
+    http_request: Request,
 ):
-    """Update a global custom role. Superuser only."""
+    """
+    Update a global custom role.
+
+    **Auth:** Bearer JWT (superuser only via `CurrentSuperuser`)
+    **Permission:** Superuser required
+    """
     result = await db.execute(
         select(CustomRole)
         .options(selectinload(CustomRole.permissions).selectinload(RolePermission.permission))
@@ -286,6 +330,9 @@ async def update_global_custom_role(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Role not found"
         )
+
+    # Capture old permission codes for audit diff.
+    old_permission_codes = [rp.permission.code for rp in role.permissions if rp.permission]
 
     # Update fields
     if request.name is not None:
@@ -305,7 +352,23 @@ async def update_global_custom_role(
     if request.permissions is not None:
         await _update_role_permissions(db, role.id, request.permissions)
 
+    await audit_service.log(
+        db=db,
+        actor_id=current_user.id,
+        action=AuditAction.PERMISSION_CHANGE,
+        resource_type="global_custom_role",
+        resource_id=str(role_id),
+        description=f"Global role '{role.name}' updated",
+        data_before={"permissions": old_permission_codes},
+        data_after={"permissions": [p.code for p in request.permissions]} if request.permissions is not None else None,
+        request=http_request,
+    )
+
+    invalidator = PermissionInvalidator(db)
+    await invalidator.bump_users_by_custom_role(role_id)
+
     await db.commit()
+    invalidator.flush_cache_after_commit()
     await db.refresh(role, ["permissions"])
 
     # Get user count
@@ -346,14 +409,22 @@ async def update_global_custom_role(
     "/{role_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete global custom role",
-    description="Delete a global custom role. Superuser only. Roles with assigned users cannot be deleted."
+    description="Delete a global custom role. Superuser only. Roles with assigned users cannot be deleted.",
+    responses=responses(404, 409),
+    operation_id="deleteGlobalRole",
 )
 async def delete_global_custom_role(
     role_id: UUID,
     db: DatabaseSession,
     current_user: CurrentSuperuser,
+    http_request: Request,
 ):
-    """Delete a global custom role. Superuser only."""
+    """
+    Delete a global custom role.
+
+    **Auth:** Bearer JWT (superuser only via `CurrentSuperuser`)
+    **Permission:** Superuser required
+    """
     result = await db.execute(
         select(CustomRole).where(
             CustomRole.id == role_id,
@@ -381,6 +452,27 @@ async def delete_global_custom_role(
             detail=f"Cannot delete role with {user_count} assigned user(s). Reassign users first."
         )
 
+    await audit_service.log(
+        db=db,
+        actor_id=current_user.id,
+        action=AuditAction.PERMISSION_CHANGE,
+        resource_type="global_custom_role",
+        resource_id=str(role_id),
+        description=f"Global role '{role.name}' ({role.code}) deleted",
+        data_before={
+            "code": role.code,
+            "name": role.name,
+            "is_system": role.is_system,
+            "is_active": role.is_active,
+        },
+        request=http_request,
+    )
+
+    # Defense in depth: bumpear cualquier user remanente (deberia ser 0 por el guard).
+    invalidator = PermissionInvalidator(db)
+    await invalidator.bump_users_by_custom_role(role_id)
+
     # Delete role (permissions cascade)
     await db.delete(role)
     await db.commit()
+    invalidator.flush_cache_after_commit()

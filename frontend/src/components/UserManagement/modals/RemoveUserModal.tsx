@@ -28,24 +28,24 @@ export default function RemoveUserModal({
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
         <div className="flex items-center justify-between p-4 border-b">
           <h3 className="text-lg font-semibold text-red-600">Confirmar Eliminacion</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600">
             <X className="w-5 h-5" />
           </button>
         </div>
         <div className="p-4">
-          <p className="text-gray-700">
+          <p className="text-stone-700">
             Estas seguro de que deseas remover a{' '}
             <span className="font-medium">
               {selectedUser.full_name || selectedUser.username}
             </span>{' '}
             de <span className="font-medium">{selectedSchool?.name}</span>?
           </p>
-          <p className="mt-2 text-sm text-gray-500">
+          <p className="mt-2 text-sm text-stone-500">
             El usuario perdera acceso a este colegio pero su cuenta no sera eliminada.
           </p>
         </div>
         <div className="flex justify-end gap-2 p-4 border-t">
-          <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:text-gray-800">
+          <button onClick={onClose} className="px-4 py-2 text-stone-600 hover:text-stone-800">
             Cancelar
           </button>
           <button

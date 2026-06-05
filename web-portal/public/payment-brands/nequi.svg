@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 32" role="img" aria-label="Nequi">
+  <title>Nequi</title>
+  <text x="6" y="24" font-family="Helvetica Neue, Arial, sans-serif"
+        font-size="22" font-weight="700" letter-spacing="-0.5" fill="#210049">nequi</text>
+  <circle cx="78" cy="10" r="4" fill="#DA0081"/>
+</svg>

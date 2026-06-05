@@ -15,6 +15,10 @@ export { default as SummaryDashboard } from './SummaryDashboard';
 export { default as BalancePatrimony } from './BalancePatrimony';
 export { default as FinancialStatements } from './FinancialStatements';
 export { default as ProductCostManager } from './ProductCostManager';
+export { default as CostBreakdownEditor } from './CostBreakdownEditor';
+export { default as CostBreakdownModal } from './CostBreakdownModal';
+export { default as TemplateManagerModal } from './TemplateManagerModal';
+export { default as CostChangeHistoryModal } from './CostChangeHistoryModal';
 
 // Operations Tab Components
 export { default as CashRegister } from './CashRegister';

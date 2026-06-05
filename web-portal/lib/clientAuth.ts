@@ -20,11 +20,11 @@ export interface Client {
   students: ClientStudent[];
   is_verified: boolean;
   last_login?: string;
+  google_id?: string | null;
+  auth_provider?: string | null;
 }
 
 export type OrderSource = 'desktop_app' | 'web_portal' | 'physical_store';
-export type PaymentProofStatus = 'pending' | 'approved' | 'rejected';
-
 export interface ClientOrder {
   id: string;
   code: string;
@@ -36,8 +36,6 @@ export interface ClientOrder {
   created_at: string;
   delivery_date?: string;
   items_count: number;
-  payment_proof_url?: string;
-  payment_proof_status?: PaymentProofStatus;  // Estado del comprobante de pago
   items: {
     id: string;
     quantity: number;
@@ -57,6 +55,7 @@ interface ClientAuthStore {
 
   // Actions
   login: (email: string, password: string) => Promise<boolean>;
+  googleLogin: (idToken: string) => Promise<boolean>;
   logout: () => void;
   getOrders: () => Promise<ClientOrder[]>;
   clearError: () => void;
@@ -108,6 +107,34 @@ export const useClientAuth = create<ClientAuthStore>()(
         }
       },
 
+      googleLogin: async (idToken: string): Promise<boolean> => {
+        set({ isLoading: true, error: null });
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/v1/portal/clients/google-login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_token: idToken }),
+          });
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Error al iniciar sesion con Google');
+          }
+          const data = await response.json();
+          set({
+            client: data.client,
+            token: data.access_token,
+            isAuthenticated: true,
+            isLoading: false,
+            error: null,
+          });
+          return true;
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : 'Error al iniciar sesion con Google';
+          set({ isLoading: false, error: message });
+          return false;
+        }
+      },
+
       logout: () => {
         set({
           client: null,
@@ -124,7 +151,7 @@ export const useClientAuth = create<ClientAuthStore>()(
           return [];
         }
 
-        const url = `${API_BASE_URL}/api/v1/portal/clients/me/orders?client_id=${client.id}&_t=${Date.now()}`;
+        const url = `${API_BASE_URL}/api/v1/portal/clients/me/orders?_t=${Date.now()}`;
 
         try {
           const headers: Record<string, string> = {
@@ -202,24 +229,3 @@ export const getSourceLabel = (source: OrderSource): string => {
   return labels[source] || 'Tienda';
 };
 
-// Helper to get payment proof status label in Spanish
-export const getPaymentProofStatusLabel = (status?: PaymentProofStatus): string => {
-  if (!status) return 'Sin comprobante';
-  const labels: Record<PaymentProofStatus, string> = {
-    pending: 'Pendiente de revisión',
-    approved: 'Aprobado',
-    rejected: 'Rechazado',
-  };
-  return labels[status] || status;
-};
-
-// Helper to get payment proof status color
-export const getPaymentProofStatusColor = (status?: PaymentProofStatus): string => {
-  if (!status) return 'bg-gray-100 text-gray-600';
-  const colors: Record<PaymentProofStatus, string> = {
-    pending: 'bg-yellow-100 text-yellow-800',
-    approved: 'bg-green-100 text-green-800',
-    rejected: 'bg-red-100 text-red-800',
-  };
-  return colors[status] || 'bg-gray-100 text-gray-600';
-};

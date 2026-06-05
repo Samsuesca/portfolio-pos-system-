@@ -28,7 +28,7 @@ const PAYMENT_METHODS = [
 
 const FOCUS_RING: Record<string, string> = {
   green: 'focus:ring-green-500',
-  blue: 'focus:ring-blue-500',
+  blue: 'focus:ring-brand-400/30',
   gray: 'focus:ring-gray-500',
 };
 
@@ -46,13 +46,13 @@ export default function PaymentMethodSelector({
 }: PaymentMethodSelectorProps) {
   const ringClass = FOCUS_RING[accentColor] || FOCUS_RING.green;
   const borderClass = error || (!value && includePlaceholder)
-    ? 'border-red-300 text-gray-400'
-    : 'border-gray-300';
+    ? 'border-red-300 text-stone-400'
+    : 'border-stone-200';
 
   return (
     <div className={className}>
       {label && (
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-stone-700 mb-2">
           {label}
         </label>
       )}
@@ -60,7 +60,7 @@ export default function PaymentMethodSelector({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 ${ringClass} focus:border-transparent outline-none ${borderClass} ${disabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
+        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 ${ringClass} focus:border-transparent outline-none ${borderClass} ${disabled ? 'bg-stone-100 cursor-not-allowed' : 'bg-white'}`}
       >
         {includePlaceholder && (
           <option value="" disabled>-- Seleccione metodo --</option>
@@ -73,7 +73,7 @@ export default function PaymentMethodSelector({
         )}
       </select>
       {hint && (
-        <p className="mt-1 text-xs text-gray-500">{hint}</p>
+        <p className="mt-1 text-xs text-stone-500">{hint}</p>
       )}
       {error && !value && (
         <p className="text-xs text-red-500 mt-1">Debe seleccionar un metodo de pago</p>

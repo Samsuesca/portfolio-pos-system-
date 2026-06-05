@@ -33,9 +33,9 @@ class TestTelegramAlertTypeEnum:
     """Verify the TelegramAlertType enum structure."""
 
     @pytest.mark.unit
-    def test_enum_has_17_members(self):
-        """TelegramAlertType has exactly 17 members."""
-        assert len(TelegramAlertType) == 17
+    def test_enum_has_18_members(self):
+        """TelegramAlertType has exactly 18 members (incl. daily_digest_seller)."""
+        assert len(TelegramAlertType) == 18
 
     @pytest.mark.unit
     def test_all_values_are_strings(self):
@@ -83,6 +83,7 @@ class TestTelegramAlertTypeEnum:
         values = [m.value for m in TelegramAlertType]
         assert "system_health" in values
         assert "daily_digest" in values
+        assert "daily_digest_seller" in values
 
     @pytest.mark.unit
     def test_enum_members_are_unique(self):
@@ -122,8 +123,8 @@ class TestAlertTypeDescriptions:
 
     @pytest.mark.unit
     def test_no_extra_keys(self):
-        """ALERT_TYPE_DESCRIPTIONS has exactly 17 entries (no orphans)."""
-        assert len(ALERT_TYPE_DESCRIPTIONS) == 17
+        """ALERT_TYPE_DESCRIPTIONS covers every TelegramAlertType (no orphans, no extras)."""
+        assert set(ALERT_TYPE_DESCRIPTIONS.keys()) == set(TelegramAlertType)
 
     @pytest.mark.unit
     def test_descriptions_in_spanish(self):
@@ -281,11 +282,11 @@ class TestTelegramUpdateSubscriptions:
             )
 
     @pytest.mark.unit
-    def test_all_17_types_accepted(self):
-        """Accepts a list with all 17 alert types."""
+    def test_all_known_types_accepted(self):
+        """Accepts a list with every TelegramAlertType value."""
         all_types = [t.value for t in TelegramAlertType]
         req = TelegramUpdateSubscriptions(alert_types=all_types)
-        assert len(req.alert_types) == 17
+        assert len(req.alert_types) == len(TelegramAlertType)
 
     @pytest.mark.unit
     def test_missing_alert_types_rejected(self):

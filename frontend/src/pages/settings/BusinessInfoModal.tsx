@@ -97,7 +97,7 @@ const BusinessInfoModal: React.FC<BusinessInfoModalProps> = ({ isOpen, onClose }
         <div className="flex items-center justify-between p-4 border-b">
           <div>
             <h3 className="text-lg font-semibold">Informacion del Negocio</h3>
-            <p className="text-sm text-gray-500">Configura los datos que se muestran en toda la plataforma</p>
+            <p className="text-sm text-stone-500">Configura los datos que se muestran en toda la plataforma</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -106,7 +106,7 @@ const BusinessInfoModal: React.FC<BusinessInfoModalProps> = ({ isOpen, onClose }
               className={`px-4 py-2 rounded-lg font-medium transition flex items-center ${
                 hasChanges && !saving
                   ? 'bg-orange-600 hover:bg-orange-700 text-white'
-                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'bg-stone-200 text-stone-400 cursor-not-allowed'
               }`}
             >
               {saving ? (
@@ -116,7 +116,7 @@ const BusinessInfoModal: React.FC<BusinessInfoModalProps> = ({ isOpen, onClose }
               )}
               {saving ? 'Guardando...' : 'Guardar'}
             </button>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <button onClick={onClose} className="text-stone-400 hover:text-stone-600">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -138,7 +138,7 @@ const BusinessInfoModal: React.FC<BusinessInfoModalProps> = ({ isOpen, onClose }
 
         <div className="flex-1 overflow-hidden flex">
           {/* Sidebar */}
-          <div className="w-48 border-r bg-gray-50 py-2">
+          <div className="w-48 border-r bg-stone-50 py-2">
             {SECTIONS.map((s) => {
               const Icon = s.icon;
               const isActive = section === s.key;
@@ -149,7 +149,7 @@ const BusinessInfoModal: React.FC<BusinessInfoModalProps> = ({ isOpen, onClose }
                   className={`w-full flex items-center gap-2 px-4 py-2.5 text-left text-sm transition ${
                     isActive
                       ? 'bg-orange-50 text-orange-700 border-l-4 border-orange-500'
-                      : 'text-gray-600 hover:bg-gray-100 border-l-4 border-transparent'
+                      : 'text-stone-600 hover:bg-stone-100 border-l-4 border-transparent'
                   }`}
                 >
                   <Icon className="w-4 h-4" />

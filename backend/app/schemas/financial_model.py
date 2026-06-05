@@ -4,7 +4,7 @@ Financial Model Schemas - KPIs, Profitability, Trends, Budgets, Forecasts, Alert
 from uuid import UUID
 from decimal import Decimal
 from datetime import datetime, date
-from pydantic import Field
+from pydantic import Field, model_validator
 from app.schemas.base import BaseSchema, IDModelSchema
 
 
@@ -13,21 +13,29 @@ from app.schemas.base import BaseSchema, IDModelSchema
 # ============================================
 
 class KPIValue(BaseSchema):
-    """Single KPI with current value and trend"""
+    """Single KPI with current value and trend.
+
+    `value` puede ser `None` cuando el cálculo no aplica (denominador cero,
+    datos faltantes). En ese caso `formatted_value` debe ser `"—"` y el frontend
+    muestra `tooltip_unavailable` al hacer hover.
+    """
     key: str
     label: str
-    value: Decimal
+    value: Decimal | None
     formatted_value: str
     unit: str = ""  # "%", "$", "days", "ratio"
     trend: list[Decimal] = Field(default_factory=list)
     trend_labels: list[str] = Field(default_factory=list)
     status: str = "neutral"  # "good", "caution", "critical", "neutral"
     tooltip: str = ""
+    tooltip_unavailable: str | None = None
 
 
 class KPIDashboardResponse(BaseSchema):
     """Full KPI dashboard response"""
     period: str
+    period_label: str | None = None
+    period_warning: str | None = None
     generated_at: datetime
     kpis: list[KPIValue]
 
@@ -168,10 +176,16 @@ class CashForecastScenario(BaseSchema):
 
 
 class CashForecastResponse(BaseSchema):
-    """Cash flow forecast response"""
+    """Cash flow forecast response.
+
+    `runway_months` es None cuando el negocio es rentable (no hay quema)
+    o cuando faltan datos para calcular. El frontend debe usar
+    `is_profitable` para decidir el copy.
+    """
     current_balance: Decimal
     min_threshold: Decimal
-    runway_months: Decimal
+    runway_months: Decimal | None
+    is_profitable: bool = False
     scenarios: list[CashForecastScenario]
 
 
@@ -214,6 +228,9 @@ class ExecutiveSummaryResponse(BaseSchema):
     """Executive summary response"""
     period: str
     period_label: str
+    # Aviso de mes parcial cuando el período cae en el mes en curso.
+    # El frontend muestra un banner amarillo y suaviza las comparaciones MoM.
+    period_warning: str | None = None
     generated_at: datetime
 
     # Key figures
@@ -239,3 +256,201 @@ class ExecutiveSummaryResponse(BaseSchema):
 
     # Forecast
     forecast_summary: str = ""
+
+
+# ============================================
+# Module 8: Multi-Month Projections (formalization-aware)
+# ============================================
+
+class ProjectionHire(BaseSchema):
+    """A planned hire (or compensation phase) in the projection horizon.
+
+    To model a phase change (e.g. Felipe at $1M months 0-5, then $1.75M+parafiscales months 6-11),
+    add TWO hires with the same role and disjoint [month_offset, end_month_offset] windows.
+    """
+    month_offset: int = Field(..., ge=0, description="Months from start_year/start_month (0-indexed)")
+    end_month_offset: int | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Last month (inclusive, 0-indexed) where this hire/phase is active. "
+            "None = active indefinitely from month_offset onwards."
+        ),
+    )
+    role: str
+    monthly_salary: Decimal
+    parafiscales_pct: Decimal = Decimal("0.30")
+
+    @model_validator(mode="after")
+    def _validate_window(self) -> "ProjectionHire":
+        if self.end_month_offset is not None and self.end_month_offset < self.month_offset:
+            raise ValueError(
+                f"end_month_offset ({self.end_month_offset}) must be >= "
+                f"month_offset ({self.month_offset})"
+            )
+        return self
+
+
+class ProjectionDebt(BaseSchema):
+    """A debt instrument in the projection (existing or planned)."""
+    name: str
+    capital: Decimal
+    monthly_payment: Decimal
+    interest_portion_monthly: Decimal
+    capital_portion_monthly: Decimal
+    starts_month_offset: int = 0
+    term_months: int | None = None  # None = bullet (capital al final)
+
+
+class ProjectionNewBranch(BaseSchema):
+    """A new branch opening in the projection horizon."""
+    month_offset: int = Field(..., ge=0)
+    name: str
+    fixed_costs_monthly: Decimal
+    payroll_monthly: Decimal
+    revenue_ramp: list[Decimal] = Field(
+        default_factory=list,
+        description="Monthly revenue from opening (idx 0 = month of opening). Empty = full from day 1."
+    )
+
+
+class FormalizationOneTimeCost(BaseSchema):
+    month_offset: int
+    concept: str
+    amount: Decimal
+
+
+class FormalizationRecurringCost(BaseSchema):
+    concept: str
+    amount_monthly: Decimal
+    starts_month_offset: int = 0
+    ends_month_offset: int | None = None
+
+
+class ProjectionFormalizationLayer(BaseSchema):
+    """Costs of formalization (matches scenarios A/B/C from financial-impact.md)."""
+    scenario_label: str = "B"  # "A" minimo viable, "B" completa, "C" B2B premium, "custom"
+    one_time_costs: list[FormalizationOneTimeCost] = Field(default_factory=list)
+    recurring_costs: list[FormalizationRecurringCost] = Field(default_factory=list)
+
+
+class ProjectionAssumptions(BaseSchema):
+    """Inputs for a financial projection."""
+    name: str = Field(..., max_length=200)
+    start_year: int
+    start_month: int = Field(..., ge=1, le=12)
+    months: int = Field(default=12, ge=1, le=36)
+
+    # Revenue
+    base_revenue_monthly: Decimal = Field(..., gt=0)
+    seasonality: dict[int, float] = Field(
+        default_factory=lambda: {m: 1.0 for m in range(1, 13)},
+        description="Multiplier per month {1..12}; 1.0 = neutral",
+    )
+    growth_rate_monthly: float = 0.0  # ej. 0.02 = 2% MoM
+
+    # COGS / margin
+    cogs_pct: float = Field(default=0.62, ge=0, le=1)
+
+    # Fixed costs
+    fixed_costs_monthly: Decimal = Field(default=Decimal("0"))
+
+    # Personnel
+    payroll_monthly_base: Decimal = Field(default=Decimal("0"))
+    hiring_plan: list[ProjectionHire] = Field(default_factory=list)
+
+    # Expansion
+    new_branches: list[ProjectionNewBranch] = Field(default_factory=list)
+
+    # Debt
+    debts: list[ProjectionDebt] = Field(default_factory=list)
+
+    # Formalization layer
+    formalization_layer: ProjectionFormalizationLayer | None = None
+
+    # Macro
+    inflation_annual: float = 0.06
+    initial_cash: Decimal = Field(default=Decimal("0"))
+
+
+class ProjectionMonth(BaseSchema):
+    """Single month projection result."""
+    year: int
+    month: int
+    period_label: str
+
+    # Revenue & COGS
+    revenue: Decimal
+    cogs: Decimal
+    gross_profit: Decimal
+    gross_margin_pct: float
+
+    # OpEx
+    fixed_costs: Decimal
+    payroll: Decimal
+    formalization_cost_one_time: Decimal
+    formalization_cost_recurring: Decimal
+    total_opex: Decimal
+
+    # Operating result
+    operating_profit: Decimal
+    operating_margin_pct: float
+
+    # Financial
+    interest_expense: Decimal
+    debt_capital_payment: Decimal
+
+    # Net
+    net_profit: Decimal
+    net_margin_pct: float
+
+    # Cash
+    cash_inflow: Decimal
+    cash_outflow: Decimal
+    net_cash_flow: Decimal
+    cumulative_cash: Decimal
+
+    # Headcount
+    headcount: int
+
+    # Flags
+    below_breakeven: bool
+    cash_negative: bool
+
+
+class ProjectionSummary(BaseSchema):
+    """Aggregate summary across all months."""
+    total_revenue: Decimal
+    total_cogs: Decimal
+    total_gross_profit: Decimal
+    avg_gross_margin_pct: float
+
+    total_opex: Decimal
+    total_formalization_one_time: Decimal
+    total_formalization_recurring: Decimal
+
+    total_operating_profit: Decimal
+    avg_operating_margin_pct: float
+
+    total_interest_expense: Decimal
+    total_debt_capital_paid: Decimal
+
+    total_net_profit: Decimal
+    avg_net_margin_pct: float
+
+    ending_cash: Decimal
+    min_cash: Decimal
+    months_cash_negative: int
+    months_below_breakeven: int
+
+    breakeven_revenue_monthly_avg: Decimal
+
+
+class ProjectionRunResponse(BaseSchema):
+    """Response from running a projection."""
+    id: UUID | None = None
+    name: str
+    assumptions: ProjectionAssumptions
+    months: list[ProjectionMonth]
+    summary: ProjectionSummary
+    generated_at: datetime

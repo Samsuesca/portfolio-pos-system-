@@ -26,22 +26,37 @@ from app.models.accounting import (
 from app.models.order import Order, OrderStatus
 from app.models.product import Inventory
 from app.models.sale import Sale
-from app.models.telegram_subscription import TelegramAlertType
-from app.services.telegram import route_alert
+from app.core.redis_client import get_redis
+from app.models.school import School
+from app.models.telegram_subscription import (
+    TelegramAlertSubscription,
+    TelegramAlertType,
+)
+from app.models.user import User, UserSchoolRole
+from app.services.telegram import _send_to_chat, route_alert
 from app.services.telegram_messages import TelegramMessageBuilder
 from app.utils.timezone import get_colombia_date, get_colombia_now
 
 logger = logging.getLogger(__name__)
 
-# Track which tasks already ran today to avoid duplicates
-_ran_today: dict[str, str] = {}  # task_key -> date_str
+# In-memory fallback when Redis is unavailable
+_ran_today: dict[str, str] = {}
 
 
-def _already_ran(task_key: str, date_str: str) -> bool:
-    if _ran_today.get(task_key) == date_str:
-        return True
-    _ran_today[task_key] = date_str
-    return False
+async def _already_ran(task_key: str, date_str: str) -> bool:
+    """Check if a scheduled task already ran today. Redis-first, memory fallback."""
+    try:
+        r = await get_redis()
+        key = f"tg_digest:{task_key}:{date_str}"
+        if await r.exists(key):
+            return True
+        await r.setex(key, 86400, "1")
+        return False
+    except Exception:
+        if _ran_today.get(task_key) == date_str:
+            return True
+        _ran_today[task_key] = date_str
+        return False
 
 
 async def _morning_reminders() -> None:
@@ -206,6 +221,101 @@ async def _daily_digest() -> None:
         logger.error("Daily digest failed: %s", e)
 
 
+async def _per_school_digest_stats(
+    db, school_id, today
+) -> tuple[int, Decimal, int, int, int]:
+    """Compute (sales, revenue, orders_today, low_stock_count) for one school."""
+    sales_row = (await db.execute(
+        select(
+            func.count(Sale.id),
+            func.coalesce(func.sum(Sale.total), 0),
+        ).where(
+            func.date(Sale.sale_date) == today,
+            Sale.is_historical == False,
+            Sale.school_id == school_id,
+        )
+    )).one()
+    total_sales = int(sales_row[0])
+    sales_revenue = Decimal(str(sales_row[1]))
+
+    total_orders = (await db.execute(
+        select(func.count(Order.id)).where(
+            func.date(Order.created_at) == today,
+            Order.school_id == school_id,
+        )
+    )).scalar() or 0
+
+    pending_orders = (await db.execute(
+        select(func.count(Order.id)).where(
+            Order.status.in_([OrderStatus.PENDING, OrderStatus.IN_PRODUCTION]),
+            Order.school_id == school_id,
+        )
+    )).scalar() or 0
+
+    low_stock_count = (await db.execute(
+        select(func.count(Inventory.id)).where(
+            Inventory.quantity <= Inventory.min_stock_alert,
+            Inventory.school_id == school_id,
+        )
+    )).scalar() or 0
+
+    return total_sales, sales_revenue, total_orders, pending_orders, low_stock_count
+
+
+async def _daily_digest_seller() -> None:
+    """8pm per-school digest for sellers and viewers.
+
+    For each user subscribed to ``daily_digest_seller`` with Telegram linked,
+    sends one message per school they have a role in. Contains only sales,
+    orders, and low-stock for that school — no balances or expenses
+    (accounting is global by design and out of scope for sellers).
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            today = get_colombia_date()
+            date_str = today.strftime("%d/%m/%Y")
+
+            recipients = (await db.execute(
+                select(User)
+                .join(
+                    TelegramAlertSubscription,
+                    TelegramAlertSubscription.user_id == User.id,
+                )
+                .where(
+                    TelegramAlertSubscription.alert_type
+                        == TelegramAlertType.daily_digest_seller,
+                    TelegramAlertSubscription.is_active == True,
+                    User.is_active == True,
+                    User.telegram_chat_id.isnot(None),
+                )
+            )).scalars().all()
+
+            for user in recipients:
+                school_rows = (await db.execute(
+                    select(School.id, School.name)
+                    .join(UserSchoolRole, UserSchoolRole.school_id == School.id)
+                    .where(UserSchoolRole.user_id == user.id)
+                    .distinct()
+                )).all()
+
+                for school_id, school_name in school_rows:
+                    stats = await _per_school_digest_stats(db, school_id, today)
+                    total_sales, sales_revenue, total_orders, pending_orders, low_stock_count = stats
+                    msg = TelegramMessageBuilder.daily_digest_seller(
+                        date_str=date_str,
+                        school_name=school_name,
+                        total_sales=total_sales,
+                        sales_revenue=sales_revenue,
+                        total_orders=total_orders,
+                        pending_orders=pending_orders,
+                        low_stock_count=low_stock_count,
+                    )
+                    await _send_to_chat(user.telegram_chat_id, msg)
+
+    except Exception as e:
+        logger.error("Daily digest seller failed: %s", e)
+
+
 async def _weekly_summary() -> None:
     """Sunday 8pm weekly summary."""
     try:
@@ -264,7 +374,13 @@ async def _weekly_summary() -> None:
 
 
 async def telegram_digest_loop() -> None:
-    """Main background loop. Checks Colombia time every 60s and triggers tasks."""
+    """Background polling loop for scheduled Telegram tasks.
+
+    Runs inside the FastAPI process event loop (started in lifespan).
+    Checks Colombia time every 60s and triggers tasks within a 2-minute
+    window at target hours. Dedup via Redis (_already_ran) survives
+    server restarts; falls back to in-memory if Redis is down.
+    """
     logger.info("Telegram digest loop started")
 
     while True:
@@ -278,19 +394,23 @@ async def telegram_digest_loop() -> None:
             weekday = now.weekday()  # 0=Monday, 6=Sunday
 
             # 9:00am reminders (run once per day, within first 2 minutes of the hour)
-            if hour == 9 and minute < 2 and not _already_ran("morning", date_str):
+            if hour == 9 and minute < 2 and not await _already_ran("morning", date_str):
                 await _morning_reminders()
 
             # 6:00pm close cash reminder
-            if hour == 18 and minute < 2 and not _already_ran("close_cash", date_str):
+            if hour == 18 and minute < 2 and not await _already_ran("close_cash", date_str):
                 await _close_cash_reminder()
 
-            # 8:00pm daily digest
-            if hour == 20 and minute < 2 and not _already_ran("daily_digest", date_str):
+            # 8:00pm daily digest (admin/owner global digest)
+            if hour == 20 and minute < 2 and not await _already_ran("daily_digest", date_str):
                 await _daily_digest()
 
+            # 8:00pm per-school seller digest
+            if hour == 20 and minute < 2 and not await _already_ran("daily_digest_seller", date_str):
+                await _daily_digest_seller()
+
             # Sunday 8:00pm weekly summary
-            if weekday == 6 and hour == 20 and minute < 2 and not _already_ran("weekly", date_str):
+            if weekday == 6 and hour == 20 and minute < 2 and not await _already_ran("weekly", date_str):
                 await _weekly_summary()
 
         except Exception as e:

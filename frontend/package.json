@@ -1,6 +1,6 @@
 {
   "name": "uniformes-system-frontend",
-  "version": "2.9.0",
+  "version": "3.1.0",
   "description": "Sistema de Gestión de Uniformes - Frontend",
   "type": "module",
   "scripts": {
@@ -17,25 +17,29 @@
     "tauri:build-windows": "tauri build --target x86_64-pc-windows-msvc",
     "sync-version": "node ../scripts/sync-version.js",
     "sync-version:git": "node ../scripts/sync-version.js --git",
-    "release": "npm run sync-version && npm run tauri:build",
-    "release:git": "npm run sync-version:git && npm run tauri:build",
+    "release": "pnpm run sync-version && pnpm run tauri:build",
+    "release:git": "pnpm run sync-version:git && pnpm run tauri:build",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@react-oauth/google": "0.13.5",
     "@tanstack/react-query": "^5.62.0",
     "@tauri-apps/plugin-dialog": "^2",
     "@tauri-apps/plugin-fs": "^2",
     "@tauri-apps/plugin-http": "^2",
     "@tauri-apps/plugin-shell": "^2",
     "axios": "^1.6.0",
+    "fuse.js": "^7.3.0",
     "jspdf": "4.2.1",
     "lucide-react": "^0.294.0",
+    "motion": "12.38.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hot-toast": "^2.6.0",
+    "react-hotkeys-hook": "^5.2.4",
     "react-router-dom": "^6.20.0",
     "recharts": "^3.8.0",
     "zustand": "^4.4.6"
@@ -57,5 +61,9 @@
     "typescript": "^5.9.3",
     "vite": "^4.5.0",
     "vitest": "^1.2.0"
+  },
+  "packageManager": "pnpm@11.1.2",
+  "engines": {
+    "node": ">=22"
   }
 }

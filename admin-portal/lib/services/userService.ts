@@ -1,4 +1,5 @@
 import apiClient, { User, UserSchoolRole, PaginatedResponse } from '../api';
+import { unwrapPaginated } from '../utils/pagination';
 
 export interface CreateUserData {
   username: string;
@@ -19,9 +20,9 @@ export type UserRole = 'owner' | 'admin' | 'seller' | 'viewer';
 
 const userService = {
   // List all users
-  list: async (params?: { skip?: number; limit?: number; include_inactive?: boolean }) => {
-    const response = await apiClient.get<User[]>('/users', { params });
-    return response.data;
+  list: async (params?: { skip?: number; limit?: number; include_inactive?: boolean }): Promise<User[]> => {
+    const response = await apiClient.get<User[] | PaginatedResponse<User>>('/users', { params });
+    return unwrapPaginated(response.data).items;
   },
 
   // Get user by ID
@@ -49,9 +50,9 @@ const userService = {
   },
 
   // Get user's school roles
-  getSchoolRoles: async (userId: string) => {
-    const response = await apiClient.get<UserSchoolRole[]>(`/users/${userId}/schools`);
-    return response.data;
+  getSchoolRoles: async (userId: string): Promise<UserSchoolRole[]> => {
+    const response = await apiClient.get<UserSchoolRole[] | PaginatedResponse<UserSchoolRole>>(`/users/${userId}/schools`);
+    return unwrapPaginated(response.data).items;
   },
 
   // Add user role for school (role as query param)
@@ -77,9 +78,9 @@ const userService = {
   },
 
   // Get all users for a specific school
-  getSchoolUsers: async (schoolId: string) => {
-    const response = await apiClient.get(`/users/schools/${schoolId}/users`);
-    return response.data;
+  getSchoolUsers: async (schoolId: string): Promise<User[]> => {
+    const response = await apiClient.get<User[] | PaginatedResponse<User>>(`/users/schools/${schoolId}/users`);
+    return unwrapPaginated(response.data).items;
   },
 };
 

@@ -2,7 +2,7 @@
 Accounts Receivable Service - Accounts receivable operations
 """
 from uuid import UUID
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +17,18 @@ from app.schemas.accounting import (
 )
 from app.services.base import SchoolIsolatedService
 from app.services.accounting.transactions import TransactionService
+
+
+# Default credit term applied when callers create a receivable without an
+# explicit due_date. Mirrors the backfill rule used in migration
+# ar_due_date_001 (invoice_date + 30 days). Centralized here so all call
+# sites remain consistent.
+DEFAULT_AR_CREDIT_TERM_DAYS: int = 30
+
+
+def default_ar_due_date(invoice_date: date) -> date:
+    """Default due_date for an AR row given its invoice_date."""
+    return invoice_date + timedelta(days=DEFAULT_AR_CREDIT_TERM_DAYS)
 
 
 class AccountsReceivableService(SchoolIsolatedService[AccountsReceivable]):
@@ -40,7 +52,7 @@ class AccountsReceivableService(SchoolIsolatedService[AccountsReceivable]):
             amount=data.amount,
             description=data.description,
             invoice_date=data.invoice_date,
-            due_date=data.due_date,
+            due_date=data.due_date or default_ar_due_date(data.invoice_date),
             notes=data.notes,
             created_by=created_by
         )

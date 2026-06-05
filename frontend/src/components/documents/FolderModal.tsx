@@ -80,14 +80,14 @@ export default function FolderModal({
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b">
-          <h3 className="text-lg font-semibold text-gray-900">
+          <h3 className="text-lg font-semibold text-stone-900">
             {isEditing ? 'Editar carpeta' : 'Nueva carpeta'}
           </h3>
           <button
-            className="p-1 hover:bg-gray-100 rounded"
+            className="p-1 hover:bg-stone-100 rounded"
             onClick={onClose}
           >
-            <X className="w-5 h-5 text-gray-500" />
+            <X className="w-5 h-5 text-stone-500" />
           </button>
         </div>
 
@@ -102,14 +102,14 @@ export default function FolderModal({
 
           {/* Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-stone-700 mb-1">
               Nombre *
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500"
               placeholder="Nombre de la carpeta"
               maxLength={255}
               autoFocus
@@ -118,13 +118,13 @@ export default function FolderModal({
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-stone-700 mb-1">
               Descripcion
             </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500"
               placeholder="Descripcion opcional"
               rows={2}
               maxLength={1000}
@@ -133,7 +133,7 @@ export default function FolderModal({
 
           {/* Color */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-stone-700 mb-2">
               Color
             </label>
             <div className="flex flex-wrap gap-2">
@@ -143,7 +143,7 @@ export default function FolderModal({
                   type="button"
                   className={`
                     w-8 h-8 rounded-full flex items-center justify-center transition-transform
-                    ${color === c ? 'ring-2 ring-offset-2 ring-blue-500 scale-110' : 'hover:scale-105'}
+                    ${color === c ? 'ring-2 ring-offset-2 ring-brand-400 scale-110' : 'hover:scale-105'}
                   `}
                   style={{ backgroundColor: c }}
                   onClick={() => setColor(c)}
@@ -157,9 +157,9 @@ export default function FolderModal({
           </div>
 
           {/* Preview */}
-          <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-md">
+          <div className="flex items-center gap-2 p-3 bg-stone-50 rounded-md">
             <Folder className="w-6 h-6" style={{ color }} />
-            <span className="text-sm font-medium text-gray-700">
+            <span className="text-sm font-medium text-stone-700">
               {name || 'Nueva carpeta'}
             </span>
           </div>
@@ -169,14 +169,14 @@ export default function FolderModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+              className="px-4 py-2 text-stone-700 bg-stone-100 rounded-md hover:bg-stone-200"
               disabled={isLoading}
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+              className="px-4 py-2 text-white bg-brand-500 rounded-md hover:bg-brand-600 disabled:opacity-50"
               disabled={isLoading}
             >
               {isLoading ? 'Guardando...' : isEditing ? 'Guardar' : 'Crear'}

@@ -47,41 +47,41 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           <h3 className="text-lg font-semibold">
             Registrar {isReceivable ? 'Cobro' : 'Pago'}
           </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600">
             <X className="w-5 h-5" />
           </button>
         </div>
         <div className="p-6 space-y-4">
           <div className={`${bgColor} rounded-lg p-4`}>
-            <p className="text-sm text-gray-600">Cuenta por {isReceivable ? 'Cobrar' : 'Pagar'}:</p>
+            <p className="text-sm text-stone-600">Cuenta por {isReceivable ? 'Cobrar' : 'Pagar'}:</p>
             <p className="font-medium">{item.description}</p>
-            {'vendor' in item && item.vendor && (
-              <p className="text-sm text-gray-500">Proveedor: {item.vendor}</p>
+            {'vendor_name' in item && item.vendor_name && (
+              <p className="text-sm text-stone-500">Proveedor: {item.vendor_name}</p>
             )}
             {'client_name' in item && item.client_name && (
-              <p className="text-sm text-gray-500">Cliente: {item.client_name}</p>
+              <p className="text-sm text-stone-500">Cliente: {item.client_name}</p>
             )}
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-stone-500 mt-1">
               Pendiente: <span className={`font-medium ${textColor}`}>{formatCurrency(item.balance)}</span>
             </p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Monto a {isReceivable ? 'cobrar' : 'pagar'}</label>
+            <label className="block text-sm font-medium text-stone-700 mb-1">Monto a {isReceivable ? 'cobrar' : 'pagar'}</label>
             <input
               type="number"
               value={paymentAmount}
               onChange={(e) => onAmountChange(parseFloat(e.target.value) || 0)}
               max={item.balance}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Metodo de pago</label>
+            <label className="block text-sm font-medium text-stone-700 mb-1">Metodo de pago</label>
             <select
               value={paymentMethod}
               onChange={(e) => onMethodChange(e.target.value as AccPaymentMethod)}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent ${
-                !paymentMethod ? 'border-red-300 text-gray-400' : 'border-gray-300'
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent ${
+                !paymentMethod ? 'border-red-300 text-stone-400' : 'border-stone-200'
               }`}
             >
               <option value="" disabled>-- Seleccione metodo --</option>
@@ -94,8 +94,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
             )}
           </div>
         </div>
-        <div className="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50 rounded-b-xl">
-          <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:text-gray-800">
+        <div className="flex justify-end gap-3 px-6 py-4 border-t bg-stone-50 rounded-b-xl">
+          <button onClick={onClose} className="px-4 py-2 text-stone-600 hover:text-stone-800">
             Cancelar
           </button>
           <button

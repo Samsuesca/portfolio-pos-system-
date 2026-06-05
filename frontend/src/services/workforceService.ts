@@ -3,6 +3,8 @@
  * Used by both employee-facing widgets and admin management page
  */
 import apiClient from '../utils/api-client';
+import type { PaginatedResponse } from '../types/api';
+import { unwrapPaginated } from '../utils/pagination';
 
 const BASE = '/global/workforce';
 
@@ -227,6 +229,13 @@ export interface PerformanceSummaryItem {
   overall_score: number;
 }
 
+export interface PerformanceStats {
+  total_employees: number;
+  avg_score: number;
+  top_performers: number;
+  needs_attention: number;
+}
+
 export interface PerformanceReview {
   id: string;
   employee_id: string;
@@ -268,7 +277,7 @@ export const ATTENDANCE_STATUS_COLORS: Record<AttendanceStatus, string> = {
   present: 'text-green-600 bg-green-50',
   absent: 'text-red-600 bg-red-50',
   late: 'text-yellow-600 bg-yellow-50',
-  excused: 'text-blue-600 bg-blue-50',
+  excused: 'text-brand-600 bg-brand-50',
 };
 
 export const ABSENCE_TYPE_LABELS: Record<AbsenceType, string> = {
@@ -298,7 +307,7 @@ export const ASSIGNMENT_TYPE_LABELS: Record<AssignmentType, string> = {
 };
 
 export const ASSIGNMENT_TYPE_COLORS: Record<AssignmentType, string> = {
-  position: 'text-blue-600 bg-blue-50',
+  position: 'text-brand-600 bg-brand-50',
   employee: 'text-purple-600 bg-purple-50',
 };
 
@@ -381,9 +390,9 @@ const workforceService = {
   },
 
   // --- Schedules ---
-  getSchedules: async (params?: { date_from?: string; date_to?: string; employee_id?: string }): Promise<Schedule[]> => {
-    const response = await apiClient.get<Schedule[]>(`${BASE}/schedules`, { params });
-    return response.data;
+  getSchedules: async (params?: { date_from?: string; date_to?: string; employee_id?: string }): Promise<PaginatedResponse<Schedule>> => {
+    const response = await apiClient.get<PaginatedResponse<Schedule> | Schedule[]>(`${BASE}/schedules`, { params });
+    return unwrapPaginated(response.data);
   },
 
   createSchedule: async (data: ScheduleCreate): Promise<Schedule> => {
@@ -396,11 +405,11 @@ const workforceService = {
     return response.data;
   },
 
-  getEmployeeSchedule: async (employeeId: string, dateFrom: string, dateTo: string): Promise<Schedule[]> => {
-    const response = await apiClient.get<Schedule[]>(`${BASE}/schedules/employee/${employeeId}`, {
+  getEmployeeSchedule: async (employeeId: string, dateFrom: string, dateTo: string): Promise<PaginatedResponse<Schedule>> => {
+    const response = await apiClient.get<PaginatedResponse<Schedule> | Schedule[]>(`${BASE}/schedules/employee/${employeeId}`, {
       params: { date_from: dateFrom, date_to: dateTo },
     });
-    return response.data;
+    return unwrapPaginated(response.data);
   },
 
   deleteSchedule: async (id: string): Promise<void> => {
@@ -414,9 +423,9 @@ const workforceService = {
     status?: AttendanceStatus;
     date_from?: string;
     date_to?: string;
-  }): Promise<AttendanceRecord[]> => {
-    const response = await apiClient.get<AttendanceRecord[]>(`${BASE}/attendance`, { params });
-    return response.data;
+  }): Promise<PaginatedResponse<AttendanceRecord>> => {
+    const response = await apiClient.get<PaginatedResponse<AttendanceRecord> | AttendanceRecord[]>(`${BASE}/attendance`, { params });
+    return unwrapPaginated(response.data);
   },
 
   logAttendance: async (data: AttendanceCreate): Promise<AttendanceRecord> => {
@@ -443,9 +452,9 @@ const workforceService = {
     date_from?: string;
     date_to?: string;
     is_deductible?: boolean;
-  }): Promise<AbsenceRecord[]> => {
-    const response = await apiClient.get<AbsenceRecord[]>(`${BASE}/absences`, { params });
-    return response.data;
+  }): Promise<PaginatedResponse<AbsenceRecord>> => {
+    const response = await apiClient.get<PaginatedResponse<AbsenceRecord> | AbsenceRecord[]>(`${BASE}/absences`, { params });
+    return unwrapPaginated(response.data);
   },
 
   createAbsence: async (data: AbsenceCreate): Promise<AbsenceRecord> => {
@@ -489,9 +498,9 @@ const workforceService = {
   },
 
   // --- Daily Checklists ---
-  getDailyChecklists: async (params?: { checklist_date?: string; employee_id?: string }): Promise<DailyChecklist[]> => {
-    const response = await apiClient.get<DailyChecklist[]>(`${BASE}/checklists`, { params });
-    return response.data;
+  getDailyChecklists: async (params?: { checklist_date?: string; employee_id?: string }): Promise<PaginatedResponse<DailyChecklist>> => {
+    const response = await apiClient.get<PaginatedResponse<DailyChecklist> | DailyChecklist[]>(`${BASE}/checklists`, { params });
+    return unwrapPaginated(response.data);
   },
 
   generateDailyChecklists: async (targetDate?: string): Promise<DailyChecklist[]> => {
@@ -524,14 +533,19 @@ const workforceService = {
     return response.data;
   },
 
-  getPerformanceSummary: async (params?: { period_start?: string; period_end?: string }): Promise<PerformanceSummaryItem[]> => {
-    const response = await apiClient.get<PerformanceSummaryItem[]>(`${BASE}/performance/summary`, { params });
+  getPerformanceSummary: async (params?: { period_start?: string; period_end?: string }): Promise<PaginatedResponse<PerformanceSummaryItem>> => {
+    const response = await apiClient.get<PaginatedResponse<PerformanceSummaryItem> | PerformanceSummaryItem[]>(`${BASE}/performance/summary`, { params });
+    return unwrapPaginated(response.data);
+  },
+
+  getPerformanceStats: async (params?: { period_start?: string; period_end?: string }): Promise<PerformanceStats> => {
+    const response = await apiClient.get<PerformanceStats>(`${BASE}/performance/stats`, { params });
     return response.data;
   },
 
-  getPerformanceReviews: async (params?: { employee_id?: string; review_period?: string }): Promise<PerformanceReview[]> => {
-    const response = await apiClient.get<PerformanceReview[]>(`${BASE}/performance/reviews`, { params });
-    return response.data;
+  getPerformanceReviews: async (params?: { employee_id?: string; review_period?: string }): Promise<PaginatedResponse<PerformanceReview>> => {
+    const response = await apiClient.get<PaginatedResponse<PerformanceReview> | PerformanceReview[]>(`${BASE}/performance/reviews`, { params });
+    return unwrapPaginated(response.data);
   },
 
   generatePerformanceReview: async (data: {

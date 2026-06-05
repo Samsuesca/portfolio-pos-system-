@@ -180,30 +180,20 @@ class TestCancelSaleInventoryRestoration:
     """Tests for inventory restoration when cancelling a sale"""
 
     @pytest.mark.asyncio
-    async def test_cancel_sale_restores_school_product_inventory(
+    async def test_cancel_sale_restores_product_inventory(
         self, mock_db_session, sale_with_items_factory, inventory_factory
     ):
-        """Should restore inventory for school products"""
+        """Should restore inventory for products (school or global)"""
         sale = sale_with_items_factory(status=SaleStatus.COMPLETED)
-        # Set items with school products (not global)
         for item in sale.items:
-            item.is_global_product = False
             item.product_id = str(uuid4())
-            item.global_product_id = None
             item.quantity = 2
 
-        # This test verifies the concept of inventory restoration
-        # The actual implementation uses InventoryService.release_stock()
-        # which is called for each school product item
-
-        # Verify that the sale items have correct attributes for restoration
         assert len(sale.items) == 2
         for item in sale.items:
-            assert item.is_global_product is False
             assert item.product_id is not None
             assert item.quantity == 2
 
-        # Verify sale status can be updated
         sale.status = SaleStatus.CANCELLED
         assert sale.status == SaleStatus.CANCELLED
 
@@ -385,7 +375,7 @@ class TestRollbackResponse:
         """Should return proper response structure"""
         response = {
             "id": str(uuid4()),
-            "code": "VNT-2025-0001",
+            "code": "CARACAS-001-VNT-2025-0001",
             "status": SaleStatus.CANCELLED,
             "cancelled_at": datetime.utcnow(),
             "inventory_restored": True,

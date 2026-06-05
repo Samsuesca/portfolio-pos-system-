@@ -143,23 +143,23 @@ export default function PrinterSettingsModal({
       <div className="flex min-h-full items-center justify-center p-4">
         <div className="relative w-full max-w-lg transform rounded-xl bg-white shadow-2xl transition-all">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
-                <Printer className="h-5 w-5 text-blue-600" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-100">
+                <Printer className="h-5 w-5 text-brand-600" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">
+                <h2 className="text-lg font-semibold text-stone-900">
                   Configurar Impresora
                 </h2>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-stone-500">
                   Impresora termica y cajon monedero
                 </p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+              className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
             >
               <X className="h-5 w-5" />
             </button>
@@ -224,10 +224,10 @@ export default function PrinterSettingsModal({
             {/* Enable Toggle */}
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium text-gray-900">
+                <p className="font-medium text-stone-900">
                   Habilitar impresora termica
                 </p>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-stone-500">
                   Activa la impresion directa de recibos
                 </p>
               </div>
@@ -235,7 +235,7 @@ export default function PrinterSettingsModal({
                 onClick={handleToggleEnabled}
                 disabled={!isTauriAvailable}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  settings.enabled ? "bg-blue-600" : "bg-gray-200"
+                  settings.enabled ? "bg-brand-500" : "bg-stone-200"
                 } ${!isTauriAvailable ? "opacity-50 cursor-not-allowed" : ""}`}
               >
                 <span
@@ -248,17 +248,17 @@ export default function PrinterSettingsModal({
 
             {/* Port Selection */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-stone-700 mb-2">
                 Puerto de impresora
               </label>
               <div className="flex gap-2">
                 <div className="relative flex-1">
-                  <Usb className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Usb className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
                   <select
                     value={settings.portName}
                     onChange={(e) => handlePortChange(e.target.value)}
                     disabled={!isTauriAvailable || !settings.enabled}
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    className="w-full pl-10 pr-4 py-2.5 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500 disabled:bg-stone-100 disabled:cursor-not-allowed"
                   >
                     <option value="">Seleccionar puerto...</option>
                     {availablePorts.map((port) => (
@@ -273,18 +273,18 @@ export default function PrinterSettingsModal({
                 <button
                   onClick={() => refreshPorts()}
                   disabled={!isTauriAvailable || !settings.enabled || isLoading}
-                  className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-2 border border-stone-200 rounded-lg hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Actualizar puertos"
                 >
                   <RefreshCw
-                    className={`h-5 w-5 text-gray-600 ${
+                    className={`h-5 w-5 text-stone-600 ${
                       isLoading ? "animate-spin" : ""
                     }`}
                   />
                 </button>
               </div>
               {availablePorts.length === 0 && isTauriAvailable && (
-                <p className="mt-2 text-sm text-gray-500">
+                <p className="mt-2 text-sm text-stone-500">
                   No se encontraron puertos. Conecta la impresora y presiona
                   actualizar.
                 </p>
@@ -292,20 +292,20 @@ export default function PrinterSettingsModal({
             </div>
 
             {/* Auto Options */}
-            <div className="space-y-4 pt-4 border-t border-gray-200">
-              <h3 className="text-sm font-medium text-gray-900">
+            <div className="space-y-4 pt-4 border-t border-stone-200">
+              <h3 className="text-sm font-medium text-stone-900">
                 Opciones automaticas
               </h3>
 
               {/* Auto Print */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Printer className="h-5 w-5 text-gray-400" />
+                  <Printer className="h-5 w-5 text-stone-400" />
                   <div>
-                    <p className="text-sm font-medium text-gray-700">
+                    <p className="text-sm font-medium text-stone-700">
                       Imprimir al vender
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-stone-500">
                       Imprime recibo automaticamente
                     </p>
                   </div>
@@ -314,7 +314,7 @@ export default function PrinterSettingsModal({
                   onClick={handleToggleAutoPrint}
                   disabled={!settings.enabled}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    settings.autoPrintReceipt ? "bg-blue-600" : "bg-gray-200"
+                    settings.autoPrintReceipt ? "bg-brand-500" : "bg-stone-200"
                   } ${!settings.enabled ? "opacity-50 cursor-not-allowed" : ""}`}
                 >
                   <span
@@ -330,12 +330,12 @@ export default function PrinterSettingsModal({
               {/* Auto Drawer */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <DollarSign className="h-5 w-5 text-gray-400" />
+                  <DollarSign className="h-5 w-5 text-stone-400" />
                   <div>
-                    <p className="text-sm font-medium text-gray-700">
+                    <p className="text-sm font-medium text-stone-700">
                       Abrir cajon en efectivo
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-stone-500">
                       Solo para ventas en efectivo
                     </p>
                   </div>
@@ -344,7 +344,7 @@ export default function PrinterSettingsModal({
                   onClick={handleToggleAutoDrawer}
                   disabled={!settings.enabled}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    settings.autoOpenDrawer ? "bg-blue-600" : "bg-gray-200"
+                    settings.autoOpenDrawer ? "bg-brand-500" : "bg-stone-200"
                   } ${!settings.enabled ? "opacity-50 cursor-not-allowed" : ""}`}
                 >
                   <span
@@ -359,7 +359,7 @@ export default function PrinterSettingsModal({
             </div>
 
             {/* Test Buttons */}
-            <div className="flex gap-3 pt-4 border-t border-gray-200">
+            <div className="flex gap-3 pt-4 border-t border-stone-200">
               <button
                 onClick={handleTestPrinter}
                 disabled={
@@ -368,7 +368,7 @@ export default function PrinterSettingsModal({
                   !settings.portName ||
                   isLoading
                 }
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -388,7 +388,7 @@ export default function PrinterSettingsModal({
                     !settings.portName ||
                     isLoading
                   }
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {isLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -416,10 +416,10 @@ export default function PrinterSettingsModal({
           </div>
 
           {/* Footer */}
-          <div className="flex justify-end gap-3 border-t border-gray-200 px-6 py-4 bg-gray-50 rounded-b-xl">
+          <div className="flex justify-end gap-3 border-t border-stone-200 px-6 py-4 bg-stone-50 rounded-b-xl">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              className="px-4 py-2 text-stone-700 hover:bg-stone-100 rounded-lg transition-colors"
             >
               Cerrar
             </button>
@@ -453,8 +453,8 @@ export function PrinterSettingsButton() {
       onClick={openModal}
       className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
         isConfigured
-          ? "bg-green-100 text-green-700 hover:bg-green-200"
-          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+          ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 hover:bg-green-200"
+          : "bg-stone-100 text-stone-600 hover:bg-stone-200"
       }`}
       title={isConfigured ? "Impresora configurada" : "Configurar impresora"}
     >

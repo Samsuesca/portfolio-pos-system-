@@ -28,50 +28,50 @@ export default function CreateUserModal({
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
         <div className="flex items-center justify-between p-4 border-b">
           <h3 className="text-lg font-semibold">Nuevo Usuario</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600">
             <X className="w-5 h-5" />
           </button>
         </div>
         <div className="p-4 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Usuario *</label>
+            <label className="block text-sm font-medium text-stone-700 mb-1">Usuario *</label>
             <input
               type="text"
               value={userForm.username}
               onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30"
               placeholder="juanperez"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-stone-700 mb-1">
               Nombre completo
             </label>
             <input
               type="text"
               value={userForm.full_name}
               onChange={(e) => setUserForm({ ...userForm, full_name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30"
               placeholder="Juan Perez"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+            <label className="block text-sm font-medium text-stone-700 mb-1">Email *</label>
             <input
               type="email"
               value={userForm.email}
               onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30"
               placeholder="juan@email.com"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Contrasena *</label>
+            <label className="block text-sm font-medium text-stone-700 mb-1">Contrasena *</label>
             <input
               type="password"
               value={userForm.password}
               onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30"
               placeholder="Minimo 6 caracteres"
             />
           </div>
@@ -83,7 +83,7 @@ export default function CreateUserModal({
               onChange={(e) => setUserForm({ ...userForm, is_superuser: e.target.checked })}
               className="w-4 h-4 text-indigo-600 rounded"
             />
-            <label htmlFor="create_is_superuser" className="ml-2 text-sm text-gray-700">
+            <label htmlFor="create_is_superuser" className="ml-2 text-sm text-stone-700">
               Es superusuario (acceso total a todos los colegios)
             </label>
           </div>
@@ -91,7 +91,7 @@ export default function CreateUserModal({
         <div className="flex justify-end gap-2 p-4 border-t">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-600 hover:text-gray-800"
+            className="px-4 py-2 text-stone-600 hover:text-stone-800"
           >
             Cancelar
           </button>

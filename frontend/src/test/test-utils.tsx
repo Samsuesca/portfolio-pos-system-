@@ -86,7 +86,7 @@ export const createMockProduct = (overrides = {}) => ({
 // Helper to create mock sale
 export const createMockSale = (overrides = {}) => ({
   id: 'test-sale-id',
-  code: 'VNT-2025-001',
+  code: 'CARACAS-001-VNT-2025-0001',
   total: 100000,
   paid_amount: 100000,
   payment_method: 'cash',

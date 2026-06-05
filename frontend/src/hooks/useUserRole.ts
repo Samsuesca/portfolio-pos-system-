@@ -19,6 +19,9 @@ interface UseUserRoleResult {
   // Current role for selected school
   role: UserRole | null;
 
+  // Custom role name (when using a custom role instead of system role)
+  customRoleName: string | null;
+
   // Is the user a superuser (bypasses all role checks)
   isSuperuser: boolean;
 
@@ -43,6 +46,7 @@ export function useUserRole(): UseUserRoleResult {
     if (user?.is_superuser) {
       return {
         role: 'owner' as UserRole,
+        customRoleName: null,
         isSuperuser: true,
         canManageUsers: true,
         canAccessAccounting: true,
@@ -62,6 +66,7 @@ export function useUserRole(): UseUserRoleResult {
 
     return {
       role,
+      customRoleName: schoolRole?.custom_role_name || null,
       isSuperuser: false,
       canManageUsers: canManageUsers(role ?? undefined),
       canAccessAccounting: canAccessAccounting(role ?? undefined),
@@ -96,9 +101,9 @@ export function getRoleDisplayName(role: UserRole): string {
 export function getRoleBadgeColor(role: UserRole): string {
   const colors: Record<UserRole, string> = {
     owner: 'bg-purple-100 text-purple-800',
-    admin: 'bg-blue-100 text-blue-800',
-    seller: 'bg-green-100 text-green-800',
-    viewer: 'bg-gray-100 text-gray-800',
+    admin: 'bg-brand-100 text-brand-700',
+    seller: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+    viewer: 'bg-stone-100 text-stone-800',
   };
-  return colors[role] || 'bg-gray-100 text-gray-800';
+  return colors[role] || 'bg-stone-100 text-stone-800';
 }

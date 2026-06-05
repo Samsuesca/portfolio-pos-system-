@@ -17,16 +17,16 @@ export default function PaymentSection({
   const balance = total - advancePayment;
 
   return (
-    <div className="bg-gray-50 rounded-lg p-4 mb-6">
+    <div className="bg-stone-50 rounded-lg p-4 mb-6">
       <div className="flex justify-between items-center mb-3">
-        <span className="text-gray-600">Subtotal:</span>
+        <span className="text-stone-600">Subtotal:</span>
         <span className="font-medium">${total.toLocaleString()}</span>
       </div>
 
       {/* Advance Payment Section */}
       <div className="mb-3">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-gray-600">Anticipo:</span>
+          <span className="text-stone-600">Anticipo:</span>
           <span className="font-medium text-green-600">${advancePayment.toLocaleString()}</span>
         </div>
 
@@ -39,8 +39,8 @@ export default function PaymentSection({
               onClick={() => onAdvancePaymentChange(Math.round(total * pct / 100))}
               className={`flex-1 py-1.5 text-xs font-medium rounded transition ${
                 advancePayment === Math.round(total * pct / 100)
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                  ? 'bg-brand-500 text-white'
+                  : 'bg-white border border-stone-200 text-stone-700 hover:bg-stone-50'
               }`}
             >
               {pct === 0 ? 'Sin anticipo' : pct === 100 ? 'Pago total' : `${pct}%`}
@@ -50,9 +50,9 @@ export default function PaymentSection({
 
         {/* Custom Amount Input */}
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500">Otro monto:</span>
+          <span className="text-xs text-stone-500">Otro monto:</span>
           <div className="relative flex-1">
-            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
             <input
               type="number"
               min="0"
@@ -63,14 +63,14 @@ export default function PaymentSection({
                 onAdvancePaymentChange(Math.min(Math.max(0, val), total));
               }}
               placeholder="0"
-              className="w-full pl-6 pr-3 py-1.5 border border-gray-300 rounded text-sm text-right focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              className="w-full pl-6 pr-3 py-1.5 border border-stone-200 rounded text-sm text-right focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
             />
           </div>
         </div>
 
         {/* Payment Method - only show when advance payment > 0 */}
         {advancePayment > 0 && (
-          <div className="mt-3 pt-3 border-t border-gray-200">
+          <div className="mt-3 pt-3 border-t border-stone-200">
             <PaymentMethodSelector
               value={advancePaymentMethod}
               onChange={(method) => onPaymentMethodChange(method as '' | 'cash' | 'nequi' | 'transfer' | 'card')}
@@ -91,8 +91,8 @@ export default function PaymentSection({
         )}
       </div>
 
-      <div className="flex justify-between items-center pt-3 border-t border-gray-200">
-        <span className="text-gray-800 font-medium">Saldo Pendiente:</span>
+      <div className="flex justify-between items-center pt-3 border-t border-stone-200">
+        <span className="text-stone-800 font-medium">Saldo Pendiente:</span>
         <span className={`text-lg font-bold ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
           {balance > 0 ? `$${balance.toLocaleString()}` : 'Pagado'}
         </span>

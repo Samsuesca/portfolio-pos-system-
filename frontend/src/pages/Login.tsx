@@ -3,7 +3,9 @@
  */
 import { useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'motion/react';
 import { useAuthStore } from '../stores/authStore';
+import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { useConfigStore } from '../stores/configStore';
 import { ENVIRONMENTS, ENVIRONMENT_LABELS, ENVIRONMENT_DESCRIPTIONS, type EnvironmentKey } from '../config/environments';
 import { LogIn, AlertCircle, Settings, Loader2, Wifi, WifiOff } from 'lucide-react';
@@ -12,7 +14,7 @@ import { invoke } from '@tauri-apps/api/core';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login, isLoading, error, clearError } = useAuthStore();
+  const { login, googleLogin, isLoading, error, clearError } = useAuthStore();
   const { apiUrl, setApiUrl } = useConfigStore();
 
   const [username, setUsername] = useState('');
@@ -35,7 +37,7 @@ export default function Login() {
         // Dev mode: use XMLHttpRequest (same as api-client, avoids fetch issues in Tauri WebView)
         isHealthy = await new Promise<boolean>((resolve) => {
           const xhr = new XMLHttpRequest();
-          xhr.open('GET', `${url}/health`);
+          xhr.open('GET', `${url}/ping`);
           xhr.timeout = 3000;
           xhr.onload = () => resolve(xhr.status >= 200 && xhr.status < 300);
           xhr.onerror = () => resolve(false);
@@ -47,7 +49,7 @@ export default function Login() {
         const response = await invoke<{ status: number; body: string }>('http_request', {
           request: {
             method: 'GET',
-            url: `${url}/health`,
+            url: `${url}/ping`,
             headers: {},
             timeout_secs: 3,
           },
@@ -82,9 +84,14 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-surface-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl border border-surface-200 w-full max-w-md p-8 relative overflow-hidden">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+        className="bg-white rounded-2xl shadow-xl border border-surface-200 w-full max-w-md p-8 relative overflow-hidden"
+      >
         {/* Decorative Top Bar */}
-        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-[#B8860B] to-[#D4A017]"></div>
+        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-brand-500 to-brand-400"></div>
 
         {/* Logo/Header */}
         <div className="text-center mb-8">
@@ -167,6 +174,30 @@ export default function Login() {
           </button>
         </form>
 
+        {/* Google Login */}
+        {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
+          <div className="mt-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-px flex-1 bg-slate-200" />
+              <span className="text-sm text-slate-400">o continuar con</span>
+              <div className="h-px flex-1 bg-slate-200" />
+            </div>
+            <div className="flex justify-center">
+              <GoogleLogin
+                onSuccess={(response: CredentialResponse) => {
+                  if (response.credential) {
+                    googleLogin(response.credential)
+                      .then(() => navigate('/dashboard'))
+                      .catch(() => {});
+                  }
+                }}
+                onError={() => {}}
+                text="signin_with"
+              />
+            </div>
+          </div>
+        )}
+
         {/* Server Configuration Toggle */}
         <div className="mt-6 pt-6 border-t border-slate-100">
           <button
@@ -195,25 +226,25 @@ export default function Login() {
                     disabled={isTesting}
                     className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all ${
                       isSelected
-                        ? 'border-[#B8860B] bg-amber-50'
+                        ? 'border-brand-500 bg-amber-50'
                         : 'border-slate-200 bg-white hover:border-slate-300'
                     }`}
                   >
                     <div className="text-left">
-                      <span className={`text-base font-semibold ${isSelected ? 'text-[#B8860B]' : 'text-slate-700'}`}>
+                      <span className={`text-base font-semibold ${isSelected ? 'text-brand-500' : 'text-slate-700'}`}>
                         {ENVIRONMENT_LABELS[key]}
                       </span>
                       <p className="text-xs text-slate-500 mt-0.5">{ENVIRONMENT_DESCRIPTIONS[key]}</p>
                     </div>
                     <div className="flex items-center">
                       {isTesting ? (
-                        <Loader2 className="w-5 h-5 text-[#B8860B] animate-spin" />
+                        <Loader2 className="w-5 h-5 text-brand-500 animate-spin" />
                       ) : isSelected && status === 'success' ? (
                         <Wifi className="w-5 h-5 text-green-600" />
                       ) : status === 'error' ? (
                         <WifiOff className="w-5 h-5 text-red-500" />
                       ) : isSelected ? (
-                        <div className="w-3 h-3 rounded-full bg-[#B8860B]" />
+                        <div className="w-3 h-3 rounded-full bg-brand-500" />
                       ) : null}
                     </div>
                   </button>
@@ -244,7 +275,7 @@ export default function Login() {
             Sistema de Gestión de Uniformes v{SYSTEM_VERSION}
           </p>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

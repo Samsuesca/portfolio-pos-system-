@@ -22,6 +22,7 @@ import type {
   AccountType,
   ExpenseCategory,
   AccPaymentMethod,
+  PaginatedResponse,
   // Financial Planning types
   DebtPaymentCreate,
   DebtPaymentListResponse,
@@ -30,6 +31,7 @@ import type {
   CashProjectionResponse,
   PlanningDashboard
 } from '../types/api';
+import { unwrapPaginated } from '../utils/pagination';
 
 // Re-export types for components that import from this service
 export type { ExpenseListItem, ExpensePayment, ExpenseCategory, AccPaymentMethod } from '../types/api';
@@ -348,12 +350,12 @@ export const getTransferHistory = async (params?: {
 export const getGlobalBalanceAccounts = async (
   accountType?: AccountType,
   isActive?: boolean
-): Promise<BalanceAccountListItem[]> => {
-  const response = await apiClient.get<BalanceAccountListItem[]>(
+): Promise<PaginatedResponse<BalanceAccountListItem>> => {
+  const response = await apiClient.get<PaginatedResponse<BalanceAccountListItem> | BalanceAccountListItem[]>(
     `${BASE_URL}/balance-accounts`,
     { params: { account_type: accountType, is_active: isActive } }
   );
-  return response.data;
+  return unwrapPaginated(response.data);
 };
 
 export const getGlobalBalanceAccount = async (accountId: string): Promise<BalanceAccount> => {
@@ -376,12 +378,12 @@ export interface GlobalBalanceEntry {
 export const getGlobalBalanceEntries = async (
   accountId: string,
   limit: number = 50
-): Promise<GlobalBalanceEntry[]> => {
-  const response = await apiClient.get<GlobalBalanceEntry[]>(
+): Promise<PaginatedResponse<GlobalBalanceEntry>> => {
+  const response = await apiClient.get<PaginatedResponse<GlobalBalanceEntry> | GlobalBalanceEntry[]>(
     `${BASE_URL}/balance-accounts/${accountId}/entries`,
     { params: { limit } }
   );
-  return response.data;
+  return unwrapPaginated(response.data);
 };
 
 // Unified Balance Entries (all global accounts)
@@ -579,8 +581,8 @@ export interface GetGlobalExpensesOptions {
 
 export const getGlobalExpenses = async (
   options?: GetGlobalExpensesOptions
-): Promise<ExpenseListItem[]> => {
-  const response = await apiClient.get<ExpenseListItem[]>(
+): Promise<PaginatedResponse<ExpenseListItem>> => {
+  const response = await apiClient.get<PaginatedResponse<ExpenseListItem> | ExpenseListItem[]>(
     `${BASE_URL}/expenses`,
     {
       params: {
@@ -592,16 +594,16 @@ export const getGlobalExpenses = async (
         max_amount: options?.maxAmount,
         payment_account_id: options?.paymentAccountId,
         skip: options?.skip || 0,
-        limit: options?.limit || 500
+        limit: options?.limit || 100
       }
     }
   );
-  return response.data;
+  return unwrapPaginated(response.data);
 };
 
-export const getPendingGlobalExpenses = async (): Promise<ExpenseListItem[]> => {
-  const response = await apiClient.get<ExpenseListItem[]>(`${BASE_URL}/expenses/pending`);
-  return response.data;
+export const getPendingGlobalExpenses = async (): Promise<PaginatedResponse<ExpenseListItem>> => {
+  const response = await apiClient.get<PaginatedResponse<ExpenseListItem> | ExpenseListItem[]>(`${BASE_URL}/expenses/pending`);
+  return unwrapPaginated(response.data);
 };
 
 export const getGlobalExpense = async (expenseId: string): Promise<Expense> => {
@@ -668,8 +670,8 @@ export const checkExpenseBalance = async (
 
 export const getGlobalPayables = async (
   options?: { isPaid?: boolean; isOverdue?: boolean; skip?: number; limit?: number }
-): Promise<AccountsPayableListItem[]> => {
-  const response = await apiClient.get<AccountsPayableListItem[]>(
+): Promise<PaginatedResponse<AccountsPayableListItem>> => {
+  const response = await apiClient.get<PaginatedResponse<AccountsPayableListItem> | AccountsPayableListItem[]>(
     `${BASE_URL}/payables`,
     {
       params: {
@@ -680,12 +682,12 @@ export const getGlobalPayables = async (
       }
     }
   );
-  return response.data;
+  return unwrapPaginated(response.data);
 };
 
-export const getPendingGlobalPayables = async (): Promise<AccountsPayableListItem[]> => {
-  const response = await apiClient.get<AccountsPayableListItem[]>(`${BASE_URL}/payables/pending`);
-  return response.data;
+export const getPendingGlobalPayables = async (): Promise<PaginatedResponse<AccountsPayableListItem>> => {
+  const response = await apiClient.get<PaginatedResponse<AccountsPayableListItem> | AccountsPayableListItem[]>(`${BASE_URL}/payables/pending`);
+  return unwrapPaginated(response.data);
 };
 
 export const getGlobalPayable = async (payableId: string): Promise<AccountsPayable> => {
@@ -762,25 +764,26 @@ export interface AccountsReceivablePayment {
 }
 
 export const getGlobalReceivables = async (
-  options?: { isPaid?: boolean; isOverdue?: boolean; skip?: number; limit?: number }
-): Promise<AccountsReceivableListItem[]> => {
-  const response = await apiClient.get<AccountsReceivableListItem[]>(
+  options?: { isPaid?: boolean; isOverdue?: boolean; clientId?: string; skip?: number; limit?: number }
+): Promise<PaginatedResponse<AccountsReceivableListItem>> => {
+  const response = await apiClient.get<PaginatedResponse<AccountsReceivableListItem> | AccountsReceivableListItem[]>(
     `${BASE_URL}/receivables`,
     {
       params: {
         is_paid: options?.isPaid,
         is_overdue: options?.isOverdue,
+        client_id: options?.clientId,
         skip: options?.skip || 0,
         limit: options?.limit || 100
       }
     }
   );
-  return response.data;
+  return unwrapPaginated(response.data);
 };
 
-export const getPendingGlobalReceivables = async (): Promise<AccountsReceivableListItem[]> => {
-  const response = await apiClient.get<AccountsReceivableListItem[]>(`${BASE_URL}/receivables/pending`);
-  return response.data;
+export const getPendingGlobalReceivables = async (): Promise<PaginatedResponse<AccountsReceivableListItem>> => {
+  const response = await apiClient.get<PaginatedResponse<AccountsReceivableListItem> | AccountsReceivableListItem[]>(`${BASE_URL}/receivables/pending`);
+  return unwrapPaginated(response.data);
 };
 
 export const getGlobalReceivable = async (receivableId: string): Promise<AccountsReceivable> => {
@@ -817,11 +820,12 @@ export interface ReceivablesPayablesSummary {
 }
 
 export const getReceivablesPayables = async (): Promise<ReceivablesPayablesSummary> => {
-  // Fetch both lists and calculate summary
-  const [receivables, payables] = await Promise.all([
+  const [receivablesResult, payablesResult] = await Promise.all([
     getGlobalReceivables({}),
     getGlobalPayables({})
   ]);
+  const receivables = receivablesResult.items;
+  const payables = payablesResult.items;
 
   const today = new Date();
 
@@ -970,8 +974,8 @@ export interface GlobalTransactionItem {
 
 export const getGlobalTransactions = async (
   options?: GlobalTransactionOptions
-): Promise<GlobalTransactionItem[]> => {
-  const response = await apiClient.get<GlobalTransactionItem[]>(
+): Promise<PaginatedResponse<GlobalTransactionItem>> => {
+  const response = await apiClient.get<PaginatedResponse<GlobalTransactionItem> | GlobalTransactionItem[]>(
     `${BASE_URL}/transactions`,
     {
       params: {
@@ -984,7 +988,7 @@ export const getGlobalTransactions = async (
       }
     }
   );
-  return response.data;
+  return unwrapPaginated(response.data);
 };
 
 // ============================================
@@ -1003,13 +1007,53 @@ export interface ExpenseCategorySummary {
 
 export const getExpensesSummaryByCategory = async (
   options?: { startDate?: string; endDate?: string }
-): Promise<ExpenseCategorySummary[]> => {
-  const response = await apiClient.get<ExpenseCategorySummary[]>(
+): Promise<PaginatedResponse<ExpenseCategorySummary>> => {
+  const response = await apiClient.get<PaginatedResponse<ExpenseCategorySummary> | ExpenseCategorySummary[]>(
     `${BASE_URL}/expenses/summary-by-category`,
     {
       params: {
         start_date: options?.startDate,
         end_date: options?.endDate
+      }
+    }
+  );
+  return unwrapPaginated(response.data);
+};
+
+export interface ExpenseStatsResponse {
+  total_amount: number;
+  total_count: number;
+  paid_amount: number;
+  paid_count: number;
+  pending_amount: number;
+  pending_count: number;
+  average_amount: number;
+}
+
+export interface GetExpensesStatsOptions {
+  category?: string;
+  isPaid?: boolean;
+  startDate?: string;
+  endDate?: string;
+  minAmount?: number;
+  maxAmount?: number;
+  paymentAccountId?: string;
+}
+
+export const getGlobalExpensesStats = async (
+  options?: GetExpensesStatsOptions
+): Promise<ExpenseStatsResponse> => {
+  const response = await apiClient.get<ExpenseStatsResponse>(
+    `${BASE_URL}/expenses/stats`,
+    {
+      params: {
+        category: options?.category,
+        is_paid: options?.isPaid,
+        start_date: options?.startDate,
+        end_date: options?.endDate,
+        min_amount: options?.minAmount,
+        max_amount: options?.maxAmount,
+        payment_account_id: options?.paymentAccountId,
       }
     }
   );
@@ -1133,8 +1177,8 @@ export const getExpenseAdjustments = async (
  */
 export const listAdjustments = async (
   params?: AdjustmentListParams
-): Promise<ExpenseAdjustmentResponse[]> => {
-  const response = await apiClient.get<ExpenseAdjustmentResponse[]>(
+): Promise<PaginatedResponse<ExpenseAdjustmentResponse>> => {
+  const response = await apiClient.get<PaginatedResponse<ExpenseAdjustmentResponse> | ExpenseAdjustmentResponse[]>(
     `${BASE_URL}/adjustments`,
     {
       params: {
@@ -1146,7 +1190,7 @@ export const listAdjustments = async (
       }
     }
   );
-  return response.data;
+  return unwrapPaginated(response.data);
 };
 
 /**
@@ -1168,13 +1212,13 @@ export const getAdjustmentReasonLabel = (reason: AdjustmentReason): string => {
  */
 export const getAdjustmentReasonColor = (reason: AdjustmentReason): string => {
   const colors: Record<AdjustmentReason, string> = {
-    amount_correction: 'bg-blue-100 text-blue-800',
+    amount_correction: 'bg-brand-100 text-brand-700',
     account_correction: 'bg-purple-100 text-purple-800',
     both_correction: 'bg-indigo-100 text-indigo-800',
-    error_reversal: 'bg-red-100 text-red-800',
+    error_reversal: 'bg-red-50 text-red-700 ring-1 ring-red-200',
     partial_refund: 'bg-amber-100 text-amber-800'
   };
-  return colors[reason] || 'bg-gray-100 text-gray-800';
+  return colors[reason] || 'bg-stone-100 text-stone-800';
 };
 
 // ============================================
@@ -1467,7 +1511,7 @@ export interface OtherExpenseDetail {
   description: string;
   amount: number;
   date: string;
-  vendor: string;
+  vendor_name: string | null;
 }
 
 export interface IncomeStatementResponse {
@@ -1721,12 +1765,12 @@ export const getExpenseCategories = async (
   includeInactive: boolean = false,
   limit: number = 100,
   offset: number = 0
-): Promise<ExpenseCategoryListItem[]> => {
-  const response = await apiClient.get<ExpenseCategoryListItem[]>(
+): Promise<PaginatedResponse<ExpenseCategoryListItem>> => {
+  const response = await apiClient.get<PaginatedResponse<ExpenseCategoryListItem> | ExpenseCategoryListItem[]>(
     `${BASE_URL}/expense-categories`,
     { params: { include_inactive: includeInactive, limit, offset } }
   );
-  return response.data;
+  return unwrapPaginated(response.data);
 };
 
 /**
@@ -1806,14 +1850,14 @@ export const createFinancialSnapshot = async (params: {
 export const listFinancialSnapshots = async (
   snapshotType?: string,
   limit: number = 50
-): Promise<FinancialSnapshotItem[]> => {
+): Promise<PaginatedResponse<FinancialSnapshotItem>> => {
   const params = new URLSearchParams();
   if (snapshotType) params.set('snapshot_type', snapshotType);
   params.set('limit', String(limit));
-  const response = await apiClient.get<FinancialSnapshotItem[]>(
+  const response = await apiClient.get<PaginatedResponse<FinancialSnapshotItem> | FinancialSnapshotItem[]>(
     `${BASE_URL}/financial-snapshots?${params.toString()}`
   );
-  return response.data;
+  return unwrapPaginated(response.data);
 };
 
 export const getFinancialSnapshot = async (snapshotId: string): Promise<FinancialSnapshotFull> => {
@@ -1908,6 +1952,7 @@ export const globalAccountingService = {
   // Transactions & Reports
   getGlobalTransactions,
   getExpensesSummaryByCategory,
+  getGlobalExpensesStats,
   getCashFlowReport,
   // Unified Balance Entries (Log)
   getUnifiedBalanceEntries,

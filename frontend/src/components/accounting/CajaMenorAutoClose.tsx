@@ -115,8 +115,8 @@ const CajaMenorAutoClose: React.FC<CajaMenorAutoCloseProps> = ({
   // Loading state
   if (loadingConfig) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-center gap-2 text-gray-500">
+      <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-6">
+        <div className="flex items-center justify-center gap-2 text-stone-500">
           <Loader2 className="w-5 h-5 animate-spin" />
           <span className="text-sm">Cargando configuracion...</span>
         </div>
@@ -127,14 +127,14 @@ const CajaMenorAutoClose: React.FC<CajaMenorAutoCloseProps> = ({
   // Error loading config
   if (configError && !config) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-6">
         <div className="flex items-center gap-2 text-red-600">
           <AlertTriangle className="w-5 h-5" />
           <span className="text-sm">{configError}</span>
         </div>
         <button
           onClick={loadConfig}
-          className="mt-3 text-sm text-brand-600 hover:text-brand-800 underline"
+          className="mt-3 text-sm text-brand-600 hover:text-brand-700 underline"
         >
           Reintentar
         </button>
@@ -143,17 +143,17 @@ const CajaMenorAutoClose: React.FC<CajaMenorAutoCloseProps> = ({
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+    <div className="bg-white rounded-xl shadow-sm border border-stone-200">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+      <div className="px-6 py-4 border-b border-stone-200 flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-stone-800 flex items-center gap-2">
           <ArrowRightLeft className="w-5 h-5 text-emerald-600" />
           Auto-cierre Caja Menor
         </h3>
         {canEditConfig && (
           <button
             onClick={() => setShowConfig(!showConfig)}
-            className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+            className="text-sm text-stone-500 hover:text-stone-700 flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-stone-100 transition-colors"
           >
             <Settings className="w-4 h-4" />
             Configurar
@@ -170,9 +170,9 @@ const CajaMenorAutoClose: React.FC<CajaMenorAutoCloseProps> = ({
       <div className="px-6 py-5">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Current Balance */}
-          <div className="text-center p-3 bg-gray-50 rounded-lg">
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Saldo Actual</p>
-            <p className="text-xl font-bold text-gray-800 mt-1">
+          <div className="text-center p-3 bg-stone-50 rounded-lg">
+            <p className="text-xs font-medium text-stone-500 uppercase tracking-wide">Saldo Actual</p>
+            <p className="text-xl font-bold text-stone-800 mt-1">
               {formatCurrency(cajaMenorBalance)}
             </p>
           </div>
@@ -186,18 +186,18 @@ const CajaMenorAutoClose: React.FC<CajaMenorAutoCloseProps> = ({
           </div>
 
           {/* Excess */}
-          <div className={`text-center p-3 rounded-lg ${excess > 0 ? 'bg-green-50' : 'bg-gray-50'}`}>
-            <p className={`text-xs font-medium uppercase tracking-wide ${excess > 0 ? 'text-green-600' : 'text-gray-500'}`}>
+          <div className={`text-center p-3 rounded-lg ${excess > 0 ? 'bg-green-50' : 'bg-stone-50'}`}>
+            <p className={`text-xs font-medium uppercase tracking-wide ${excess > 0 ? 'text-green-600' : 'text-stone-500'}`}>
               Excedente
             </p>
-            <p className={`text-xl font-bold mt-1 ${excess > 0 ? 'text-green-700' : 'text-gray-400'}`}>
+            <p className={`text-xl font-bold mt-1 ${excess > 0 ? 'text-green-700' : 'text-stone-400'}`}>
               {formatCurrency(excess)}
             </p>
           </div>
         </div>
 
         {/* Info text */}
-        <p className="text-xs text-gray-500 mt-3 text-center">
+        <p className="text-xs text-stone-500 mt-3 text-center">
           {excess > 0
             ? `Se transferiran ${formatCurrency(excess)} de Caja Menor a Caja Mayor`
             : 'No hay excedente para transferir. El saldo es igual o menor a la base configurada.'
@@ -230,7 +230,7 @@ const CajaMenorAutoClose: React.FC<CajaMenorAutoCloseProps> = ({
           <div className={`mt-4 p-3 rounded-lg flex items-start gap-2 text-sm ${
             closeResult.amount_transferred > 0
               ? 'bg-green-50 border border-green-200 text-green-700'
-              : 'bg-gray-50 border border-gray-200 text-gray-600'
+              : 'bg-stone-50 border border-stone-200 text-stone-600'
           }`}>
             <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
             <div>
@@ -257,18 +257,18 @@ const CajaMenorAutoClose: React.FC<CajaMenorAutoCloseProps> = ({
 
       {/* Collapsible Config Section */}
       {canEditConfig && showConfig && (
-        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
-          <h4 className="text-sm font-semibold text-gray-700 mb-3">Configuracion de Base</h4>
+        <div className="px-6 py-4 border-t border-stone-200 bg-stone-50">
+          <h4 className="text-sm font-semibold text-stone-700 mb-3">Configuracion de Base</h4>
           <div className="flex items-end gap-3">
             <div className="flex-1 max-w-xs">
-              <label className="block text-xs text-gray-500 mb-1">Monto Base ($)</label>
+              <label className="block text-xs text-stone-500 mb-1">Monto Base ($)</label>
               <input
                 type="number"
                 min="0"
                 step="1000"
                 value={editBaseAmount}
                 onChange={(e) => setEditBaseAmount(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-400"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500"
                 placeholder="Ej: 200000"
               />
             </div>

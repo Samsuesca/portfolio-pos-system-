@@ -1,0 +1,28 @@
+[run]
+source = app
+branch = True
+omit =
+    app/alembic/*
+    */__init__.py
+    app/main.py
+    app/db/base.py
+    scripts/*
+    tests/*
+    */conftest.py
+
+[report]
+precision = 1
+show_missing = True
+skip_covered = False
+exclude_lines =
+    pragma: no cover
+    if TYPE_CHECKING:
+    raise NotImplementedError
+    def __repr__
+    def __str__
+    if __name__ == .__main__.:
+    raise AssertionError
+    \.\.\.
+
+[html]
+directory = htmlcov

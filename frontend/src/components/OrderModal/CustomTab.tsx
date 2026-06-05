@@ -24,17 +24,17 @@ export default function CustomTab({
 }: CustomTabProps) {
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-600 mb-3">
+      <p className="text-sm text-stone-600 mb-3">
         Para productos fuera del catalogo, tallas especiales, o con modificaciones. Precio manual requerido.
       </p>
 
       {/* Garment Type */}
       <div>
-        <label className="block text-xs text-gray-600 mb-1">Tipo de Prenda *</label>
+        <label className="block text-xs text-stone-600 mb-1">Tipo de Prenda *</label>
         <select
           value={customGarmentTypeId}
           onChange={(e) => onGarmentTypeChange(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
         >
           <option value="">Selecciona tipo</option>
           {garmentTypes.map((gt) => (
@@ -48,78 +48,78 @@ export default function CustomTab({
       <div className="grid grid-cols-2 gap-4">
         {/* Size */}
         <div>
-          <label className="block text-xs text-gray-600 mb-1">Talla</label>
+          <label className="block text-xs text-stone-600 mb-1">Talla</label>
           <input
             type="text"
             value={customSize}
             onChange={(e) => onSizeChange(e.target.value)}
             placeholder="ej: XL, 2, 18"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
           />
         </div>
 
         {/* Color */}
         <div>
-          <label className="block text-xs text-gray-600 mb-1">Color</label>
+          <label className="block text-xs text-stone-600 mb-1">Color</label>
           <input
             type="text"
             value={customColor}
             onChange={(e) => onColorChange(e.target.value)}
             placeholder="ej: Azul marino"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
           />
         </div>
       </div>
 
       {/* Price */}
       <div>
-        <label className="block text-xs text-gray-600 mb-1">Precio Unitario *</label>
+        <label className="block text-xs text-stone-600 mb-1">Precio Unitario *</label>
         <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400">$</span>
           <input
             type="number"
             min="0"
             value={customPrice || ''}
             onChange={(e) => onPriceChange(parseInt(e.target.value) || 0)}
             placeholder="Ingresa el precio"
-            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="w-full pl-8 pr-3 py-2 border border-stone-200 rounded-lg text-sm"
           />
         </div>
       </div>
 
       {/* Embroidery Text */}
       <div>
-        <label className="block text-xs text-gray-600 mb-1">Texto Bordado</label>
+        <label className="block text-xs text-stone-600 mb-1">Texto Bordado</label>
         <input
           type="text"
           value={customEmbroideryText}
           onChange={(e) => onEmbroideryTextChange(e.target.value)}
           placeholder="Nombre para bordar"
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
         />
       </div>
 
       {/* Notes */}
       <div>
-        <label className="block text-xs text-gray-600 mb-1">Notas / Especificaciones</label>
+        <label className="block text-xs text-stone-600 mb-1">Notas / Especificaciones</label>
         <textarea
           value={customNotes}
           onChange={(e) => onNotesChange(e.target.value)}
           placeholder="Detalles especiales, modificaciones, etc."
           rows={2}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none"
+          className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm resize-none"
         />
       </div>
 
       {/* Quantity */}
       <div>
-        <label className="block text-xs text-gray-600 mb-1">Cantidad *</label>
+        <label className="block text-xs text-stone-600 mb-1">Cantidad *</label>
         <input
           type="number"
           min="1"
           value={customQuantity}
           onChange={(e) => onQuantityChange(parseInt(e.target.value) || 1)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
         />
       </div>
 

@@ -230,8 +230,8 @@ export default function DatePicker({
           disabled={disabled}
           className={`
             w-full px-3 py-2 pr-10 border rounded-lg
-            focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-            ${disabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white cursor-text'}
+            focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500
+            ${disabled ? 'bg-stone-100 cursor-not-allowed' : 'bg-white cursor-text'}
           `}
         />
         <button
@@ -240,7 +240,7 @@ export default function DatePicker({
           disabled={disabled}
           className={`
             absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded
-            ${disabled ? 'text-gray-400 cursor-not-allowed' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}
+            ${disabled ? 'text-stone-400 cursor-not-allowed' : 'text-stone-500 hover:text-stone-700 hover:bg-stone-100'}
           `}
         >
           <Calendar size={18} />
@@ -254,17 +254,17 @@ export default function DatePicker({
             <button
               type="button"
               onClick={prevMonth}
-              className="p-1 rounded hover:bg-gray-100"
+              className="p-1 rounded hover:bg-stone-100"
             >
               <ChevronLeft size={20} />
             </button>
-            <span className="font-semibold text-gray-800">
+            <span className="font-semibold text-stone-800">
               {MONTHS_ES[currentMonth.getMonth()]} {currentMonth.getFullYear()}
             </span>
             <button
               type="button"
               onClick={nextMonth}
-              className="p-1 rounded hover:bg-gray-100"
+              className="p-1 rounded hover:bg-stone-100"
             >
               <ChevronRight size={20} />
             </button>
@@ -273,7 +273,7 @@ export default function DatePicker({
           {/* Días de la semana */}
           <div className="grid grid-cols-7 gap-1 mb-2">
             {DAYS_ES.map(day => (
-              <div key={day} className="text-center text-xs font-medium text-gray-500 py-1">
+              <div key={day} className="text-center text-xs font-medium text-stone-500 py-1">
                 {day}
               </div>
             ))}
@@ -292,12 +292,12 @@ export default function DatePicker({
                       w-full h-full rounded-full text-sm font-medium
                       transition-colors duration-150
                       ${isSelected(day)
-                        ? 'bg-blue-600 text-white'
+                        ? 'bg-brand-500 text-white'
                         : isToday(day)
-                          ? 'bg-blue-100 text-blue-700'
+                          ? 'bg-brand-100 text-brand-700'
                           : isDisabledDay(day)
-                            ? 'text-gray-300 cursor-not-allowed'
-                            : 'text-gray-700 hover:bg-gray-100'
+                            ? 'text-stone-300 cursor-not-allowed'
+                            : 'text-stone-700 hover:bg-stone-100'
                       }
                     `}
                   >
@@ -320,7 +320,7 @@ export default function DatePicker({
                   setIsOpen(false);
                 }
               }}
-              className="w-full py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded"
+              className="w-full py-1.5 text-sm text-brand-600 hover:bg-brand-50 rounded"
             >
               Hoy
             </button>

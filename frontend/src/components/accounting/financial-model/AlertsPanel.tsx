@@ -16,7 +16,7 @@ const SEVERITY_STYLES = {
     iconColor: 'text-red-600',
     titleColor: 'text-red-800',
     textColor: 'text-red-700',
-    badge: 'bg-red-100 text-red-800',
+    badge: 'bg-red-50 text-red-700 ring-1 ring-red-200',
     badgeLabel: 'Crítico',
   },
   warning: {
@@ -26,17 +26,17 @@ const SEVERITY_STYLES = {
     iconColor: 'text-yellow-600',
     titleColor: 'text-yellow-800',
     textColor: 'text-yellow-700',
-    badge: 'bg-yellow-100 text-yellow-800',
+    badge: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
     badgeLabel: 'Advertencia',
   },
   info: {
-    bg: 'bg-blue-50',
-    border: 'border-blue-200',
+    bg: 'bg-brand-50',
+    border: 'border-brand-200',
     icon: Info,
-    iconColor: 'text-blue-600',
-    titleColor: 'text-blue-800',
-    textColor: 'text-blue-700',
-    badge: 'bg-blue-100 text-blue-800',
+    iconColor: 'text-brand-600',
+    titleColor: 'text-brand-700',
+    textColor: 'text-brand-700',
+    badge: 'bg-brand-100 text-brand-700',
     badgeLabel: 'Info',
   },
 };
@@ -79,9 +79,9 @@ function AlertCard({ alert }: { alert: FinancialAlert }) {
 export default function AlertsPanel({ data }: Props) {
   if (!data) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
-        <Shield className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-        <p className="text-gray-500">No se pudieron cargar las alertas</p>
+      <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-8 text-center">
+        <Shield className="w-12 h-12 text-stone-300 mx-auto mb-3" />
+        <p className="text-stone-500">No se pudieron cargar las alertas</p>
       </div>
     );
   }
@@ -105,20 +105,20 @@ export default function AlertsPanel({ data }: Props) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-800">Alertas de Salud Financiera</h3>
+        <h3 className="text-lg font-semibold text-stone-800">Alertas de Salud Financiera</h3>
         <div className="flex items-center gap-3 text-sm">
           {data.critical_count > 0 && (
-            <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full font-medium">
+            <span className="bg-red-50 text-red-700 ring-1 ring-red-200 px-2 py-1 rounded-full font-medium">
               {data.critical_count} crítica{data.critical_count !== 1 ? 's' : ''}
             </span>
           )}
           {data.warning_count > 0 && (
-            <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full font-medium">
+            <span className="bg-amber-50 text-amber-700 ring-1 ring-amber-200 px-2 py-1 rounded-full font-medium">
               {data.warning_count} advertencia{data.warning_count !== 1 ? 's' : ''}
             </span>
           )}
           {data.info_count > 0 && (
-            <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-medium">
+            <span className="bg-brand-100 text-brand-700 px-2 py-1 rounded-full font-medium">
               {data.info_count} info
             </span>
           )}

@@ -50,14 +50,14 @@ const getStatusBadge = (status: string, daysUntilDue: number | null) => {
   switch (status) {
     case 'paid':
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
           <CheckCircle size={12} />
           Pagado
         </span>
       );
     case 'overdue':
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-50 text-red-700 ring-1 ring-red-200">
           <AlertTriangle size={12} />
           Vencido
         </span>
@@ -65,7 +65,7 @@ const getStatusBadge = (status: string, daysUntilDue: number | null) => {
     default:
       if (daysUntilDue !== null && daysUntilDue <= 7) {
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 ring-1 ring-amber-200">
             <Clock size={12} />
             Proximo
           </span>
@@ -157,7 +157,7 @@ const DebtSchedulePanel: React.FC<DebtSchedulePanelProps> = ({
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 h-full">
+      <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4 h-full">
         <div className="flex items-center justify-center h-48">
           <Loader2 className="animate-spin text-brand-500" size={32} />
         </div>
@@ -166,7 +166,7 @@ const DebtSchedulePanel: React.FC<DebtSchedulePanelProps> = ({
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 h-full flex flex-col">
+    <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4 h-full flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold">Cronograma de Deudas</h3>
@@ -212,7 +212,7 @@ const DebtSchedulePanel: React.FC<DebtSchedulePanelProps> = ({
         <div className={`mb-4 p-3 rounded-lg text-sm ${
           importResult.total_imported > 0
             ? 'bg-green-50 border border-green-200 text-green-800'
-            : 'bg-brand-50 border border-brand-200 text-brand-800'
+            : 'bg-brand-50 border border-brand-200 text-brand-700'
         }`}>
           <p className="font-medium">{importResult.message}</p>
           {importResult.total_imported > 0 && (
@@ -240,7 +240,7 @@ const DebtSchedulePanel: React.FC<DebtSchedulePanelProps> = ({
         <div className={`mb-4 p-3 rounded-lg text-sm ${
           interestResult.total_generated > 0
             ? 'bg-purple-50 border border-purple-200 text-purple-800'
-            : 'bg-brand-50 border border-brand-200 text-brand-800'
+            : 'bg-brand-50 border border-brand-200 text-brand-700'
         }`}>
           <p className="font-medium">{interestResult.message}</p>
           {interestResult.total_generated > 0 && (
@@ -265,16 +265,16 @@ const DebtSchedulePanel: React.FC<DebtSchedulePanelProps> = ({
       {debtPayments && (
         <div className="grid grid-cols-3 gap-2 mb-4 text-sm">
           <div className="bg-brand-50 rounded p-2">
-            <p className="text-gray-500">Pendiente</p>
+            <p className="text-stone-500">Pendiente</p>
             <p className="font-semibold text-brand-600">{formatCurrency(debtPayments.pending_total)}</p>
           </div>
           <div className="bg-red-50 rounded p-2">
-            <p className="text-gray-500">Vencido</p>
+            <p className="text-stone-500">Vencido</p>
             <p className="font-semibold text-red-600">{formatCurrency(debtPayments.overdue_total)}</p>
           </div>
-          <div className="bg-gray-50 rounded p-2">
-            <p className="text-gray-500">Total Deudas</p>
-            <p className="font-semibold text-gray-700">{debtPayments.total}</p>
+          <div className="bg-stone-50 rounded p-2">
+            <p className="text-stone-500">Total Deudas</p>
+            <p className="font-semibold text-stone-700">{debtPayments.total}</p>
           </div>
         </div>
       )}
@@ -293,7 +293,7 @@ const DebtSchedulePanel: React.FC<DebtSchedulePanelProps> = ({
             className={`px-3 py-1 text-sm rounded ${
               statusFilter === tab.value
                 ? 'bg-brand-100 text-brand-700'
-                : 'text-gray-600 hover:bg-gray-100'
+                : 'text-stone-600 hover:bg-stone-100'
             }`}
           >
             {tab.label}
@@ -304,7 +304,7 @@ const DebtSchedulePanel: React.FC<DebtSchedulePanelProps> = ({
       {/* List */}
       <div className="flex-1 overflow-y-auto space-y-2">
         {filteredItems.length === 0 ? (
-          <div className="text-center text-gray-500 py-8">
+          <div className="text-center text-stone-500 py-8">
             No hay deudas {statusFilter !== 'all' ? 'en este estado' : ''}
           </div>
         ) : (
@@ -318,13 +318,13 @@ const DebtSchedulePanel: React.FC<DebtSchedulePanelProps> = ({
                     ? 'border-green-200 bg-green-50'
                     : debt.days_until_due !== null && debt.days_until_due <= 7
                       ? 'border-yellow-300 bg-yellow-50 shadow-sm shadow-yellow-100'
-                      : 'border-gray-200'
+                      : 'border-stone-200'
               }`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="font-medium text-gray-900 truncate">
+                    <p className="font-medium text-stone-900 truncate">
                       {debt.description}
                     </p>
                     {debt.category === 'interest' && (
@@ -342,9 +342,9 @@ const DebtSchedulePanel: React.FC<DebtSchedulePanelProps> = ({
                     {getStatusBadge(debt.status, debt.days_until_due)}
                   </div>
                   {debt.creditor && (
-                    <p className="text-sm text-gray-500">{debt.creditor}</p>
+                    <p className="text-sm text-stone-500">{debt.creditor}</p>
                   )}
-                  <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
+                  <div className="flex items-center gap-4 mt-1 text-sm text-stone-500">
                     <span className="flex items-center gap-1">
                       <Calendar size={14} />
                       {formatDate(debt.due_date)}
@@ -355,7 +355,7 @@ const DebtSchedulePanel: React.FC<DebtSchedulePanelProps> = ({
                   </div>
                 </div>
                 <div className="text-right ml-4">
-                  <p className="font-semibold text-gray-900">
+                  <p className="font-semibold text-stone-900">
                     {formatCurrency(debt.amount)}
                   </p>
                   {debt.days_until_due !== null && debt.status !== 'paid' && (
@@ -364,7 +364,7 @@ const DebtSchedulePanel: React.FC<DebtSchedulePanelProps> = ({
                         ? 'text-red-600'
                         : debt.days_until_due <= 7
                           ? 'text-yellow-600'
-                          : 'text-gray-500'
+                          : 'text-stone-500'
                     }`}>
                       {debt.days_until_due < 0
                         ? `Vencio hace ${Math.abs(debt.days_until_due)} dias`
@@ -379,11 +379,11 @@ const DebtSchedulePanel: React.FC<DebtSchedulePanelProps> = ({
 
               {/* Actions */}
               {debt.status !== 'paid' && (
-                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200">
+                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-stone-200">
                   <select
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value)}
-                    className="flex-1 text-sm px-2 py-1 border border-gray-300 rounded"
+                    className="flex-1 text-sm px-2 py-1 border border-stone-200 rounded"
                   >
                     <option value="cash">Efectivo</option>
                     <option value="transfer">Transferencia</option>
@@ -415,7 +415,7 @@ const DebtSchedulePanel: React.FC<DebtSchedulePanelProps> = ({
 
               {/* Paid info */}
               {debt.status === 'paid' && debt.paid_date && (
-                <div className="mt-2 pt-2 border-t border-gray-200 text-sm text-gray-500">
+                <div className="mt-2 pt-2 border-t border-stone-200 text-sm text-stone-500">
                   Pagado el {formatDate(debt.paid_date)}
                   {debt.payment_method && ` via ${debt.payment_method}`}
                 </div>

@@ -33,7 +33,7 @@ class AccountsPayableService(SchoolIsolatedService[AccountsPayable]):
         """Create a new accounts payable"""
         payable = AccountsPayable(
             school_id=data.school_id,
-            vendor=data.vendor,
+            vendor_id=data.vendor_id,
             amount=data.amount,
             description=data.description,
             category=data.category,
@@ -73,7 +73,7 @@ class AccountsPayableService(SchoolIsolatedService[AccountsPayable]):
             type=TransactionType.EXPENSE,
             amount=payment.amount,
             payment_method=payment.payment_method,
-            description=f"Pago a {payable.vendor}: {payable.description[:50]}",
+            description=f"Pago CxP: {payable.description[:50]}",
             school_id=school_id,
             category="payables",
             transaction_date=get_colombia_date(),

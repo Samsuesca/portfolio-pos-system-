@@ -18,23 +18,18 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.sale import Sale, SaleItem, SalePayment, SaleStatus, PaymentMethod
-from app.models.product import Product, GlobalProduct, Inventory, GlobalInventory
+from app.models.product import Product, Inventory
 from app.models.accounting import TransactionType, AccountsReceivable
 from app.utils.payment_methods import to_acc_payment_method
 from app.models.inventory_log import InventoryMovementType
 from app.schemas.sale import SaleCreate
-from app.services.global_product import GlobalInventoryService
 from app.services.notification_utils import send_welcome_notification_if_first_transaction
 
 logger = logging.getLogger(__name__)
 
 
 class SaleCreationMixin:
-    """Provides ``create_sale`` to :class:`SaleService` via mixin composition.
-
-    Depends on ``self.db`` (AsyncSession) and ``self._generate_sale_code``
-    from :class:`SaleUtilityMixin`.
-    """
+    """Provides ``create_sale`` to :class:`SaleService` via mixin composition."""
 
     db: AsyncSession
 
@@ -43,40 +38,9 @@ class SaleCreationMixin:
         sale_data: SaleCreate,
         user_id: UUID | None = None
     ) -> Sale:
-        """Create a sale with items, payments, and accounting entries.
-
-        Orchestrates seven sequential phases within a single DB transaction:
-
-        1. **Validation** — batch-load products and inventory, verify stock
-        2. **Sale record** — generate code, persist Sale row
-        3. **Items + inventory** — create SaleItems, reserve stock
-        4. **Payments** — validate split payments, create SalePayment rows
-        5. **Accounting** — create Transaction + update balance accounts;
-           CREDIT payments generate AccountsReceivable instead
-        6. **Notifications** — welcome email/WhatsApp on first purchase
-        7. **Side effects** — print queue (cash), Telegram alert
-
-        Historical sales (``is_historical=True``) skip inventory reservation
-        and accounting — used for migrating legacy data.
-
-        Args:
-            sale_data: Validated sale payload including items and optional
-                split payments. See :class:`SaleCreate` for field details.
-            user_id: Authenticated user creating the sale. Falls back to
-                ``sale_data.school_id`` for system-generated sales.
-
-        Returns:
-            The persisted Sale with ``items`` and ``payments`` eagerly loaded.
-
-        Raises:
-            ValueError: Product not found, insufficient stock, payment sum
-                mismatch, or no valid payment method provided.
-        """
         from app.services.inventory import InventoryService
-        from app.schemas.product import GlobalInventoryAdjust
 
         inv_service = InventoryService(self.db)
-        global_inv_service = GlobalInventoryService(self.db)
 
         is_historical = sale_data.is_historical
 
@@ -88,110 +52,58 @@ class SaleCreationMixin:
         items_data = []
         subtotal = Decimal("0")
 
-        global_product_ids = [i.product_id for i in sale_data.items if i.is_global]
-        school_product_ids = [i.product_id for i in sale_data.items if not i.is_global]
+        product_ids = [i.product_id for i in sale_data.items]
 
-        global_products_map: dict = {}
-        school_products_map: dict = {}
-
-        if global_product_ids:
-            result = await self.db.execute(
-                select(GlobalProduct).where(
-                    GlobalProduct.id.in_(global_product_ids),
-                    GlobalProduct.is_active == True
-                )
-            )
-            global_products_map = {p.id: p for p in result.scalars().all()}
-
-        if school_product_ids:
+        products_map: dict = {}
+        if product_ids:
             result = await self.db.execute(
                 select(Product).where(
-                    Product.id.in_(school_product_ids),
-                    Product.school_id == sale_data.school_id,
+                    Product.id.in_(product_ids),
                     Product.is_active == True
                 )
             )
-            school_products_map = {p.id: p for p in result.scalars().all()}
+            products_map = {p.id: p for p in result.scalars().all()}
 
-        global_inventory_map: dict[UUID, GlobalInventory] = {}
-        school_inventory_map: dict[UUID, Inventory] = {}
-
-        if not is_historical:
-            if global_product_ids:
-                result = await self.db.execute(
-                    select(GlobalInventory).where(
-                        GlobalInventory.product_id.in_(global_product_ids)
-                    )
+        inventory_map: dict[UUID, Inventory] = {}
+        if not is_historical and product_ids:
+            result = await self.db.execute(
+                select(Inventory).where(
+                    Inventory.product_id.in_(product_ids)
                 )
-                global_inventory_map = {
-                    inv.product_id: inv for inv in result.scalars().all()
-                }
-
-            if school_product_ids:
-                result = await self.db.execute(
-                    select(Inventory).where(
-                        Inventory.product_id.in_(school_product_ids),
-                        Inventory.school_id == sale_data.school_id
-                    )
-                )
-                school_inventory_map = {
-                    inv.product_id: inv for inv in result.scalars().all()
-                }
+            )
+            inventory_map = {
+                inv.product_id: inv for inv in result.scalars().all()
+            }
 
         # ── Validate each item and build items_data ─────────────────
         for item_data in sale_data.items:
-            if item_data.is_global:
-                global_product = global_products_map.get(item_data.product_id)
+            product = products_map.get(item_data.product_id)
 
-                if not global_product:
-                    raise ValueError(f"Producto global {item_data.product_id} no encontrado")
+            if not product:
+                raise ValueError(f"Producto {item_data.product_id} no encontrado")
 
-                if not is_historical:
-                    global_inv = global_inventory_map.get(global_product.id)
-                    if not global_inv or global_inv.quantity < item_data.quantity:
-                        raise ValueError(
-                            f"Stock insuficiente para el producto global {global_product.code}"
-                        )
+            if product.school_id is not None and product.school_id != sale_data.school_id:
+                raise ValueError(f"Producto {product.code} no pertenece a este colegio")
 
-                unit_price = global_product.price
-                item_subtotal = unit_price * item_data.quantity
+            if not is_historical:
+                inv = inventory_map.get(product.id)
+                if not inv or inv.quantity < item_data.quantity:
+                    raise ValueError(
+                        f"Stock insuficiente para el producto {product.code}"
+                    )
 
-                items_data.append({
-                    "global_product_id": global_product.id,
-                    "product_id": None,
-                    "is_global_product": True,
-                    "quantity": item_data.quantity,
-                    "unit_price": unit_price,
-                    "subtotal": item_subtotal
-                })
+            unit_price = product.price
+            item_subtotal = unit_price * item_data.quantity
 
-                subtotal += item_subtotal
-            else:
-                product = school_products_map.get(item_data.product_id)
+            items_data.append({
+                "product_id": product.id,
+                "quantity": item_data.quantity,
+                "unit_price": unit_price,
+                "unit_cost": product.cost,
+                "subtotal": item_subtotal
+            })
 
-                if not product:
-                    raise ValueError(f"Producto {item_data.product_id} no encontrado")
-
-                if not is_historical:
-                    school_inv = school_inventory_map.get(product.id)
-                    if not school_inv or school_inv.quantity < item_data.quantity:
-                        raise ValueError(
-                            f"Stock insuficiente para el producto {product.code}"
-                        )
-
-                unit_price = product.price
-                item_subtotal = unit_price * item_data.quantity
-
-                items_data.append({
-                    "product_id": product.id,
-                    "global_product_id": None,
-                    "is_global_product": False,
-                    "quantity": item_data.quantity,
-                    "unit_price": unit_price,
-                    "subtotal": item_subtotal
-                })
-
-                subtotal += item_subtotal
+            subtotal += item_subtotal
 
         total = subtotal
 
@@ -230,26 +142,18 @@ class SaleCreationMixin:
             self.db.add(sale_item)
 
             if not is_historical:
-                if item_dict["is_global_product"]:
-                    await global_inv_service.adjust_quantity(
-                        item_dict["global_product_id"],
-                        GlobalInventoryAdjust(
-                            adjustment=-item_dict["quantity"],
-                            reason=f"Venta {code}"
-                        ),
-                        movement_type=InventoryMovementType.SALE,
-                        reference=code,
-                        sale_id=sale.id,
-                        school_id=sale_data.school_id,
-                    )
-                else:
-                    await inv_service.reserve_stock(
-                        item_dict["product_id"],
-                        sale_data.school_id,
-                        item_dict["quantity"],
-                        sale_id=sale.id,
-                        reference=code,
-                    )
+                product = products_map[item_dict["product_id"]]
+                # Sales son inmediatas: el cliente se lleva el producto al
+                # confirmar la venta. Decrementa quantity directamente (no
+                # usa reserved_quantity, que es solo para Orders pendientes).
+                await inv_service.remove_stock(
+                    item_dict["product_id"],
+                    product.school_id,
+                    item_dict["quantity"],
+                    movement_type=InventoryMovementType.SALE,
+                    sale_id=sale.id,
+                    reference=code,
+                )
 
         await self.db.flush()
 
@@ -334,14 +238,16 @@ class SaleCreationMixin:
                     )
 
             if credit_total > Decimal("0"):
+                from app.services.accounting.receivables import default_ar_due_date
+                ar_invoice_date = sale.sale_date.date() if hasattr(sale.sale_date, 'date') else sale.sale_date
                 receivable = AccountsReceivable(
                     school_id=sale.school_id,
                     client_id=sale.client_id,
                     sale_id=sale.id,
                     amount=credit_total,
                     description=f"Venta a credito {sale.code}",
-                    invoice_date=sale.sale_date.date() if hasattr(sale.sale_date, 'date') else sale.sale_date,
-                    due_date=None,
+                    invoice_date=ar_invoice_date,
+                    due_date=default_ar_due_date(ar_invoice_date),
                     created_by=user_id
                 )
                 self.db.add(receivable)
@@ -440,7 +346,9 @@ class SaleCreationMixin:
                     school_name=school_name,
                     payment_method=sale.payment_method.value if sale.payment_method else None,
                 )
-                fire_and_forget_routed_alert("sale_created", msg)
+                fire_and_forget_routed_alert(
+                    "sale_created", msg, school_id=sale.school_id
+                )
             except Exception as e:
                 logger.error(f"Telegram alert failed for sale {sale.code}: {e}")
 

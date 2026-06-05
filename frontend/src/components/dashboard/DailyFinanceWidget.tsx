@@ -75,18 +75,18 @@ export function DailyFinanceWidget({ data, loading = false, error }: DailyFinanc
           {/* Net flow */}
           <div
             className={`flex items-center justify-between p-3 rounded-lg ${
-              isPositiveDay ? 'bg-blue-50' : 'bg-orange-50'
+              isPositiveDay ? 'bg-brand-50' : 'bg-orange-50'
             }`}
           >
             <div className="flex items-center gap-2">
-              <ArrowRightLeft className={`w-4 h-4 ${isPositiveDay ? 'text-blue-600' : 'text-orange-600'}`} />
-              <span className={`text-sm font-medium ${isPositiveDay ? 'text-blue-700' : 'text-orange-700'}`}>
+              <ArrowRightLeft className={`w-4 h-4 ${isPositiveDay ? 'text-brand-600' : 'text-orange-600'}`} />
+              <span className={`text-sm font-medium ${isPositiveDay ? 'text-brand-700' : 'text-orange-700'}`}>
                 Balance Neto del Dia
               </span>
             </div>
             <span
               className={`text-lg font-bold ${
-                isPositiveDay ? 'text-blue-800' : 'text-orange-800'
+                isPositiveDay ? 'text-brand-700' : 'text-orange-800'
               }`}
             >
               {totals.net_flow >= 0 ? '+' : ''}{formatCurrency(totals.net_flow)}

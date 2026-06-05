@@ -311,7 +311,7 @@ Stock Ahora:  46 ✅
 ### Archivos Creados/Actualizados
 ```
 docs/
-├── DEPLOYMENT_ARCHITECTURE.md  ✅ Roadmap completo 4 fases
+├── deployment/infrastructure-architecture.md  ✅ Roadmap completo 4 fases
 ├── PHASE1_TESTING.md           ✅ Guía paso a paso
 └── PHASE1_RESULTS.md           ✅ Este documento
 
@@ -389,7 +389,7 @@ El sistema está **LISTO** para migrar a cloud. Solo faltan:
 - [README.md](../README.md)
 - [SETUP.md](SETUP.md)
 - [DATABASE.md](DATABASE.md)
-- [DEPLOYMENT_ARCHITECTURE.md](DEPLOYMENT_ARCHITECTURE.md)
+- [deployment/infrastructure-architecture.md](../deployment/infrastructure-architecture.md)
 - [PHASE1_TESTING.md](PHASE1_TESTING.md)
 
 **Repositorio:**

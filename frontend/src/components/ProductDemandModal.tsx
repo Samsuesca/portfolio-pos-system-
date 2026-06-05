@@ -75,7 +75,7 @@ export default function ProductDemandModal({
         <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
 
           {/* Header */}
-          <div className="px-6 py-4 border-b border-gray-200 bg-purple-50">
+          <div className="px-6 py-4 border-b border-stone-200 bg-purple-50">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold text-purple-800 flex items-center">
@@ -84,17 +84,17 @@ export default function ProductDemandModal({
                 </h2>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                   {demandItem.garment_type_category && (
-                    <span className="text-sm text-gray-500">
+                    <span className="text-sm text-stone-500">
                       {demandItem.garment_type_category}
                     </span>
                   )}
                   {demandItem.size && (
-                    <span className="text-sm bg-gray-200 text-gray-700 px-2 py-0.5 rounded">
+                    <span className="text-sm bg-stone-200 text-stone-700 px-2 py-0.5 rounded">
                       Talla: {demandItem.size}
                     </span>
                   )}
                   {demandItem.color && (
-                    <span className="text-sm bg-gray-200 text-gray-700 px-2 py-0.5 rounded">
+                    <span className="text-sm bg-stone-200 text-stone-700 px-2 py-0.5 rounded">
                       {demandItem.color}
                     </span>
                   )}
@@ -104,8 +104,8 @@ export default function ProductDemandModal({
                       Yomber
                     </span>
                   )}
-                  {demandItem.is_global_product && (
-                    <span className="text-sm bg-blue-100 text-blue-700 px-2 py-0.5 rounded flex items-center">
+                  {demandItem.is_global && (
+                    <span className="text-sm bg-brand-100 text-brand-700 px-2 py-0.5 rounded flex items-center">
                       <Globe className="w-3 h-3 mr-1" />
                       Producto Global
                     </span>
@@ -114,7 +114,7 @@ export default function ProductDemandModal({
               </div>
               <button
                 onClick={onClose}
-                className="text-gray-400 hover:text-gray-600 transition"
+                className="text-stone-400 hover:text-stone-600 transition"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -123,16 +123,16 @@ export default function ProductDemandModal({
             {/* Summary Stats */}
             <div className="grid grid-cols-4 gap-3 mt-4">
               <div className="bg-white rounded-lg p-3 text-center shadow-sm">
-                <p className="text-sm text-gray-500">Total</p>
-                <p className="text-2xl font-bold text-gray-900">{demandItem.total_quantity}</p>
+                <p className="text-sm text-stone-500">Total</p>
+                <p className="text-2xl font-bold text-stone-900">{demandItem.total_quantity}</p>
               </div>
               <div className="bg-yellow-50 rounded-lg p-3 text-center">
                 <p className="text-sm text-yellow-700">Pendientes</p>
                 <p className="text-2xl font-bold text-yellow-900">{demandItem.pending_quantity}</p>
               </div>
-              <div className="bg-blue-50 rounded-lg p-3 text-center">
-                <p className="text-sm text-blue-700">En Produccion</p>
-                <p className="text-2xl font-bold text-blue-900">{demandItem.in_production_quantity}</p>
+              <div className="bg-brand-50 rounded-lg p-3 text-center">
+                <p className="text-sm text-brand-700">En Produccion</p>
+                <p className="text-2xl font-bold text-brand-700">{demandItem.in_production_quantity}</p>
               </div>
               <div className="bg-green-50 rounded-lg p-3 text-center">
                 <p className="text-sm text-green-700">Listos</p>
@@ -160,10 +160,10 @@ export default function ProductDemandModal({
             {groupedOrders.in_production.length > 0 && (
               <OrderSection
                 title="En Produccion"
-                icon={<Wrench className="w-5 h-5 text-blue-600" />}
+                icon={<Wrench className="w-5 h-5 text-brand-600" />}
                 orders={groupedOrders.in_production}
-                bgColor="bg-blue-50"
-                borderColor="border-blue-200"
+                bgColor="bg-brand-50"
+                borderColor="border-brand-200"
                 isYomber={demandItem.is_yomber}
                 onNavigateToOrder={onNavigateToOrder}
               />
@@ -186,15 +186,15 @@ export default function ProductDemandModal({
             {groupedOrders.pending.length === 0 &&
              groupedOrders.in_production.length === 0 &&
              groupedOrders.ready.length === 0 && (
-              <div className="text-center text-gray-500 py-8">
+              <div className="text-center text-stone-500 py-8">
                 No hay encargos activos para este producto.
               </div>
             )}
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
-            <div className="text-sm text-gray-500 flex items-center gap-4">
+          <div className="px-6 py-4 border-t border-stone-200 bg-stone-50 flex justify-between items-center">
+            <div className="text-sm text-stone-500 flex items-center gap-4">
               <span>{demandItem.order_count} encargos</span>
               <span className="flex items-center">
                 <Building2 className="w-4 h-4 mr-1" />
@@ -209,7 +209,7 @@ export default function ProductDemandModal({
             </div>
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
+              className="px-4 py-2 bg-stone-200 text-stone-700 rounded-lg hover:bg-stone-300 transition"
             >
               Cerrar
             </button>
@@ -242,10 +242,10 @@ function OrderSection({
 }: OrderSectionProps) {
   return (
     <div>
-      <h3 className="text-sm font-semibold text-gray-700 flex items-center mb-3">
+      <h3 className="text-sm font-semibold text-stone-700 flex items-center mb-3">
         {icon}
         <span className="ml-2">{title}</span>
-        <span className="ml-2 text-gray-400">({orders.length})</span>
+        <span className="ml-2 text-stone-400">({orders.length})</span>
       </h3>
       <div className="space-y-3">
         {orders.map((order) => (
@@ -257,17 +257,17 @@ function OrderSection({
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="font-mono font-bold text-gray-800">{order.order_code}</span>
-                  <span className="text-sm text-gray-500">x{order.quantity}</span>
+                  <span className="font-mono font-bold text-stone-800">{order.order_code}</span>
+                  <span className="text-sm text-stone-500">x{order.quantity}</span>
                 </div>
-                <p className="text-sm text-gray-700">
+                <p className="text-sm text-stone-700">
                   {order.client_name}
                   {order.student_name && (
-                    <span className="text-gray-500"> ({order.student_name})</span>
+                    <span className="text-stone-500"> ({order.student_name})</span>
                   )}
                 </p>
                 {order.school_name && (
-                  <p className="text-xs text-gray-500 flex items-center mt-1">
+                  <p className="text-xs text-stone-500 flex items-center mt-1">
                     <Building2 className="w-3 h-3 mr-1" />
                     {order.school_name}
                   </p>
@@ -275,7 +275,7 @@ function OrderSection({
               </div>
               <div className="text-right">
                 {order.delivery_date && (
-                  <p className="text-sm text-gray-600 flex items-center justify-end">
+                  <p className="text-sm text-stone-600 flex items-center justify-end">
                     <Calendar className="w-4 h-4 mr-1" />
                     {formatDateSpanish(order.delivery_date)}
                   </p>
@@ -288,15 +288,15 @@ function OrderSection({
 
             {/* Yomber Measurements */}
             {isYomber && order.custom_measurements && Object.keys(order.custom_measurements).length > 0 && (
-              <div className="mt-3 pt-3 border-t border-gray-200">
+              <div className="mt-3 pt-3 border-t border-stone-200">
                 <p className="text-xs text-purple-600 uppercase font-medium mb-2">Medidas</p>
                 <div className="grid grid-cols-4 gap-2">
                   {Object.entries(order.custom_measurements).map(([key, value]) => (
                     <div key={key} className="bg-white rounded px-2 py-1 text-center">
-                      <span className="text-xs text-gray-500 block">
+                      <span className="text-xs text-stone-500 block">
                         {measurementLabels[key] || key}
                       </span>
-                      <span className="text-sm font-semibold text-gray-800">{value}</span>
+                      <span className="text-sm font-semibold text-stone-800">{value}</span>
                     </div>
                   ))}
                 </div>

@@ -5,6 +5,8 @@
  * synchronizing cash sales across devices.
  */
 import apiClient from '../utils/api-client';
+import type { PaginatedResponse } from '../types/api';
+import { unwrapPaginated } from '../utils/pagination';
 
 export type PrintQueueStatus = 'pending' | 'printed' | 'skipped' | 'failed';
 
@@ -41,12 +43,12 @@ export interface ConnectionInfo {
 /**
  * Get pending items in the queue
  */
-export async function getPendingItems(limit = 50): Promise<PrintQueueItem[]> {
-  const response = await apiClient.get<PrintQueueItem[]>(
+export async function getPendingItems(limit = 50): Promise<PaginatedResponse<PrintQueueItem>> {
+  const response = await apiClient.get<PaginatedResponse<PrintQueueItem> | PrintQueueItem[]>(
     `/global/print-queue/pending`,
     { params: { limit } }
   );
-  return response.data;
+  return unwrapPaginated(response.data);
 }
 
 /**

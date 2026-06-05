@@ -1,27 +1,38 @@
-"""
-Telegram Subscription Service
+"""Telegram subscription management — linking, CRUD, and routing queries.
 
-CRUD for user Telegram linking and alert subscriptions.
+Used by the self-service API (users link their own Telegram) and by
+route_alert() to resolve which chat_ids should receive each alert type.
+Default subscriptions are auto-created based on the user's highest role.
 """
 import logging
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, distinct, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.telegram_subscription import (
+    DEFAULT_SUBSCRIPTIONS_BY_ROLE,
+    RESTRICTED_TO_ADMIN_ALERTS,
     TelegramAlertSubscription,
     TelegramAlertType,
-    DEFAULT_SUBSCRIPTIONS_BY_ROLE,
 )
-from app.models.user import User, UserRole
+from app.models.user import User, UserRole, UserSchoolRole
 
 logger = logging.getLogger(__name__)
 
+# Roles considered "admin-level" for hard-restriction filtering.
+_ADMIN_ROLES: frozenset[UserRole] = frozenset({UserRole.OWNER, UserRole.ADMIN})
+
 
 class TelegramSubscriptionService:
-    """Manage Telegram linking and alert subscriptions."""
+    """Manages Telegram chat linking and per-user alert subscriptions.
+
+    Provides the subscription store for the routing layer (route_alert).
+    When a user links Telegram, default subscriptions are created based
+    on their highest system role (owner gets all 18 types, viewer gets
+    only daily_digest_seller).
+    """
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -93,11 +104,24 @@ class TelegramSubscriptionService:
     # ── Routing queries ───────────────────────────────────────────
 
     async def get_chat_ids_for_alert(
-        self, alert_type: TelegramAlertType
+        self,
+        alert_type: TelegramAlertType,
+        school_id: UUID | None = None,
     ) -> list[str]:
-        """Return all chat_ids subscribed to a specific alert type."""
-        result = await self.db.execute(
-            select(User.telegram_chat_id)
+        """Return chat_ids subscribed to ``alert_type``.
+
+        Two optional filters layered on top of the base subscription query:
+
+        - ``school_id``: only users with any role in that school (or superusers)
+          receive school-scoped events. Sales/orders/inventory pass this.
+
+        - Admin-restricted alerts (``RESTRICTED_TO_ADMIN_ALERTS``): only
+          superusers and users with OWNER/ADMIN role in any school receive,
+          regardless of their subscription state. Defense-in-depth against
+          accidental subscription of low-privilege users to financial alerts.
+        """
+        stmt = (
+            select(distinct(User.telegram_chat_id))
             .join(
                 TelegramAlertSubscription,
                 TelegramAlertSubscription.user_id == User.id,
@@ -109,7 +133,54 @@ class TelegramSubscriptionService:
                 User.is_active == True,
             )
         )
+
+        if alert_type in RESTRICTED_TO_ADMIN_ALERTS:
+            stmt = stmt.where(
+                or_(
+                    User.is_superuser == True,
+                    User.id.in_(
+                        select(UserSchoolRole.user_id).where(
+                            UserSchoolRole.role.in_(_ADMIN_ROLES)
+                        )
+                    ),
+                )
+            )
+
+        if school_id is not None:
+            stmt = stmt.where(
+                or_(
+                    User.is_superuser == True,
+                    User.id.in_(
+                        select(UserSchoolRole.user_id).where(
+                            UserSchoolRole.school_id == school_id
+                        )
+                    ),
+                )
+            )
+
+        result = await self.db.execute(stmt)
         return [row[0] for row in result.all() if row[0]]
+
+    async def is_admin_level(self, user: User) -> bool:
+        """Whether ``user`` is eligible for ``RESTRICTED_TO_ADMIN_ALERTS``.
+
+        Mirrors the recipient filter in ``get_chat_ids_for_alert``: a superuser,
+        or a user with an OWNER/ADMIN role in any school. Used by the
+        self-service endpoint to reject subscriptions to admin-only alerts
+        up-front, so the stored state matches what the user can actually
+        receive.
+        """
+        if user.is_superuser:
+            return True
+        result = await self.db.execute(
+            select(UserSchoolRole.user_id)
+            .where(
+                UserSchoolRole.user_id == user.id,
+                UserSchoolRole.role.in_(_ADMIN_ROLES),
+            )
+            .limit(1)
+        )
+        return result.first() is not None
 
     # ── Admin ─────────────────────────────────────────────────────
 

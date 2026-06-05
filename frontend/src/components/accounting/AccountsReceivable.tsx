@@ -3,7 +3,8 @@
  * With filtering by origin type and summary breakdown
  */
 import React, { useState, useMemo } from 'react';
-import { Plus, Users, ShoppingBag, Package, FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Users, ShoppingBag, Package, FileText, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatting';
 import { formatDateSpanish } from '../DatePicker';
 import type { ReceivablesPayablesSummary, AccountsReceivableListItem } from './types';
@@ -47,8 +48,8 @@ const getOriginInfo = (item: AccountsReceivableListItem) => {
   return {
     label: 'Manual',
     icon: FileText,
-    color: 'text-gray-600',
-    bgColor: 'bg-gray-50'
+    color: 'text-stone-600',
+    bgColor: 'bg-stone-50'
   };
 };
 
@@ -59,10 +60,10 @@ const getOrderStatusLabel = (status: string | null | undefined) => {
     pending: { label: 'Pendiente', color: 'text-orange-600 bg-orange-50' },
     in_production: { label: 'En producción', color: 'text-brand-600 bg-brand-50' },
     ready: { label: 'Listo', color: 'text-green-600 bg-green-50' },
-    delivered: { label: 'Entregado', color: 'text-gray-600 bg-gray-100' },
+    delivered: { label: 'Entregado', color: 'text-stone-600 bg-stone-100' },
     cancelled: { label: 'Cancelado', color: 'text-red-600 bg-red-50' }
   };
-  return statusMap[status] || { label: status, color: 'text-gray-600 bg-gray-50' };
+  return statusMap[status] || { label: status, color: 'text-stone-600 bg-stone-50' };
 };
 
 const AccountsReceivable: React.FC<AccountsReceivableProps> = ({
@@ -71,10 +72,17 @@ const AccountsReceivable: React.FC<AccountsReceivableProps> = ({
   onCreateReceivable,
   onPayReceivable
 }) => {
+  const navigate = useNavigate();
   const [activeFilter, setActiveFilter] = useState<OriginFilter>('all');
   const [isListExpanded, setIsListExpanded] = useState(true);
 
   const formatDate = (dateStr: string) => formatDateSpanish(dateStr);
+
+  const getOriginLink = (item: AccountsReceivableListItem): string | null => {
+    if (item.origin_type === 'order' && item.order_id) return `/orders/${item.order_id}`;
+    if (item.origin_type === 'sale' && item.sale_id) return `/sales/${item.sale_id}`;
+    return null;
+  };
 
   // Calculate summary by origin type
   const summaryByType = useMemo(() => {
@@ -118,63 +126,63 @@ const AccountsReceivable: React.FC<AccountsReceivableProps> = ({
         {/* Total Pendiente - calculated from list data for consistency */}
         <div
           className={`bg-white rounded-lg shadow-sm border p-3 cursor-pointer transition-colors ${
-            activeFilter === 'all' ? 'border-brand-500 bg-brand-50' : 'border-gray-200 hover:border-brand-300'
+            activeFilter === 'all' ? 'border-brand-500 bg-brand-50' : 'border-stone-200 hover:border-brand-300'
           }`}
           onClick={() => setActiveFilter('all')}
         >
-          <p className="text-xs font-medium text-gray-500">Total Pendiente</p>
+          <p className="text-xs font-medium text-stone-500">Total Pendiente</p>
           <p className="text-lg font-bold text-brand-600">
             {formatCurrency(summaryByType.order.pending + summaryByType.manual.pending + summaryByType.sale.pending)}
           </p>
-          <p className="text-xs text-gray-400">{receivablesList.length} cuenta(s)</p>
+          <p className="text-xs text-stone-400">{receivablesList.length} cuenta(s)</p>
         </div>
 
         {/* Encargos */}
         <div
           className={`bg-white rounded-lg shadow-sm border p-3 cursor-pointer transition-colors ${
-            activeFilter === 'order' ? 'border-brand-500 bg-brand-50' : 'border-gray-200 hover:border-brand-300'
+            activeFilter === 'order' ? 'border-brand-500 bg-brand-50' : 'border-stone-200 hover:border-brand-300'
           }`}
           onClick={() => setActiveFilter(activeFilter === 'order' ? 'all' : 'order')}
         >
           <div className="flex items-center gap-1">
             <Package className="w-3 h-3 text-brand-600" />
-            <p className="text-xs font-medium text-gray-500">Encargos</p>
+            <p className="text-xs font-medium text-stone-500">Encargos</p>
           </div>
           <p className="text-lg font-bold text-brand-600">{formatCurrency(summaryByType.order.pending)}</p>
-          <p className="text-xs text-gray-400">{summaryByType.order.count} cuenta(s)</p>
+          <p className="text-xs text-stone-400">{summaryByType.order.count} cuenta(s)</p>
         </div>
 
         {/* Manuales */}
         <div
           className={`bg-white rounded-lg shadow-sm border p-3 cursor-pointer transition-colors ${
-            activeFilter === 'manual' ? 'border-gray-500 bg-gray-50' : 'border-gray-200 hover:border-gray-400'
+            activeFilter === 'manual' ? 'border-stone-500 bg-stone-50' : 'border-stone-200 hover:border-stone-400'
           }`}
           onClick={() => setActiveFilter(activeFilter === 'manual' ? 'all' : 'manual')}
         >
           <div className="flex items-center gap-1">
-            <FileText className="w-3 h-3 text-gray-600" />
-            <p className="text-xs font-medium text-gray-500">Manuales</p>
+            <FileText className="w-3 h-3 text-stone-600" />
+            <p className="text-xs font-medium text-stone-500">Manuales</p>
           </div>
-          <p className="text-lg font-bold text-gray-700">{formatCurrency(summaryByType.manual.pending)}</p>
-          <p className="text-xs text-gray-400">{summaryByType.manual.count} cuenta(s)</p>
+          <p className="text-lg font-bold text-stone-700">{formatCurrency(summaryByType.manual.pending)}</p>
+          <p className="text-xs text-stone-400">{summaryByType.manual.count} cuenta(s)</p>
         </div>
 
         {/* Vencidas */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3">
-          <p className="text-xs font-medium text-gray-500">Vencidas</p>
+        <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-3">
+          <p className="text-xs font-medium text-stone-500">Vencidas</p>
           <p className="text-lg font-bold text-red-600">{formatCurrency(summary?.receivables_overdue || 0)}</p>
-          <p className="text-xs text-gray-400">Posición neta: {formatCurrency(summary?.net_position || 0)}</p>
+          <p className="text-xs text-stone-400">Posición neta: {formatCurrency(summary?.net_position || 0)}</p>
         </div>
       </div>
 
       {/* Receivables List */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+      <div className="bg-white rounded-xl shadow-sm border border-stone-200">
         {/* Header with filters */}
-        <div className="px-4 py-3 border-b border-gray-200">
+        <div className="px-4 py-3 border-b border-stone-200">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-semibold text-gray-800">Cuentas por Cobrar</h3>
-              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+              <h3 className="text-base font-semibold text-stone-800">Cuentas por Cobrar</h3>
+              <span className="text-xs text-stone-500 bg-stone-100 px-2 py-0.5 rounded-full">
                 {filteredList.length} de {receivablesList.length}
               </span>
             </div>
@@ -205,13 +213,13 @@ const AccountsReceivable: React.FC<AccountsReceivableProps> = ({
                   className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
                     isActive
                       ? 'bg-brand-100 text-brand-700'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                   }`}
                 >
                   <Icon className="w-3 h-3" />
                   {tab.label}
                   <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-xs ${
-                    isActive ? 'bg-brand-200' : 'bg-gray-200'
+                    isActive ? 'bg-brand-200' : 'bg-stone-200'
                   }`}>
                     {count}
                   </span>
@@ -225,17 +233,17 @@ const AccountsReceivable: React.FC<AccountsReceivableProps> = ({
         <div>
           <button
             onClick={() => setIsListExpanded(!isListExpanded)}
-            className="w-full px-4 py-2 flex items-center justify-between text-sm text-gray-600 hover:bg-gray-50"
+            className="w-full px-4 py-2 flex items-center justify-between text-sm text-stone-600 hover:bg-stone-50"
           >
             <span>{isListExpanded ? 'Ocultar lista' : 'Mostrar lista'}</span>
             {isListExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
 
           {isListExpanded && (
-            <div className="max-h-[400px] overflow-y-auto divide-y divide-gray-100">
+            <div className="max-h-[400px] overflow-y-auto divide-y divide-stone-100">
               {filteredList.length === 0 ? (
-                <div className="px-6 py-8 text-center text-gray-500">
-                  <Users className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                <div className="px-6 py-8 text-center text-stone-500">
+                  <Users className="w-10 h-10 text-stone-300 mx-auto mb-2" />
                   <p className="text-sm">No hay cuentas por cobrar {activeFilter !== 'all' ? 'de este tipo' : ''}</p>
                 </div>
               ) : (
@@ -245,7 +253,7 @@ const AccountsReceivable: React.FC<AccountsReceivableProps> = ({
                   const orderStatus = item.order_status ? getOrderStatusLabel(item.order_status) : null;
 
                   return (
-                    <div key={item.id} className="px-4 py-3 hover:bg-gray-50 transition-colors">
+                    <div key={item.id} className="px-4 py-3 hover:bg-stone-50 transition-colors">
                       <div className="flex items-center justify-between gap-3">
                         {/* Left side - Compact details */}
                         <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -254,11 +262,37 @@ const AccountsReceivable: React.FC<AccountsReceivableProps> = ({
                             item.is_paid ? 'bg-green-500' : item.is_overdue ? 'bg-red-500' : 'bg-orange-500'
                           }`} />
 
-                          {/* Origin badge */}
-                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium flex-shrink-0 ${originInfo.bgColor} ${originInfo.color}`}>
-                            <OriginIcon className="w-3 h-3" />
-                            {originInfo.label}
-                          </span>
+                          {/* Origin badge — clickable when linked to an order/sale */}
+                          {(() => {
+                            const linkTo = getOriginLink(item);
+                            if (linkTo) {
+                              const linkLabel = item.origin_type === 'order'
+                                ? `Ver encargo ${item.order_code ?? ''}`.trim()
+                                : `Ver venta ${item.sale_code ?? ''}`.trim();
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(linkTo);
+                                  }}
+                                  title={linkLabel}
+                                  aria-label={linkLabel}
+                                  className={`group inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium flex-shrink-0 ring-1 ring-transparent transition-colors cursor-pointer hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${originInfo.bgColor} ${originInfo.color} hover:brightness-95`}
+                                >
+                                  <OriginIcon className="w-3 h-3" />
+                                  {originInfo.label}
+                                  <ExternalLink className="w-3 h-3 opacity-60 group-hover:opacity-100" />
+                                </button>
+                              );
+                            }
+                            return (
+                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium flex-shrink-0 ${originInfo.bgColor} ${originInfo.color}`}>
+                                <OriginIcon className="w-3 h-3" />
+                                {originInfo.label}
+                              </span>
+                            );
+                          })()}
 
                           {/* Order status */}
                           {orderStatus && (
@@ -268,7 +302,7 @@ const AccountsReceivable: React.FC<AccountsReceivableProps> = ({
                           )}
 
                           {/* Client name or description */}
-                          <span className="text-sm text-gray-700 truncate">
+                          <span className="text-sm text-stone-700 truncate">
                             {item.client_name || item.description}
                           </span>
 
@@ -283,9 +317,9 @@ const AccountsReceivable: React.FC<AccountsReceivableProps> = ({
                         {/* Right side - Amount and action */}
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <div className="text-right">
-                            <p className="text-sm font-semibold text-gray-800">{formatCurrency(item.balance)}</p>
+                            <p className="text-sm font-semibold text-stone-800">{formatCurrency(item.balance)}</p>
                             {item.due_date && (
-                              <p className={`text-xs ${item.is_overdue ? 'text-red-500' : 'text-gray-400'}`}>
+                              <p className={`text-xs ${item.is_overdue ? 'text-red-500' : 'text-stone-400'}`}>
                                 {formatDate(item.due_date)}
                               </p>
                             )}
@@ -293,7 +327,7 @@ const AccountsReceivable: React.FC<AccountsReceivableProps> = ({
                           {!item.is_paid && (
                             <button
                               onClick={() => onPayReceivable(item)}
-                              className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200 transition-colors"
+                              className="px-2 py-1 bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 rounded text-xs hover:bg-green-200 transition-colors"
                             >
                               Cobrar
                             </button>

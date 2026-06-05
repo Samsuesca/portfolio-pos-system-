@@ -120,8 +120,8 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
     setLoadingSnapshots(true);
     try {
       const type = activeStatementTab === 'income' ? 'income_statement' : 'balance_sheet';
-      const data = await globalAccountingService.listFinancialSnapshots(type);
-      setSnapshots(data);
+      const result = await globalAccountingService.listFinancialSnapshots(type);
+      setSnapshots(result.items);
       setShowSnapshots(true);
     } catch {
       alert('Error al cargar historial');
@@ -259,8 +259,8 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
   return (
     <>
       {/* Period Selection */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Estados Financieros</h3>
+      <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-6 mb-6">
+        <h3 className="text-lg font-semibold text-stone-800 mb-4">Estados Financieros</h3>
 
         {/* Statement Type Tabs */}
         <div className="flex gap-2 mb-4">
@@ -269,7 +269,7 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               activeStatementTab === 'income'
                 ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
             }`}
           >
             Estado de Resultados
@@ -279,7 +279,7 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               activeStatementTab === 'balance'
                 ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
             }`}
           >
             Balance General
@@ -290,11 +290,11 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
         {activeStatementTab === 'income' && (
           <div className="flex flex-wrap gap-4 items-end">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Periodo</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Periodo</label>
               <select
                 value={selectedPeriod}
                 onChange={(e) => onPeriodChange(e.target.value)}
-                className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-400/30"
               >
                 {availablePeriods.map((period) => (
                   <option key={period.key} value={period.key}>{period.label}</option>
@@ -306,21 +306,21 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
             {selectedPeriod === 'custom' && (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Desde</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Desde</label>
                   <input
                     type="date"
                     value={customStartDate}
                     onChange={(e) => onCustomStartDateChange(e.target.value)}
-                    className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-400/30"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Hasta</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Hasta</label>
                   <input
                     type="date"
                     value={customEndDate}
                     onChange={(e) => onCustomEndDateChange(e.target.value)}
-                    className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-400/30"
                   />
                 </div>
               </>
@@ -332,9 +332,9 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
                 id="comparePrevious"
                 checked={comparePrevious}
                 onChange={(e) => onComparePreviousChange(e.target.checked)}
-                className="rounded border-gray-300"
+                className="rounded border-stone-200"
               />
-              <label htmlFor="comparePrevious" className="text-sm text-gray-600">
+              <label htmlFor="comparePrevious" className="text-sm text-stone-600">
                 Comparar con periodo anterior
               </label>
             </div>
@@ -354,12 +354,12 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
         {activeStatementTab === 'balance' && (
           <div className="flex flex-wrap gap-4 items-end">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de corte</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Fecha de corte</label>
               <input
                 type="date"
                 value={customEndDate}
                 onChange={(e) => onCustomEndDateChange(e.target.value)}
-                className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-400/30"
               />
             </div>
             <button
@@ -385,17 +385,17 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
       {loadingStatements && (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-          <span className="ml-3 text-gray-600">Generando estado financiero...</span>
+          <span className="ml-3 text-stone-600">Generando estado financiero...</span>
         </div>
       )}
 
       {/* Income Statement Display */}
       {activeStatementTab === 'income' && incomeStatement && !loadingStatements && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-6">
           <div className="flex justify-between items-start mb-6">
             <div>
-              <h4 className="text-lg font-bold text-gray-800">ESTADO DE RESULTADOS</h4>
-              <p className="text-sm text-gray-500">
+              <h4 className="text-lg font-bold text-stone-800">ESTADO DE RESULTADOS</h4>
+              <p className="text-sm text-stone-500">
                 Periodo: {new Date(incomeStatement.period_start).toLocaleDateString('es-CO')} - {new Date(incomeStatement.period_end).toLocaleDateString('es-CO')}
               </p>
             </div>
@@ -411,14 +411,14 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
               </button>
               <button
                 onClick={handlePrint}
-                className="px-3 py-1.5 text-xs bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 flex items-center gap-1"
+                className="px-3 py-1.5 text-xs bg-stone-50 text-stone-700 rounded-lg hover:bg-stone-100 flex items-center gap-1"
                 title="Imprimir / PDF"
               >
                 <Printer className="w-3 h-3" /> Imprimir
               </button>
               <button
                 onClick={handleExportCSV}
-                className="px-3 py-1.5 text-xs bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 flex items-center gap-1"
+                className="px-3 py-1.5 text-xs bg-stone-50 text-stone-700 rounded-lg hover:bg-stone-100 flex items-center gap-1"
                 title="Exportar CSV"
               >
                 <Download className="w-3 h-3" /> CSV
@@ -426,7 +426,7 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
               <button
                 onClick={handleLoadSnapshots}
                 disabled={loadingSnapshots}
-                className="px-3 py-1.5 text-xs bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 flex items-center gap-1"
+                className="px-3 py-1.5 text-xs bg-stone-50 text-stone-700 rounded-lg hover:bg-stone-100 flex items-center gap-1"
                 title="Ver historial"
               >
                 {loadingSnapshots ? <Loader2 className="w-3 h-3 animate-spin" /> : <History className="w-3 h-3" />}
@@ -441,7 +441,7 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
               <div className="flex justify-between items-center py-1">
                 <button
                   onClick={() => setShowRevenueBreakdown(!showRevenueBreakdown)}
-                  className="flex items-center gap-1 text-gray-700 hover:text-indigo-600 transition-colors"
+                  className="flex items-center gap-1 text-stone-700 hover:text-indigo-600 transition-colors"
                 >
                   {showRevenueBreakdown ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                   (+) Ventas Brutas ({incomeStatement.sales_count} ventas)
@@ -453,13 +453,13 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
               {showRevenueBreakdown && incomeStatement.revenue_breakdown && (
                 <div className="ml-6 mt-1 mb-2 space-y-1">
                   {incomeStatement.revenue_breakdown.by_school.map((school) => (
-                    <div key={school.school_id} className="flex justify-between text-sm text-gray-500">
+                    <div key={school.school_id} className="flex justify-between text-sm text-stone-500">
                       <span>{school.school_name} ({school.count} ventas)</span>
                       <span>{formatCurrency(school.total)}</span>
                     </div>
                   ))}
                   {incomeStatement.revenue_breakdown.global_products.total > 0 && (
-                    <div className="flex justify-between text-sm text-gray-500">
+                    <div className="flex justify-between text-sm text-stone-500">
                       <span>Productos Globales ({incomeStatement.revenue_breakdown.global_products.count} items)</span>
                       <span>{formatCurrency(incomeStatement.revenue_breakdown.global_products.total)}</span>
                     </div>
@@ -467,10 +467,10 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
                 </div>
               )}
 
-              <div className="flex justify-between items-center py-1 text-gray-500 text-sm">
+              <div className="flex justify-between items-center py-1 text-stone-500 text-sm">
                 <button
                   onClick={() => setShowReturnsBreakdown(!showReturnsBreakdown)}
-                  className="flex items-center gap-1 hover:text-gray-700 transition-colors"
+                  className="flex items-center gap-1 hover:text-stone-700 transition-colors"
                 >
                   {showReturnsBreakdown ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                   (-) Devoluciones/Descuentos
@@ -482,20 +482,20 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
               {showReturnsBreakdown && incomeStatement.returns_discounts_breakdown && (
                 <div className="ml-6 mt-1 mb-2 space-y-1">
                   {incomeStatement.returns_discounts_breakdown.discounts > 0 && (
-                    <div className="flex justify-between text-sm text-gray-500">
+                    <div className="flex justify-between text-sm text-stone-500">
                       <span>Descuentos ({incomeStatement.returns_discounts_breakdown.discounts_count})</span>
                       <span>{formatCurrency(incomeStatement.returns_discounts_breakdown.discounts)}</span>
                     </div>
                   )}
                   {incomeStatement.returns_discounts_breakdown.sale_returns > 0 && (
-                    <div className="flex justify-between text-sm text-gray-500">
+                    <div className="flex justify-between text-sm text-stone-500">
                       <span>Cambios/Devoluciones ({incomeStatement.returns_discounts_breakdown.sale_returns_count})</span>
                       <span>{formatCurrency(incomeStatement.returns_discounts_breakdown.sale_returns)}</span>
                     </div>
                   )}
                   {incomeStatement.returns_discounts_breakdown.discounts === 0 &&
                    incomeStatement.returns_discounts_breakdown.sale_returns === 0 && (
-                    <div className="text-sm text-gray-400 italic">Sin devoluciones ni descuentos en este periodo</div>
+                    <div className="text-sm text-stone-400 italic">Sin devoluciones ni descuentos en este periodo</div>
                   )}
                 </div>
               )}
@@ -508,10 +508,10 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
             {/* COGS Section */}
             <div className="border-b pb-4">
               <div className="flex justify-between items-center py-1">
-                <span className="text-gray-700">(-) Costo de Ventas</span>
+                <span className="text-stone-700">(-) Costo de Ventas</span>
                 <span className="font-medium text-red-600">{formatCurrency(incomeStatement.cost_of_goods_sold)}</span>
               </div>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-stone-400 mt-1">
                 ({incomeStatement.cogs_coverage_percent.toFixed(0)}% con costo real, {(100 - incomeStatement.cogs_coverage_percent).toFixed(0)}% estimado)
               </p>
               <div className="flex justify-between items-center py-2 font-semibold border-t mt-2">
@@ -520,18 +520,18 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
                   {formatCurrency(incomeStatement.gross_profit)}
                 </span>
               </div>
-              <p className="text-xs text-gray-500">Margen Bruto: {incomeStatement.gross_margin_percent.toFixed(1)}%</p>
+              <p className="text-xs text-stone-500">Margen Bruto: {incomeStatement.gross_margin_percent.toFixed(1)}%</p>
             </div>
 
             {/* Operating Expenses */}
             <div className="border-b pb-4">
-              <p className="text-sm font-medium text-gray-700 mb-2">GASTOS OPERACIONALES</p>
+              <p className="text-sm font-medium text-stone-700 mb-2">GASTOS OPERACIONALES</p>
               {incomeStatement.operating_expenses_by_category.map((cat) => (
                 <div key={cat.category} className="flex justify-between text-sm py-1">
-                  <span className="text-gray-600">
+                  <span className="text-stone-600">
                     (-) {getCategoryLabel(cat.category)}
                     {cat.percentage_of_revenue > 0 && (
-                      <span className="text-gray-400 ml-1 text-xs">
+                      <span className="text-stone-400 ml-1 text-xs">
                         ({cat.percentage_of_revenue.toFixed(1)}%)
                       </span>
                     )}
@@ -540,7 +540,7 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
                 </div>
               ))}
               {incomeStatement.operating_expenses_by_category.length === 0 && (
-                <p className="text-sm text-gray-400 italic py-1">Sin gastos operacionales en este periodo</p>
+                <p className="text-sm text-stone-400 italic py-1">Sin gastos operacionales en este periodo</p>
               )}
               <div className="flex justify-between items-center py-2 font-semibold border-t mt-2">
                 <span>= UTILIDAD OPERACIONAL</span>
@@ -548,25 +548,25 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
                   {formatCurrency(incomeStatement.operating_income)}
                 </span>
               </div>
-              <p className="text-xs text-gray-500">Margen Operacional: {incomeStatement.operating_margin_percent.toFixed(1)}%</p>
+              <p className="text-xs text-stone-500">Margen Operacional: {incomeStatement.operating_margin_percent.toFixed(1)}%</p>
             </div>
 
             {/* Other Expenses */}
             <div className="border-b pb-4">
-              <p className="text-sm font-medium text-gray-700 mb-2">OTROS GASTOS</p>
+              <p className="text-sm font-medium text-stone-700 mb-2">OTROS GASTOS</p>
               {(incomeStatement.other_expenses_by_category || []).map((cat) => (
                 <div key={cat.category}>
                   <div className="flex justify-between text-sm py-1">
                     {cat.category === 'other' && incomeStatement.other_expenses_details && incomeStatement.other_expenses_details.length > 0 ? (
                       <button
                         onClick={() => setShowOtherExpensesDetails(!showOtherExpensesDetails)}
-                        className="flex items-center gap-1 text-gray-600 hover:text-gray-800 transition-colors"
+                        className="flex items-center gap-1 text-stone-600 hover:text-stone-800 transition-colors"
                       >
                         {showOtherExpensesDetails ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                         (-) {getCategoryLabel(cat.category)}
                       </button>
                     ) : (
-                      <span className="text-gray-600">
+                      <span className="text-stone-600">
                         (-) {getCategoryLabel(cat.category)}
                       </span>
                     )}
@@ -576,7 +576,7 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
                   {cat.category === 'other' && showOtherExpensesDetails && incomeStatement.other_expenses_details && (
                     <div className="ml-6 mt-1 mb-2 space-y-1 max-h-60 overflow-y-auto">
                       {incomeStatement.other_expenses_details.map((expense) => (
-                        <div key={expense.id} className="flex justify-between text-xs text-gray-500 py-0.5">
+                        <div key={expense.id} className="flex justify-between text-xs text-stone-500 py-0.5">
                           <span className="truncate max-w-[200px]" title={expense.description}>
                             {expense.date.split('-').reverse().join('/')} - {expense.description || 'Sin descripción'}
                           </span>
@@ -584,7 +584,7 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
                         </div>
                       ))}
                       {incomeStatement.other_expenses_details.length >= 50 && (
-                        <p className="text-xs text-gray-400 italic pt-1">Mostrando los 50 gastos más altos</p>
+                        <p className="text-xs text-stone-400 italic pt-1">Mostrando los 50 gastos más altos</p>
                       )}
                     </div>
                   )}
@@ -595,19 +595,19 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
                 <>
                   {incomeStatement.other_expenses.taxes > 0 && (
                     <div className="flex justify-between text-sm py-1">
-                      <span className="text-gray-600">(-) {getCategoryLabel('taxes')}</span>
+                      <span className="text-stone-600">(-) {getCategoryLabel('taxes')}</span>
                       <span className="text-red-500">{formatCurrency(incomeStatement.other_expenses.taxes)}</span>
                     </div>
                   )}
                   {incomeStatement.other_expenses.bank_fees > 0 && (
                     <div className="flex justify-between text-sm py-1">
-                      <span className="text-gray-600">(-) {getCategoryLabel('bank_fees')}</span>
+                      <span className="text-stone-600">(-) {getCategoryLabel('bank_fees')}</span>
                       <span className="text-red-500">{formatCurrency(incomeStatement.other_expenses.bank_fees)}</span>
                     </div>
                   )}
                   {incomeStatement.other_expenses.other > 0 && (
                     <div className="flex justify-between text-sm py-1">
-                      <span className="text-gray-600">(-) {getCategoryLabel('other')}</span>
+                      <span className="text-stone-600">(-) {getCategoryLabel('other')}</span>
                       <span className="text-red-500">{formatCurrency(incomeStatement.other_expenses.other)}</span>
                     </div>
                   )}
@@ -618,12 +618,12 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
             {/* Net Income */}
             <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg p-4">
               <div className="flex justify-between items-center">
-                <span className="text-lg font-bold text-gray-800">UTILIDAD NETA</span>
+                <span className="text-lg font-bold text-stone-800">UTILIDAD NETA</span>
                 <span className={`text-2xl font-bold ${incomeStatement.net_income >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {formatCurrency(incomeStatement.net_income)}
                 </span>
               </div>
-              <p className="text-sm text-gray-500 mt-1">Margen Neto: {incomeStatement.net_margin_percent.toFixed(1)}%</p>
+              <p className="text-sm text-stone-500 mt-1">Margen Neto: {incomeStatement.net_margin_percent.toFixed(1)}%</p>
             </div>
           </div>
         </div>
@@ -631,11 +631,11 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
 
       {/* Balance Sheet Display */}
       {activeStatementTab === 'balance' && balanceSheet && !loadingStatements && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-6">
           <div className="flex justify-between items-start mb-4">
             <div>
-              <h4 className="text-lg font-bold text-gray-800">BALANCE GENERAL</h4>
-              <p className="text-sm text-gray-500">
+              <h4 className="text-lg font-bold text-stone-800">BALANCE GENERAL</h4>
+              <p className="text-sm text-stone-500">
                 Al: {new Date(balanceSheet.as_of_date).toLocaleDateString('es-CO')}
               </p>
             </div>
@@ -657,16 +657,16 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
                 {savingSnapshot ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
                 Guardar
               </button>
-              <button onClick={handlePrint} className="px-3 py-1.5 text-xs bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 flex items-center gap-1">
+              <button onClick={handlePrint} className="px-3 py-1.5 text-xs bg-stone-50 text-stone-700 rounded-lg hover:bg-stone-100 flex items-center gap-1">
                 <Printer className="w-3 h-3" /> Imprimir
               </button>
-              <button onClick={handleExportCSV} className="px-3 py-1.5 text-xs bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 flex items-center gap-1">
+              <button onClick={handleExportCSV} className="px-3 py-1.5 text-xs bg-stone-50 text-stone-700 rounded-lg hover:bg-stone-100 flex items-center gap-1">
                 <Download className="w-3 h-3" /> CSV
               </button>
               <button
                 onClick={handleLoadSnapshots}
                 disabled={loadingSnapshots}
-                className="px-3 py-1.5 text-xs bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 flex items-center gap-1"
+                className="px-3 py-1.5 text-xs bg-stone-50 text-stone-700 rounded-lg hover:bg-stone-100 flex items-center gap-1"
               >
                 {loadingSnapshots ? <Loader2 className="w-3 h-3 animate-spin" /> : <History className="w-3 h-3" />}
                 Historial
@@ -685,28 +685,28 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* ACTIVOS */}
             <div>
-              <h5 className="font-bold text-gray-800 border-b-2 border-gray-800 pb-2 mb-3">ACTIVOS</h5>
+              <h5 className="font-bold text-stone-800 border-b-2 border-gray-800 pb-2 mb-3">ACTIVOS</h5>
 
               {/* Activos Corrientes */}
               <div className="mb-4">
-                <p className="text-sm font-medium text-gray-600 mb-2">Corrientes</p>
+                <p className="text-sm font-medium text-stone-600 mb-2">Corrientes</p>
                 <div className="space-y-1 text-sm">
                   {balanceSheet.current_assets.cash_accounts.map((acc) => (
                     <div key={acc.id} className="flex justify-between">
-                      <span className="text-gray-600">{acc.name}</span>
+                      <span className="text-stone-600">{acc.name}</span>
                       <span>{formatCurrency(acc.balance)}</span>
                     </div>
                   ))}
-                  <div className="flex justify-between text-gray-500 border-t pt-1">
+                  <div className="flex justify-between text-stone-500 border-t pt-1">
                     <span>Total Efectivo</span>
                     <span>{formatCurrency(balanceSheet.current_assets.total_cash)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Cuentas por Cobrar ({balanceSheet.current_assets.accounts_receivable_count})</span>
+                    <span className="text-stone-600">Cuentas por Cobrar ({balanceSheet.current_assets.accounts_receivable_count})</span>
                     <span>{formatCurrency(balanceSheet.current_assets.accounts_receivable)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Inventario ({balanceSheet.current_assets.inventory.total_units} uds)</span>
+                    <span className="text-stone-600">Inventario ({balanceSheet.current_assets.inventory.total_units} uds)</span>
                     <span>{formatCurrency(balanceSheet.current_assets.total_inventory)}</span>
                   </div>
                 </div>
@@ -719,11 +719,11 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
               {/* Activos Fijos */}
               {balanceSheet.fixed_assets.length > 0 && (
                 <div className="mb-4">
-                  <p className="text-sm font-medium text-gray-600 mb-2">Fijos</p>
+                  <p className="text-sm font-medium text-stone-600 mb-2">Fijos</p>
                   <div className="space-y-1 text-sm">
                     {balanceSheet.fixed_assets.map((acc) => (
                       <div key={acc.id} className="flex justify-between">
-                        <span className="text-gray-600">{acc.name}</span>
+                        <span className="text-stone-600">{acc.name}</span>
                         <span>{formatCurrency(acc.net_value)}</span>
                       </div>
                     ))}
@@ -744,25 +744,25 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
 
             {/* PASIVOS Y PATRIMONIO */}
             <div>
-              <h5 className="font-bold text-gray-800 border-b-2 border-gray-800 pb-2 mb-3">PASIVOS</h5>
+              <h5 className="font-bold text-stone-800 border-b-2 border-gray-800 pb-2 mb-3">PASIVOS</h5>
 
               {/* Pasivos Corrientes */}
               <div className="mb-4">
-                <p className="text-sm font-medium text-gray-600 mb-2">Corrientes</p>
+                <p className="text-sm font-medium text-stone-600 mb-2">Corrientes</p>
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Cuentas por Pagar ({balanceSheet.current_liabilities.accounts_payable_count})</span>
+                    <span className="text-stone-600">Cuentas por Pagar ({balanceSheet.current_liabilities.accounts_payable_count})</span>
                     <span>{formatCurrency(balanceSheet.current_liabilities.accounts_payable)}</span>
                   </div>
                   {balanceSheet.current_liabilities.pending_expenses > 0 && (
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Gastos Pendientes ({balanceSheet.current_liabilities.pending_expenses_count})</span>
+                      <span className="text-stone-600">Gastos Pendientes ({balanceSheet.current_liabilities.pending_expenses_count})</span>
                       <span>{formatCurrency(balanceSheet.current_liabilities.pending_expenses)}</span>
                     </div>
                   )}
                   {balanceSheet.current_liabilities.short_term_debt.map((acc) => (
                     <div key={acc.id} className="flex justify-between">
-                      <span className="text-gray-600">{acc.name}</span>
+                      <span className="text-stone-600">{acc.name}</span>
                       <span>{formatCurrency(acc.balance)}</span>
                     </div>
                   ))}
@@ -776,11 +776,11 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
               {/* Pasivos Largo Plazo */}
               {balanceSheet.long_term_liabilities.length > 0 && (
                 <div className="mb-4">
-                  <p className="text-sm font-medium text-gray-600 mb-2">Largo Plazo</p>
+                  <p className="text-sm font-medium text-stone-600 mb-2">Largo Plazo</p>
                   <div className="space-y-1 text-sm">
                     {balanceSheet.long_term_liabilities.map((acc) => (
                       <div key={acc.id} className="flex justify-between">
-                        <span className="text-gray-600">{acc.name}</span>
+                        <span className="text-stone-600">{acc.name}</span>
                         <span>{formatCurrency(acc.balance)}</span>
                       </div>
                     ))}
@@ -798,23 +798,23 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
               </div>
 
               {/* Patrimonio */}
-              <h5 className="font-bold text-gray-800 border-b-2 border-gray-800 pb-2 mb-3 mt-6">PATRIMONIO</h5>
+              <h5 className="font-bold text-stone-800 border-b-2 border-gray-800 pb-2 mb-3 mt-6">PATRIMONIO</h5>
               <div className="space-y-1 text-sm mb-4">
                 {balanceSheet.equity.capital > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Capital</span>
+                    <span className="text-stone-600">Capital</span>
                     <span>{formatCurrency(balanceSheet.equity.capital)}</span>
                   </div>
                 )}
                 {balanceSheet.equity.retained_earnings !== 0 && (
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Utilidades Retenidas</span>
+                    <span className="text-stone-600">Utilidades Retenidas</span>
                     <span>{formatCurrency(balanceSheet.equity.retained_earnings)}</span>
                   </div>
                 )}
                 {balanceSheet.equity.current_period_earnings !== undefined && balanceSheet.equity.current_period_earnings !== 0 && (
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Utilidad del Ejercicio</span>
+                    <span className="text-stone-600">Utilidad del Ejercicio</span>
                     <span className={balanceSheet.equity.current_period_earnings >= 0 ? 'text-green-600' : 'text-red-600'}>
                       {formatCurrency(balanceSheet.equity.current_period_earnings)}
                     </span>
@@ -822,7 +822,7 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
                 )}
                 {balanceSheet.equity.other_equity !== 0 && (
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Otros</span>
+                    <span className="text-stone-600">Otros</span>
                     <span>{formatCurrency(balanceSheet.equity.other_equity)}</span>
                   </div>
                 )}
@@ -843,36 +843,36 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
           {/* Net Worth Summary */}
           <div className="mt-6 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4">
             <div className="flex justify-between items-center">
-              <span className="text-lg font-bold text-gray-800">PATRIMONIO NETO</span>
+              <span className="text-lg font-bold text-stone-800">PATRIMONIO NETO</span>
               <span className={`text-2xl font-bold ${balanceSheet.net_worth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {formatCurrency(balanceSheet.net_worth)}
               </span>
             </div>
-            <p className="text-sm text-gray-500 mt-1">Activos - Pasivos</p>
+            <p className="text-sm text-stone-500 mt-1">Activos - Pasivos</p>
           </div>
         </div>
       )}
 
       {/* Empty State */}
       {activeStatementTab === 'income' && !incomeStatement && !loadingStatements && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-          <Calculator className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">Selecciona un periodo y haz clic en "Generar" para ver el Estado de Resultados</p>
+        <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-12 text-center">
+          <Calculator className="w-12 h-12 text-stone-300 mx-auto mb-4" />
+          <p className="text-stone-500">Selecciona un periodo y haz clic en "Generar" para ver el Estado de Resultados</p>
         </div>
       )}
 
       {activeStatementTab === 'balance' && !balanceSheet && !loadingStatements && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-          <Calculator className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">Haz clic en "Generar" para ver el Balance General</p>
+        <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-12 text-center">
+          <Calculator className="w-12 h-12 text-stone-300 mx-auto mb-4" />
+          <p className="text-stone-500">Haz clic en "Generar" para ver el Balance General</p>
         </div>
       )}
 
       {/* Snapshot History Panel */}
       {showSnapshots && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mt-6 print:hidden">
+        <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-6 mt-6 print:hidden">
           <div className="flex justify-between items-center mb-4">
-            <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+            <h4 className="text-lg font-semibold text-stone-800 flex items-center gap-2">
               <History className="w-5 h-5" />
               Historial de Snapshots
             </h4>
@@ -892,7 +892,7 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
               )}
               <button
                 onClick={() => { setShowSnapshots(false); setViewingSnapshot(null); setViewingSnapshotMeta(null); handleExitComparisonMode(); }}
-                className="text-sm text-gray-500 hover:text-gray-700"
+                className="text-sm text-stone-500 hover:text-stone-700"
               >
                 Cerrar
               </button>
@@ -916,12 +916,12 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
           )}
 
           {snapshots.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-4">No hay snapshots guardados</p>
+            <p className="text-stone-400 text-sm text-center py-4">No hay snapshots guardados</p>
           ) : (
             <div className="space-y-2">
               {snapshots.map((snap) => (
                 <div key={snap.id} className={`flex items-center justify-between rounded-lg p-3 ${
-                  selectedForComparison.includes(snap.id) ? 'bg-indigo-50 border border-indigo-200' : 'bg-gray-50'
+                  selectedForComparison.includes(snap.id) ? 'bg-indigo-50 border border-indigo-200' : 'bg-stone-50'
                 }`}>
                   <div className="flex items-center gap-3">
                     {comparisonMode && (
@@ -930,20 +930,20 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
                         checked={selectedForComparison.includes(snap.id)}
                         onChange={() => handleToggleComparison(snap.id)}
                         disabled={!selectedForComparison.includes(snap.id) && selectedForComparison.length >= 2}
-                        className="rounded border-gray-300 text-indigo-600"
+                        className="rounded border-stone-200 text-indigo-600"
                       />
                     )}
                     <div>
-                      <span className="text-sm font-medium text-gray-700">
+                      <span className="text-sm font-medium text-stone-700">
                         {snap.snapshot_type === 'income_statement' ? 'Estado de Resultados' : 'Balance General'}
                       </span>
-                      <span className="text-sm text-gray-500 ml-2">
+                      <span className="text-sm text-stone-500 ml-2">
                         {snap.period_start && snap.period_end
                           ? `${new Date(snap.period_start).toLocaleDateString('es-CO')} - ${new Date(snap.period_end).toLocaleDateString('es-CO')}`
                           : new Date(snap.snapshot_date).toLocaleDateString('es-CO')
                         }
                       </span>
-                      <span className="text-xs text-gray-400 ml-2">
+                      <span className="text-xs text-stone-400 ml-2">
                         Guardado: {new Date(snap.created_at).toLocaleString('es-CO', { timeZone: 'America/Bogota' })}
                       </span>
                       {snap.notes && <span className="text-xs text-indigo-500 ml-2">{snap.notes}</span>}
@@ -976,7 +976,7 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
           {viewingSnapshot && viewingSnapshotMeta && !comparisonMode && (
             <div className="mt-4 border-t pt-4">
               <div className="flex justify-between items-center mb-3">
-                <h5 className="text-sm font-semibold text-gray-700">
+                <h5 className="text-sm font-semibold text-stone-700">
                   Snapshot: {viewingSnapshotMeta.snapshot_type === 'income_statement' ? 'Estado de Resultados' : 'Balance General'} —{' '}
                   {viewingSnapshotMeta.period_start && viewingSnapshotMeta.period_end
                     ? `${new Date(viewingSnapshotMeta.period_start).toLocaleDateString('es-CO')} - ${new Date(viewingSnapshotMeta.period_end).toLocaleDateString('es-CO')}`
@@ -985,7 +985,7 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = ({
                 </h5>
                 <button
                   onClick={() => { setViewingSnapshot(null); setViewingSnapshotMeta(null); }}
-                  className="text-xs text-gray-500 hover:text-gray-700"
+                  className="text-xs text-stone-500 hover:text-stone-700"
                 >
                   Cerrar vista
                 </button>

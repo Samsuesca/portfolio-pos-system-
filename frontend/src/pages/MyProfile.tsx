@@ -142,26 +142,26 @@ export default function MyProfile() {
           const nextWeek = new Date();
           nextWeek.setDate(nextWeek.getDate() + 6);
           const dateTo = nextWeek.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
-          const data = await workforceService.getEmployeeSchedule(employee.id, today, dateTo);
-          setSchedules(data);
+          const scheduleResult = await workforceService.getEmployeeSchedule(employee.id, today, dateTo);
+          setSchedules(scheduleResult.items);
           break;
         }
         case 'checklist': {
           const today = getColombiaToday();
-          const lists = await workforceService.getDailyChecklists({
+          const listsResult = await workforceService.getDailyChecklists({
             employee_id: employee.id,
             checklist_date: today,
           });
-          setChecklist(lists.length > 0 ? lists[0] : null);
+          setChecklist(listsResult.items.length > 0 ? listsResult.items[0] : null);
           break;
         }
         case 'attendance': {
-          const records = await workforceService.getAttendanceRecords({
+          const recordsResult = await workforceService.getAttendanceRecords({
             employee_id: employee.id,
             date_from: attendanceDateFrom,
             date_to: attendanceDateTo,
           });
-          setAttendance(records);
+          setAttendance(recordsResult.items);
           break;
         }
         case 'performance': {
@@ -174,7 +174,7 @@ export default function MyProfile() {
             workforceService.getPerformanceReviews({ employee_id: employee.id }),
           ]);
           setMetrics(metricsData);
-          setReviews(reviewsData);
+          setReviews(reviewsData.items);
           break;
         }
         case 'responsibilities': {
@@ -577,9 +577,9 @@ export default function MyProfile() {
                     <p className="text-2xl font-bold text-yellow-600">{attendanceSummary.late}</p>
                     <p className="text-xs text-yellow-600 mt-1">Tarde</p>
                   </div>
-                  <div className="bg-blue-50 rounded-lg shadow-sm border border-blue-200 p-4 text-center">
-                    <p className="text-2xl font-bold text-blue-600">{attendanceSummary.excused}</p>
-                    <p className="text-xs text-blue-600 mt-1">Excusados</p>
+                  <div className="bg-brand-50 rounded-lg shadow-sm border border-brand-200 p-4 text-center">
+                    <p className="text-2xl font-bold text-brand-600">{attendanceSummary.excused}</p>
+                    <p className="text-xs text-brand-600 mt-1">Excusados</p>
                   </div>
                 </div>
 

@@ -31,6 +31,7 @@ ALERT_TYPE_DESCRIPTIONS: dict[str, str] = {
     TelegramAlertType.reminder_weekly_summary: "Resumen semanal (domingos 8pm)",
     TelegramAlertType.system_health: "Alertas de salud del sistema",
     TelegramAlertType.daily_digest: "Resumen diario del negocio (8pm)",
+    TelegramAlertType.daily_digest_seller: "Resumen diario del vendedor por colegio (8pm)",
 }
 
 
@@ -100,6 +101,10 @@ def get_alert_category(alert_type: TelegramAlertType) -> str:
     """Return the category for an alert type."""
     if alert_type.value.startswith("reminder_"):
         return "reminder"
-    if alert_type in (TelegramAlertType.system_health, TelegramAlertType.daily_digest):
+    if alert_type in (
+        TelegramAlertType.system_health,
+        TelegramAlertType.daily_digest,
+        TelegramAlertType.daily_digest_seller,
+    ):
         return "system"
     return "event"

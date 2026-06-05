@@ -2,24 +2,56 @@
 Inventory Endpoints
 """
 from uuid import UUID
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Query
 
-from app.api.dependencies import DatabaseSession, require_school_access
-from app.models.user import UserRole
+from app.api.dependencies import DatabaseSession, require_permission
+from app.api.error_responses import responses, AUTHENTICATED
 from app.schemas.product import (
     InventoryCreate, InventoryUpdate, InventoryAdjust, InventoryResponse, InventoryReport
 )
+from app.schemas.base import PaginatedResponse
 from app.services.inventory import InventoryService
 
 
 router = APIRouter(prefix="/schools/{school_id}/inventory", tags=["Inventory"])
 
 
+class InventoryListResponse(PaginatedResponse[InventoryResponse]):
+    pass
+
+
+@router.get(
+    "",
+    response_model=InventoryListResponse,
+    dependencies=[Depends(require_permission("inventory.view"))],
+    responses=AUTHENTICATED,
+    operation_id="listInventory",
+)
+async def list_inventory(
+    school_id: UUID,
+    db: DatabaseSession,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
+    low_stock_only: bool = Query(False, description="Only items below minimum threshold"),
+):
+    """List all inventory items for a school"""
+    inventory_service = InventoryService(db)
+
+    if low_stock_only:
+        items = await inventory_service.get_low_stock_products(school_id)
+        return InventoryListResponse(items=items, total=len(items), skip=0, limit=len(items))
+
+    items, total = await inventory_service.list_by_school(school_id, skip=skip, limit=limit)
+    return InventoryListResponse(items=items, total=total, skip=skip, limit=limit)
+
+
 @router.post(
     "",
     response_model=InventoryResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("inventory.adjust"))],
+    responses=responses(400),
+    operation_id="createInventory",
 )
 async def create_inventory(
     school_id: UUID,
@@ -46,7 +78,9 @@ async def create_inventory(
 @router.get(
     "/product/{product_id}",
     response_model=InventoryResponse,
-    dependencies=[Depends(require_school_access(UserRole.VIEWER))]
+    dependencies=[Depends(require_permission("inventory.view"))],
+    responses=responses(404),
+    operation_id="getProductInventory",
 )
 async def get_product_inventory(
     school_id: UUID,
@@ -69,7 +103,9 @@ async def get_product_inventory(
 @router.post(
     "/product/{product_id}/adjust",
     response_model=InventoryResponse,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("inventory.adjust"))],
+    responses=responses(400, 404),
+    operation_id="adjustInventory",
 )
 async def adjust_inventory(
     school_id: UUID,
@@ -109,7 +145,9 @@ async def adjust_inventory(
 @router.get(
     "/low-stock",
     response_model=list,
-    dependencies=[Depends(require_school_access(UserRole.VIEWER))]
+    dependencies=[Depends(require_permission("inventory.view"))],
+    responses=AUTHENTICATED,
+    operation_id="getLowStockProducts",
 )
 async def get_low_stock_products(
     school_id: UUID,
@@ -125,7 +163,9 @@ async def get_low_stock_products(
 @router.get(
     "/report",
     response_model=InventoryReport,
-    dependencies=[Depends(require_school_access(UserRole.VIEWER))]
+    dependencies=[Depends(require_permission("inventory.view"))],
+    responses=AUTHENTICATED,
+    operation_id="getInventoryReport",
 )
 async def get_inventory_report(
     school_id: UUID,

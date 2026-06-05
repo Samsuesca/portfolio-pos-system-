@@ -17,7 +17,7 @@ describe('CATEGORY_PATTERNS', () => {
     expect(CATEGORY_PATTERNS).toHaveProperty('Chompas');
     expect(CATEGORY_PATTERNS).toHaveProperty('Pantalones');
     expect(CATEGORY_PATTERNS).toHaveProperty('Sudaderas');
-    expect(CATEGORY_PATTERNS).toHaveProperty('Yomber');
+    expect(CATEGORY_PATTERNS).toHaveProperty('Jumper');
     expect(CATEGORY_PATTERNS).toHaveProperty('Calzado');
   });
 
@@ -56,8 +56,9 @@ describe('getCategoryForProduct', () => {
     expect(getCategoryForProduct('Chompa de lana')).toBe('Chompas');
   });
 
-  it('categorizes yomber', () => {
-    expect(getCategoryForProduct('Yomber personalizado')).toBe('Yomber');
+  it('categorizes jumper (and legacy yomber spelling)', () => {
+    expect(getCategoryForProduct('Jumper personalizado')).toBe('Jumper');
+    expect(getCategoryForProduct('Yomber legacy')).toBe('Jumper');
   });
 
   it('categorizes calzado', () => {

@@ -26,21 +26,21 @@ export default function DeleteRoleModal({
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
         <div className="flex items-center justify-between p-4 border-b">
           <h3 className="text-lg font-semibold text-red-600">Eliminar Rol</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600">
             <X className="w-5 h-5" />
           </button>
         </div>
         <div className="p-4">
-          <p className="text-gray-700">
+          <p className="text-stone-700">
             Estas seguro de que deseas eliminar el rol{' '}
             <span className="font-medium">{selectedRole.name}</span>?
           </p>
-          <p className="mt-2 text-sm text-gray-500">
+          <p className="mt-2 text-sm text-stone-500">
             Los usuarios con este rol asignado volveran a su rol base.
           </p>
         </div>
         <div className="flex justify-end gap-2 p-4 border-t">
-          <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:text-gray-800">
+          <button onClick={onClose} className="px-4 py-2 text-stone-600 hover:text-stone-800">
             Cancelar
           </button>
           <button

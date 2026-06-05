@@ -9,17 +9,20 @@ These endpoints operate on global accounts (school_id = NULL) for:
 
 For school-specific reports, use /schools/{school_id}/accounting/* endpoints.
 """
+from typing import Literal
 from uuid import UUID
 from datetime import date, datetime
 from decimal import Decimal
 from fastapi import APIRouter, HTTPException, status, Query, Depends
 
+from sqlalchemy import select, func, case
 from app.utils.timezone import get_colombia_date, get_colombia_now_naive
+from app.schemas.base import PaginatedResponse
 from app.api.dependencies import (
-    DatabaseSession, CurrentUser, require_any_school_admin,
+    DatabaseSession, CurrentUser,
     require_global_permission, require_global_permission_with_constraints
 )
-from app.models.user import UserRole
+from app.api.error_responses import responses, AUTHENTICATED
 from app.models.accounting import (
     TransactionType, ExpenseCategory, AccountType, AccPaymentMethod, AdjustmentReason,
     BalanceAccount, BalanceEntry, Expense, AccountsPayable, AccountsReceivable, Transaction,
@@ -34,7 +37,7 @@ from app.schemas.accounting import (
     GlobalAccountsPayableCreate, GlobalAccountsPayableResponse, AccountsPayableListResponse, AccountsPayablePayment,
     GlobalAccountsReceivableCreate, GlobalAccountsReceivableResponse, AccountsReceivableListResponse, AccountsReceivablePayment,
     BalanceGeneralSummary, BalanceGeneralDetailed,
-    TransactionListItemResponse, ExpenseCategorySummary, CashFlowPeriodItem, CashFlowReportResponse,
+    TransactionListItemResponse, ExpenseCategorySummary, ExpenseStatsResponse, CashFlowPeriodItem, CashFlowReportResponse,
     # Expense Adjustment schemas
     ExpenseAdjustmentRequest, ExpenseRevertRequest, PartialRefundRequest,
     ExpenseAdjustmentResponse, ExpenseAdjustmentListResponse,
@@ -48,6 +51,9 @@ from app.schemas.accounting import (
 from app.schemas.planning import (
     DebtPaymentCreate, DebtPaymentUpdate, DebtPaymentMarkPaid
 )
+from app.schemas.financial_model import ProjectionAssumptions
+from app.services.order_audit import order_audit_resolved_exists, OrderAuditService
+from app.schemas.order_audit_override import OrderAuditOverrideResponse
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 
@@ -60,13 +66,18 @@ router = APIRouter(prefix="/global/accounting", tags=["Global Accounting"])
 
 @router.get(
     "/cash-balances",
-    dependencies=[Depends(require_global_permission("accounting.view_global_balances"))]
+    dependencies=[Depends(require_global_permission("accounting.view_global_balances"))],
+    responses=AUTHENTICATED,
+    operation_id="getGlobalCashBalances",
 )
 async def get_global_cash_balances(
     db: DatabaseSession
 ):
     """
-    Get global cash and bank balances (business-wide)
+    Get global cash and bank balances (business-wide).
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_global_balances` (global)
 
     Returns:
         - caja: Current cash balance
@@ -84,7 +95,9 @@ async def get_global_cash_balances(
 @router.post(
     "/initialize-accounts",
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.adjust_balance"))],
+    responses=responses(400),
+    operation_id="initializeGlobalAccounts",
 )
 async def initialize_global_accounts(
     db: DatabaseSession,
@@ -93,7 +106,10 @@ async def initialize_global_accounts(
     banco_initial_balance: float = 0
 ):
     """
-    Initialize global balance accounts (Caja, Banco) for the business
+    Initialize global balance accounts (Caja, Banco) for the business.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.adjust_balance` (global)
 
     This creates global accounts with school_id = NULL.
     If accounts already exist, they won't be duplicated.
@@ -110,31 +126,15 @@ async def initialize_global_accounts(
     service = BalanceIntegrationService(db)
 
     try:
-        accounts_map = await service.get_or_create_global_accounts(
-            created_by=current_user.id
+        # Delegate to service.initialize_global_accounts which creates accounts + entries
+        # in a single audited path. Previously this endpoint mutated `account.balance`
+        # directly via assignment, leaving the resulting balance without a BalanceEntry
+        # for traceability — that is the root of the historical "set_balance silent" bug.
+        accounts_map = await service.initialize_global_accounts(
+            caja_menor_initial_balance=Decimal(str(caja_initial_balance)),
+            banco_initial_balance=Decimal(str(banco_initial_balance)),
+            created_by=current_user.id,
         )
-
-        # Set initial balances if provided
-        if caja_initial_balance > 0 or banco_initial_balance > 0:
-            # Get and update caja
-            result = await db.execute(
-                select(BalanceAccount).where(
-                    BalanceAccount.id == accounts_map["caja"]
-                )
-            )
-            caja = result.scalar_one_or_none()
-            if caja and caja_initial_balance > 0:
-                caja.balance = Decimal(str(caja_initial_balance))
-
-            # Get and update banco
-            result = await db.execute(
-                select(BalanceAccount).where(
-                    BalanceAccount.id == accounts_map["banco"]
-                )
-            )
-            banco = result.scalar_one_or_none()
-            if banco and banco_initial_balance > 0:
-                banco.balance = Decimal(str(banco_initial_balance))
 
         await db.commit()
 
@@ -152,6 +152,8 @@ async def initialize_global_accounts(
 
 @router.post(
     "/set-balance",
+    responses=responses(400),
+    operation_id="setGlobalAccountBalance",
 )
 async def set_global_account_balance(
     account_code: str,  # "1101" for Caja, "1102" for Banco
@@ -164,7 +166,9 @@ async def set_global_account_balance(
     """
     Set balance for a global account (Caja or Banco).
 
-    Requires accounting.adjust_balance permission.
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.adjust_balance` (global, with constraints)
+
     Subject to max_amount constraint on the adjustment magnitude.
     Admin: max adjustment 1M COP + requires approval. Owner: unlimited.
 
@@ -254,7 +258,9 @@ async def set_global_account_balance(
 
 @router.get(
     "/daily-flow",
-    dependencies=[Depends(require_global_permission("accounting.view_daily_flow"))]
+    dependencies=[Depends(require_global_permission("accounting.view_daily_flow"))],
+    responses=AUTHENTICATED,
+    operation_id="getGlobalDailyFlow",
 )
 async def get_daily_account_flow(
     db: DatabaseSession,
@@ -262,6 +268,9 @@ async def get_daily_account_flow(
 ):
     """
     Obtiene el flujo diario de cada cuenta de balance para cierre de caja.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_daily_flow` (global)
 
     Muestra para cada cuenta (Caja Menor, Caja Mayor, Nequi, Banco):
     - Saldo inicial del dia
@@ -291,7 +300,9 @@ async def get_daily_account_flow(
 @router.get(
     "/balance-accounts",
     response_model=list[GlobalBalanceAccountResponse],
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.view_global_balances"))],
+    responses=AUTHENTICATED,
+    operation_id="listGlobalBalanceAccounts",
 )
 async def list_global_balance_accounts(
     db: DatabaseSession,
@@ -299,7 +310,10 @@ async def list_global_balance_accounts(
     is_active: bool = Query(True, description="Filter by active status")
 ):
     """
-    List global balance accounts (school_id = NULL)
+    List global balance accounts (school_id = NULL).
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_global_balances` (global)
     """
     query = select(BalanceAccount).where(
         BalanceAccount.school_id.is_(None)
@@ -323,13 +337,20 @@ async def list_global_balance_accounts(
 @router.get(
     "/balance-accounts/{account_id}",
     response_model=GlobalBalanceAccountResponse,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.view_global_balances"))],
+    responses=responses(404),
+    operation_id="getGlobalBalanceAccount",
 )
 async def get_global_balance_account(
     account_id: UUID,
     db: DatabaseSession
 ):
-    """Get global balance account by ID"""
+    """
+    Get global balance account by ID.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_global_balances` (global)
+    """
     result = await db.execute(
         select(BalanceAccount).where(
             BalanceAccount.id == account_id,
@@ -351,7 +372,9 @@ async def get_global_balance_account(
     "/balance-accounts",
     response_model=GlobalBalanceAccountResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.adjust_balance"))],
+    responses=responses(400),
+    operation_id="createGlobalBalanceAccount",
 )
 async def create_global_balance_account(
     account_data: GlobalBalanceAccountCreate,
@@ -359,7 +382,10 @@ async def create_global_balance_account(
     current_user: CurrentUser
 ):
     """
-    Create a global balance account (business-wide)
+    Create a global balance account (business-wide).
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.adjust_balance` (global)
 
     Use this to create:
     - Fixed assets (ASSET_FIXED): machinery, vehicles, equipment
@@ -420,14 +446,21 @@ async def create_global_balance_account(
 @router.patch(
     "/balance-accounts/{account_id}",
     response_model=GlobalBalanceAccountResponse,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.adjust_balance"))],
+    responses=responses(400, 404),
+    operation_id="updateGlobalBalanceAccount",
 )
 async def update_global_balance_account(
     account_id: UUID,
     account_data: BalanceAccountUpdate,
     db: DatabaseSession
 ):
-    """Update a global balance account"""
+    """
+    Update a global balance account.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.adjust_balance` (global)
+    """
     result = await db.execute(
         select(BalanceAccount).where(
             BalanceAccount.id == account_id,
@@ -456,14 +489,19 @@ async def update_global_balance_account(
 @router.delete(
     "/balance-accounts/{account_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.adjust_balance"))],
+    responses=responses(404),
+    operation_id="deleteGlobalBalanceAccount",
 )
 async def delete_global_balance_account(
     account_id: UUID,
     db: DatabaseSession
 ):
     """
-    Soft delete a global balance account (mark as inactive)
+    Soft delete a global balance account (mark as inactive).
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.adjust_balance` (global)
 
     Note: Cannot delete Caja (1101) or Banco (1102) accounts.
     """
@@ -488,6 +526,24 @@ async def delete_global_balance_account(
             detail="No se puede eliminar la cuenta de Caja o Banco"
         )
 
+    # Bug 3 fix: archivar una cuenta con saldo pendiente oculta deuda/activos vivos
+    # de los reportes (que filtran por is_active=true) sin compensar contablemente.
+    # Forzar al owner a liquidar o reasignar el saldo antes de archivar.
+    if account.balance != Decimal("0"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "ACCOUNT_HAS_BALANCE",
+                "message": (
+                    f"No se puede archivar '{account.name}' porque su saldo es "
+                    f"${account.balance:,.2f}. Liquide la cuenta o reasigne el "
+                    f"saldo (refinanciamiento, transferencia, ajuste de equity) "
+                    f"antes de archivar."
+                ),
+                "current_balance": float(account.balance),
+            },
+        )
+
     account.is_active = False
     await db.commit()
 
@@ -496,7 +552,9 @@ async def delete_global_balance_account(
 
 @router.get(
     "/balance-accounts/{account_id}/entries",
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.view_global_balances"))],
+    responses=responses(404),
+    operation_id="listGlobalBalanceEntries",
 )
 async def list_global_balance_entries(
     account_id: UUID,
@@ -504,7 +562,10 @@ async def list_global_balance_entries(
     limit: int = Query(50, ge=1, le=200)
 ):
     """
-    List recent entries for a global balance account
+    List recent entries for a global balance account.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_global_balances` (global)
     """
     # Verify account exists and is global
     result = await db.execute(
@@ -550,7 +611,9 @@ async def list_global_balance_entries(
 
 @router.get(
     "/balance-entries",
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.view_global_balances"))],
+    responses=AUTHENTICATED,
+    operation_id="listAllGlobalBalanceEntries",
 )
 async def list_all_global_balance_entries(
     db: DatabaseSession,
@@ -561,7 +624,10 @@ async def list_all_global_balance_entries(
     offset: int = Query(0, ge=0)
 ):
     """
-    List all balance entries from global accounts (unified log)
+    List all balance entries from global accounts (unified log).
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_global_balances` (global)
 
     Returns entries with account info for audit/log purposes.
     Ordered by created_at descending (most recent first).
@@ -634,13 +700,18 @@ async def list_all_global_balance_entries(
 
 @router.get(
     "/balance-general/summary",
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.view_global_balances"))],
+    responses=AUTHENTICATED,
+    operation_id="getGlobalBalanceGeneralSummary",
 )
 async def get_global_balance_general_summary(
     db: DatabaseSession
 ):
     """
-    Get global balance general (balance sheet) summary
+    Get global balance general (balance sheet) summary.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_global_balances` (global)
 
     Shows totals for:
     - Assets (current, fixed, other) - Global accounts only
@@ -711,13 +782,18 @@ async def get_global_balance_general_summary(
 
 @router.get(
     "/balance-general/detailed",
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.view_global_balances"))],
+    responses=AUTHENTICATED,
+    operation_id="getGlobalBalanceGeneralDetailed",
 )
 async def get_global_balance_general_detailed(
     db: DatabaseSession
 ):
     """
-    Get detailed global balance general with account breakdown
+    Get detailed global balance general with account breakdown.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_global_balances` (global)
     """
     # Get all global accounts
     result = await db.execute(
@@ -780,7 +856,9 @@ async def get_global_balance_general_detailed(
     "/expenses",
     response_model=GlobalExpenseResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.create_expense"))],
+    responses=responses(400),
+    operation_id="createGlobalExpense",
 )
 async def create_global_expense(
     expense_data: GlobalExpenseCreate,
@@ -788,7 +866,10 @@ async def create_global_expense(
     current_user: CurrentUser
 ):
     """
-    Create a global expense (business-wide)
+    Create a global expense (business-wide).
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.create_expense` (global)
 
     For expenses like utilities, salaries, rent that aren't school-specific.
     """
@@ -799,7 +880,7 @@ async def create_global_expense(
         amount=expense_data.amount,
         expense_date=expense_data.expense_date,
         due_date=expense_data.due_date,
-        vendor=expense_data.vendor,
+        vendor_id=expense_data.vendor_id,
         receipt_number=expense_data.receipt_number,
         is_recurring=expense_data.is_recurring,
         recurring_period=expense_data.recurring_period,
@@ -816,8 +897,10 @@ async def create_global_expense(
 
 @router.get(
     "/expenses",
-    response_model=list[ExpenseListResponse],
-    dependencies=[Depends(require_any_school_admin)]
+    response_model=PaginatedResponse[ExpenseListResponse],
+    dependencies=[Depends(require_global_permission("accounting.view_expenses"))],
+    responses=AUTHENTICATED,
+    operation_id="listGlobalExpenses",
 )
 async def list_global_expenses(
     db: DatabaseSession,
@@ -829,44 +912,47 @@ async def list_global_expenses(
     max_amount: Decimal = Query(None, ge=0, description="Maximum amount"),
     payment_account_id: UUID = Query(None, description="Filter by payment account"),
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500)
+    limit: int = Query(100, ge=1, le=100)
 ):
     """
-    List global expenses (school_id = NULL)
+    List global expenses (school_id = NULL).
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_expenses` (global)
 
     Includes payment info (account name, method, date) for paid expenses.
     Supports filtering by date range, amount range, category, payment status, and payment account.
     """
-    # Query with LEFT JOIN to get payment account name
+    filters = [Expense.school_id.is_(None), Expense.is_active == True]
+    if category:
+        filters.append(Expense.category == category)
+    if is_paid is not None:
+        filters.append(Expense.is_paid == is_paid)
+    if start_date:
+        filters.append(Expense.expense_date >= start_date)
+    if end_date:
+        filters.append(Expense.expense_date <= end_date)
+    if min_amount is not None:
+        filters.append(Expense.amount >= min_amount)
+    if max_amount is not None:
+        filters.append(Expense.amount <= max_amount)
+    if payment_account_id:
+        filters.append(Expense.payment_account_id == payment_account_id)
+
+    total = (await db.execute(select(func.count(Expense.id)).where(*filters))).scalar_one()
+
+    from sqlalchemy.orm import selectinload
     query = (
         select(Expense, BalanceAccount.name.label("payment_account_name"))
         .outerjoin(BalanceAccount, BalanceAccount.id == Expense.payment_account_id)
-        .where(
-            Expense.school_id.is_(None),
-            Expense.is_active == True
-        )
+        .options(selectinload(Expense.vendor))
+        .where(*filters)
+        .order_by(Expense.expense_date.desc())
+        .offset(skip).limit(limit)
     )
+    rows = (await db.execute(query)).all()
 
-    if category:
-        query = query.where(Expense.category == category)
-    if is_paid is not None:
-        query = query.where(Expense.is_paid == is_paid)
-    if start_date:
-        query = query.where(Expense.expense_date >= start_date)
-    if end_date:
-        query = query.where(Expense.expense_date <= end_date)
-    if min_amount is not None:
-        query = query.where(Expense.amount >= min_amount)
-    if max_amount is not None:
-        query = query.where(Expense.amount <= max_amount)
-    if payment_account_id:
-        query = query.where(Expense.payment_account_id == payment_account_id)
-
-    query = query.order_by(Expense.expense_date.desc()).offset(skip).limit(limit)
-    result = await db.execute(query)
-    rows = result.all()
-
-    return [
+    items = [
         ExpenseListResponse(
             id=e.id,
             category=e.category,
@@ -876,7 +962,8 @@ async def list_global_expenses(
             is_paid=e.is_paid,
             expense_date=e.expense_date,
             due_date=e.due_date,
-            vendor=e.vendor,
+            vendor_id=e.vendor_id,
+            vendor_name=e.vendor.name if e.vendor else None,
             is_recurring=e.is_recurring,
             balance=e.balance,
             payment_method=e.payment_method,
@@ -886,28 +973,45 @@ async def list_global_expenses(
         for e, payment_account_name in rows
     ]
 
+    return PaginatedResponse[ExpenseListResponse](
+        items=items, total=total, skip=skip, limit=limit
+    )
+
 
 @router.get(
     "/expenses/pending",
-    response_model=list[ExpenseListResponse],
-    dependencies=[Depends(require_any_school_admin)]
+    response_model=PaginatedResponse[ExpenseListResponse],
+    dependencies=[Depends(require_global_permission("accounting.view_expenses"))],
+    responses=AUTHENTICATED,
+    operation_id="getPendingGlobalExpenses",
 )
 async def get_pending_global_expenses(
-    db: DatabaseSession
+    db: DatabaseSession,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100)
 ):
     """
-    Get all pending (unpaid) global expenses
+    Get all pending (unpaid) global expenses.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_expenses` (global)
     """
+    filters = [
+        Expense.school_id.is_(None),
+        Expense.is_paid == False,
+        Expense.is_active == True
+    ]
+
+    total = (await db.execute(select(func.count(Expense.id)).where(*filters))).scalar_one()
+
     result = await db.execute(
-        select(Expense).where(
-            Expense.school_id.is_(None),
-            Expense.is_paid == False,
-            Expense.is_active == True
-        ).order_by(Expense.due_date)
+        select(Expense).where(*filters)
+        .order_by(Expense.due_date)
+        .offset(skip).limit(limit)
     )
     expenses = result.scalars().all()
 
-    return [
+    items = [
         ExpenseListResponse(
             id=e.id,
             category=e.category,
@@ -917,21 +1021,107 @@ async def get_pending_global_expenses(
             is_paid=e.is_paid,
             expense_date=e.expense_date,
             due_date=e.due_date,
-            vendor=e.vendor,
+            vendor_id=e.vendor_id,
+            vendor_name=e.vendor.name if e.vendor else None,
             is_recurring=e.is_recurring,
             balance=e.balance,
             payment_method=e.payment_method,
-            payment_account_name=None,  # Pending expenses don't have payment info
+            payment_account_name=None,
             paid_at=e.paid_at
         )
         for e in expenses
     ]
 
+    return PaginatedResponse[ExpenseListResponse](
+        items=items, total=total, skip=skip, limit=limit
+    )
+
+
+@router.get(
+    "/expenses/stats",
+    response_model=ExpenseStatsResponse,
+    dependencies=[Depends(require_global_permission("accounting.view_expenses"))],
+    responses=AUTHENTICATED,
+    operation_id="getGlobalExpensesStats",
+)
+async def get_expenses_stats(
+    db: DatabaseSession,
+    category: ExpenseCategory | None = Query(None, description="Filter by category"),
+    is_paid: bool | None = Query(None, description="Filter by payment status"),
+    start_date: date | None = Query(None, description="Filter from date (expense_date)"),
+    end_date: date | None = Query(None, description="Filter to date (expense_date)"),
+    min_amount: Decimal | None = Query(None, ge=0),
+    max_amount: Decimal | None = Query(None, ge=0),
+    payment_account_id: UUID | None = Query(None),
+):
+    """
+    Aggregated expense totals for the global accounting dashboard.
+
+    Returns total/paid/pending sums and counts in a single query so the
+    dashboard cards reflect the full dataset rather than the currently
+    paginated rows.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_expenses` (global)
+    """
+    filters = [Expense.school_id.is_(None), Expense.is_active == True]
+    if category:
+        filters.append(Expense.category == category)
+    if is_paid is not None:
+        filters.append(Expense.is_paid == is_paid)
+    if start_date:
+        filters.append(Expense.expense_date >= start_date)
+    if end_date:
+        filters.append(Expense.expense_date <= end_date)
+    if min_amount is not None:
+        filters.append(Expense.amount >= min_amount)
+    if max_amount is not None:
+        filters.append(Expense.amount <= max_amount)
+    if payment_account_id:
+        filters.append(Expense.payment_account_id == payment_account_id)
+
+    paid_case = case((Expense.is_paid == True, Expense.amount), else_=Decimal("0"))
+    pending_case = case(
+        (Expense.is_paid == False, Expense.amount - func.coalesce(Expense.amount_paid, Decimal("0"))),
+        else_=Decimal("0"),
+    )
+    paid_count_case = case((Expense.is_paid == True, 1), else_=0)
+    pending_count_case = case((Expense.is_paid == False, 1), else_=0)
+
+    row = (
+        await db.execute(
+            select(
+                func.count(Expense.id).label("total_count"),
+                func.coalesce(func.sum(Expense.amount), Decimal("0")).label("total_amount"),
+                func.coalesce(func.sum(paid_case), Decimal("0")).label("paid_amount"),
+                func.coalesce(func.sum(paid_count_case), 0).label("paid_count"),
+                func.coalesce(func.sum(pending_case), Decimal("0")).label("pending_amount"),
+                func.coalesce(func.sum(pending_count_case), 0).label("pending_count"),
+            ).where(*filters)
+        )
+    ).one()
+
+    total_count = int(row.total_count or 0)
+    total_amount = Decimal(str(row.total_amount or 0))
+    average = total_amount / total_count if total_count else Decimal("0")
+
+    return ExpenseStatsResponse(
+        total_amount=total_amount,
+        total_count=total_count,
+        paid_amount=Decimal(str(row.paid_amount or 0)),
+        paid_count=int(row.paid_count or 0),
+        pending_amount=Decimal(str(row.pending_amount or 0)),
+        pending_count=int(row.pending_count or 0),
+        average_amount=average,
+    )
+
 
 @router.get(
     "/expenses/summary-by-category",
     response_model=list[ExpenseCategorySummary],
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.view_expenses"))],
+    responses=AUTHENTICATED,
+    operation_id="getGlobalExpensesSummaryByCategory",
 )
 async def get_expenses_summary_by_category(
     db: DatabaseSession,
@@ -939,7 +1129,10 @@ async def get_expenses_summary_by_category(
     end_date: date | None = Query(None, description="Filter to date")
 ):
     """
-    Get expenses grouped by category
+    Get expenses grouped by category.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_expenses` (global)
 
     Returns summary of expenses by category for pie/bar charts.
     """
@@ -997,7 +1190,9 @@ async def get_expenses_summary_by_category(
 
 @router.post(
     "/expenses/check-balance",
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.view_expenses"))],
+    responses=responses(400),
+    operation_id="checkExpenseBalance",
 )
 async def check_expense_balance(
     amount: Decimal = Query(..., gt=0, description="Monto a verificar"),
@@ -1006,6 +1201,9 @@ async def check_expense_balance(
 ):
     """
     Verifica si hay fondos suficientes para pagar un gasto.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_expenses` (global)
 
     Si el pago es en efectivo y Caja Menor no alcanza, informa sobre
     la disponibilidad de Caja Mayor como fallback.
@@ -1064,13 +1262,20 @@ async def check_expense_balance(
 @router.get(
     "/expenses/{expense_id}",
     response_model=GlobalExpenseResponse,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.view_expenses"))],
+    responses=responses(404),
+    operation_id="getGlobalExpense",
 )
 async def get_global_expense(
     expense_id: UUID,
     db: DatabaseSession
 ):
-    """Get global expense by ID with payment account info"""
+    """
+    Get global expense by ID with payment account info.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_expenses` (global)
+    """
     result = await db.execute(
         select(Expense, BalanceAccount.name.label("payment_account_name"))
         .outerjoin(BalanceAccount, BalanceAccount.id == Expense.payment_account_id)
@@ -1096,14 +1301,21 @@ async def get_global_expense(
 @router.patch(
     "/expenses/{expense_id}",
     response_model=GlobalExpenseResponse,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.create_expense"))],
+    responses=responses(400, 404),
+    operation_id="updateGlobalExpense",
 )
 async def update_global_expense(
     expense_id: UUID,
     expense_data: ExpenseUpdate,
     db: DatabaseSession
 ):
-    """Update a global expense"""
+    """
+    Update a global expense.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.create_expense` (global)
+    """
     result = await db.execute(
         select(Expense).where(
             Expense.id == expense_id,
@@ -1132,7 +1344,9 @@ async def update_global_expense(
 @router.delete(
     "/expenses/{expense_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.create_expense"))],
+    responses=responses(404),
+    operation_id="deleteGlobalExpense",
 )
 async def delete_global_expense(
     expense_id: UUID,
@@ -1140,6 +1354,9 @@ async def delete_global_expense(
 ):
     """
     Delete a pending global expense (soft delete).
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.create_expense` (global)
 
     Only unpaid expenses can be deleted. Paid expenses must be reverted first.
     """
@@ -1171,7 +1388,9 @@ async def delete_global_expense(
 @router.post(
     "/expenses/{expense_id}/pay",
     response_model=GlobalExpenseResponse,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.pay_expense"))],
+    responses=responses(400, 404),
+    operation_id="payGlobalExpense",
 )
 async def pay_global_expense(
     expense_id: UUID,
@@ -1180,7 +1399,10 @@ async def pay_global_expense(
     current_user: CurrentUser
 ):
     """
-    Record a payment for a global expense
+    Record a payment for a global expense.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.pay_expense` (global)
 
     Updates balance accounts (Caja/Banco) automatically.
     """
@@ -1286,7 +1508,9 @@ async def pay_global_expense(
     "/payables",
     response_model=GlobalAccountsPayableResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.manage_payables"))],
+    responses=responses(400, 404),
+    operation_id="createGlobalPayable",
 )
 async def create_global_payable(
     payable_data: GlobalAccountsPayableCreate,
@@ -1294,13 +1518,16 @@ async def create_global_payable(
     current_user: CurrentUser
 ):
     """
-    Create a global accounts payable (supplier debt)
+    Create a global accounts payable (supplier debt).
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.manage_payables` (global)
 
     For tracking money owed BY the business to suppliers.
     """
     payable = AccountsPayable(
         school_id=None,  # Global payable
-        vendor=payable_data.vendor,
+        vendor_id=payable_data.vendor_id,
         amount=payable_data.amount,
         description=payable_data.description,
         category=payable_data.category,
@@ -1319,38 +1546,47 @@ async def create_global_payable(
 
 @router.get(
     "/payables",
-    response_model=list[AccountsPayableListResponse],
-    dependencies=[Depends(require_any_school_admin)]
+    response_model=PaginatedResponse[AccountsPayableListResponse],
+    dependencies=[Depends(require_global_permission("accounting.manage_payables"))],
+    responses=responses(400, 404),
+    operation_id="listGlobalPayables",
 )
 async def list_global_payables(
     db: DatabaseSession,
     is_paid: bool = Query(None, description="Filter by payment status"),
     is_overdue: bool = Query(None, description="Filter by overdue status"),
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500)
+    limit: int = Query(100, ge=1, le=100)
 ):
     """
-    List global accounts payable (school_id = NULL)
+    List global accounts payable (school_id = NULL).
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.manage_payables` (global)
     """
-    query = select(AccountsPayable).where(
-        AccountsPayable.school_id.is_(None)
-    )
-
+    filters = [AccountsPayable.school_id.is_(None)]
     if is_paid is not None:
-        query = query.where(AccountsPayable.is_paid == is_paid)
+        filters.append(AccountsPayable.is_paid == is_paid)
 
-    query = query.order_by(AccountsPayable.due_date).offset(skip).limit(limit)
-    result = await db.execute(query)
-    payables = result.scalars().all()
+    total = (await db.execute(select(func.count(AccountsPayable.id)).where(*filters))).scalar_one()
 
-    # Filter by overdue if requested
+    query = (
+        select(AccountsPayable)
+        .options(selectinload(AccountsPayable.vendor))
+        .where(*filters)
+        .order_by(AccountsPayable.due_date)
+        .offset(skip).limit(limit)
+    )
+    payables = list((await db.execute(query)).scalars().all())
+
     if is_overdue is not None:
         payables = [p for p in payables if p.is_overdue == is_overdue]
 
-    return [
+    items = [
         AccountsPayableListResponse(
             id=p.id,
-            vendor=p.vendor,
+            vendor_id=p.vendor_id,
+            vendor_name=p.vendor.name if p.vendor else "",
             amount=p.amount,
             amount_paid=p.amount_paid,
             balance=p.balance,
@@ -1364,31 +1600,51 @@ async def list_global_payables(
         )
         for p in payables
     ]
+
+    return PaginatedResponse[AccountsPayableListResponse](
+        items=items, total=total, skip=skip, limit=limit
+    )
 
 
 @router.get(
     "/payables/pending",
-    response_model=list[AccountsPayableListResponse],
-    dependencies=[Depends(require_any_school_admin)]
+    response_model=PaginatedResponse[AccountsPayableListResponse],
+    dependencies=[Depends(require_global_permission("accounting.manage_payables"))],
+    responses=responses(400, 404),
+    operation_id="getPendingGlobalPayables",
 )
 async def get_pending_global_payables(
-    db: DatabaseSession
+    db: DatabaseSession,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100)
 ):
     """
-    Get all pending (unpaid) global payables
+    Get all pending (unpaid) global payables.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.manage_payables` (global)
     """
+    filters = [
+        AccountsPayable.school_id.is_(None),
+        AccountsPayable.is_paid == False
+    ]
+
+    total = (await db.execute(select(func.count(AccountsPayable.id)).where(*filters))).scalar_one()
+
     result = await db.execute(
-        select(AccountsPayable).where(
-            AccountsPayable.school_id.is_(None),
-            AccountsPayable.is_paid == False
-        ).order_by(AccountsPayable.due_date)
+        select(AccountsPayable)
+        .options(selectinload(AccountsPayable.vendor))
+        .where(*filters)
+        .order_by(AccountsPayable.due_date)
+        .offset(skip).limit(limit)
     )
     payables = result.scalars().all()
 
-    return [
+    items = [
         AccountsPayableListResponse(
             id=p.id,
-            vendor=p.vendor,
+            vendor_id=p.vendor_id,
+            vendor_name=p.vendor.name if p.vendor else "",
             amount=p.amount,
             amount_paid=p.amount_paid,
             balance=p.balance,
@@ -1402,18 +1658,29 @@ async def get_pending_global_payables(
         )
         for p in payables
     ]
+
+    return PaginatedResponse[AccountsPayableListResponse](
+        items=items, total=total, skip=skip, limit=limit
+    )
 
 
 @router.get(
     "/payables/{payable_id}",
     response_model=GlobalAccountsPayableResponse,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.manage_payables"))],
+    responses=responses(400, 404),
+    operation_id="getGlobalPayable",
 )
 async def get_global_payable(
     payable_id: UUID,
     db: DatabaseSession
 ):
-    """Get global payable by ID"""
+    """
+    Get global payable by ID.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.manage_payables` (global)
+    """
     result = await db.execute(
         select(AccountsPayable).where(
             AccountsPayable.id == payable_id,
@@ -1434,7 +1701,9 @@ async def get_global_payable(
 @router.post(
     "/payables/{payable_id}/pay",
     response_model=GlobalAccountsPayableResponse,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.manage_payables"))],
+    responses=responses(400, 404),
+    operation_id="payGlobalPayable",
 )
 async def pay_global_payable(
     payable_id: UUID,
@@ -1443,7 +1712,10 @@ async def pay_global_payable(
     current_user: CurrentUser
 ):
     """
-    Record a payment on global accounts payable
+    Record a payment on global accounts payable.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.manage_payables` (global)
 
     Updates balance accounts (Caja/Banco) automatically.
     """
@@ -1502,13 +1774,18 @@ async def pay_global_payable(
 
 @router.get(
     "/patrimony/summary",
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.view_global_balances"))],
+    responses=AUTHENTICATED,
+    operation_id="getGlobalPatrimonySummary",
 )
 async def get_global_patrimony_summary(
     db: DatabaseSession
 ):
     """
-    Get global patrimony summary (business-wide)
+    Get global patrimony summary (business-wide).
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_global_balances` (global)
 
     PATRIMONY = ASSETS - LIABILITIES
 
@@ -1551,11 +1828,14 @@ async def get_global_patrimony_summary(
     )
     inventory_value = float(result.scalar() or 0)
 
-    # Calculate ACCOUNTS RECEIVABLE (pending amounts from all schools)
+    # Calculate ACCOUNTS RECEIVABLE (pending amounts from all schools).
+    # Excluye encargos ya resueltos por la auditoría forense (saldo real 0):
+    # cambios fantasma, cancelados y castigos no son cobrables reales.
     result = await db.execute(
         select(func.sum(AccountsReceivable.amount - AccountsReceivable.amount_paid))
         .where(
-            AccountsReceivable.is_paid == False
+            AccountsReceivable.is_paid == False,
+            ~order_audit_resolved_exists(AccountsReceivable.order_id),
         )
     )
     pending_receivables = float(result.scalar() or 0)
@@ -1650,7 +1930,9 @@ async def get_global_patrimony_summary(
     "/receivables",
     response_model=GlobalAccountsReceivableResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.manage_receivables"))],
+    responses=responses(400),
+    operation_id="createGlobalReceivable",
 )
 async def create_global_receivable(
     receivable_data: GlobalAccountsReceivableCreate,
@@ -1658,10 +1940,14 @@ async def create_global_receivable(
     current_user: CurrentUser
 ):
     """
-    Create a global accounts receivable (customer debt)
+    Create a global accounts receivable (customer debt).
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.manage_receivables` (global)
 
     For tracking money owed TO the business by customers.
     """
+    from app.services.accounting.receivables import default_ar_due_date
     receivable = AccountsReceivable(
         school_id=None,  # Global receivable
         client_id=receivable_data.client_id,
@@ -1670,7 +1956,7 @@ async def create_global_receivable(
         amount=receivable_data.amount,
         description=receivable_data.description,
         invoice_date=receivable_data.invoice_date,
-        due_date=receivable_data.due_date,
+        due_date=receivable_data.due_date or default_ar_due_date(receivable_data.invoice_date),
         notes=receivable_data.notes,
         created_by=current_user.id
     )
@@ -1720,77 +2006,139 @@ def _build_global_receivable_response(r) -> AccountsReceivableListResponse:
 
 @router.get(
     "/receivables",
-    response_model=list[AccountsReceivableListResponse],
-    dependencies=[Depends(require_any_school_admin)]
+    response_model=PaginatedResponse[AccountsReceivableListResponse],
+    dependencies=[Depends(require_global_permission("accounting.manage_receivables"))],
+    responses=AUTHENTICATED,
+    operation_id="listGlobalReceivables",
 )
 async def list_global_receivables(
     db: DatabaseSession,
     is_paid: bool = Query(None, description="Filter by payment status"),
     is_overdue: bool = Query(None, description="Filter by overdue status"),
+    client_id: UUID | None = Query(None, description="Filter by client ID"),
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500)
+    limit: int = Query(100, ge=1, le=100)
 ):
     """
     List ALL accounts receivable (from all schools and global)
     with full details including origin, school, and order status.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.manage_receivables` (global)
     """
+    filters = []
+    if is_paid is not None:
+        filters.append(AccountsReceivable.is_paid == is_paid)
+    if is_overdue is not None:
+        filters.append(AccountsReceivable.is_overdue == is_overdue)
+    if client_id is not None:
+        filters.append(AccountsReceivable.client_id == client_id)
+
+    count_query = select(func.count(AccountsReceivable.id))
+    if filters:
+        count_query = count_query.where(*filters)
+    total = (await db.execute(count_query)).scalar_one()
+
     query = select(AccountsReceivable).options(
         selectinload(AccountsReceivable.client),
         selectinload(AccountsReceivable.sale),
         selectinload(AccountsReceivable.order),
         selectinload(AccountsReceivable.school)
     )
-
-    if is_paid is not None:
-        query = query.where(AccountsReceivable.is_paid == is_paid)
-
-    if is_overdue is not None:
-        query = query.where(AccountsReceivable.is_overdue == is_overdue)
-
+    if filters:
+        query = query.where(*filters)
     query = query.order_by(AccountsReceivable.due_date.asc().nullslast()).offset(skip).limit(limit)
-    result = await db.execute(query)
-    receivables = result.scalars().all()
+    receivables = (await db.execute(query)).scalars().all()
 
-    return [_build_global_receivable_response(r) for r in receivables]
+    return PaginatedResponse[AccountsReceivableListResponse](
+        items=[_build_global_receivable_response(r) for r in receivables],
+        total=total, skip=skip, limit=limit
+    )
 
 
 @router.get(
     "/receivables/pending",
-    response_model=list[AccountsReceivableListResponse],
-    dependencies=[Depends(require_any_school_admin)]
+    response_model=PaginatedResponse[AccountsReceivableListResponse],
+    dependencies=[Depends(require_global_permission("accounting.manage_receivables"))],
+    responses=AUTHENTICATED,
+    operation_id="getPendingGlobalReceivables",
 )
 async def get_pending_global_receivables(
-    db: DatabaseSession
+    db: DatabaseSession,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100)
 ):
     """
     Get all pending (unpaid) receivables from all schools and global
     with full details including origin, school, and order status.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.manage_receivables` (global)
     """
+    # Excluye encargos resueltos por la auditoría forense (saldo real 0).
+    filters = [
+        AccountsReceivable.is_paid == False,
+        ~order_audit_resolved_exists(AccountsReceivable.order_id),
+    ]
+
+    total = (await db.execute(select(func.count(AccountsReceivable.id)).where(*filters))).scalar_one()
+
     result = await db.execute(
         select(AccountsReceivable).options(
             selectinload(AccountsReceivable.client),
             selectinload(AccountsReceivable.sale),
             selectinload(AccountsReceivable.order),
             selectinload(AccountsReceivable.school)
-        ).where(
-            AccountsReceivable.is_paid == False
-        ).order_by(AccountsReceivable.due_date.asc().nullslast())
+        ).where(*filters)
+        .order_by(AccountsReceivable.due_date.asc().nullslast())
+        .offset(skip).limit(limit)
     )
     receivables = result.scalars().all()
 
-    return [_build_global_receivable_response(r) for r in receivables]
+    return PaginatedResponse[AccountsReceivableListResponse](
+        items=[_build_global_receivable_response(r) for r in receivables],
+        total=total, skip=skip, limit=limit
+    )
+
+
+@router.get(
+    "/order-audit-overrides",
+    response_model=list[OrderAuditOverrideResponse],
+    dependencies=[Depends(require_global_permission("accounting.manage_receivables"))],
+    responses=AUTHENTICATED,
+    operation_id="listOrderAuditOverrides",
+)
+async def list_order_audit_overrides(db: DatabaseSession):
+    """Lista las decisiones de la auditoría forense de encargos (GATE 0).
+
+    Cada fila es la realidad contable auditada de un encargo huérfano, sin
+    haber tocado su estado público (`orders.status`). Ver
+    `docs/v3/formalization/encargos-audit-2026-06-04.md`.
+
+    **Auth:** Bearer JWT (staff) · **Permission:** `accounting.manage_receivables`
+    """
+    service = OrderAuditService(db)
+    overrides = await service.list_overrides()
+    return [OrderAuditOverrideResponse.model_validate(o) for o in overrides]
 
 
 @router.get(
     "/receivables/{receivable_id}",
     response_model=GlobalAccountsReceivableResponse,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.manage_receivables"))],
+    responses=responses(404),
+    operation_id="getGlobalReceivable",
 )
 async def get_global_receivable(
     receivable_id: UUID,
     db: DatabaseSession
 ):
-    """Get global receivable by ID"""
+    """
+    Get global receivable by ID.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.manage_receivables` (global)
+    """
     result = await db.execute(
         select(AccountsReceivable).where(
             AccountsReceivable.id == receivable_id,
@@ -1811,7 +2159,9 @@ async def get_global_receivable(
 @router.post(
     "/receivables/{receivable_id}/pay",
     response_model=GlobalAccountsReceivableResponse,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.manage_receivables"))],
+    responses=responses(400, 404),
+    operation_id="payGlobalReceivable",
 )
 async def pay_global_receivable(
     receivable_id: UUID,
@@ -1820,7 +2170,10 @@ async def pay_global_receivable(
     current_user: CurrentUser
 ):
     """
-    Record a payment on global accounts receivable
+    Record a payment on global accounts receivable.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.manage_receivables` (global)
 
     Updates balance accounts (Caja/Banco) automatically.
     """
@@ -1895,8 +2248,10 @@ EXPENSE_CATEGORY_LABELS = {
 
 @router.get(
     "/transactions",
-    response_model=list[TransactionListItemResponse],
-    dependencies=[Depends(require_any_school_admin)]
+    response_model=PaginatedResponse[TransactionListItemResponse],
+    dependencies=[Depends(require_global_permission("accounting.view_global_balances"))],
+    responses=AUTHENTICATED,
+    operation_id="listGlobalTransactions",
 )
 async def list_global_transactions(
     db: DatabaseSession,
@@ -1908,31 +2263,35 @@ async def list_global_transactions(
     limit: int = Query(50, ge=1, le=200)
 ):
     """
-    List transactions (global and school-specific)
+    List transactions (global and school-specific).
 
-    Returns all transactions for reporting purposes.
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_global_balances` (global)
     """
     from sqlalchemy.orm import joinedload
 
-    query = select(Transaction).options(
-        joinedload(Transaction.school)
-    )
-
-    # Apply filters
+    filters = []
     if start_date:
-        query = query.where(Transaction.transaction_date >= start_date)
+        filters.append(Transaction.transaction_date >= start_date)
     if end_date:
-        query = query.where(Transaction.transaction_date <= end_date)
+        filters.append(Transaction.transaction_date <= end_date)
     if transaction_type:
-        query = query.where(Transaction.type == transaction_type)
+        filters.append(Transaction.type == transaction_type)
     if school_id:
-        query = query.where(Transaction.school_id == school_id)
+        filters.append(Transaction.school_id == school_id)
 
+    count_query = select(func.count(Transaction.id))
+    if filters:
+        count_query = count_query.where(*filters)
+    total = (await db.execute(count_query)).scalar_one()
+
+    query = select(Transaction).options(joinedload(Transaction.school))
+    if filters:
+        query = query.where(*filters)
     query = query.order_by(Transaction.created_at.desc()).offset(skip).limit(limit)
-    result = await db.execute(query)
-    transactions = result.scalars().unique().all()
+    transactions = (await db.execute(query)).scalars().unique().all()
 
-    return [
+    items = [
         TransactionListItemResponse(
             id=t.id,
             type=t.type,
@@ -1949,11 +2308,17 @@ async def list_global_transactions(
         for t in transactions
     ]
 
+    return PaginatedResponse[TransactionListItemResponse](
+        items=items, total=total, skip=skip, limit=limit
+    )
+
 
 @router.get(
     "/cash-flow",
     response_model=CashFlowReportResponse,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.view_cash"))],
+    responses=AUTHENTICATED,
+    operation_id="getGlobalCashFlowReport",
 )
 async def get_cash_flow_report(
     db: DatabaseSession,
@@ -1962,7 +2327,10 @@ async def get_cash_flow_report(
     group_by: str = Query("day", description="Group by: day, week, month")
 ):
     """
-    Get cash flow report for a period
+    Get cash flow report for a period.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_cash` (global)
 
     Shows income vs expenses over time for line charts.
     """
@@ -2075,7 +2443,9 @@ async def get_cash_flow_report(
 @router.post(
     "/expenses/{expense_id}/adjust",
     response_model=ExpenseAdjustmentResponse,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.adjust_expense"))],
+    responses=responses(400, 404),
+    operation_id="adjustGlobalExpense",
 )
 async def adjust_expense(
     expense_id: UUID,
@@ -2085,6 +2455,9 @@ async def adjust_expense(
 ):
     """
     Adjust a paid expense's amount and/or payment account.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.adjust_expense` (global)
 
     Use cases:
     - Correct a wrong payment amount
@@ -2163,7 +2536,9 @@ async def adjust_expense(
 @router.post(
     "/expenses/{expense_id}/revert",
     response_model=ExpenseAdjustmentResponse,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.adjust_expense"))],
+    responses=responses(400, 404),
+    operation_id="revertGlobalExpensePayment",
 )
 async def revert_expense_payment(
     expense_id: UUID,
@@ -2174,9 +2549,11 @@ async def revert_expense_payment(
     """
     Completely revert an expense payment (full rollback).
 
-    This returns the full paid amount to the original account
-    and marks the expense as unpaid.
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.adjust_expense` (global)
 
+    Returns the full paid amount to the original account
+    and marks the expense as unpaid.
     Use this when a payment was made in error and needs to be undone entirely.
 
     Args:
@@ -2237,7 +2614,9 @@ async def revert_expense_payment(
 @router.post(
     "/expenses/{expense_id}/refund",
     response_model=ExpenseAdjustmentResponse,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.adjust_expense"))],
+    responses=responses(400, 404),
+    operation_id="refundGlobalExpense",
 )
 async def partial_refund_expense(
     expense_id: UUID,
@@ -2247,6 +2626,9 @@ async def partial_refund_expense(
 ):
     """
     Issue a partial refund on an expense payment.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.adjust_expense` (global)
 
     Use this when part of the expense payment needs to be returned,
     but not the full amount.
@@ -2318,7 +2700,9 @@ async def partial_refund_expense(
 @router.get(
     "/expenses/{expense_id}/adjustments",
     response_model=ExpenseAdjustmentHistoryResponse,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.view_expenses"))],
+    responses=responses(400, 404),
+    operation_id="getGlobalExpenseAdjustmentHistory",
 )
 async def get_expense_adjustment_history(
     expense_id: UUID,
@@ -2326,6 +2710,9 @@ async def get_expense_adjustment_history(
 ):
     """
     Get the adjustment history for a specific expense.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_expenses` (global)
 
     Returns the expense details along with all adjustments made,
     ordered by most recent first.
@@ -2387,7 +2774,7 @@ async def get_expense_adjustment_history(
         expense_id=expense.id,
         expense_description=expense.description,
         expense_category=expense.category,
-        expense_vendor=expense.vendor,
+        expense_vendor=expense.vendor.name if expense.vendor else None,
         current_amount=expense.amount,
         current_amount_paid=expense.amount_paid,
         current_is_paid=expense.is_paid,
@@ -2399,7 +2786,9 @@ async def get_expense_adjustment_history(
 @router.get(
     "/adjustments",
     response_model=AdjustmentListPaginatedResponse,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.view_expenses"))],
+    responses=responses(400, 404),
+    operation_id="listGlobalExpenseAdjustments",
 )
 async def list_expense_adjustments(
     db: DatabaseSession,
@@ -2407,22 +2796,13 @@ async def list_expense_adjustments(
     end_date: date = Query(..., description="End date (inclusive)"),
     reason: AdjustmentReason | None = Query(None, description="Filter by reason"),
     limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0)
+    skip: int = Query(0, ge=0)
 ):
     """
     List expense adjustments within a date range.
 
-    Use this for audit reports and tracking adjustments over time.
-
-    Args:
-        start_date: Start date for filtering
-        end_date: End date for filtering
-        reason: Optional filter by adjustment reason
-        limit: Maximum records per page
-        offset: Records to skip
-
-    Returns:
-        Paginated list of adjustments
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_expenses` (global)
     """
     from app.services.expense_adjustment import ExpenseAdjustmentService
     from app.models.user import User
@@ -2434,7 +2814,7 @@ async def list_expense_adjustments(
         end_date=end_date,
         reason=reason,
         limit=limit,
-        offset=offset
+        offset=skip
     )
 
     # Build list responses
@@ -2470,8 +2850,8 @@ async def list_expense_adjustments(
     return AdjustmentListPaginatedResponse(
         items=items,
         total=total,
+        skip=skip,
         limit=limit,
-        offset=offset
     )
 
 
@@ -2481,13 +2861,18 @@ async def list_expense_adjustments(
 
 @router.get(
     "/planning/dashboard",
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("reports.financial"))],
+    responses=AUTHENTICATED,
+    operation_id="getPlanningDashboard",
 )
 async def get_planning_dashboard(
     db: DatabaseSession
 ):
     """
     Get the financial planning dashboard data.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.financial` (global)
 
     Returns:
     - Current liquidity
@@ -2515,7 +2900,9 @@ async def get_planning_dashboard(
 
 @router.get(
     "/planning/sales-seasonality",
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("reports.financial"))],
+    responses=AUTHENTICATED,
+    operation_id="getSalesSeasonality",
 )
 async def get_sales_seasonality(
     db: DatabaseSession,
@@ -2524,6 +2911,9 @@ async def get_sales_seasonality(
 ):
     """
     Get sales seasonality analysis.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.financial` (global)
 
     Analyzes historical sales by month to identify patterns
     for financial planning purposes.
@@ -2542,7 +2932,9 @@ async def get_sales_seasonality(
 
 @router.get(
     "/planning/cash-projection",
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("reports.financial"))],
+    responses=AUTHENTICATED,
+    operation_id="getCashProjection",
 )
 async def get_cash_projection(
     db: DatabaseSession,
@@ -2552,6 +2944,9 @@ async def get_cash_projection(
 ):
     """
     Get cash flow projection for the next N months.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.financial` (global)
 
     Uses:
     - Historical sales patterns with growth factor
@@ -2578,18 +2973,23 @@ async def get_cash_projection(
 
 @router.get(
     "/planning/debt-schedule",
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.manage_payables"))],
+    responses=AUTHENTICATED,
+    operation_id="listDebtPayments",
 )
 async def list_debt_payments(
     db: DatabaseSession,
     status: str = Query(None, description="Filter by status: pending, paid, overdue, cancelled"),
     start_date: date = Query(None, description="Filter from date"),
     end_date: date = Query(None, description="Filter until date"),
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(100, ge=1, le=100),
     offset: int = Query(0, ge=0)
 ):
     """
     List scheduled debt payments.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.manage_payables` (global)
 
     Returns paginated list with totals and next due payment.
     """
@@ -2608,7 +3008,9 @@ async def list_debt_payments(
 @router.post(
     "/planning/debt-schedule",
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.manage_payables"))],
+    responses=responses(400),
+    operation_id="createDebtPayment",
 )
 async def create_debt_payment(
     db: DatabaseSession,
@@ -2617,6 +3019,9 @@ async def create_debt_payment(
 ):
     """
     Create a new scheduled debt payment.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.manage_payables` (global)
 
     For tracking upcoming payments like loan installments,
     supplier payments, or tax obligations.
@@ -2642,7 +3047,9 @@ async def create_debt_payment(
 
 @router.patch(
     "/planning/debt-schedule/{payment_id}",
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.manage_payables"))],
+    responses=responses(400, 404),
+    operation_id="updateDebtPayment",
 )
 async def update_debt_payment(
     payment_id: UUID,
@@ -2651,6 +3058,9 @@ async def update_debt_payment(
 ):
     """
     Update a scheduled debt payment.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.manage_payables` (global)
 
     Only updates fields that are provided.
     """
@@ -2685,28 +3095,47 @@ async def update_debt_payment(
 
 @router.post(
     "/planning/debt-schedule/{payment_id}/mark-paid",
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.manage_payables"))],
+    responses=responses(400, 404),
+    operation_id="markDebtPaymentPaid",
 )
 async def mark_debt_payment_as_paid(
     payment_id: UUID,
     db: DatabaseSession,
-    data: DebtPaymentMarkPaid
+    data: DebtPaymentMarkPaid,
+    current_user: CurrentUser,
 ):
     """
-    Mark a debt payment as paid.
+    Mark a debt payment as paid and post the corresponding accounting entries.
 
-    Records the payment details and updates status.
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.manage_payables` (global)
+
+    Beyond updating the schedule row this endpoint:
+    - reduces the cash/bank account by paid_amount (BalanceEntry),
+    - reduces the linked liability account by capital_amount (BalanceEntry),
+    - registers interest_amount as an Expense (intereses_financieros).
     """
     from app.services.planning import PlanningService
 
     service = PlanningService(db)
-    payment = await service.mark_debt_as_paid(
-        payment_id=payment_id,
-        paid_date=data.paid_date,
-        paid_amount=data.paid_amount,
-        payment_method=data.payment_method,
-        payment_account_id=data.payment_account_id
-    )
+    try:
+        payment = await service.mark_debt_as_paid(
+            payment_id=payment_id,
+            paid_date=data.paid_date,
+            paid_amount=data.paid_amount,
+            payment_method=data.payment_method,
+            payment_account_id=data.payment_account_id,
+            capital_amount=data.capital_amount,
+            interest_amount=data.interest_amount,
+            created_by=current_user.id,
+        )
+    except ValueError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
 
     if not payment:
         raise HTTPException(
@@ -2727,7 +3156,9 @@ async def mark_debt_payment_as_paid(
 @router.delete(
     "/planning/debt-schedule/{payment_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.manage_payables"))],
+    responses=responses(404),
+    operation_id="deleteDebtPayment",
 )
 async def delete_debt_payment(
     payment_id: UUID,
@@ -2735,6 +3166,9 @@ async def delete_debt_payment(
 ):
     """
     Delete a scheduled debt payment.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.manage_payables` (global)
 
     Only pending payments can be deleted.
     """
@@ -2755,13 +3189,18 @@ async def delete_debt_payment(
 
 @router.post(
     "/planning/update-overdue",
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.manage_payables"))],
+    responses=responses(400),
+    operation_id="updateOverduePayments",
 )
 async def update_overdue_payments(
     db: DatabaseSession
 ):
     """
     Update status of overdue debt payments.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.manage_payables` (global)
 
     Marks all pending payments past their due date as overdue.
     Run this periodically (e.g., daily) to keep statuses current.
@@ -2780,7 +3219,9 @@ async def update_overdue_payments(
 
 @router.post(
     "/planning/import-liabilities",
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.manage_payables"))],
+    responses=responses(400),
+    operation_id="importLiabilitiesToDebtSchedule",
 )
 async def import_liabilities_to_debt_schedule(
     db: DatabaseSession,
@@ -2788,6 +3229,10 @@ async def import_liabilities_to_debt_schedule(
 ):
     """
     Import active LIABILITY_LONG accounts into the debt payment schedule.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.manage_payables` (global)
+
     For liabilities with interest_rate > 0: generates monthly interest payments + capital payment.
     For liabilities without interest: generates a single capital payment at due_date.
     Skips liabilities already linked to a debt payment.
@@ -2892,7 +3337,9 @@ async def import_liabilities_to_debt_schedule(
 
 @router.post(
     "/planning/generate-pending-interest",
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.manage_payables"))],
+    responses=responses(400),
+    operation_id="generatePendingInterestPayments",
 )
 async def generate_pending_interest_payments(
     db: DatabaseSession,
@@ -2900,6 +3347,10 @@ async def generate_pending_interest_payments(
 ):
     """
     Generate missing interest payments for all active liabilities.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.manage_payables` (global)
+
     Use this when due dates have been extended or debts remain unpaid past due_date.
     """
     from app.services.planning import PlanningService
@@ -2921,7 +3372,9 @@ async def generate_pending_interest_payments(
 
 @router.get(
     "/financial-statements/income-statement",
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("reports.financial"))],
+    responses=AUTHENTICATED,
+    operation_id="getIncomeStatement",
 )
 async def get_income_statement(
     db: DatabaseSession,
@@ -2931,6 +3384,9 @@ async def get_income_statement(
 ):
     """
     Generate Income Statement (Estado de Resultados) for a period.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.financial` (global)
 
     Returns:
         - Revenue (Ingresos)
@@ -2973,7 +3429,9 @@ async def get_income_statement(
 
 @router.get(
     "/financial-statements/balance-sheet",
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("reports.financial"))],
+    responses=AUTHENTICATED,
+    operation_id="getBalanceSheet",
 )
 async def get_balance_sheet(
     db: DatabaseSession,
@@ -2981,6 +3439,9 @@ async def get_balance_sheet(
 ):
     """
     Generate Balance Sheet (Balance General) as of a specific date.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.financial` (global)
 
     Returns:
         - Assets (Activos)
@@ -3013,13 +3474,18 @@ async def get_balance_sheet(
 
 @router.get(
     "/financial-statements/periods",
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("reports.financial"))],
+    responses=AUTHENTICATED,
+    operation_id="getAvailablePeriods",
 )
 async def get_available_periods(
     db: DatabaseSession
 ):
     """
     Get predefined period options for financial statements.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.financial` (global)
 
     Returns preset periods:
         - This month / Last month
@@ -3042,13 +3508,18 @@ async def get_available_periods(
 
 @router.get(
     "/patrimony-summary",
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.view_global_balances"))],
+    responses=AUTHENTICATED,
+    operation_id="getGlobalPatrimonySummaryConsolidated",
 )
 async def get_global_patrimony_summary(
     db: DatabaseSession
 ):
     """
     Get GLOBAL patrimony summary (all schools consolidated).
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_global_balances` (global)
 
     PATRIMONIO = ACTIVOS - PASIVOS
 
@@ -3078,41 +3549,66 @@ async def get_global_patrimony_summary(
 
 @router.get(
     "/expense-categories",
-    response_model=list[ExpenseCategoryListResponse],
-    dependencies=[Depends(require_any_school_admin)]
+    response_model=PaginatedResponse[ExpenseCategoryListResponse],
+    dependencies=[Depends(require_global_permission("accounting.view_expenses"))],
+    responses=AUTHENTICATED,
+    operation_id="listExpenseCategories",
 )
 async def list_expense_categories(
     db: DatabaseSession,
     include_inactive: bool = Query(False, description="Include inactive categories"),
-    limit: int = Query(100, ge=1, le=500),
-    offset: int = Query(0, ge=0)
+    limit: int = Query(100, ge=1, le=100),
+    skip: int = Query(0, ge=0)
 ):
     """
     List all expense categories.
 
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_expenses` (global)
+
     Returns categories ordered by display_order.
     By default only returns active categories.
     """
+    count_filters = []
+    if not include_inactive:
+        count_filters.append(ExpenseCategoryModel.is_active == True)
+
+    total = (await db.execute(
+        select(func.count(ExpenseCategoryModel.id)).where(*count_filters) if count_filters
+        else select(func.count(ExpenseCategoryModel.id))
+    )).scalar_one()
+
     from app.services.expense_category import ExpenseCategoryService
 
     service = ExpenseCategoryService(db)
-    return await service.list_categories(
+    items = await service.list_categories(
         include_inactive=include_inactive,
         limit=limit,
-        offset=offset
+        offset=skip
+    )
+
+    return PaginatedResponse[ExpenseCategoryListResponse](
+        items=items, total=total, skip=skip, limit=limit
     )
 
 
 @router.get(
     "/expense-categories/{category_id}",
     response_model=ExpenseCategoryResponse,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.view_expenses"))],
+    responses=responses(404),
+    operation_id="getExpenseCategory",
 )
 async def get_expense_category(
     category_id: UUID,
     db: DatabaseSession
 ):
-    """Get a single expense category by ID."""
+    """
+    Get a single expense category by ID.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_expenses` (global)
+    """
     from app.services.expense_category import ExpenseCategoryService
 
     service = ExpenseCategoryService(db)
@@ -3131,7 +3627,9 @@ async def get_expense_category(
     "/expense-categories",
     response_model=ExpenseCategoryResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.create_expense"))],
+    responses=responses(400),
+    operation_id="createExpenseCategory",
 )
 async def create_expense_category(
     data: ExpenseCategoryCreate,
@@ -3139,6 +3637,9 @@ async def create_expense_category(
 ):
     """
     Create a new expense category.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.create_expense` (global)
 
     Code must be unique and lowercase (will be auto-normalized).
     System categories cannot be created via API.
@@ -3161,7 +3662,9 @@ async def create_expense_category(
 @router.patch(
     "/expense-categories/{category_id}",
     response_model=ExpenseCategoryResponse,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.create_expense"))],
+    responses=responses(400, 404),
+    operation_id="updateExpenseCategory",
 )
 async def update_expense_category(
     category_id: UUID,
@@ -3170,6 +3673,9 @@ async def update_expense_category(
 ):
     """
     Update an expense category.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.create_expense` (global)
 
     System categories can be updated (name, color, etc.) but cannot be deleted.
     """
@@ -3191,7 +3697,9 @@ async def update_expense_category(
 @router.delete(
     "/expense-categories/{category_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.create_expense"))],
+    responses=responses(404),
+    operation_id="deleteExpenseCategory",
 )
 async def delete_expense_category(
     category_id: UUID,
@@ -3199,6 +3707,9 @@ async def delete_expense_category(
 ):
     """
     Delete (soft-delete) an expense category.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.create_expense` (global)
 
     System categories cannot be deleted.
     """
@@ -3228,10 +3739,17 @@ async def delete_expense_category(
 @router.get(
     "/caja-menor/config",
     response_model=CajaMenorConfigResponse,
-    dependencies=[Depends(require_global_permission("accounting.view_caja_menor"))]
+    dependencies=[Depends(require_global_permission("accounting.view_caja_menor"))],
+    responses=AUTHENTICATED,
+    operation_id="getGlobalCajaMenorConfig",
 )
 async def get_caja_menor_config(db: DatabaseSession):
-    """Get Caja Menor auto-close configuration."""
+    """
+    Get Caja Menor auto-close configuration.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_caja_menor` (global)
+    """
     from app.services.cash_register import CashRegisterService
 
     service = CashRegisterService(db)
@@ -3243,14 +3761,21 @@ async def get_caja_menor_config(db: DatabaseSession):
 @router.patch(
     "/caja-menor/config",
     response_model=CajaMenorConfigResponse,
-    dependencies=[Depends(require_global_permission("accounting.edit_caja_menor_config"))]
+    dependencies=[Depends(require_global_permission("accounting.edit_caja_menor_config"))],
+    responses=AUTHENTICATED,
+    operation_id="updateGlobalCajaMenorConfig",
 )
 async def update_caja_menor_config(
     data: CajaMenorConfigUpdate,
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Update Caja Menor auto-close configuration."""
+    """
+    Update Caja Menor auto-close configuration.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.edit_caja_menor_config` (global)
+    """
     from app.services.cash_register import CashRegisterService
 
     service = CashRegisterService(db)
@@ -3267,6 +3792,8 @@ async def update_caja_menor_config(
 @router.post(
     "/caja-menor/auto-close",
     response_model=CajaMenorAutoCloseResult,
+    responses=responses(400),
+    operation_id="autoCloseGlobalCajaMenor",
 )
 async def auto_close_caja_menor(
     db: DatabaseSession,
@@ -3277,6 +3804,9 @@ async def auto_close_caja_menor(
 ):
     """
     Manually trigger Caja Menor auto-close.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.liquidate_caja_menor` (global, with constraints)
 
     Transfers excess above the configured base_amount to Caja Mayor.
     Subject to liquidation constraints (max_amount for the excess).
@@ -3315,6 +3845,8 @@ async def auto_close_caja_menor(
     "/transfers",
     response_model=AccountTransferResponse,
     status_code=status.HTTP_201_CREATED,
+    responses=responses(400),
+    operation_id="createAccountTransfer",
 )
 async def create_account_transfer(
     data: AccountTransferCreate,
@@ -3326,6 +3858,9 @@ async def create_account_transfer(
 ):
     """
     Transfer money between any two balance accounts.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.transfer_between_accounts` (global, with constraints)
 
     Creates dual BalanceEntry records + a Transaction record for audit trail.
     Subject to max_amount constraint.
@@ -3363,7 +3898,9 @@ async def create_account_transfer(
 @router.get(
     "/transfers",
     response_model=TransferHistoryResponse,
-    dependencies=[Depends(require_global_permission("accounting.view_transfers"))]
+    dependencies=[Depends(require_global_permission("accounting.view_transfers"))],
+    responses=AUTHENTICATED,
+    operation_id="getTransferHistory",
 )
 async def get_transfer_history(
     db: DatabaseSession,
@@ -3372,7 +3909,12 @@ async def get_transfer_history(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
-    """Get history of inter-account transfers."""
+    """
+    Get history of inter-account transfers.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_transfers` (global)
+    """
     from app.services.cash_register import CashRegisterService
 
     service = CashRegisterService(db)
@@ -3391,7 +3933,9 @@ async def get_transfer_history(
 @router.delete(
     "/expense-categories/{category_id}/permanent",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.create_expense"))],
+    responses=responses(404),
+    operation_id="permanentDeleteExpenseCategory",
 )
 async def permanent_delete_expense_category(
     category_id: UUID,
@@ -3399,6 +3943,9 @@ async def permanent_delete_expense_category(
 ):
     """
     Permanently delete an inactive, non-system expense category.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.create_expense` (global)
 
     Requirements:
     - Category must be inactive (is_active=False)
@@ -3452,7 +3999,9 @@ async def permanent_delete_expense_category(
 @router.post(
     "/financial-snapshots",
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("reports.financial"))],
+    responses=responses(400),
+    operation_id="createFinancialSnapshot",
 )
 async def create_financial_snapshot(
     snapshot_type: str = Query(..., pattern="^(balance_sheet|income_statement)$"),
@@ -3463,7 +4012,12 @@ async def create_financial_snapshot(
     db: DatabaseSession = ...,
     current_user: CurrentUser = ...
 ):
-    """Save a financial statement snapshot for historical tracking."""
+    """
+    Save a financial statement snapshot for historical tracking.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.financial` (global)
+    """
     from app.models.accounting import FinancialSnapshot
     from app.services.financial_statements import FinancialStatementsService
 
@@ -3505,7 +4059,9 @@ async def create_financial_snapshot(
 
 @router.get(
     "/financial-snapshots",
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("reports.financial"))],
+    responses=AUTHENTICATED,
+    operation_id="listFinancialSnapshots",
 )
 async def list_financial_snapshots(
     db: DatabaseSession,
@@ -3513,7 +4069,12 @@ async def list_financial_snapshots(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0)
 ):
-    """List saved financial snapshots."""
+    """
+    List saved financial snapshots.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.financial` (global)
+    """
     from app.models.accounting import FinancialSnapshot
 
     query = select(
@@ -3549,13 +4110,20 @@ async def list_financial_snapshots(
 
 @router.get(
     "/financial-snapshots/{snapshot_id}",
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("reports.financial"))],
+    responses=responses(404),
+    operation_id="getFinancialSnapshot",
 )
 async def get_financial_snapshot(
     snapshot_id: UUID,
     db: DatabaseSession
 ):
-    """Get a saved financial snapshot with full data."""
+    """
+    Get a saved financial snapshot with full data.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.financial` (global)
+    """
     from app.models.accounting import FinancialSnapshot
 
     result = await db.execute(
@@ -3584,13 +4152,20 @@ async def get_financial_snapshot(
 @router.delete(
     "/financial-snapshots/{snapshot_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("reports.financial"))],
+    responses=responses(404),
+    operation_id="deleteFinancialSnapshot",
 )
 async def delete_financial_snapshot(
     snapshot_id: UUID,
     db: DatabaseSession
 ):
-    """Delete a saved financial snapshot."""
+    """
+    Delete a saved financial snapshot.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.financial` (global)
+    """
     from app.models.accounting import FinancialSnapshot
     from sqlalchemy import delete as sa_delete
 
@@ -3608,4 +4183,138 @@ async def delete_financial_snapshot(
     await db.execute(
         sa_delete(FinancialSnapshot).where(FinancialSnapshot.id == snapshot_id)
     )
+    await db.commit()
+
+
+# ============================================
+# Multi-Month Projections (formalization-aware)
+# ============================================
+
+@router.post(
+    "/projections/run",
+    dependencies=[Depends(require_global_permission("reports.financial"))],
+    responses=AUTHENTICATED,
+    operation_id="runFinancialProjection",
+)
+async def run_financial_projection(
+    db: DatabaseSession,
+    user: CurrentUser,
+    assumptions: "ProjectionAssumptions",
+    persist: bool = Query(True, description="Save the projection to DB for later retrieval"),
+):
+    """
+    Run a multi-month financial projection.
+
+    Computes month-by-month P&L and cash flow given:
+    - Revenue assumptions (base, seasonality, growth, inflation)
+    - COGS percentage
+    - Fixed costs and payroll
+    - Hiring plan
+    - New branches with revenue ramp
+    - Debt schedule (interest + capital)
+    - Formalization layer (one-time + recurring costs)
+
+    Returns monthly projections + aggregate summary with breakeven analysis.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.financial` (global)
+    """
+    from app.services.accounting.financial_model.projection import ProjectionService
+    service = ProjectionService(db)
+    result = await service.run_projection(
+        assumptions=assumptions,
+        created_by=user.id,
+        persist=persist,
+    )
+    if persist:
+        await db.commit()
+    return result
+
+
+@router.get(
+    "/projections",
+    dependencies=[Depends(require_global_permission("reports.financial"))],
+    responses=AUTHENTICATED,
+    operation_id="listFinancialProjections",
+)
+async def list_financial_projections(
+    db: DatabaseSession,
+    limit: int = Query(20, ge=1, le=100),
+    scenario: Literal["A", "B", "C", "custom"] | None = Query(
+        None,
+        description="Filter by scenario_label (A, B, C, custom)",
+    ),
+):
+    """List recent financial projections."""
+    from app.services.accounting.financial_model.projection import ProjectionService
+    service = ProjectionService(db)
+    rows = await service.list_projections(limit=limit, scenario=scenario)
+    return [
+        {
+            "id": str(r.id),
+            "name": r.name,
+            "scenario_label": r.scenario_label,
+            "months_count": r.months_count,
+            "start_year": r.start_year,
+            "start_month": r.start_month,
+            "summary": r.summary,
+            "created_at": r.created_at.isoformat(),
+        }
+        for r in rows
+    ]
+
+
+@router.get(
+    "/projections/{projection_id}",
+    dependencies=[Depends(require_global_permission("reports.financial"))],
+    responses=AUTHENTICATED,
+    operation_id="getFinancialProjection",
+)
+async def get_financial_projection(
+    db: DatabaseSession,
+    projection_id: UUID,
+):
+    """Get full detail of a stored projection (assumptions + monthly results + summary)."""
+    from app.services.accounting.financial_model.projection import ProjectionService
+    service = ProjectionService(db)
+    proj = await service.get_projection(projection_id)
+    if not proj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Proyección no encontrada",
+        )
+    return {
+        "id": str(proj.id),
+        "name": proj.name,
+        "scenario_label": proj.scenario_label,
+        "months_count": proj.months_count,
+        "start_year": proj.start_year,
+        "start_month": proj.start_month,
+        "assumptions": proj.assumptions,
+        "results": proj.results,
+        "summary": proj.summary,
+        "created_at": proj.created_at.isoformat(),
+    }
+
+
+@router.delete(
+    "/projections/{projection_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_global_permission("reports.financial"))],
+    responses=AUTHENTICATED,
+    operation_id="deleteFinancialProjection",
+)
+async def delete_financial_projection(
+    db: DatabaseSession,
+    projection_id: UUID,
+):
+    """Delete a stored projection."""
+    from app.services.accounting.financial_model.projection import ProjectionService
+    service = ProjectionService(db)
+    deleted = await service.delete_projection(projection_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Proyección no encontrada",
+        )
     await db.commit()

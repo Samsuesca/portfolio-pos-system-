@@ -145,7 +145,7 @@ export default function ProductGroupCard({
     <div className={`relative bg-white border rounded-xl p-4 transition-all ${
       addedQuantity > 0
         ? 'border-green-300 ring-1 ring-green-200'
-        : 'border-gray-200 hover:border-blue-300 hover:shadow-md'
+        : 'border-stone-200 hover:border-brand-300 hover:shadow-md'
     }`}>
       {/* Added quantity badge */}
       {addedQuantity > 0 && (
@@ -168,7 +168,7 @@ export default function ProductGroupCard({
       {/* Header: Image + Name + Price */}
       <div className="flex gap-4 mb-4">
         {/* Image */}
-        <div className="w-20 h-20 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
+        <div className="w-20 h-20 flex-shrink-0 bg-stone-100 rounded-lg overflow-hidden flex items-center justify-center">
           {imageUrl ? (
             <img
               src={imageUrl}
@@ -183,7 +183,7 @@ export default function ProductGroupCard({
 
         {/* Info */}
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-gray-900 truncate" title={group.garmentTypeName}>
+          <h3 className="font-semibold text-stone-900 truncate" title={group.garmentTypeName}>
             {group.garmentTypeName}
           </h3>
           <p className="text-lg font-bold text-green-600 mt-1">
@@ -207,7 +207,7 @@ export default function ProductGroupCard({
 
       {/* Size Selector */}
       <div className="mb-3">
-        <label className="text-xs font-medium text-gray-600 mb-1.5 block">Talla</label>
+        <label className="text-xs font-medium text-stone-600 mb-1.5 block">Talla</label>
         <div className="flex flex-wrap gap-1.5">
           {availableSizes.map(size => {
             const { hasStock, totalStock } = getSizeStockInfo(size);
@@ -223,9 +223,9 @@ export default function ProductGroupCard({
                 disabled={isExcluded}
                 className={`px-3 py-1.5 text-sm rounded-lg border transition-all ${
                   isSelected
-                    ? 'bg-blue-600 text-white border-blue-600 ring-2 ring-blue-200'
+                    ? 'bg-brand-500 text-white border-brand-600 ring-2 ring-brand-200'
                     : hasStock
-                      ? 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:bg-blue-50'
+                      ? 'bg-white text-stone-700 border-stone-200 hover:border-brand-400 hover:bg-brand-50'
                       : 'bg-orange-50 text-orange-700 border-orange-200 hover:border-orange-400'
                 } ${isExcluded ? 'opacity-40 cursor-not-allowed' : ''}`}
                 title={hasStock ? `Stock: ${totalStock}` : 'Sin stock - Por encargo'}
@@ -243,7 +243,7 @@ export default function ProductGroupCard({
       {/* Color Selector (only if size selected and multiple colors) */}
       {selectedSize && colorsForSize.length > 1 && (
         <div className="mb-3">
-          <label className="text-xs font-medium text-gray-600 mb-1.5 block">Color</label>
+          <label className="text-xs font-medium text-stone-600 mb-1.5 block">Color</label>
           <div className="flex flex-wrap gap-1.5">
             {colorsForSize.map(color => {
               const variant = availableVariants.find(v => v.size === selectedSize && v.color === color);
@@ -256,9 +256,9 @@ export default function ProductGroupCard({
                   onClick={() => setSelectedColor(color)}
                   className={`px-3 py-1.5 text-sm rounded-lg border transition-all ${
                     isSelected
-                      ? 'bg-blue-600 text-white border-blue-600 ring-2 ring-blue-200'
+                      ? 'bg-brand-500 text-white border-brand-600 ring-2 ring-brand-200'
                       : hasStock
-                        ? 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:bg-blue-50'
+                        ? 'bg-white text-stone-700 border-stone-200 hover:border-brand-400 hover:bg-brand-50'
                         : 'bg-orange-50 text-orange-700 border-orange-200 hover:border-orange-400'
                   }`}
                 >
@@ -276,16 +276,16 @@ export default function ProductGroupCard({
       {/* Single color display */}
       {selectedSize && colorsForSize.length === 1 && (
         <div className="mb-3">
-          <span className="text-xs text-gray-500">Color: </span>
-          <span className="text-sm font-medium text-gray-700">{colorsForSize[0]}</span>
+          <span className="text-xs text-stone-500">Color: </span>
+          <span className="text-sm font-medium text-stone-700">{colorsForSize[0]}</span>
         </div>
       )}
 
       {/* Selected Variant Info */}
       {selectedVariant && (
-        <div className="bg-gray-50 rounded-lg p-2 mb-3 text-sm">
+        <div className="bg-stone-50 rounded-lg p-2 mb-3 text-sm">
           <div className="flex justify-between items-center">
-            <span className="text-gray-600">
+            <span className="text-stone-600">
               {group.garmentTypeName} - {selectedVariant.size}
               {selectedVariant.color && ` - ${selectedVariant.color}`}
             </span>
@@ -299,10 +299,10 @@ export default function ProductGroupCard({
       {/* Quantity + Add Button */}
       <div className="flex items-center gap-2">
         {selectedVariant && (
-          <div className="flex items-center border border-gray-300 rounded-lg">
+          <div className="flex items-center border border-stone-200 rounded-lg">
             <button
               onClick={() => setQuantity(Math.max(1, quantity - 1))}
-              className="px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded-l-lg transition"
+              className="px-3 py-1.5 text-stone-600 hover:bg-stone-100 rounded-l-lg transition"
             >
               -
             </button>
@@ -318,15 +318,15 @@ export default function ProductGroupCard({
                   : val;
                 setQuantity(maxVal);
               }}
-              className="w-12 text-center border-x border-gray-300 py-1.5 focus:outline-none"
+              className="w-12 text-center border-x border-stone-200 py-1.5 focus:outline-none"
             />
             <button
               onClick={() => setQuantity(quantity + 1)}
               disabled={enforceStockLimit && selectedVariant.stock > 0 && quantity >= selectedVariant.stock}
               className={`px-3 py-1.5 rounded-r-lg transition ${
                 enforceStockLimit && selectedVariant.stock > 0 && quantity >= selectedVariant.stock
-                  ? 'text-gray-300 cursor-not-allowed bg-gray-50'
-                  : 'text-gray-600 hover:bg-gray-100'
+                  ? 'text-stone-300 cursor-not-allowed bg-stone-50'
+                  : 'text-stone-600 hover:bg-stone-100'
               }`}
             >
               +
@@ -339,8 +339,8 @@ export default function ProductGroupCard({
           disabled={!selectedVariant}
           className={`flex-1 px-4 py-2 rounded-lg font-medium flex items-center justify-center gap-2 transition ${
             selectedVariant
-              ? 'bg-blue-600 text-white hover:bg-blue-700'
-              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              ? 'bg-brand-500 text-white hover:bg-brand-600'
+              : 'bg-stone-100 text-stone-400 cursor-not-allowed'
           }`}
         >
           <Plus className="w-4 h-4" />

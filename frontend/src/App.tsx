@@ -6,11 +6,17 @@
  */
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import { useAuthStore } from './stores/authStore';
+import { useSchoolStore } from './stores/schoolStore';
 import LoadingSpinner from './components/LoadingSpinner';
+import ErrorBoundary from './components/ErrorBoundary';
+import { setupSpanishFormValidation } from './utils/formValidation';
 
 // Lazy-loaded page components (code-split per route)
 const Login = lazy(() => import('./pages/Login'));
+const GoogleCallback = lazy(() => import('./pages/GoogleCallback'));
+const GoogleLinkCallback = lazy(() => import('./pages/GoogleLinkCallback'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Products = lazy(() => import('./pages/products'));
 const Clients = lazy(() => import('./pages/Clients'));
@@ -25,7 +31,6 @@ const Reports = lazy(() => import('./pages/Reports'));
 const Settings = lazy(() => import('./pages/settings'));
 const Admin = lazy(() => import('./pages/Admin'));
 const ContactsManagement = lazy(() => import('./pages/ContactsManagement'));
-const PaymentAccounts = lazy(() => import('./pages/PaymentAccounts'));
 const Documents = lazy(() => import('./pages/Documents'));
 const Payroll = lazy(() => import('./pages/payroll'));
 const Alterations = lazy(() => import('./pages/Alterations'));
@@ -35,13 +40,56 @@ const EmailLogs = lazy(() => import('./pages/EmailLogs'));
 const CFODashboard = lazy(() => import('./pages/CFODashboard'));
 const Workforce = lazy(() => import('./pages/workforce'));
 const MyProfile = lazy(() => import('./pages/MyProfile'));
+const TelegramAlerts = lazy(() => import('./pages/TelegramAlerts'));
+const TelegramAlertsAdmin = lazy(() => import('./pages/TelegramAlertsAdmin'));
 
 // Protected Route component
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuthStore();
+function ProtectedRoute({
+  children,
+  permission,
+  anyPermission,
+  requireSuperuser,
+}: {
+  children: React.ReactNode;
+  permission?: string;
+  anyPermission?: string[];
+  requireSuperuser?: boolean;
+}) {
+  const { isAuthenticated, user } = useAuthStore();
+  const currentSchoolId = useSchoolStore((s) => s.currentSchool?.id);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Authenticated but the user object hasn't resolved yet (getCurrentUser in
+  // flight). Wait instead of mis-evaluating the gates below — otherwise
+  // `!user?.is_superuser` is true and we'd wrongly redirect a superuser.
+  if (!user) {
+    return <LoadingSpinner />;
+  }
+
+  if (requireSuperuser && !user.is_superuser) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  const requiresCheck =
+    (permission || (anyPermission && anyPermission.length > 0)) && user && !user.is_superuser;
+
+  if (requiresCheck) {
+    const roles = user.school_roles || [];
+    // Gate against the currently selected school. Before it resolves on first
+    // load, fall back to the union across all schools to avoid redirect flicker.
+    const scoped = currentSchoolId
+      ? roles.filter((r) => r.school_id === currentSchoolId)
+      : roles;
+    const perms = new Set(scoped.flatMap((r) => r.permissions || []));
+    const allowed =
+      (permission ? perms.has(permission) : false) ||
+      (anyPermission ? anyPermission.some((p) => perms.has(p)) : false);
+    if (!allowed) {
+      return <Navigate to="/dashboard" replace />;
+    }
   }
 
   return <>{children}</>;
@@ -50,6 +98,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function App() {
   const { token, isAuthenticated, getCurrentUser, logout } = useAuthStore();
   const [isValidating, setIsValidating] = useState(true);
+
+  // Localize native browser validation messages to Spanish app-wide.
+  useEffect(() => setupSpanishFormValidation(), []);
 
   // Validate token on app startup
   useEffect(() => {
@@ -78,18 +129,24 @@ function App() {
       <div className="min-h-screen flex items-center justify-center bg-surface-50">
         <div className="text-center">
           <div className="w-8 h-8 border-4 border-brand-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Verificando sesión...</p>
+          <p className="text-stone-600">Verificando sesión...</p>
         </div>
       </div>
     );
   }
 
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
   return (
+    <GoogleOAuthProvider clientId={googleClientId ?? ''}>
     <BrowserRouter>
+      <ErrorBoundary>
       <Suspense fallback={<LoadingSpinner />}>
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
+        <Route path="/auth/google/callback" element={<GoogleCallback />} />
+        <Route path="/auth/google/link-callback" element={<GoogleLinkCallback />} />
         <Route path="/verify-email/:token" element={<VerifyEmail />} />
 
         {/* Protected Routes */}
@@ -104,7 +161,7 @@ function App() {
         <Route
           path="/products"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute permission="products.view">
               <Products />
             </ProtectedRoute>
           }
@@ -112,7 +169,7 @@ function App() {
         <Route
           path="/clients"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute permission="clients.view">
               <Clients />
             </ProtectedRoute>
           }
@@ -120,7 +177,7 @@ function App() {
         <Route
           path="/sales"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute permission="sales.view">
               <Sales />
             </ProtectedRoute>
           }
@@ -128,7 +185,7 @@ function App() {
         <Route
           path="/sales/:saleId"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute permission="sales.view">
               <SaleDetail />
             </ProtectedRoute>
           }
@@ -136,7 +193,7 @@ function App() {
         <Route
           path="/sale-changes"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute permission="changes.view">
               <SaleChanges />
             </ProtectedRoute>
           }
@@ -144,7 +201,7 @@ function App() {
         <Route
           path="/orders"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute permission="orders.view">
               <Orders />
             </ProtectedRoute>
           }
@@ -152,7 +209,7 @@ function App() {
         <Route
           path="/orders/:orderId"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute permission="orders.view">
               <OrderDetail />
             </ProtectedRoute>
           }
@@ -160,7 +217,7 @@ function App() {
         <Route
           path="/web-orders"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute permission="orders.view">
               <WebOrders />
             </ProtectedRoute>
           }
@@ -168,7 +225,7 @@ function App() {
         <Route
           path="/accounting"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute permission="accounting.view_cash">
               <Accounting />
             </ProtectedRoute>
           }
@@ -176,7 +233,7 @@ function App() {
         <Route
           path="/cfo"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute permission="accounting.view_cash">
               <CFODashboard />
             </ProtectedRoute>
           }
@@ -184,7 +241,7 @@ function App() {
         <Route
           path="/reports"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute anyPermission={['reports.sales', 'reports.orders', 'reports.financial', 'reports.alterations', 'reports.inventory']}>
               <Reports />
             </ProtectedRoute>
           }
@@ -200,7 +257,7 @@ function App() {
         <Route
           path="/admin"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute permission="users.view">
               <Admin />
             </ProtectedRoute>
           }
@@ -214,17 +271,9 @@ function App() {
           }
         />
         <Route
-          path="/payment-accounts"
-          element={
-            <ProtectedRoute>
-              <PaymentAccounts />
-            </ProtectedRoute>
-          }
-        />
-        <Route
           path="/documents"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute requireSuperuser>
               <Documents />
             </ProtectedRoute>
           }
@@ -232,7 +281,7 @@ function App() {
         <Route
           path="/payroll"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute permission="payroll.manage">
               <Payroll />
             </ProtectedRoute>
           }
@@ -240,7 +289,7 @@ function App() {
         <Route
           path="/alterations"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute anyPermission={['alterations.view', 'accounting.view_cash']}>
               <Alterations />
             </ProtectedRoute>
           }
@@ -248,7 +297,7 @@ function App() {
         <Route
           path="/alterations/:alterationId"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute anyPermission={['alterations.view', 'accounting.view_cash']}>
               <AlterationDetail />
             </ProtectedRoute>
           }
@@ -256,7 +305,7 @@ function App() {
         <Route
           path="/workforce"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute anyPermission={['workforce.view_shifts', 'workforce.view_attendance']}>
               <Workforce />
             </ProtectedRoute>
           }
@@ -272,8 +321,24 @@ function App() {
         <Route
           path="/email-logs"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute requireSuperuser>
               <EmailLogs />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/alertas-telegram"
+          element={
+            <ProtectedRoute>
+              <TelegramAlerts />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/alertas-telegram"
+          element={
+            <ProtectedRoute>
+              <TelegramAlertsAdmin />
             </ProtectedRoute>
           }
         />
@@ -288,7 +353,9 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </Suspense>
+      </ErrorBoundary>
     </BrowserRouter>
+    </GoogleOAuthProvider>
   );
 }
 

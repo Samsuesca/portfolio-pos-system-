@@ -34,7 +34,7 @@ const CashProjectionChart: React.FC<CashProjectionChartProps> = ({
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 h-full">
+      <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4 h-full">
         <div className="flex items-center justify-center h-64">
           <Loader2 className="animate-spin text-brand-500" size={32} />
         </div>
@@ -44,9 +44,9 @@ const CashProjectionChart: React.FC<CashProjectionChartProps> = ({
 
   if (!projection || projection.projections.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 h-full">
+      <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4 h-full">
         <h3 className="text-lg font-semibold mb-4">Proyeccion de Flujo de Caja</h3>
-        <div className="flex items-center justify-center h-48 text-gray-500">
+        <div className="flex items-center justify-center h-48 text-stone-500">
           No hay datos suficientes para proyectar
         </div>
       </div>
@@ -76,7 +76,7 @@ const CashProjectionChart: React.FC<CashProjectionChartProps> = ({
   }).join(' ');
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 h-full">
+    <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4 h-full">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold">Proyeccion de Flujo de Caja</h3>
         <div className="flex gap-1">
@@ -87,7 +87,7 @@ const CashProjectionChart: React.FC<CashProjectionChartProps> = ({
               className={`px-3 py-1 text-sm rounded ${
                 months === m
                   ? 'bg-brand-500 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
               }`}
             >
               {m} meses
@@ -99,19 +99,19 @@ const CashProjectionChart: React.FC<CashProjectionChartProps> = ({
       {/* Summary Cards */}
       <div className="grid grid-cols-4 gap-2 mb-4 text-sm">
         <div className="bg-brand-50 rounded p-2">
-          <p className="text-gray-500">Liquidez Actual</p>
+          <p className="text-stone-500">Liquidez Actual</p>
           <p className="font-semibold text-brand-600">{formatCurrency(projection.current_liquidity)}</p>
         </div>
         <div className="bg-green-50 rounded p-2">
-          <p className="text-gray-500">Ingresos Proy.</p>
+          <p className="text-stone-500">Ingresos Proy.</p>
           <p className="font-semibold text-green-600">{formatCurrency(projection.total_projected_income)}</p>
         </div>
         <div className="bg-red-50 rounded p-2">
-          <p className="text-gray-500">Gastos Proy.</p>
+          <p className="text-stone-500">Gastos Proy.</p>
           <p className="font-semibold text-red-600">{formatCurrency(projection.total_projected_expenses)}</p>
         </div>
         <div className={`rounded p-2 ${projection.projected_end_balance >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
-          <p className="text-gray-500">Balance Final</p>
+          <p className="text-stone-500">Balance Final</p>
           <p className={`font-semibold ${projection.projected_end_balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
             {formatCurrency(projection.projected_end_balance)}
           </p>
@@ -231,24 +231,24 @@ const CashProjectionChart: React.FC<CashProjectionChartProps> = ({
       <div className="flex justify-center gap-6 mt-2 text-xs">
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 rounded bg-green-500" />
-          <span className="text-gray-600">Ingresos</span>
+          <span className="text-stone-600">Ingresos</span>
         </div>
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 rounded bg-red-500" />
-          <span className="text-gray-600">Gastos</span>
+          <span className="text-stone-600">Gastos</span>
         </div>
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 rounded-full bg-brand-500" />
-          <span className="text-gray-600">Balance</span>
+          <span className="text-stone-600">Balance</span>
         </div>
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 rounded-full bg-yellow-500" />
-          <span className="text-gray-600">Alerta Liquidez</span>
+          <span className="text-stone-600">Alerta Liquidez</span>
         </div>
       </div>
 
       {/* Disclaimer */}
-      <p className="text-xs text-gray-400 mt-2 text-center">
+      <p className="text-xs text-stone-400 mt-2 text-center">
         {projection.disclaimer}
       </p>
     </div>

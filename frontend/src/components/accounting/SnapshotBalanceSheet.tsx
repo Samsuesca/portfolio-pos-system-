@@ -31,28 +31,28 @@ const SnapshotBalanceSheet: React.FC<SnapshotBalanceSheetProps> = ({ data }) => 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* ACTIVOS */}
         <div>
-          <h5 className="font-bold text-gray-800 border-b-2 border-gray-800 pb-2 mb-3">ACTIVOS</h5>
+          <h5 className="font-bold text-stone-800 border-b-2 border-gray-800 pb-2 mb-3">ACTIVOS</h5>
 
           {/* Activos Corrientes */}
           <div className="mb-4">
-            <p className="text-sm font-medium text-gray-600 mb-2">Corrientes</p>
+            <p className="text-sm font-medium text-stone-600 mb-2">Corrientes</p>
             <div className="space-y-1 text-sm">
               {cashAccounts.map((acc, i) => (
                 <div key={str(acc.id) || i} className="flex justify-between">
-                  <span className="text-gray-600">{str(acc.name)}</span>
+                  <span className="text-stone-600">{str(acc.name)}</span>
                   <span>{formatCurrency(num(acc.balance))}</span>
                 </div>
               ))}
-              <div className="flex justify-between text-gray-500 border-t pt-1">
+              <div className="flex justify-between text-stone-500 border-t pt-1">
                 <span>Total Efectivo</span>
                 <span>{formatCurrency(num(currentAssets.total_cash))}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Cuentas por Cobrar ({num(currentAssets.accounts_receivable_count)})</span>
+                <span className="text-stone-600">Cuentas por Cobrar ({num(currentAssets.accounts_receivable_count)})</span>
                 <span>{formatCurrency(num(currentAssets.accounts_receivable))}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Inventario ({num(inventory.total_units)} uds)</span>
+                <span className="text-stone-600">Inventario ({num(inventory.total_units)} uds)</span>
                 <span>{formatCurrency(num(currentAssets.total_inventory))}</span>
               </div>
             </div>
@@ -65,11 +65,11 @@ const SnapshotBalanceSheet: React.FC<SnapshotBalanceSheetProps> = ({ data }) => 
           {/* Activos Fijos */}
           {fixedAssets.length > 0 && (
             <div className="mb-4">
-              <p className="text-sm font-medium text-gray-600 mb-2">Fijos</p>
+              <p className="text-sm font-medium text-stone-600 mb-2">Fijos</p>
               <div className="space-y-1 text-sm">
                 {fixedAssets.map((acc, i) => (
                   <div key={str(acc.id) || i} className="flex justify-between">
-                    <span className="text-gray-600">{str(acc.name)}</span>
+                    <span className="text-stone-600">{str(acc.name)}</span>
                     <span>{formatCurrency(num(acc.net_value))}</span>
                   </div>
                 ))}
@@ -84,11 +84,11 @@ const SnapshotBalanceSheet: React.FC<SnapshotBalanceSheetProps> = ({ data }) => 
           {/* Activos Intangibles */}
           {intangibleAssets.length > 0 && (
             <div className="mb-4">
-              <p className="text-sm font-medium text-gray-600 mb-2">Intangibles</p>
+              <p className="text-sm font-medium text-stone-600 mb-2">Intangibles</p>
               <div className="space-y-1 text-sm">
                 {intangibleAssets.map((acc, i) => (
                   <div key={str(acc.id) || i} className="flex justify-between">
-                    <span className="text-gray-600">{str(acc.name)}</span>
+                    <span className="text-stone-600">{str(acc.name)}</span>
                     <span>{formatCurrency(num(acc.net_value))}</span>
                   </div>
                 ))}
@@ -109,25 +109,25 @@ const SnapshotBalanceSheet: React.FC<SnapshotBalanceSheetProps> = ({ data }) => 
 
         {/* PASIVOS Y PATRIMONIO */}
         <div>
-          <h5 className="font-bold text-gray-800 border-b-2 border-gray-800 pb-2 mb-3">PASIVOS</h5>
+          <h5 className="font-bold text-stone-800 border-b-2 border-gray-800 pb-2 mb-3">PASIVOS</h5>
 
           {/* Pasivos Corrientes */}
           <div className="mb-4">
-            <p className="text-sm font-medium text-gray-600 mb-2">Corrientes</p>
+            <p className="text-sm font-medium text-stone-600 mb-2">Corrientes</p>
             <div className="space-y-1 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-600">Cuentas por Pagar ({num(currentLiabilities.accounts_payable_count)})</span>
+                <span className="text-stone-600">Cuentas por Pagar ({num(currentLiabilities.accounts_payable_count)})</span>
                 <span>{formatCurrency(num(currentLiabilities.accounts_payable))}</span>
               </div>
               {num(currentLiabilities.pending_expenses) > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Gastos Pendientes ({num(currentLiabilities.pending_expenses_count)})</span>
+                  <span className="text-stone-600">Gastos Pendientes ({num(currentLiabilities.pending_expenses_count)})</span>
                   <span>{formatCurrency(num(currentLiabilities.pending_expenses))}</span>
                 </div>
               )}
               {shortTermDebt.map((acc, i) => (
                 <div key={str(acc.id) || i} className="flex justify-between">
-                  <span className="text-gray-600">{str(acc.name)}</span>
+                  <span className="text-stone-600">{str(acc.name)}</span>
                   <span>{formatCurrency(num(acc.balance))}</span>
                 </div>
               ))}
@@ -141,11 +141,11 @@ const SnapshotBalanceSheet: React.FC<SnapshotBalanceSheetProps> = ({ data }) => 
           {/* Pasivos Largo Plazo */}
           {longTermLiabilities.length > 0 && (
             <div className="mb-4">
-              <p className="text-sm font-medium text-gray-600 mb-2">Largo Plazo</p>
+              <p className="text-sm font-medium text-stone-600 mb-2">Largo Plazo</p>
               <div className="space-y-1 text-sm">
                 {longTermLiabilities.map((acc, i) => (
                   <div key={str(acc.id) || i} className="flex justify-between">
-                    <span className="text-gray-600">{str(acc.name)}</span>
+                    <span className="text-stone-600">{str(acc.name)}</span>
                     <span>{formatCurrency(num(acc.balance))}</span>
                   </div>
                 ))}
@@ -163,23 +163,23 @@ const SnapshotBalanceSheet: React.FC<SnapshotBalanceSheetProps> = ({ data }) => 
           </div>
 
           {/* Patrimonio */}
-          <h5 className="font-bold text-gray-800 border-b-2 border-gray-800 pb-2 mb-3 mt-6">PATRIMONIO</h5>
+          <h5 className="font-bold text-stone-800 border-b-2 border-gray-800 pb-2 mb-3 mt-6">PATRIMONIO</h5>
           <div className="space-y-1 text-sm mb-4">
             {num(equity.capital) > 0 && (
               <div className="flex justify-between">
-                <span className="text-gray-600">Capital</span>
+                <span className="text-stone-600">Capital</span>
                 <span>{formatCurrency(num(equity.capital))}</span>
               </div>
             )}
             {num(equity.retained_earnings) !== 0 && (
               <div className="flex justify-between">
-                <span className="text-gray-600">Utilidades Retenidas</span>
+                <span className="text-stone-600">Utilidades Retenidas</span>
                 <span>{formatCurrency(num(equity.retained_earnings))}</span>
               </div>
             )}
             {num(equity.current_period_earnings) !== 0 && (
               <div className="flex justify-between">
-                <span className="text-gray-600">Utilidad del Ejercicio</span>
+                <span className="text-stone-600">Utilidad del Ejercicio</span>
                 <span className={num(equity.current_period_earnings) >= 0 ? 'text-green-600' : 'text-red-600'}>
                   {formatCurrency(num(equity.current_period_earnings))}
                 </span>
@@ -187,7 +187,7 @@ const SnapshotBalanceSheet: React.FC<SnapshotBalanceSheetProps> = ({ data }) => 
             )}
             {num(equity.other_equity) !== 0 && (
               <div className="flex justify-between">
-                <span className="text-gray-600">Otros</span>
+                <span className="text-stone-600">Otros</span>
                 <span>{formatCurrency(num(equity.other_equity))}</span>
               </div>
             )}
@@ -208,12 +208,12 @@ const SnapshotBalanceSheet: React.FC<SnapshotBalanceSheetProps> = ({ data }) => 
       {/* Net Worth Summary */}
       <div className="mt-6 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4">
         <div className="flex justify-between items-center">
-          <span className="text-lg font-bold text-gray-800">PATRIMONIO NETO</span>
+          <span className="text-lg font-bold text-stone-800">PATRIMONIO NETO</span>
           <span className={`text-2xl font-bold ${num(data.net_worth) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
             {formatCurrency(num(data.net_worth))}
           </span>
         </div>
-        <p className="text-sm text-gray-500 mt-1">Activos - Pasivos</p>
+        <p className="text-sm text-stone-500 mt-1">Activos - Pasivos</p>
       </div>
     </>
   );

@@ -5,11 +5,12 @@
  */
 import { useState } from 'react';
 import {
-  X, Loader2, Receipt, Calendar, DollarSign, User,
+  X, Loader2, Receipt, Calendar, DollarSign,
   FileText, Hash, StickyNote
 } from 'lucide-react';
 import DatePicker from '../../DatePicker';
 import CurrencyInput from '../../CurrencyInput';
+import VendorCombobox from '../VendorCombobox';
 import { useExpenseCategories } from '../../../hooks/useExpenseCategories';
 import { globalAccountingService } from '../../../services/globalAccountingService';
 import { getColombiaDateString } from '../../../utils/formatting';
@@ -28,7 +29,7 @@ interface ExpenseFormState {
   amount: number;
   expense_date: string;
   due_date: string;
-  vendor: string;
+  vendor_id: string | null;
   receipt_number: string;
   notes: string;
 }
@@ -40,7 +41,7 @@ const getInitialFormState = (): ExpenseFormState => ({
   amount: 0,
   expense_date: getColombiaDateString(),
   due_date: '',
-  vendor: '',
+  vendor_id: null,
   receipt_number: '',
   notes: ''
 });
@@ -116,7 +117,7 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
         amount: form.amount,
         expense_date: form.expense_date,
         ...(form.due_date && { due_date: form.due_date }),
-        ...(form.vendor.trim() && { vendor: form.vendor.trim() }),
+        ...(form.vendor_id && { vendor_id: form.vendor_id }),
         ...(form.receipt_number.trim() && { receipt_number: form.receipt_number.trim() }),
         ...(form.notes.trim() && { notes: form.notes.trim() })
       };
@@ -148,14 +149,14 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b bg-gradient-to-r from-violet-50 to-indigo-50">
-          <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+        <div className="flex items-center justify-between px-6 py-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
+          <h2 className="text-xl font-bold text-stone-900 flex items-center gap-2">
             <Receipt className="w-6 h-6 text-brand-600" />
             Nuevo Gasto
           </h2>
           <button
             onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-white/50 transition"
+            className="text-stone-400 hover:text-stone-600 p-1 rounded-lg hover:bg-white/50 transition"
           >
             <X className="w-6 h-6" />
           </button>
@@ -165,12 +166,12 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
           {/* Category */}
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+            <label className="flex items-center gap-2 text-sm font-medium text-stone-700 mb-2">
               <span className="text-red-500">*</span>
               Categoria
             </label>
             {loadingCategories ? (
-              <div className="flex items-center gap-2 text-gray-500 py-2">
+              <div className="flex items-center gap-2 text-stone-500 py-2">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 Cargando categorias...
               </div>
@@ -184,8 +185,8 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
                       onClick={() => updateField('category', cat.code as ExpenseCategory)}
                       className={`px-3 py-2 text-sm font-medium rounded-lg border-2 transition-all ${
                         form.category === cat.code
-                          ? 'border-brand-500 ring-2 ring-brand-100'
-                          : 'border-gray-200 hover:border-gray-300'
+                          ? 'border-brand-600 ring-2 ring-blue-100'
+                          : 'border-stone-200 hover:border-stone-200'
                       }`}
                       style={{
                         backgroundColor: form.category === cat.code
@@ -207,7 +208,7 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
                 {form.category && (() => {
                   const selected = activeCategories.find(c => c.code === form.category);
                   return selected?.description ? (
-                    <p className="mt-2 text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
+                    <p className="mt-2 text-xs text-stone-500 bg-stone-50 px-3 py-2 rounded-lg">
                       {selected.description}
                     </p>
                   ) : null;
@@ -218,8 +219,8 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
 
           {/* Description */}
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-              <FileText className="w-4 h-4 text-gray-400" />
+            <label className="flex items-center gap-2 text-sm font-medium text-stone-700 mb-2">
+              <FileText className="w-4 h-4 text-stone-400" />
               <span className="text-red-500">*</span>
               Descripcion
             </label>
@@ -228,14 +229,14 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
               value={form.description}
               onChange={(e) => updateField('description', e.target.value)}
               placeholder="Ej: Pago de arriendo local"
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-400"
+              className="w-full px-4 py-2.5 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500"
             />
           </div>
 
           {/* Amount */}
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-              <DollarSign className="w-4 h-4 text-gray-400" />
+            <label className="flex items-center gap-2 text-sm font-medium text-stone-700 mb-2">
+              <DollarSign className="w-4 h-4 text-stone-400" />
               <span className="text-red-500">*</span>
               Monto
             </label>
@@ -249,8 +250,8 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
           {/* Dates */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                <Calendar className="w-4 h-4 text-gray-400" />
+              <label className="flex items-center gap-2 text-sm font-medium text-stone-700 mb-2">
+                <Calendar className="w-4 h-4 text-stone-400" />
                 <span className="text-red-500">*</span>
                 Fecha del Gasto
               </label>
@@ -260,8 +261,8 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
               />
             </div>
             <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                <Calendar className="w-4 h-4 text-gray-400" />
+              <label className="flex items-center gap-2 text-sm font-medium text-stone-700 mb-2">
+                <Calendar className="w-4 h-4 text-stone-400" />
                 Fecha de Vencimiento
               </label>
               <DatePicker
@@ -273,24 +274,17 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
           </div>
 
           {/* Vendor */}
-          <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-              <User className="w-4 h-4 text-gray-400" />
-              Proveedor / Vendedor
-            </label>
-            <input
-              type="text"
-              value={form.vendor}
-              onChange={(e) => updateField('vendor', e.target.value)}
-              placeholder="Ej: EPM, Propietario"
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-400"
-            />
-          </div>
+          <VendorCombobox
+            value={form.vendor_id}
+            onChange={(id) => updateField('vendor_id', id)}
+            label="Proveedor / Vendedor"
+            placeholder="Buscar proveedor..."
+          />
 
           {/* Receipt Number */}
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-              <Hash className="w-4 h-4 text-gray-400" />
+            <label className="flex items-center gap-2 text-sm font-medium text-stone-700 mb-2">
+              <Hash className="w-4 h-4 text-stone-400" />
               Numero de Factura / Recibo
             </label>
             <input
@@ -298,14 +292,14 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
               value={form.receipt_number}
               onChange={(e) => updateField('receipt_number', e.target.value)}
               placeholder="Opcional"
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-400"
+              className="w-full px-4 py-2.5 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500"
             />
           </div>
 
           {/* Notes */}
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-              <StickyNote className="w-4 h-4 text-gray-400" />
+            <label className="flex items-center gap-2 text-sm font-medium text-stone-700 mb-2">
+              <StickyNote className="w-4 h-4 text-stone-400" />
               Notas
             </label>
             <textarea
@@ -313,7 +307,7 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
               onChange={(e) => updateField('notes', e.target.value)}
               placeholder="Notas adicionales (opcional)"
               rows={2}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-400 resize-none"
+              className="w-full px-4 py-2.5 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500 resize-none"
             />
           </div>
 
@@ -326,11 +320,11 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
         </form>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50 rounded-b-xl">
+        <div className="flex justify-end gap-3 px-6 py-4 border-t bg-stone-50 rounded-b-xl">
           <button
             type="button"
             onClick={handleClose}
-            className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
+            className="px-4 py-2 text-stone-600 hover:text-stone-800 font-medium"
           >
             Cancelar
           </button>

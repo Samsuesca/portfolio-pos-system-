@@ -108,18 +108,18 @@ export default function SaleChanges() {
       try {
         setSearchLoading(true);
         // Busqueda en backend - encuentra ventas en TODA la base de datos
-        const results = await saleService.getAllSales({
+        const response = await saleService.getAllSales({
           status: 'completed',
           search: saleSearchTerm.trim() || undefined,
           limit: 50,
           include_historical: false
         });
-        setSearchResults(results);
+        const saleItems = response.items ?? [];
+        setSearchResults(saleItems);
 
-        // Actualizar mapeo sale_id -> school_id con los resultados
         setSaleSchoolMap(prev => {
           const newMap = { ...prev };
-          results.forEach(sale => {
+          saleItems.forEach(sale => {
             if (sale.school_id) newMap[sale.id] = sale.school_id;
           });
           return newMap;
@@ -146,11 +146,11 @@ export default function SaleChanges() {
     const searchOrders = async () => {
       try {
         setOrderSearchLoading(true);
-        const results = await orderService.getAllOrders({
+        const response = await orderService.getAllOrders({
           search: orderSearchTerm.trim() || undefined,
           limit: 50,
         });
-        setOrderSearchResults(results);
+        setOrderSearchResults(response.items ?? []);
       } catch (err) {
         console.error('Error searching orders:', err);
         setOrderSearchResults([]);
@@ -196,19 +196,18 @@ export default function SaleChanges() {
 
       // Cargar todos los cambios de una sola vez usando el endpoint global
       // Esto es mucho mas eficiente que cargar cambios por cada venta
-      const allChanges = await saleChangeService.getAllChanges({ limit: 500 });
-      setChanges(allChanges);
+      const changesResult = await saleChangeService.getAllChanges({ limit: 100 });
+      const changeItems = changesResult.items ?? [];
+      setChanges(changeItems);
 
-      // Cargar el mapeo sale_id -> school_id para las operaciones de aprobar/rechazar
-      // Solo si hay cambios que necesitan esta informacion
-      if (allChanges.length > 0) {
-        const salesData = await saleService.getAllSales({
+      if (changeItems.length > 0) {
+        const salesResponse = await saleService.getAllSales({
           status: 'completed',
-          limit: 500,
+          limit: 100,
           include_historical: false
         });
         const schoolMap: Record<string, string> = {};
-        salesData.forEach(sale => {
+        (salesResponse.items ?? []).forEach(sale => {
           if (sale.school_id) schoolMap[sale.id] = sale.school_id;
         });
         setSaleSchoolMap(schoolMap);
@@ -311,8 +310,8 @@ export default function SaleChanges() {
     try {
       setOrderLoading(true);
       setOrderError(null);
-      const allOrderChanges = await orderChangeService.getAllChanges({ limit: 500 });
-      setOrderChanges(allOrderChanges);
+      const orderChangesResult = await orderChangeService.getAllChanges({ limit: 100 });
+      setOrderChanges(orderChangesResult.items);
     } catch (err: any) {
       console.error('Error loading order changes:', err);
       setOrderError(err.response?.data?.detail || 'Error al cargar los cambios de encargos');
@@ -424,11 +423,11 @@ export default function SaleChanges() {
   const getChangeStatusColor = (status: string) => {
     const s = status.toLowerCase();
     switch (s) {
-      case 'approved': return 'bg-green-100 text-green-800';
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'approved': return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200';
+      case 'pending': return 'bg-amber-50 text-amber-700 ring-1 ring-amber-200';
       case 'pending_stock': return 'bg-amber-100 text-amber-800';
-      case 'rejected': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'rejected': return 'bg-red-50 text-red-700 ring-1 ring-red-200';
+      default: return 'bg-stone-100 text-stone-800';
     }
   };
 
@@ -519,11 +518,11 @@ export default function SaleChanges() {
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-800 flex items-center">
-              <RefreshCw className="w-8 h-8 mr-3 text-blue-600" />
+            <h1 className="text-2xl font-bold text-stone-800 flex items-center">
+              <RefreshCw className="w-8 h-8 mr-3 text-brand-600" />
               Gestion de Cambios y Devoluciones
             </h1>
-            <p className="text-gray-600 mt-1">
+            <p className="text-stone-600 mt-1">
               {activeLoading ? 'Cargando...' : `${activeFilteredCount} solicitudes encontradas`}
             </p>
           </div>
@@ -531,7 +530,7 @@ export default function SaleChanges() {
             <button
               onClick={handleRefresh}
               disabled={activeLoading}
-              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg flex items-center transition disabled:opacity-50"
+              className="bg-stone-100 hover:bg-stone-200 text-stone-700 px-4 py-2 rounded-lg flex items-center transition disabled:opacity-50"
               title="Actualizar lista"
             >
               <RefreshCw className={`w-5 h-5 ${activeLoading ? 'animate-spin' : ''}`} />
@@ -539,7 +538,7 @@ export default function SaleChanges() {
             {activeTab === 'sales' ? (
               <button
                 onClick={() => setShowSaleSearch(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center transition"
+                className="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg flex items-center transition"
               >
                 <Plus className="w-5 h-5 mr-2" />
                 Nuevo Cambio/Devolucion
@@ -547,7 +546,7 @@ export default function SaleChanges() {
             ) : (
               <button
                 onClick={() => setShowOrderSearch(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center transition"
+                className="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg flex items-center transition"
               >
                 <Plus className="w-5 h-5 mr-2" />
                 Nuevo Cambio de Encargo
@@ -557,19 +556,19 @@ export default function SaleChanges() {
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-200 mb-6">
+        <div className="flex border-b border-stone-200 mb-6">
           <button
             onClick={() => setActiveTab('sales')}
             className={`flex items-center px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'sales'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                ? 'border-brand-600 text-brand-600'
+                : 'border-transparent text-stone-500 hover:text-stone-700 hover:border-stone-200'
             }`}
           >
             <ShoppingCart className="w-4 h-4 mr-2" />
             Ventas
             {pendingCount > 0 && (
-              <span className="ml-2 px-2 py-0.5 text-xs font-semibold bg-yellow-100 text-yellow-800 rounded-full">
+              <span className="ml-2 px-2 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 ring-1 ring-amber-200 rounded-full">
                 {pendingCount}
               </span>
             )}
@@ -578,14 +577,14 @@ export default function SaleChanges() {
             onClick={() => setActiveTab('orders')}
             className={`flex items-center px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'orders'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                ? 'border-brand-600 text-brand-600'
+                : 'border-transparent text-stone-500 hover:text-stone-700 hover:border-stone-200'
             }`}
           >
             <ClipboardList className="w-4 h-4 mr-2" />
             Encargos
             {orderPendingCount > 0 && (
-              <span className="ml-2 px-2 py-0.5 text-xs font-semibold bg-yellow-100 text-yellow-800 rounded-full">
+              <span className="ml-2 px-2 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 ring-1 ring-amber-200 rounded-full">
                 {orderPendingCount}
               </span>
             )}
@@ -629,15 +628,15 @@ export default function SaleChanges() {
         <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <Search className="w-5 h-5 text-gray-400" />
-              <span className="text-sm font-medium text-gray-700">Filtros:</span>
+              <Search className="w-5 h-5 text-stone-400" />
+              <span className="text-sm font-medium text-stone-700">Filtros:</span>
             </div>
             {activeTab === 'sales' ? (
               <>
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="px-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 outline-none"
                 >
                   <option value="">Todos los estados</option>
                   <option value="pending">Pendientes ({pendingCount})</option>
@@ -649,7 +648,7 @@ export default function SaleChanges() {
                 <select
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="px-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 outline-none"
                 >
                   <option value="">Todos los tipos</option>
                   <option value="size_change">Cambio de Talla</option>
@@ -663,7 +662,7 @@ export default function SaleChanges() {
                 <select
                   value={orderStatusFilter}
                   onChange={(e) => setOrderStatusFilter(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="px-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 outline-none"
                 >
                   <option value="">Todos los estados</option>
                   <option value="pending">Pendientes ({orderPendingCount})</option>
@@ -675,7 +674,7 @@ export default function SaleChanges() {
                 <select
                   value={orderTypeFilter}
                   onChange={(e) => setOrderTypeFilter(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="px-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 outline-none"
                 >
                   <option value="">Todos los tipos</option>
                   <option value="size_change">Cambio de Talla</option>
@@ -688,7 +687,7 @@ export default function SaleChanges() {
           </div>
 
           {/* Date Filter */}
-          <div className="border-t border-gray-200 pt-3 mt-3">
+          <div className="border-t border-stone-200 pt-3 mt-3">
             <DateFilter value={dateRange} onChange={setDateRange} />
           </div>
         </div>
@@ -698,10 +697,10 @@ export default function SaleChanges() {
       {showSaleSearch && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
+            <div className="p-6 border-b border-stone-200">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-800 flex items-center">
-                  <ShoppingCart className="w-6 h-6 mr-2 text-blue-600" />
+                <h2 className="text-xl font-bold text-stone-800 flex items-center">
+                  <ShoppingCart className="w-6 h-6 mr-2 text-brand-600" />
                   Buscar Venta
                 </h2>
                 <button
@@ -710,19 +709,19 @@ export default function SaleChanges() {
                     setSaleSearchTerm('');
                     setSearchResults([]);
                   }}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-stone-400 hover:text-stone-600"
                 >
                   <XCircle className="w-6 h-6" />
                 </button>
               </div>
               <div className="relative">
-                <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-stone-400" />
                 <input
                   type="text"
                   placeholder="Buscar por codigo, cliente o colegio..."
                   value={saleSearchTerm}
                   onChange={(e) => setSaleSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full pl-10 pr-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 outline-none"
                   autoFocus
                 />
               </div>
@@ -731,14 +730,14 @@ export default function SaleChanges() {
             <div className="overflow-y-auto max-h-[50vh]">
               {(loadingSale || searchLoading) && (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-blue-600 mr-2" />
+                  <Loader2 className="w-6 h-6 animate-spin text-brand-600 mr-2" />
                   <span>{loadingSale ? 'Cargando detalles de la venta...' : 'Buscando ventas...'}</span>
                 </div>
               )}
 
               {!loadingSale && !searchLoading && searchResults.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <ShoppingCart className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <div className="text-center py-8 text-stone-500">
+                  <ShoppingCart className="w-12 h-12 mx-auto mb-3 text-stone-300" />
                   <p>No se encontraron ventas completadas</p>
                   <p className="text-sm mt-1">Escribe el codigo o nombre del cliente para buscar</p>
                 </div>
@@ -748,27 +747,27 @@ export default function SaleChanges() {
                 <button
                   key={sale.id}
                   onClick={() => handleSelectSale(sale)}
-                  className="w-full p-4 border-b border-gray-100 hover:bg-blue-50 text-left transition flex items-center justify-between"
+                  className="w-full p-4 border-b border-stone-100 hover:bg-brand-50 text-left transition flex items-center justify-between"
                 >
                   <div>
-                    <p className="font-medium text-gray-900">{sale.code}</p>
-                    <p className="text-sm text-gray-600">
+                    <p className="font-medium text-stone-900">{sale.code}</p>
+                    <p className="text-sm text-stone-600">
                       {sale.client_name || 'Sin cliente'} - {sale.items_count} items
                     </p>
                     {sale.school_name && (
-                      <p className="text-xs text-blue-600 font-medium">
+                      <p className="text-xs text-brand-600 font-medium">
                         {sale.school_name}
                       </p>
                     )}
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-stone-400">
                       {formatDate(sale.sale_date)}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold text-gray-900">
+                    <p className="font-semibold text-stone-900">
                       ${Number(sale.total).toLocaleString()}
                     </p>
-                    <span className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded-full">
+                    <span className="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 rounded-full">
                       Completada
                     </span>
                   </div>
@@ -776,8 +775,8 @@ export default function SaleChanges() {
               ))}
             </div>
 
-            <div className="p-4 border-t border-gray-200 bg-gray-50">
-              <p className="text-sm text-gray-600 text-center">
+            <div className="p-4 border-t border-stone-200 bg-stone-50">
+              <p className="text-sm text-stone-600 text-center">
                 Selecciona una venta para crear un cambio o devolucion
               </p>
             </div>
@@ -789,10 +788,10 @@ export default function SaleChanges() {
       {showOrderSearch && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
+            <div className="p-6 border-b border-stone-200">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-800 flex items-center">
-                  <ClipboardList className="w-6 h-6 mr-2 text-blue-600" />
+                <h2 className="text-xl font-bold text-stone-800 flex items-center">
+                  <ClipboardList className="w-6 h-6 mr-2 text-brand-600" />
                   Buscar Encargo
                 </h2>
                 <button
@@ -801,19 +800,19 @@ export default function SaleChanges() {
                     setOrderSearchTerm('');
                     setOrderSearchResults([]);
                   }}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-stone-400 hover:text-stone-600"
                 >
                   <XCircle className="w-6 h-6" />
                 </button>
               </div>
               <div className="relative">
-                <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-stone-400" />
                 <input
                   type="text"
                   placeholder="Buscar por codigo, cliente o colegio..."
                   value={orderSearchTerm}
                   onChange={(e) => setOrderSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full pl-10 pr-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 outline-none"
                   autoFocus
                 />
               </div>
@@ -822,14 +821,14 @@ export default function SaleChanges() {
             <div className="overflow-y-auto max-h-[50vh]">
               {orderSearchLoading && (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-blue-600 mr-2" />
+                  <Loader2 className="w-6 h-6 animate-spin text-brand-600 mr-2" />
                   <span>Buscando encargos...</span>
                 </div>
               )}
 
               {!orderSearchLoading && orderSearchResults.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <ClipboardList className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <div className="text-center py-8 text-stone-500">
+                  <ClipboardList className="w-12 h-12 mx-auto mb-3 text-stone-300" />
                   <p>No se encontraron encargos</p>
                   <p className="text-sm mt-1">Escribe el codigo o nombre del cliente para buscar</p>
                 </div>
@@ -839,31 +838,31 @@ export default function SaleChanges() {
                 <button
                   key={order.id}
                   onClick={() => handleSelectOrder(order)}
-                  className="w-full p-4 border-b border-gray-100 hover:bg-blue-50 text-left transition flex items-center justify-between"
+                  className="w-full p-4 border-b border-stone-100 hover:bg-brand-50 text-left transition flex items-center justify-between"
                 >
                   <div>
-                    <p className="font-medium text-gray-900">{order.code}</p>
-                    <p className="text-sm text-gray-600">
+                    <p className="font-medium text-stone-900">{order.code}</p>
+                    <p className="text-sm text-stone-600">
                       {order.client_name || 'Sin cliente'} - {order.items_count} items
                     </p>
                     {order.school_name && (
-                      <p className="text-xs text-blue-600 font-medium">
+                      <p className="text-xs text-brand-600 font-medium">
                         {order.school_name}
                       </p>
                     )}
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-stone-400">
                       {formatDate(order.created_at)}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold text-gray-900">
+                    <p className="font-semibold text-stone-900">
                       ${Number(order.total).toLocaleString()}
                     </p>
                     <span className={`text-xs px-2 py-1 rounded-full ${
-                      order.status === 'delivered' ? 'bg-green-100 text-green-800' :
-                      order.status === 'ready' ? 'bg-blue-100 text-blue-800' :
+                      order.status === 'delivered' ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' :
+                      order.status === 'ready' ? 'bg-brand-100 text-brand-700' :
                       order.status === 'in_production' ? 'bg-purple-100 text-purple-800' :
-                      'bg-yellow-100 text-yellow-800'
+                      'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
                     }`}>
                       {order.status === 'delivered' ? 'Entregado' :
                        order.status === 'ready' ? 'Listo' :
@@ -876,8 +875,8 @@ export default function SaleChanges() {
               ))}
             </div>
 
-            <div className="p-4 border-t border-gray-200 bg-gray-50">
-              <p className="text-sm text-gray-600 text-center">
+            <div className="p-4 border-t border-stone-200 bg-stone-50">
+              <p className="text-sm text-stone-600 text-center">
                 Selecciona un encargo para ir a su detalle y crear un cambio
               </p>
             </div>
@@ -903,8 +902,8 @@ export default function SaleChanges() {
       {/* Loading State */}
       {activeLoading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-          <span className="ml-3 text-gray-600">Cargando solicitudes...</span>
+          <Loader2 className="w-8 h-8 animate-spin text-brand-600" />
+          <span className="ml-3 text-stone-600">Cargando solicitudes...</span>
         </div>
       )}
 
@@ -931,99 +930,99 @@ export default function SaleChanges() {
       {activeTab === 'sales' && !loading && sortedChanges.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-stone-100">
+            <thead className="bg-stone-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Venta
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Fecha
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Tipo
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Producto Original
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Producto Nuevo
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Ajuste
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Estado
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Acciones
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white divide-y divide-stone-100">
               {sortedChanges.map((change) => {
                 const isProcessing = processingId === change.id;
                 const isPending = change.status.toLowerCase() === 'pending';
 
                 return (
-                  <tr key={change.id} className="hover:bg-gray-50">
+                  <tr key={change.id} className="hover:bg-stone-50">
                     <td className="px-4 py-4 whitespace-nowrap">
                       <button
                         onClick={() => navigate(`/sales/${change.sale_id}`)}
-                        className="text-sm font-medium text-blue-600 hover:text-blue-800 flex items-center"
+                        className="text-sm font-medium text-brand-600 hover:text-brand-700 flex items-center"
                       >
                         {change.sale_code}
                       </button>
-                      <p className="text-xs text-gray-400">{formatDate(change.change_date)}</p>
+                      <p className="text-xs text-stone-400">{formatDate(change.change_date)}</p>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-stone-900">
                       {formatDate(change.change_date).split(' ')[0]}
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap">
-                      <span className="text-sm text-gray-900">{getChangeTypeLabel(change.change_type)}</span>
+                      <span className="text-sm text-stone-900">{getChangeTypeLabel(change.change_type)}</span>
                       {change.user_username && (
-                        <p className="text-xs text-gray-400">Por: {change.user_username}</p>
+                        <p className="text-xs text-stone-400">Por: {change.user_username}</p>
                       )}
                     </td>
                     <td className="px-4 py-4">
-                      <div className="text-sm text-gray-900 max-w-[200px]">
+                      <div className="text-sm text-stone-900 max-w-[200px]">
                         {change.original_product_code ? (
                           <>
                             <span className="font-medium">{change.original_product_code}</span>
                             {change.original_product_name && (
-                              <span className="text-gray-600"> {change.original_product_name}</span>
+                              <span className="text-stone-600"> {change.original_product_name}</span>
                             )}
                             {change.original_product_size && (
-                              <span className="text-gray-500 text-xs ml-1">({change.original_product_size})</span>
+                              <span className="text-stone-500 text-xs ml-1">({change.original_product_size})</span>
                             )}
-                            <p className="text-xs text-gray-400">
+                            <p className="text-xs text-stone-400">
                               Cant: {change.returned_quantity}
                               {change.original_unit_price && ` @ $${Number(change.original_unit_price).toLocaleString()}`}
                             </p>
                           </>
                         ) : (
-                          <span className="text-gray-400">-</span>
+                          <span className="text-stone-400">-</span>
                         )}
                       </div>
                     </td>
                     <td className="px-4 py-4">
-                      <div className="text-sm text-gray-900 max-w-[200px]">
+                      <div className="text-sm text-stone-900 max-w-[200px]">
                         {change.new_product_code ? (
                           <>
                             <span className="font-medium">{change.new_product_code}</span>
                             {change.new_product_name && (
-                              <span className="text-gray-600"> {change.new_product_name}</span>
+                              <span className="text-stone-600"> {change.new_product_name}</span>
                             )}
                             {change.new_product_size && (
-                              <span className="text-gray-500 text-xs ml-1">({change.new_product_size})</span>
+                              <span className="text-stone-500 text-xs ml-1">({change.new_product_size})</span>
                             )}
-                            <p className="text-xs text-gray-400">
+                            <p className="text-xs text-stone-400">
                               Cant: {change.new_quantity}
                               {change.new_unit_price && ` @ $${Number(change.new_unit_price).toLocaleString()}`}
                             </p>
                           </>
                         ) : (
-                          <span className="text-gray-400 italic">Solo devolucion</span>
+                          <span className="text-stone-400 italic">Solo devolucion</span>
                         )}
                       </div>
                     </td>
@@ -1038,7 +1037,7 @@ export default function SaleChanges() {
                         {getStatusLabel(change.status)}
                       </span>
                       {change.reason && (
-                        <p className="text-xs text-gray-400 mt-1 max-w-[120px] truncate" title={change.reason}>
+                        <p className="text-xs text-stone-400 mt-1 max-w-[120px] truncate" title={change.reason}>
                           {change.reason}
                         </p>
                       )}
@@ -1048,7 +1047,7 @@ export default function SaleChanges() {
                         {/* View Detail Button - Always visible */}
                         <button
                           onClick={() => handleViewDetail(change)}
-                          className="text-blue-600 hover:text-blue-800 p-2 rounded hover:bg-blue-50 transition"
+                          className="text-brand-600 hover:text-brand-700 p-2 rounded hover:bg-brand-50 transition"
                           title="Ver Detalle"
                         >
                           <Info className="w-5 h-5" />
@@ -1072,7 +1071,7 @@ export default function SaleChanges() {
                           </>
                         )}
                         {isProcessing && (
-                          <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                          <Loader2 className="w-5 h-5 animate-spin text-brand-600" />
                         )}
                       </div>
                     </td>
@@ -1089,70 +1088,70 @@ export default function SaleChanges() {
       {activeTab === 'orders' && !orderLoading && sortedOrderChanges.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-stone-100">
+            <thead className="bg-stone-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Encargo
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Colegio
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Fecha
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Tipo
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Cant. Dev.
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Cant. Nueva
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Ajuste
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Estado
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Motivo
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Acciones
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white divide-y divide-stone-100">
               {sortedOrderChanges.map((change) => {
                 const isProcessing = orderProcessingId === change.id;
                 const isPending = change.status.toLowerCase() === 'pending';
 
                 return (
-                  <tr key={change.id} className="hover:bg-gray-50">
+                  <tr key={change.id} className="hover:bg-stone-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <button
                         onClick={() => navigate(`/orders/${change.order_id}`)}
-                        className="text-sm font-medium text-blue-600 hover:text-blue-800 flex items-center"
+                        className="text-sm font-medium text-brand-600 hover:text-brand-700 flex items-center"
                       >
                         {change.order_code}
                         <Eye className="w-4 h-4 ml-1" />
                       </button>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-600">
                       {change.school_name || '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-900">
                       {formatDate(change.change_date)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-900">
                       {getChangeTypeLabel(change.change_type)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-900 text-right">
                       {change.returned_quantity}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-900 text-right">
                       {change.new_quantity}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
@@ -1166,7 +1165,7 @@ export default function SaleChanges() {
                         {getStatusLabel(change.status)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
+                    <td className="px-6 py-4 text-sm text-stone-600 max-w-xs truncate">
                       {change.reason || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -1189,10 +1188,10 @@ export default function SaleChanges() {
                         </div>
                       )}
                       {isProcessing && (
-                        <Loader2 className="w-5 h-5 animate-spin text-blue-600 mx-auto" />
+                        <Loader2 className="w-5 h-5 animate-spin text-brand-600 mx-auto" />
                       )}
                       {!isPending && !isProcessing && (
-                        <span className="text-gray-400 text-xs">-</span>
+                        <span className="text-stone-400 text-xs">-</span>
                       )}
                     </td>
                   </tr>
@@ -1206,12 +1205,12 @@ export default function SaleChanges() {
 
       {/* Empty State - Sales */}
       {activeTab === 'sales' && !loading && sortedChanges.length === 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-12 text-center">
-          <RefreshCw className="w-16 h-16 text-blue-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-blue-900 mb-2">
+        <div className="bg-brand-50 border border-brand-200 rounded-lg p-12 text-center">
+          <RefreshCw className="w-16 h-16 text-brand-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-brand-700 mb-2">
             {statusFilter || typeFilter || dateRange.start_date || dateRange.end_date ? 'No se encontraron solicitudes' : 'No hay solicitudes de cambio de ventas'}
           </h3>
-          <p className="text-blue-700 mb-4">
+          <p className="text-brand-700 mb-4">
             {statusFilter || typeFilter || dateRange.start_date || dateRange.end_date
               ? 'Intenta ajustar los filtros de busqueda'
               : 'Las solicitudes de cambio y devolucion de ventas apareceran aqui'
@@ -1220,7 +1219,7 @@ export default function SaleChanges() {
           {!statusFilter && !typeFilter && !dateRange.start_date && !dateRange.end_date && (
             <button
               onClick={() => setShowSaleSearch(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg inline-flex items-center"
+              className="bg-brand-500 hover:bg-brand-600 text-white px-6 py-2 rounded-lg inline-flex items-center"
             >
               <Plus className="w-5 h-5 mr-2" />
               Crear Cambio/Devolucion
@@ -1231,12 +1230,12 @@ export default function SaleChanges() {
 
       {/* Empty State - Orders */}
       {activeTab === 'orders' && !orderLoading && sortedOrderChanges.length === 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-12 text-center">
-          <ClipboardList className="w-16 h-16 text-blue-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-blue-900 mb-2">
+        <div className="bg-brand-50 border border-brand-200 rounded-lg p-12 text-center">
+          <ClipboardList className="w-16 h-16 text-brand-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-brand-700 mb-2">
             {orderStatusFilter || orderTypeFilter || dateRange.start_date || dateRange.end_date ? 'No se encontraron solicitudes' : 'No hay solicitudes de cambio de encargos'}
           </h3>
-          <p className="text-blue-700 mb-4">
+          <p className="text-brand-700 mb-4">
             {orderStatusFilter || orderTypeFilter || dateRange.start_date || dateRange.end_date
               ? 'Intenta ajustar los filtros de busqueda'
               : 'Las solicitudes de cambio y devolucion de encargos apareceran aqui'
@@ -1245,7 +1244,7 @@ export default function SaleChanges() {
           {!orderStatusFilter && !orderTypeFilter && !dateRange.start_date && !dateRange.end_date && (
             <button
               onClick={() => setShowOrderSearch(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg inline-flex items-center"
+              className="bg-brand-500 hover:bg-brand-600 text-white px-6 py-2 rounded-lg inline-flex items-center"
             >
               <Plus className="w-5 h-5 mr-2" />
               Crear Cambio de Encargo
@@ -1258,8 +1257,8 @@ export default function SaleChanges() {
       {showApproveModal && approveChangeData && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-800 flex items-center">
+            <div className="p-6 border-b border-stone-200">
+              <h2 className="text-xl font-bold text-stone-800 flex items-center">
                 <CheckCircle className="w-6 h-6 mr-2 text-green-600" />
                 Aprobar Cambio
               </h2>
@@ -1292,11 +1291,11 @@ export default function SaleChanges() {
                 </>
               ) : (
                 /* No price adjustment - simple confirmation */
-                <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
-                  <p className="text-sm font-medium text-blue-800 mb-1">
+                <div className="p-4 rounded-lg bg-brand-50 border border-brand-200">
+                  <p className="text-sm font-medium text-brand-700 mb-1">
                     Cambio sin ajuste de precio
                   </p>
-                  <p className="text-sm text-blue-700">
+                  <p className="text-sm text-brand-700">
                     Este cambio no requiere reembolso ni cobro adicional al cliente.
                     El inventario se ajustara automaticamente al aprobar.
                   </p>
@@ -1304,13 +1303,13 @@ export default function SaleChanges() {
               )}
             </div>
 
-            <div className="flex gap-3 p-6 border-t border-gray-200">
+            <div className="flex gap-3 p-6 border-t border-stone-200">
               <button
                 onClick={() => {
                   setShowApproveModal(false);
                   setApproveChangeData(null);
                 }}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+                className="flex-1 px-4 py-2 border border-stone-200 text-stone-700 rounded-lg hover:bg-stone-50 transition"
               >
                 Cancelar
               </button>
@@ -1330,8 +1329,8 @@ export default function SaleChanges() {
       {showRejectModal && rejectChangeData && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-800 flex items-center">
+            <div className="p-6 border-b border-stone-200">
+              <h2 className="text-xl font-bold text-stone-800 flex items-center">
                 <XCircle className="w-6 h-6 mr-2 text-red-600" />
                 Rechazar Cambio
               </h2>
@@ -1339,7 +1338,7 @@ export default function SaleChanges() {
 
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-stone-700 mb-2">
                   Motivo del Rechazo *
                 </label>
                 <textarea
@@ -1347,23 +1346,23 @@ export default function SaleChanges() {
                   onChange={(e) => setRejectReason(e.target.value)}
                   placeholder="Escribe el motivo por el cual se rechaza este cambio..."
                   rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none resize-none"
+                  className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none resize-none"
                   autoFocus
                 />
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-stone-500">
                   Este motivo sera visible para el vendedor que solicito el cambio.
                 </p>
               </div>
             </div>
 
-            <div className="flex gap-3 p-6 border-t border-gray-200">
+            <div className="flex gap-3 p-6 border-t border-stone-200">
               <button
                 onClick={() => {
                   setShowRejectModal(false);
                   setRejectChangeData(null);
                   setRejectReason('');
                 }}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+                className="flex-1 px-4 py-2 border border-stone-200 text-stone-700 rounded-lg hover:bg-stone-50 transition"
               >
                 Cancelar
               </button>
@@ -1384,8 +1383,8 @@ export default function SaleChanges() {
       {showOrderApproveModal && orderApproveChangeData && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-800 flex items-center">
+            <div className="p-6 border-b border-stone-200">
+              <h2 className="text-xl font-bold text-stone-800 flex items-center">
                 <CheckCircle className="w-6 h-6 mr-2 text-green-600" />
                 Aprobar Cambio de Encargo
               </h2>
@@ -1415,11 +1414,11 @@ export default function SaleChanges() {
                   />
                 </>
               ) : (
-                <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
-                  <p className="text-sm font-medium text-blue-800 mb-1">
+                <div className="p-4 rounded-lg bg-brand-50 border border-brand-200">
+                  <p className="text-sm font-medium text-brand-700 mb-1">
                     Cambio sin ajuste de precio
                   </p>
-                  <p className="text-sm text-blue-700">
+                  <p className="text-sm text-brand-700">
                     Este cambio no requiere reembolso ni cobro adicional al cliente.
                     El inventario se ajustara automaticamente al aprobar.
                   </p>
@@ -1427,13 +1426,13 @@ export default function SaleChanges() {
               )}
             </div>
 
-            <div className="flex gap-3 p-6 border-t border-gray-200">
+            <div className="flex gap-3 p-6 border-t border-stone-200">
               <button
                 onClick={() => {
                   setShowOrderApproveModal(false);
                   setOrderApproveChangeData(null);
                 }}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+                className="flex-1 px-4 py-2 border border-stone-200 text-stone-700 rounded-lg hover:bg-stone-50 transition"
               >
                 Cancelar
               </button>
@@ -1453,8 +1452,8 @@ export default function SaleChanges() {
       {showOrderRejectModal && orderRejectChangeData && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-800 flex items-center">
+            <div className="p-6 border-b border-stone-200">
+              <h2 className="text-xl font-bold text-stone-800 flex items-center">
                 <XCircle className="w-6 h-6 mr-2 text-red-600" />
                 Rechazar Cambio de Encargo
               </h2>
@@ -1462,7 +1461,7 @@ export default function SaleChanges() {
 
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-stone-700 mb-2">
                   Motivo del Rechazo *
                 </label>
                 <textarea
@@ -1470,23 +1469,23 @@ export default function SaleChanges() {
                   onChange={(e) => setOrderRejectReason(e.target.value)}
                   placeholder="Escribe el motivo por el cual se rechaza este cambio..."
                   rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none resize-none"
+                  className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none resize-none"
                   autoFocus
                 />
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-stone-500">
                   Este motivo sera visible para el vendedor que solicito el cambio.
                 </p>
               </div>
             </div>
 
-            <div className="flex gap-3 p-6 border-t border-gray-200">
+            <div className="flex gap-3 p-6 border-t border-stone-200">
               <button
                 onClick={() => {
                   setShowOrderRejectModal(false);
                   setOrderRejectChangeData(null);
                   setOrderRejectReason('');
                 }}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+                className="flex-1 px-4 py-2 border border-stone-200 text-stone-700 rounded-lg hover:bg-stone-50 transition"
               >
                 Cancelar
               </button>

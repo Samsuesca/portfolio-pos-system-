@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 
 from app.api.dependencies import DatabaseSession, CurrentUser, require_global_permission
+from app.api.error_responses import responses, AUTHENTICATED
 from app.services.workforce.responsibilities import responsibility_service
 from app.schemas.workforce import (
     PositionResponsibilityCreate,
@@ -19,6 +20,8 @@ router = APIRouter(prefix="/global/workforce", tags=["Workforce - Responsibiliti
     "/responsibilities",
     response_model=list[PositionResponsibilityResponse],
     dependencies=[Depends(require_global_permission("workforce.view_shifts"))],
+    responses=AUTHENTICATED,
+    operation_id="listResponsibilities",
 )
 async def list_responsibilities(
     db: DatabaseSession,
@@ -28,7 +31,12 @@ async def list_responsibilities(
     employee_id: UUID | None = Query(None, description="Filter by specific employee"),
     is_active: bool | None = Query(None),
 ):
-    """List position and employee responsibilities"""
+    """
+    List position and employee responsibilities with optional filters.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.view_shifts` (global)
+    """
     responsibilities = await responsibility_service.get_all(
         db, position=position, assignment_type=assignment_type,
         employee_id=employee_id, is_active=is_active
@@ -40,6 +48,8 @@ async def list_responsibilities(
     "/responsibilities/employee/{employee_id}",
     response_model=list[PositionResponsibilityResponse],
     dependencies=[Depends(require_global_permission("workforce.view_shifts"))],
+    responses=AUTHENTICATED,
+    operation_id="getEmployeeResponsibilities",
 )
 async def get_employee_responsibilities(
     employee_id: UUID,
@@ -50,6 +60,9 @@ async def get_employee_responsibilities(
     Get all responsibilities for a specific employee.
 
     Returns both individual assignments and position-based assignments.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.view_shifts` (global)
     """
     responsibilities = await responsibility_service.get_employee_responsibilities(
         db, employee_id
@@ -61,13 +74,20 @@ async def get_employee_responsibilities(
     "/responsibilities/{responsibility_id}",
     response_model=PositionResponsibilityResponse,
     dependencies=[Depends(require_global_permission("workforce.view_shifts"))],
+    responses=responses(404),
+    operation_id="getResponsibility",
 )
 async def get_responsibility(
     responsibility_id: UUID,
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Get a single position responsibility"""
+    """
+    Get a single position responsibility by ID.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.view_shifts` (global)
+    """
     responsibility = await responsibility_service.get_by_id(db, responsibility_id)
     if not responsibility:
         raise HTTPException(
@@ -82,13 +102,20 @@ async def get_responsibility(
     response_model=PositionResponsibilityResponse,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_global_permission("workforce.manage_shifts"))],
+    responses=AUTHENTICATED,
+    operation_id="createResponsibility",
 )
 async def create_responsibility(
     data: PositionResponsibilityCreate,
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Create a position responsibility"""
+    """
+    Create a position responsibility.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.manage_shifts` (global)
+    """
     return await responsibility_service.create(db, data, created_by=current_user.id)
 
 
@@ -96,6 +123,8 @@ async def create_responsibility(
     "/responsibilities/{responsibility_id}",
     response_model=PositionResponsibilityResponse,
     dependencies=[Depends(require_global_permission("workforce.manage_shifts"))],
+    responses=responses(404),
+    operation_id="updateResponsibility",
 )
 async def update_responsibility(
     responsibility_id: UUID,
@@ -103,7 +132,12 @@ async def update_responsibility(
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Update a position responsibility"""
+    """
+    Update a position responsibility.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.manage_shifts` (global)
+    """
     responsibility = await responsibility_service.update(db, responsibility_id, data)
     if not responsibility:
         raise HTTPException(
@@ -117,13 +151,20 @@ async def update_responsibility(
     "/responsibilities/{responsibility_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(require_global_permission("workforce.manage_shifts"))],
+    responses=responses(404),
+    operation_id="deleteResponsibility",
 )
 async def delete_responsibility(
     responsibility_id: UUID,
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Delete a position responsibility"""
+    """
+    Delete a position responsibility.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.manage_shifts` (global)
+    """
     deleted = await responsibility_service.delete(db, responsibility_id)
     if not deleted:
         raise HTTPException(

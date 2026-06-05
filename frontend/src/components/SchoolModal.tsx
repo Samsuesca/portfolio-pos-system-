@@ -212,7 +212,7 @@ export default function SchoolModal({ isOpen, school, onClose, onSaved }: School
           <h3 className="text-lg font-semibold">
             {isEditing ? 'Editar Colegio' : 'Nuevo Colegio'}
           </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -224,7 +224,7 @@ export default function SchoolModal({ isOpen, school, onClose, onSaved }: School
             className={`px-4 py-3 text-sm font-medium border-b-2 transition ${
               activeTab === 'general'
                 ? 'border-green-600 text-green-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                : 'border-transparent text-stone-500 hover:text-stone-700'
             }`}
           >
             <Building2 className="w-4 h-4 inline mr-2" />
@@ -235,7 +235,7 @@ export default function SchoolModal({ isOpen, school, onClose, onSaved }: School
             className={`px-4 py-3 text-sm font-medium border-b-2 transition ${
               activeTab === 'branding'
                 ? 'border-green-600 text-green-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                : 'border-transparent text-stone-500 hover:text-stone-700'
             }`}
           >
             <Palette className="w-4 h-4 inline mr-2" />
@@ -246,7 +246,7 @@ export default function SchoolModal({ isOpen, school, onClose, onSaved }: School
             className={`px-4 py-3 text-sm font-medium border-b-2 transition ${
               activeTab === 'settings'
                 ? 'border-green-600 text-green-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                : 'border-transparent text-stone-500 hover:text-stone-700'
             }`}
           >
             <SettingsIcon className="w-4 h-4 inline mr-2" />
@@ -268,23 +268,23 @@ export default function SchoolModal({ isOpen, school, onClose, onSaved }: School
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Codigo *</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Codigo *</label>
                   <input
                     type="text"
                     value={code}
                     onChange={(e) => setCode(e.target.value.toUpperCase())}
                     disabled={isEditing}
-                    className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent ${
-                      isEditing ? 'bg-gray-100 text-gray-500' : ''
+                    className={`w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent ${
+                      isEditing ? 'bg-stone-100 text-stone-500' : ''
                     }`}
                     placeholder="COL-001"
                   />
                   {isEditing && (
-                    <p className="text-xs text-gray-500 mt-1">El codigo no se puede cambiar</p>
+                    <p className="text-xs text-stone-500 mt-1">El codigo no se puede cambiar</p>
                   )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Telefono</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Telefono</label>
                   <input
                     type="tel"
                     inputMode="numeric"
@@ -294,7 +294,7 @@ export default function SchoolModal({ isOpen, school, onClose, onSaved }: School
                     className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent ${
                       phone && !isValidColombianPhone(phone)
                         ? 'border-red-300'
-                        : 'border-gray-300'
+                        : 'border-stone-200'
                     }`}
                     placeholder="3001234567"
                   />
@@ -305,34 +305,34 @@ export default function SchoolModal({ isOpen, school, onClose, onSaved }: School
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1">Nombre *</label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   placeholder="Colegio San Jose"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1">Email</label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   placeholder="contacto@colegio.com"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Direccion</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1">Direccion</label>
                 <input
                   type="text"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   placeholder="Calle 123 #45-67"
                 />
               </div>
@@ -344,14 +344,14 @@ export default function SchoolModal({ isOpen, school, onClose, onSaved }: School
             <div className="space-y-6">
               {/* Logo Upload */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Logo del Colegio</label>
+                <label className="block text-sm font-medium text-stone-700 mb-2">Logo del Colegio</label>
                 <div className="flex items-start gap-4">
                   {logoPreview ? (
                     <div className="relative">
                       <img
                         src={logoPreview}
                         alt="Logo preview"
-                        className="w-32 h-32 object-cover rounded-lg border border-gray-200"
+                        className="w-32 h-32 object-cover rounded-lg border border-stone-200"
                       />
                       <button
                         type="button"
@@ -364,10 +364,10 @@ export default function SchoolModal({ isOpen, school, onClose, onSaved }: School
                   ) : (
                     <div
                       onClick={() => fileInputRef.current?.click()}
-                      className="w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-green-400 hover:bg-green-50 transition"
+                      className="w-32 h-32 border-2 border-dashed border-stone-200 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-green-400 hover:bg-green-50 transition"
                     >
-                      <Upload className="w-8 h-8 text-gray-400" />
-                      <span className="text-sm text-gray-500 mt-2">Subir logo</span>
+                      <Upload className="w-8 h-8 text-stone-400" />
+                      <span className="text-sm text-stone-500 mt-2">Subir logo</span>
                     </div>
                   )}
                   <input
@@ -377,7 +377,7 @@ export default function SchoolModal({ isOpen, school, onClose, onSaved }: School
                     onChange={handleLogoChange}
                     className="hidden"
                   />
-                  <div className="text-sm text-gray-500">
+                  <div className="text-sm text-stone-500">
                     <p>Formatos: JPG, PNG, WebP</p>
                     <p>Maximo: 2MB</p>
                     {logoPreview && (
@@ -396,13 +396,13 @@ export default function SchoolModal({ isOpen, school, onClose, onSaved }: School
               {/* Colors */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Color Primario</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Color Primario</label>
                   <div className="flex gap-2">
                     <input
                       type="color"
                       value={primaryColor || '#000000'}
                       onChange={(e) => setPrimaryColor(e.target.value)}
-                      className="w-12 h-10 rounded border border-gray-300 cursor-pointer"
+                      className="w-12 h-10 rounded border border-stone-200 cursor-pointer"
                     />
                     <input
                       type="text"
@@ -411,20 +411,20 @@ export default function SchoolModal({ isOpen, school, onClose, onSaved }: School
                       className={`flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent ${
                         primaryColor && !isValidHexColor(primaryColor)
                           ? 'border-red-300'
-                          : 'border-gray-300'
+                          : 'border-stone-200'
                       }`}
                       placeholder="#000000"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Color Secundario</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Color Secundario</label>
                   <div className="flex gap-2">
                     <input
                       type="color"
                       value={secondaryColor || '#000000'}
                       onChange={(e) => setSecondaryColor(e.target.value)}
-                      className="w-12 h-10 rounded border border-gray-300 cursor-pointer"
+                      className="w-12 h-10 rounded border border-stone-200 cursor-pointer"
                     />
                     <input
                       type="text"
@@ -433,7 +433,7 @@ export default function SchoolModal({ isOpen, school, onClose, onSaved }: School
                       className={`flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent ${
                         secondaryColor && !isValidHexColor(secondaryColor)
                           ? 'border-red-300'
-                          : 'border-gray-300'
+                          : 'border-stone-200'
                       }`}
                       placeholder="#000000"
                     />
@@ -443,8 +443,8 @@ export default function SchoolModal({ isOpen, school, onClose, onSaved }: School
 
               {/* Preview */}
               {(primaryColor || secondaryColor || logoPreview) && (
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-600 mb-2">Vista previa:</p>
+                <div className="p-4 bg-stone-50 rounded-lg">
+                  <p className="text-sm text-stone-600 mb-2">Vista previa:</p>
                   <div className="flex items-center gap-3">
                     {logoPreview && (
                       <img src={logoPreview} alt="Logo" className="w-12 h-12 rounded-lg object-cover" />
@@ -474,51 +474,51 @@ export default function SchoolModal({ isOpen, school, onClose, onSaved }: School
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Moneda</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Moneda</label>
                   <select
                     value={settings.currency}
                     onChange={(e) => setSettings({ ...settings, currency: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   >
                     <option value="COP">COP - Peso Colombiano</option>
                     <option value="USD">USD - Dolar</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Tasa de Impuesto (%)</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Tasa de Impuesto (%)</label>
                   <input
                     type="number"
                     min="0"
                     max="100"
                     value={settings.tax_rate}
                     onChange={(e) => setSettings({ ...settings, tax_rate: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Comision por Prenda</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Comision por Prenda</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400">$</span>
                     <input
                       type="number"
                       min="0"
                       value={settings.commission_per_garment}
                       onChange={(e) => setSettings({ ...settings, commission_per_garment: parseFloat(e.target.value) || 0 })}
-                      className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      className="w-full pl-8 pr-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Dias Max. de Credito</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Dias Max. de Credito</label>
                   <input
                     type="number"
                     min="0"
                     value={settings.max_credit_days}
                     onChange={(e) => setSettings({ ...settings, max_credit_days: parseInt(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   />
                 </div>
               </div>
@@ -529,9 +529,9 @@ export default function SchoolModal({ isOpen, school, onClose, onSaved }: School
                   id="allow_credit"
                   checked={settings.allow_credit_sales}
                   onChange={(e) => setSettings({ ...settings, allow_credit_sales: e.target.checked })}
-                  className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                  className="w-4 h-4 rounded border-stone-200 text-green-600 focus:ring-green-500"
                 />
-                <label htmlFor="allow_credit" className="text-sm text-gray-700">
+                <label htmlFor="allow_credit" className="text-sm text-stone-700">
                   Permitir ventas a credito
                 </label>
               </div>
@@ -540,10 +540,10 @@ export default function SchoolModal({ isOpen, school, onClose, onSaved }: School
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-2 p-4 border-t bg-gray-50">
+        <div className="flex justify-end gap-2 p-4 border-t bg-stone-50">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-600 hover:text-gray-800 transition"
+            className="px-4 py-2 text-stone-600 hover:text-stone-800 transition"
           >
             Cancelar
           </button>

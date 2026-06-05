@@ -108,10 +108,11 @@ class TestDevelopmentConfig:
 class TestConfigDefaults:
     """Tests that defaults are safe."""
 
-    def test_debug_defaults_to_false(self):
+    def test_debug_defaults_to_false(self, monkeypatch):
         """DEBUG should default to False for safety."""
+        monkeypatch.delenv("DEBUG", raising=False)
         from app.core.config import Settings
-        s = Settings(ENV="development")
+        s = Settings(ENV="development", _env_file=None)
         assert s.DEBUG is False
 
     def test_testing_defaults_to_false(self, monkeypatch):

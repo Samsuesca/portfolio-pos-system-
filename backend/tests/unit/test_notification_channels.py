@@ -205,7 +205,7 @@ class TestNotifyOrderReady:
         client.code = "CLI-001"
 
         order = MagicMock()
-        order.code = "ENC-2026-0001"
+        order.code = "CARACAS-001-ENC-2026-0001"
 
         result = await notify_order_ready(client, order, "Test School")
 
@@ -213,7 +213,7 @@ class TestNotifyOrderReady:
         mock_email.send_order_ready_email.assert_called_once_with(
             email="test@example.com",
             name="Test Client",
-            order_code="ENC-2026-0001",
+            order_code="CARACAS-001-ENC-2026-0001",
             school_name="Test School"
         )
 
@@ -233,7 +233,7 @@ class TestNotifyOrderReady:
         client.code = "CLI-001"
 
         order = MagicMock()
-        order.code = "ENC-2026-0001"
+        order.code = "CARACAS-001-ENC-2026-0001"
 
         result = await notify_order_ready(client, order, "Test School")
 
@@ -250,7 +250,7 @@ class TestNotifyOrderReady:
         client.code = "CLI-001"
 
         order = MagicMock()
-        order.code = "ENC-2026-0001"
+        order.code = "CARACAS-001-ENC-2026-0001"
 
         result = await notify_order_ready(client, order)
 
@@ -270,7 +270,7 @@ class TestNotifyOrderReady:
         client.code = "CLI-001"
 
         order = MagicMock()
-        order.code = "ENC-001"
+        order.code = "CARACAS-001-ENC-2026-0001"
 
         result = await notify_order_ready(client, order)
 
@@ -299,7 +299,7 @@ class TestNotifyOrderConfirmation:
         client.code = "CLI-001"
 
         order = MagicMock()
-        order.code = "ENC-2026-0001"
+        order.code = "CARACAS-001-ENC-2026-0001"
         order.total = Decimal("150000")
 
         html_content = "<html><body>Order confirmed</body></html>"
@@ -310,7 +310,7 @@ class TestNotifyOrderConfirmation:
         mock_email.send_order_confirmation_email.assert_called_once_with(
             email="test@example.com",
             name="Test Client",
-            order_code="ENC-2026-0001",
+            order_code="CARACAS-001-ENC-2026-0001",
             html_content=html_content
         )
 
@@ -336,7 +336,7 @@ class TestNotifySaleConfirmation:
         client.code = "CLI-001"
 
         sale = MagicMock()
-        sale.code = "VNT-2026-0001"
+        sale.code = "CARACAS-001-VNT-2026-0001"
         sale.total = Decimal("100000")
 
         html_content = "<html><body>Sale receipt</body></html>"
@@ -424,7 +424,7 @@ class TestNotifyPaymentReminder:
             client,
             amount=Decimal("50000"),
             due_date="2026-01-31",
-            reference="ENC-001"
+            reference="CARACAS-001-ENC-2026-0001"
         )
 
         assert result.whatsapp_sent is True
@@ -463,7 +463,7 @@ class TestParallelNotificationSending:
         client.code = "CLI-001"
 
         order = MagicMock()
-        order.code = "ENC-001"
+        order.code = "CARACAS-001-ENC-2026-0001"
 
         result = await notify_order_ready(client, order, "School")
 
@@ -492,7 +492,7 @@ class TestParallelNotificationSending:
         client.code = "CLI-001"
 
         order = MagicMock()
-        order.code = "ENC-001"
+        order.code = "CARACAS-001-ENC-2026-0001"
 
         result = await notify_order_ready(client, order)
 

@@ -13,23 +13,54 @@ import Image from 'next/image';
 import {
   CreditCard,
   Shield,
-  Smartphone,
-  Building2,
   Store,
   ArrowLeft,
   ArrowRight,
   Clock,
   CheckCircle,
-  QrCode,
 } from 'lucide-react';
 import { paymentsApi } from '@/lib/api';
 
-const PAYMENT_METHODS = [
-  { name: 'Tarjetas', desc: 'Visa, Mastercard, Amex', icon: CreditCard },
-  { name: 'PSE', desc: 'Debito bancario', icon: Building2 },
-  { name: 'Nequi', desc: 'Pago desde la app', icon: Smartphone },
-  { name: 'Daviplata', desc: 'Pago desde la app', icon: Smartphone },
-  { name: 'Bancolombia QR', desc: 'Escanea y paga', icon: QrCode },
+// Mismas marcas que en /components/v3/HomeSectionsV3.tsx para mantener
+// consistencia visual entre home y /pago. SVGs en /public/payment-brands/.
+type PaymentMethod =
+  | { kind: 'double'; name: string; desc: string; logos: { src: string; alt: string; h: number; w: number }[] }
+  | { kind: 'single'; name: string; desc: string; logo: { src: string; alt: string; h: number; w: number } };
+
+const PAYMENT_METHODS: PaymentMethod[] = [
+  {
+    kind: 'double',
+    name: 'Tarjetas',
+    desc: 'Credito o debito',
+    logos: [
+      { src: '/payment-brands/visa.svg', alt: 'Visa', h: 18, w: 56 },
+      { src: '/payment-brands/mastercard.svg', alt: 'Mastercard', h: 22, w: 36 },
+    ],
+  },
+  {
+    kind: 'single',
+    name: 'PSE',
+    desc: 'Debito bancario',
+    logo: { src: '/payment-brands/pse.svg', alt: 'PSE', h: 20, w: 48 },
+  },
+  {
+    kind: 'single',
+    name: 'Nequi',
+    desc: 'Desde la app',
+    logo: { src: '/payment-brands/nequi.svg', alt: 'Nequi', h: 22, w: 64 },
+  },
+  {
+    kind: 'single',
+    name: 'Daviplata',
+    desc: 'Desde la app',
+    logo: { src: '/payment-brands/daviplata.svg', alt: 'DaviPlata', h: 20, w: 88 },
+  },
+  {
+    kind: 'single',
+    name: 'Bancolombia',
+    desc: 'QR / transferencia',
+    logo: { src: '/payment-brands/bancolombia.svg', alt: 'Bancolombia', h: 22, w: 110 },
+  },
 ];
 
 export default function PaymentPage() {
@@ -98,16 +129,36 @@ export default function PaymentPage() {
             </div>
 
             <div className="p-6 sm:p-8">
-              {/* Accepted methods */}
+              {/* Accepted methods con logos reales de cada marca */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
-                {PAYMENT_METHODS.map((method) => (
+                {PAYMENT_METHODS.map((m) => (
                   <div
-                    key={method.name}
-                    className="flex flex-col items-center p-3 rounded-xl bg-surface-50 border border-surface-100"
+                    key={m.name}
+                    className="flex flex-col items-center justify-center p-4 rounded-xl bg-white border border-surface-200 min-h-[88px]"
                   >
-                    <method.icon className="w-6 h-6 text-green-600 mb-2" />
-                    <span className="text-sm font-semibold text-gray-800">{method.name}</span>
-                    <span className="text-xs text-gray-500 text-center">{method.desc}</span>
+                    <div className="flex items-center gap-2 h-7 mb-2">
+                      {m.kind === 'double'
+                        ? m.logos.map((l) => (
+                            <Image
+                              key={l.src}
+                              src={l.src}
+                              alt={l.alt}
+                              width={l.w}
+                              height={l.h}
+                              style={{ height: l.h, width: 'auto' }}
+                            />
+                          ))
+                        : (
+                            <Image
+                              src={m.logo.src}
+                              alt={m.logo.alt}
+                              width={m.logo.w}
+                              height={m.logo.h}
+                              style={{ height: m.logo.h, width: 'auto' }}
+                            />
+                          )}
+                    </div>
+                    <span className="text-xs text-gray-500 text-center">{m.desc}</span>
                   </div>
                 ))}
               </div>

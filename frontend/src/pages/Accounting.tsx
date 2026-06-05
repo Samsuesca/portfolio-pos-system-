@@ -100,7 +100,9 @@ export default function Accounting() {
   const {
     canAdjustBalance,
     canViewDailyFlow,
+    hasPermission,
   } = usePermissions();
+  const canViewFinancialModel = hasPermission('reports.financial');
 
   // Core state
   const [loading, setLoading] = useState(true);
@@ -172,7 +174,7 @@ export default function Accounting() {
   // Payable modal
   const [showPayableModal, setShowPayableModal] = useState(false);
   const [payableForm, setPayableForm] = useState<Partial<AccountsPayableCreate>>({
-    vendor: '',
+    vendor_id: '',
     description: '',
     amount: 0,
     invoice_date: getColombiaDateString()
@@ -204,28 +206,23 @@ export default function Accounting() {
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const [balancesRes, patrimonySummary, pendingExpensesRes, paidExpensesRes] = await Promise.all([
+      const [balancesRes, patrimonySummary, pendingExpensesRes, expenseStats] = await Promise.all([
         globalAccountingService.getCashBalances(),
         globalAccountingService.getPatrimonySummary(),
-        globalAccountingService.getGlobalExpenses({ isPaid: false, limit: 500 }),
-        globalAccountingService.getGlobalExpenses({ isPaid: true, limit: 500 })
+        globalAccountingService.getGlobalExpenses({ isPaid: false, limit: 20 }),
+        globalAccountingService.getGlobalExpensesStats()
       ]);
 
       setCashBalances(balancesRes);
       setPatrimony(patrimonySummary);
-      setPendingExpenses(pendingExpensesRes.slice(0, 20));
-
-      // Calculate dashboard summary from arrays
-      const pendingTotal = pendingExpensesRes.reduce((sum, e) => sum + Number(e.amount) - Number(e.amount_paid), 0);
-      const paidTotal = paidExpensesRes.reduce((sum, e) => sum + Number(e.amount), 0);
-      const allTotal = pendingExpensesRes.reduce((sum, e) => sum + Number(e.amount), 0) + paidTotal;
+      setPendingExpenses(pendingExpensesRes.items ?? []);
 
       setDashboard({
-        total_expenses: allTotal,
+        total_expenses: Number(expenseStats.total_amount),
         cash_balance: balancesRes.total_liquid || 0,
-        expenses_pending: pendingTotal,
-        expenses_paid: paidTotal,
-        transaction_count: pendingExpensesRes.length + paidExpensesRes.length
+        expenses_pending: Number(expenseStats.pending_amount),
+        expenses_paid: Number(expenseStats.paid_amount),
+        transaction_count: expenseStats.total_count
       });
 
       // Load periods for statements
@@ -258,8 +255,8 @@ export default function Accounting() {
         globalAccountingService.getPayables({ isPaid: false, limit: 50 })
       ]);
       setReceivablesSummary(summary);
-      setReceivablesList(receivables || []);
-      setPayablesList(payables || []);
+      setReceivablesList(receivables?.items ?? []);
+      setPayablesList(payables?.items ?? []);
     } catch (err) {
       console.error('Error loading receivables/payables:', err);
     }
@@ -272,7 +269,7 @@ export default function Accounting() {
         getFixedExpenses({ is_active: isActive, limit: 100 }),
         getPendingGeneration()
       ]);
-      setFixedExpensesList(expenses || []);
+      setFixedExpensesList(expenses?.items ?? []);
       setPendingGeneration(pending);
     } catch (err) {
       console.error('Error loading fixed expenses:', err);
@@ -304,7 +301,7 @@ export default function Accounting() {
     try {
       const accounts = await globalAccountingService.getBalanceAccounts(type);
       // Map to the expected type
-      const mappedAccounts: GlobalBalanceAccountResponse[] = accounts.map(acc => ({
+      const mappedAccounts: GlobalBalanceAccountResponse[] = (accounts?.items ?? []).map(acc => ({
         id: acc.id,
         school_id: null,
         account_type: acc.account_type,
@@ -423,12 +420,12 @@ export default function Accounting() {
   };
 
   const handleCreatePayable = async () => {
-    if (!payableForm.vendor || !payableForm.description || !payableForm.amount) return;
+    if (!payableForm.vendor_id || !payableForm.description || !payableForm.amount) return;
     setSubmitting(true);
     try {
       await globalAccountingService.createPayable(payableForm as AccountsPayableCreate);
       setShowPayableModal(false);
-      setPayableForm({ vendor: '', description: '', amount: 0, invoice_date: getColombiaDateString() });
+      setPayableForm({ vendor_id: '', description: '', amount: 0, invoice_date: getColombiaDateString() });
       loadReceivablesPayables();
       loadData();
     } catch (err) {
@@ -610,7 +607,7 @@ export default function Accounting() {
       return (
         <button
           onClick={() => setShowExpenseModal(true)}
-          className="flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white px-5 py-2.5 rounded-lg font-semibold text-sm transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand-500/20 active:translate-y-0 active:shadow-none"
+          className="flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg transition-colors"
         >
           <Plus className="w-5 h-5" />
           Nuevo Gasto
@@ -621,24 +618,26 @@ export default function Accounting() {
   };
 
   const renderTabs = () => (
-    <div className="mb-8">
-      <nav className="flex gap-1 p-1 bg-surface-200/60 rounded-xl w-fit overflow-x-auto">
+    <div className="mb-6 border-b border-stone-200">
+      <nav className="-mb-px flex space-x-4 overflow-x-auto">
         {[
           { key: 'summary', label: 'Resumen', icon: Calculator },
           { key: 'expenses', label: 'Gastos', icon: Receipt },
           { key: 'operations', label: 'Operaciones', icon: Wallet },
           { key: 'receivables_payables', label: 'CxC / CxP', icon: DollarSign },
           { key: 'planning', label: 'Planificacion', icon: LineChart },
-          { key: 'financial_model', label: 'Modelo Financiero', icon: BarChart3 }
+          ...(canViewFinancialModel
+            ? [{ key: 'financial_model' as const, label: 'Modelo Financiero', icon: BarChart3 }]
+            : [])
         ].map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setActiveTab(key as TabType)}
             className={`
-              flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap
+              flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap
               ${activeTab === key
-                ? 'bg-white text-brand-700 font-semibold shadow-sm ring-1 ring-stone-200/60'
-                : 'text-stone-500 hover:text-stone-700 hover:bg-white/40'
+                ? 'border-brand-600 text-brand-600'
+                : 'border-transparent text-stone-500 hover:text-stone-700 hover:border-stone-200'
               }
             `}
           >
@@ -656,8 +655,8 @@ export default function Accounting() {
     return (
       <Layout>
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
-          <span className="ml-3 text-gray-600">Cargando contabilidad...</span>
+          <Loader2 className="w-8 h-8 animate-spin text-brand-600" />
+          <span className="ml-3 text-stone-600">Cargando contabilidad...</span>
         </div>
       </Layout>
     );
@@ -692,13 +691,11 @@ export default function Accounting() {
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-stone-900 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-brand-500 flex items-center justify-center shadow-sm">
-              <Calculator className="w-5 h-5 text-white" />
-            </div>
+          <h1 className="text-2xl font-bold text-stone-800 flex items-center">
+            <Calculator className="w-8 h-8 mr-3 text-brand-600" />
             Contabilidad
           </h1>
-          <p className="text-stone-500 mt-1 ml-[52px]">Gestion financiera y balance general</p>
+          <p className="text-stone-600 mt-1">Gestion financiera y balance general</p>
         </div>
         {renderActionButton()}
       </div>
@@ -788,12 +785,12 @@ export default function Accounting() {
               />
 
               {/* Quick Transfer Card */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col items-center justify-center">
+              <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-6 flex flex-col items-center justify-center">
                 <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
                   <ArrowRightLeft className="w-7 h-7 text-emerald-600" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-800 mb-2">Transferencias entre Cuentas</h3>
-                <p className="text-sm text-gray-500 text-center mb-4">
+                <h3 className="text-lg font-semibold text-stone-800 mb-2">Transferencias entre Cuentas</h3>
+                <p className="text-sm text-stone-500 text-center mb-4">
                   Mueve dinero entre Caja Menor, Caja Mayor, Nequi y Banco
                 </p>
                 <button
@@ -893,7 +890,7 @@ export default function Accounting() {
         </div>
       )}
 
-      {activeTab === 'financial_model' && (
+      {activeTab === 'financial_model' && canViewFinancialModel && (
         <FinancialModelTab />
       )}
 

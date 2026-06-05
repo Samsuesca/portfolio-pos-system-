@@ -4,14 +4,15 @@ Module 2: Profitability by School Service
 from decimal import Decimal
 from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
-from sqlalchemy import select, func
+from sqlalchemy import select, func, literal_column
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 
 from app.models.accounting import Transaction, TransactionType, Expense
 from app.models.school import School
-from app.models.sale import Sale, SaleItem
+from app.models.sale import Sale, SaleItem, SaleStatus
 from app.models.product import Product
+from app.services._cogs_resolver import resolved_cost as cogs_resolved_cost
 from app.utils.timezone import get_colombia_date
 
 ZERO = Decimal("0")
@@ -60,15 +61,25 @@ class ProfitabilityService:
             row[0]: Decimal(str(row[1])) for row in rev_result
         }
 
-        # Batch query: COGS by school
+        # Batch query: COGS by school using the shared _cogs_resolver helper.
+        sale_cost = cogs_resolved_cost(
+            item_unit_cost_col=SaleItem.unit_cost,
+            item_unit_price_col=SaleItem.unit_price,
+            product_cost_col=Product.cost,
+        )
         cogs_stmt = (
             select(
                 Sale.school_id,
-                func.coalesce(func.sum(SaleItem.quantity * func.coalesce(Product.cost, 0)), 0),
+                func.coalesce(func.sum(SaleItem.quantity * sale_cost), 0),
             )
             .join(Sale, SaleItem.sale_id == Sale.id)
             .join(Product, SaleItem.product_id == Product.id)
             .where(
+                # Fix: previously included cancelled and historical (migrated)
+                # sales in COGS, inflating the cost denominator. Aligns this
+                # service with FinancialStatementsService._calculate_cogs.
+                Sale.status == SaleStatus.COMPLETED,
+                Sale.is_historical.is_(False),
                 Sale.school_id.in_(school_ids_list),
                 Sale.sale_date >= start_date,
                 Sale.sale_date <= end_date,
@@ -109,10 +120,11 @@ class ProfitabilityService:
         overall_trend_start = month_ranges[0][0]
         overall_trend_end = month_ranges[-1][1]
 
+        month_trunc = func.date_trunc(literal_column("'month'"), Transaction.transaction_date)
         trend_stmt = (
             select(
                 Transaction.school_id,
-                func.date_trunc('month', Transaction.transaction_date).label('month'),
+                month_trunc.label('month'),
                 func.coalesce(func.sum(Transaction.amount), 0),
             )
             .where(
@@ -121,7 +133,7 @@ class ProfitabilityService:
                 Transaction.transaction_date >= overall_trend_start,
                 Transaction.transaction_date <= overall_trend_end,
             )
-            .group_by(Transaction.school_id, func.date_trunc('month', Transaction.transaction_date))
+            .group_by(Transaction.school_id, month_trunc)
         )
         trend_result = await self.db.execute(trend_stmt)
         # Map: (school_id, "YYYY-MM") -> Decimal

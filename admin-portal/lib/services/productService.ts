@@ -1,4 +1,5 @@
-import apiClient, { Product, GarmentType, GlobalProduct, GlobalGarmentType } from '../api';
+import apiClient, { Product, GarmentType, GlobalProduct, GlobalGarmentType, PaginatedResponse } from '../api';
+import { unwrapPaginated } from '../utils/pagination';
 
 export interface CreateProductData {
   garment_type_id: string;
@@ -60,9 +61,9 @@ const productService = {
   // ========== School Products ==========
 
   // List products for a school
-  listBySchool: async (schoolId: string, params?: { skip?: number; limit?: number }) => {
-    const response = await apiClient.get<Product[]>(`/schools/${schoolId}/products`, { params });
-    return response.data;
+  listBySchool: async (schoolId: string, params?: { skip?: number; limit?: number }): Promise<Product[]> => {
+    const response = await apiClient.get<Product[] | PaginatedResponse<Product>>(`/schools/${schoolId}/products`, { params });
+    return unwrapPaginated(response.data).items;
   },
 
   // Get product by ID
@@ -98,17 +99,17 @@ const productService = {
   // ========== Global Products ==========
 
   // List global products
-  listGlobal: async (params?: { skip?: number; limit?: number }) => {
-    const response = await apiClient.get<GlobalProduct[]>('/global/products', { params });
-    return response.data;
+  listGlobal: async (params?: { skip?: number; limit?: number }): Promise<GlobalProduct[]> => {
+    const response = await apiClient.get<GlobalProduct[] | PaginatedResponse<GlobalProduct>>('/global/products', { params });
+    return unwrapPaginated(response.data).items;
   },
 
   // Get global products with inventory
-  getGlobalProducts: async (withInventory: boolean = true) => {
-    const response = await apiClient.get<GlobalProduct[]>('/global/products', {
+  getGlobalProducts: async (withInventory: boolean = true): Promise<GlobalProduct[]> => {
+    const response = await apiClient.get<GlobalProduct[] | PaginatedResponse<GlobalProduct>>('/global/products', {
       params: { with_inventory: withInventory },
     });
-    return response.data;
+    return unwrapPaginated(response.data).items;
   },
 
   // Create global product
@@ -132,9 +133,9 @@ const productService = {
   // ========== Garment Types ==========
 
   // List garment types for a school
-  listGarmentTypes: async (schoolId: string) => {
-    const response = await apiClient.get<GarmentType[]>(`/schools/${schoolId}/garment-types`);
-    return response.data;
+  listGarmentTypes: async (schoolId: string): Promise<GarmentType[]> => {
+    const response = await apiClient.get<GarmentType[] | PaginatedResponse<GarmentType>>(`/schools/${schoolId}/garment-types`);
+    return unwrapPaginated(response.data).items;
   },
 
   // Create garment type
@@ -156,9 +157,9 @@ const productService = {
   },
 
   // List global garment types
-  listGlobalGarmentTypes: async () => {
-    const response = await apiClient.get<GlobalGarmentType[]>('/global/garment-types');
-    return response.data;
+  listGlobalGarmentTypes: async (): Promise<GlobalGarmentType[]> => {
+    const response = await apiClient.get<GlobalGarmentType[] | PaginatedResponse<GlobalGarmentType>>('/global/garment-types');
+    return unwrapPaginated(response.data).items;
   },
 
   // Create global garment type
@@ -186,23 +187,23 @@ const productService = {
   },
 
   // Get products with inventory (school-specific)
-  getProducts: async (schoolId: string, withInventory: boolean = true) => {
-    const response = await apiClient.get<Product[]>(`/schools/${schoolId}/products`, {
+  getProducts: async (schoolId: string, withInventory: boolean = true): Promise<Product[]> => {
+    const response = await apiClient.get<Product[] | PaginatedResponse<Product>>(`/schools/${schoolId}/products`, {
       params: { with_inventory: withInventory },
     });
-    return response.data;
+    return unwrapPaginated(response.data).items;
   },
 
   // Get garment types for school
-  getGarmentTypes: async (schoolId: string) => {
-    const response = await apiClient.get<GarmentType[]>(`/schools/${schoolId}/garment-types`);
-    return response.data;
+  getGarmentTypes: async (schoolId: string): Promise<GarmentType[]> => {
+    const response = await apiClient.get<GarmentType[] | PaginatedResponse<GarmentType>>(`/schools/${schoolId}/garment-types`);
+    return unwrapPaginated(response.data).items;
   },
 
   // Get global garment types
-  getGlobalGarmentTypes: async () => {
-    const response = await apiClient.get<GlobalGarmentType[]>('/global/garment-types');
-    return response.data;
+  getGlobalGarmentTypes: async (): Promise<GlobalGarmentType[]> => {
+    const response = await apiClient.get<GlobalGarmentType[] | PaginatedResponse<GlobalGarmentType>>('/global/garment-types');
+    return unwrapPaginated(response.data).items;
   },
 };
 

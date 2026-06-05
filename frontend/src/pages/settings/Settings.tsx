@@ -5,7 +5,6 @@
  * Orchestrator component that composes setting cards and modals.
  */
 import { useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Layout from '../../components/Layout';
 import PrinterSettingsModal from '../../components/PrinterSettingsModal';
 import UserManagementPanel from '../../components/UserManagementPanel';
@@ -21,6 +20,7 @@ import SettingsProfileCard from './SettingsProfileCard';
 import SettingsSecurityCard from './SettingsSecurityCard';
 import SettingsSuperuserCards from './SettingsSuperuserCards';
 import SettingsNotificationsCard from './SettingsNotificationsCard';
+import SettingsTelegramCard from './SettingsTelegramCard';
 import SettingsPrinterCard from './SettingsPrinterCard';
 import SettingsSystemInfoCard from './SettingsSystemInfoCard';
 
@@ -31,12 +31,12 @@ import ChangeEmailModal from './ChangeEmailModal';
 import ManageSchoolsModal from './ManageSchoolsModal';
 import ManageDeliveryZonesModal from './ManageDeliveryZonesModal';
 import BusinessInfoModal from './BusinessInfoModal';
+import ManagePositionsModal from './ManagePositionsModal';
 
 import type { ModalType } from './types';
 
 export default function Settings() {
-  const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, getCurrentUser } = useAuthStore();
   const { apiUrl, setApiUrl, isOnline } = useConfigStore();
   const { info: storedBusinessInfo } = useBusinessInfoStore();
   const {
@@ -63,15 +63,14 @@ export default function Settings() {
   const openManageUsers = useCallback(() => setShowUserManagementPanel(true), []);
   const openManageDeliveryZones = useCallback(() => setActiveModal('manageDeliveryZones'), []);
   const openBusinessInfo = useCallback(() => setActiveModal('businessInfo'), []);
-  const openPaymentAccounts = useCallback(() => navigate('/payment-accounts'), [navigate]);
-
+  const openManagePositions = useCallback(() => setActiveModal('managePositions'), []);
   const closeModal = useCallback(() => setActiveModal(null), []);
 
   return (
     <Layout>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Configuracion</h1>
-        <p className="text-gray-600 mt-1">Administra la configuracion del sistema</p>
+        <h1 className="text-2xl font-bold text-stone-800">Configuracion</h1>
+        <p className="text-stone-600 mt-1">Administra la configuracion del sistema</p>
       </div>
 
       {/* Server Configuration - Full Width */}
@@ -85,7 +84,7 @@ export default function Settings() {
 
       {/* Settings Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <SettingsProfileCard user={user} onEditProfile={openEditProfile} />
+        <SettingsProfileCard user={user} onEditProfile={openEditProfile} onUserUpdate={getCurrentUser} />
         <SettingsSecurityCard onChangePassword={openChangePassword} onChangeEmail={openChangeEmail} />
 
         {user?.is_superuser && (
@@ -94,11 +93,13 @@ export default function Settings() {
             onManageUsers={openManageUsers}
             onManageDeliveryZones={openManageDeliveryZones}
             onEditBusinessInfo={openBusinessInfo}
-            onManagePaymentAccounts={openPaymentAccounts}
+            onManagePositions={openManagePositions}
           />
         )}
 
         <SettingsNotificationsCard />
+
+        <SettingsTelegramCard />
 
         <SettingsPrinterCard
           printerSettings={printerSettings}
@@ -125,6 +126,7 @@ export default function Settings() {
       <ManageSchoolsModal isOpen={activeModal === 'manageSchools'} onClose={closeModal} />
       <ManageDeliveryZonesModal isOpen={activeModal === 'manageDeliveryZones'} onClose={closeModal} />
       <BusinessInfoModal isOpen={activeModal === 'businessInfo'} onClose={closeModal} />
+      <ManagePositionsModal isOpen={activeModal === 'managePositions'} onClose={closeModal} />
 
       {/* User Management Panel */}
       <UserManagementPanel

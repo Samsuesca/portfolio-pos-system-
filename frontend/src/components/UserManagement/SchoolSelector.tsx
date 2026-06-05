@@ -28,14 +28,14 @@ export default function SchoolSelector({
       {isAllUsers ? (
         <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-purple-500" />
       ) : (
-        <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-stone-400" />
       )}
       <select
         value={selectedSchoolId}
         onChange={(e) => onSelect(e.target.value)}
         disabled={loading}
-        className={`w-full pl-9 pr-8 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none bg-white text-sm ${
-          isAllUsers ? 'border-purple-300 text-purple-700 font-medium' : 'border-gray-300'
+        className={`w-full pl-9 pr-8 py-2 border rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-indigo-500 appearance-none bg-white text-sm ${
+          isAllUsers ? 'border-purple-300 text-purple-700 font-medium' : 'border-stone-200'
         }`}
       >
         <option value="">Selecciona un colegio</option>

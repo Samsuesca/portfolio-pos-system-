@@ -22,7 +22,7 @@ interface ExpenseFormState {
   amount: number;
   expense_date: string;
   due_date: string;
-  vendor: string;
+  vendor_id: string | null;
   receipt_number: string;
   notes: string;
 }
@@ -33,7 +33,7 @@ const initialFormState: ExpenseFormState = {
   amount: 0,
   expense_date: new Date().toISOString().split('T')[0],
   due_date: '',
-  vendor: '',
+  vendor_id: null,
   receipt_number: '',
   notes: ''
 };
@@ -102,7 +102,7 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
         amount: form.amount,
         expense_date: form.expense_date,
         ...(form.due_date && { due_date: form.due_date }),
-        ...(form.vendor.trim() && { vendor: form.vendor.trim() }),
+        ...(form.vendor_id && { vendor_id: form.vendor_id }),
         ...(form.receipt_number.trim() && { receipt_number: form.receipt_number.trim() }),
         ...(form.notes.trim() && { notes: form.notes.trim() })
       });
@@ -255,19 +255,7 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
           </div>
 
           {/* Vendor */}
-          <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-2">
-              <User className="w-4 h-4 text-slate-400" />
-              Proveedor / Vendedor
-            </label>
-            <input
-              type="text"
-              value={form.vendor}
-              onChange={(e) => updateField('vendor', e.target.value)}
-              placeholder="Ej: EPM, Propietario"
-              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
+          {/* TODO: Add VendorCombobox component for admin-portal */}
 
           {/* Receipt Number */}
           <div>

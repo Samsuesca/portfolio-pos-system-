@@ -1,12 +1,31 @@
-"""Telegram alerting service for Uniformes System monitoring."""
+"""Telegram alerting service for Uniformes System.
+
+Architecture:
+    TelegramService (singleton) → send_alert / send_to_chat
+    fire_and_forget_alert       → non-blocking wrapper for async/sync callers
+    route_alert                 → fan-out to group chat + per-user subscribers
+    fire_and_forget_routed_alert→ non-blocking wrapper for routed alerts
+
+The service is designed for graceful degradation: if TELEGRAM_BOT_TOKEN or
+TELEGRAM_CHAT_ID are missing, or ENV != "production", all operations no-op
+silently. Business logic (sales, orders, inventory) is never blocked by
+Telegram failures.
+
+Connection pooling: a single httpx.AsyncClient is lazily created and reused
+across all sends. Call close() during shutdown to release the connection pool.
+"""
 
 import asyncio
 import logging
 import time
+from typing import TYPE_CHECKING
 
 import httpx
 
 from app.core.config import settings
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 logger = logging.getLogger("telegram")
 
@@ -18,7 +37,17 @@ _cooldowns: dict[str, float] = {}
 
 
 class TelegramService:
-    """Send alerts to a Telegram group. No-ops if bot token or chat ID is empty."""
+    """Telegram Bot API client with connection pooling and cooldown gating.
+
+    Lifecycle:
+        - Created lazily via get_telegram_service() singleton.
+        - The httpx client is created on first send, not at init time.
+        - Call close() during app shutdown to release the connection pool.
+
+    Disabled mode:
+        When ENV != "production" or credentials are missing, all methods
+        return False / no-op without making any HTTP requests.
+    """
 
     def __init__(self) -> None:
         self._enabled = (
@@ -28,10 +57,21 @@ class TelegramService:
         self._token = settings.TELEGRAM_BOT_TOKEN or ""
         self._chat_id = settings.TELEGRAM_CHAT_ID or ""
         self._url = TELEGRAM_API.format(token=self._token) if self._enabled else ""
+        self._client: httpx.AsyncClient | None = None
 
     @property
     def enabled(self) -> bool:
         return self._enabled
+
+    def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None:
+            self._client = httpx.AsyncClient(timeout=10.0)
+        return self._client
+
+    async def close(self) -> None:
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
 
     async def send_alert(
         self,
@@ -56,24 +96,50 @@ class TelegramService:
             return False
 
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.post(
-                    self._url,
-                    json={
-                        "chat_id": self._chat_id,
-                        "text": message,
-                        "parse_mode": parse_mode,
-                        "disable_web_page_preview": True,
-                    },
-                )
-                resp.raise_for_status()
+            client = self._get_client()
+            resp = await client.post(
+                self._url,
+                json={
+                    "chat_id": self._chat_id,
+                    "text": message,
+                    "parse_mode": parse_mode,
+                    "disable_web_page_preview": True,
+                },
+            )
+            resp.raise_for_status()
 
             _cooldowns[alert_type] = now
             logger.info("Telegram alert sent: %s", alert_type)
             return True
 
-        except Exception as e:
+        except httpx.HTTPError as e:
             logger.error("Telegram alert failed (%s): %s", alert_type, e)
+            return False
+
+    async def send_to_chat(
+        self,
+        chat_id: str,
+        message: str,
+        parse_mode: str = "HTML",
+    ) -> bool:
+        """Send a message to a specific Telegram chat_id."""
+        if not self._enabled:
+            return False
+        try:
+            client = self._get_client()
+            resp = await client.post(
+                self._url,
+                json={
+                    "chat_id": chat_id,
+                    "text": message,
+                    "parse_mode": parse_mode,
+                    "disable_web_page_preview": True,
+                },
+            )
+            resp.raise_for_status()
+            return True
+        except httpx.HTTPError as e:
+            logger.error("Telegram send_to_chat(%s) failed: %s", chat_id, e)
             return False
 
 
@@ -108,8 +174,17 @@ def _send_sync(message: str, alert_type: str) -> None:
             timeout=5.0,
         )
         _cooldowns[alert_type] = time.monotonic()
-    except Exception as e:
+    except httpx.HTTPError as e:
         logger.error("Telegram sync fallback failed (%s): %s", alert_type, e)
+
+
+def _task_done_callback(task: asyncio.Task) -> None:
+    """Log exceptions from fire-and-forget tasks instead of silencing them."""
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc:
+        logger.error("Telegram background task failed: %s", exc, exc_info=exc)
 
 
 def fire_and_forget_alert(
@@ -129,11 +204,12 @@ def fire_and_forget_alert(
 
     try:
         loop = asyncio.get_running_loop()
-        loop.create_task(
+        task = loop.create_task(
             get_telegram_service().send_alert(
                 message, alert_type=alert_type, cooldown=0
             )
         )
+        task.add_done_callback(_task_done_callback)
     except RuntimeError:
         # No running event loop — sync fallback
         _send_sync(message, alert_type)
@@ -143,35 +219,30 @@ def fire_and_forget_alert(
 
 
 async def _send_to_chat(chat_id: str, message: str) -> bool:
-    """Send a message to a specific Telegram chat_id."""
-    svc = get_telegram_service()
-    if not svc.enabled:
-        return False
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(
-                svc._url,
-                json={
-                    "chat_id": chat_id,
-                    "text": message,
-                    "parse_mode": "HTML",
-                    "disable_web_page_preview": True,
-                },
-            )
-            resp.raise_for_status()
-        return True
-    except Exception as e:
-        logger.error("Telegram send_to_chat(%s) failed: %s", chat_id, e)
-        return False
+    """Module-level wrapper that delegates to the singleton's method."""
+    return await get_telegram_service().send_to_chat(chat_id, message)
 
 
 async def route_alert(
     alert_type: str,
     message: str,
+    school_id: "UUID | None" = None,
 ) -> None:
-    """Send alert to the group chat AND to all users subscribed to alert_type.
+    """Send alert to the group chat AND to subscribed users.
 
-    Requires a DB session to look up subscriptions, so it opens its own.
+    When ``school_id`` is provided, per-user routing is restricted to users
+    with a role in that school (superusers always receive). The group chat
+    is unaffected — it always receives.
+
+    Opens its own DB session to look up subscriptions (runs outside the
+    request lifecycle as a fire-and-forget task). Fan-out to individual
+    subscribers runs in parallel via ``asyncio.gather``.
+
+    Args:
+        alert_type: Must match a TelegramAlertType value for per-user routing.
+            Unknown types still send to the group chat but skip individual routing.
+        message: HTML-formatted message body.
+        school_id: Optional school filter for per-user routing.
     """
     from app.db.session import AsyncSessionLocal
     from app.models.telegram_subscription import TelegramAlertType
@@ -193,25 +264,34 @@ async def route_alert(
     try:
         async with AsyncSessionLocal() as db:
             sub_service = TelegramSubscriptionService(db)
-            chat_ids = await sub_service.get_chat_ids_for_alert(tg_alert_type)
-
-        # Send to each subscriber (skip group chat_id to avoid duplicates)
-        group_chat_id = svc._chat_id
-        for cid in chat_ids:
-            if cid != group_chat_id:
-                await _send_to_chat(cid, message)
-
+            chat_ids = await sub_service.get_chat_ids_for_alert(
+                tg_alert_type, school_id=school_id
+            )
     except Exception as e:
-        logger.error("route_alert(%s) failed: %s", alert_type, e)
+        logger.error("route_alert(%s) subscription lookup failed: %s", alert_type, e)
+        return
+
+    # Fan-out to subscribers in parallel (skip group to avoid duplicates)
+    group_chat_id = svc._chat_id
+    targets = [cid for cid in chat_ids if cid != group_chat_id]
+    if targets:
+        results = await asyncio.gather(
+            *[_send_to_chat(cid, message) for cid in targets],
+            return_exceptions=True,
+        )
+        for cid, result in zip(targets, results):
+            if isinstance(result, Exception):
+                logger.error("route_alert fan-out to %s failed: %s", cid, result)
 
 
 def fire_and_forget_routed_alert(
     alert_type: str,
     message: str,
+    school_id: "UUID | None" = None,
 ) -> None:
     """Schedule a routed alert without blocking the caller.
 
-    Sends to group + all subscribed users' private chats.
+    Sends to group + subscribed users (filtered by ``school_id`` if given).
     """
     svc = get_telegram_service()
     if not svc.enabled:
@@ -219,7 +299,8 @@ def fire_and_forget_routed_alert(
 
     try:
         loop = asyncio.get_running_loop()
-        loop.create_task(route_alert(alert_type, message))
+        task = loop.create_task(route_alert(alert_type, message, school_id=school_id))
+        task.add_done_callback(_task_done_callback)
     except RuntimeError:
         # No event loop — just send to group as fallback
         _send_sync(message, alert_type)

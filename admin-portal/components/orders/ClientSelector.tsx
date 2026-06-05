@@ -121,11 +121,11 @@ export default function ClientSelector({
   const loadClients = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await clientService.getClients({
+      const response = await clientService.getClients({
         search: debouncedSearch || undefined,
         limit: 50,
       });
-      setClients(data);
+      setClients(response.items);
     } catch (err) {
       console.error('Error loading clients:', err);
     } finally {

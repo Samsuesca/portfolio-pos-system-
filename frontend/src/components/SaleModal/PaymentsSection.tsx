@@ -31,7 +31,7 @@ export default function PaymentsSection({
   return (
     <div className="mt-6 border border-green-200 rounded-lg p-4 bg-green-50">
       <div className="flex items-center justify-between mb-3">
-        <label className="text-sm font-semibold text-gray-800 flex items-center">
+        <label className="text-sm font-semibold text-stone-800 flex items-center">
           <CreditCard className="w-4 h-4 mr-2 text-green-600" />
           Método de Pago
         </label>
@@ -61,13 +61,13 @@ export default function PaymentsSection({
               {/* Amount - Only editable when multiple payments */}
               {payments.length > 1 && (
                 <div className="relative w-32">
-                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
                   <input
                     type="number"
                     value={payment.amount || ''}
                     onChange={(e) => onUpdateAmount(payment.id, Number(e.target.value) || 0)}
                     placeholder="Monto"
-                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+                    className="w-full pl-9 pr-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
                   />
                 </div>
               )}
@@ -118,7 +118,7 @@ export default function PaymentsSection({
       {payments.length > 1 && (
         <div className="mt-3 pt-3 border-t border-green-200">
           <div className="flex justify-between text-sm">
-            <span className="text-gray-600">Suma de pagos:</span>
+            <span className="text-stone-600">Suma de pagos:</span>
             <span className={`font-medium ${totalPayments === totalAmount ? 'text-green-600' : 'text-orange-600'}`}>
               ${totalPayments.toLocaleString()}
             </span>

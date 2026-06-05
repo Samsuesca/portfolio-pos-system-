@@ -30,7 +30,7 @@ const BarChart: React.FC<BarChartProps> = ({
 }) => {
   if (!data || data.length === 0) {
     return (
-      <div className={`flex items-center justify-center h-[${height}px] text-gray-500 ${className}`}>
+      <div className={`flex items-center justify-center h-[${height}px] text-stone-500 ${className}`}>
         Sin datos para mostrar
       </div>
     );
@@ -170,14 +170,14 @@ const BarChart: React.FC<BarChartProps> = ({
               className="w-3 h-3 rounded"
               style={{ backgroundColor: barColor }}
             />
-            <span className="text-gray-600">Ingresos</span>
+            <span className="text-stone-600">Ingresos</span>
           </div>
           <div className="flex items-center gap-1">
             <div
               className="w-3 h-3 rounded-full"
               style={{ backgroundColor: secondaryColor }}
             />
-            <span className="text-gray-600">Ventas</span>
+            <span className="text-stone-600">Ventas</span>
           </div>
         </div>
       )}

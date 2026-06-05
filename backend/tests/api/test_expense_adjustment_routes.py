@@ -79,7 +79,6 @@ async def paid_global_expense(db_session, test_superuser, global_cash_accounts):
         amount=Decimal("100000"),
         amount_paid=Decimal("100000"),
         expense_date=date.today(),
-        vendor="Papelería XYZ",
         is_paid=True,
         is_active=True,
         payment_method="cash",
@@ -121,7 +120,6 @@ async def unpaid_global_expense(db_session, test_superuser):
         amount=Decimal("75000"),
         amount_paid=Decimal("0"),
         expense_date=date.today(),
-        vendor="EPM",
         is_paid=False,
         is_active=True,
         created_by=test_superuser.id

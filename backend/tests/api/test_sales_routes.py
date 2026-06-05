@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from tests.fixtures.assertions import (
     assert_success_response,
+    assert_list_response,
     assert_created_response,
     assert_forbidden,
     assert_not_found,
@@ -305,9 +306,10 @@ class TestSaleRetrieval:
 
         data = assert_success_response(response)
 
-        # API returns a list (not paginated)
-        assert isinstance(data, list)
-        assert len(data) >= 1
+        assert "items" in data
+        assert "total" in data
+        assert isinstance(data["items"], list)
+        assert len(data["items"]) >= 1
 
     async def test_list_school_sales(
         self,
@@ -322,9 +324,7 @@ class TestSaleRetrieval:
             headers=superuser_headers
         )
 
-        data = assert_success_response(response)
-
-        # API returns a list (not paginated)
+        data = assert_list_response(response)
         assert isinstance(data, list)
 
     async def test_get_single_sale(
@@ -404,7 +404,7 @@ class TestSaleRetrieval:
             }
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
         # API returns a list
         assert isinstance(data, list)
 
@@ -422,7 +422,7 @@ class TestSaleRetrieval:
             params={"search": "VNT"}
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
         # API returns a list
         assert isinstance(data, list)
 
@@ -586,7 +586,7 @@ class TestSaleChanges:
             headers=superuser_headers
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
         # Should return list
         assert isinstance(data, list)
 
@@ -656,7 +656,7 @@ class TestSaleCodeGeneration:
         superuser_headers,
         complete_test_setup
     ):
-        """Should generate codes in format VNT-YYYY-NNNN."""
+        """Should generate codes in format {SCHOOL}-VNT-YYYY-NNNN."""
         setup = complete_test_setup
 
         response = await api_client.post(
@@ -676,12 +676,13 @@ class TestSaleCodeGeneration:
         data = assert_created_response(response)
         code = data["code"]
 
-        # Verify format
-        assert code.startswith("VNT-")
+        # Verify format: {SCHOOL_CODE}-VNT-{YEAR}-{SEQ} (5 segments)
+        assert "-VNT-" in code
+        assert code.startswith(setup["school"].code + "-VNT-")
         parts = code.split("-")
-        assert len(parts) == 3
-        assert parts[1].isdigit() and len(parts[1]) == 4  # Year
-        assert parts[2].isdigit()  # Sequential number
+        assert len(parts) == 5
+        assert parts[3].isdigit() and len(parts[3]) == 4  # Year
+        assert parts[4].isdigit()  # Sequential number
 
     async def test_sale_codes_are_sequential(
         self,
@@ -712,8 +713,10 @@ class TestSaleCodeGeneration:
             data = assert_created_response(response)
             codes.append(data["code"])
 
-        # Extract sequential numbers
-        numbers = [int(c.split("-")[2]) for c in codes]
+        # Extract sequential numbers. Code format is
+        # ``{SCHOOL}-VNT-{YYYY}-{NNNN}`` where SCHOOL may itself contain a hyphen
+        # (e.g. ``TST-ac46406c``), so take the trailing sequential segment.
+        numbers = [int(c.split("-")[-1]) for c in codes]
 
         # Should be sequential
         for i in range(1, len(numbers)):

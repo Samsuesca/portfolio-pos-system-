@@ -10,9 +10,13 @@ from fastapi import APIRouter, Depends, Query, BackgroundTasks
 from app.api.dependencies import (
     DatabaseSession,
     CurrentUser,
-    require_any_school_admin,
+    require_global_permission,
 )
-from app.models.email_log import EmailType, EmailStatus
+from sqlalchemy import select, func
+
+from app.api.error_responses import responses, AUTHENTICATED
+from app.schemas.base import PaginatedResponse, paginate
+from app.models.email_log import EmailLog, EmailType, EmailStatus
 from app.schemas.email_log import (
     EmailLogFilter,
     EmailLogListResponse,
@@ -29,7 +33,9 @@ router = APIRouter(prefix="/global/email-logs", tags=["Email Logs"])
 @router.get(
     "",
     response_model=EmailLogListResponse,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("reports.dashboard"))],
+    responses=AUTHENTICATED,
+    operation_id="listEmailLogs",
 )
 async def get_email_logs(
     db: DatabaseSession,
@@ -40,12 +46,14 @@ async def get_email_logs(
     status: EmailStatus | None = Query(default=None, description="Filter by status"),
     recipient_email: str | None = Query(default=None, description="Search by recipient email"),
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
-    limit: int = Query(default=100, ge=1, le=500, description="Max records to return"),
+    limit: int = Query(default=100, ge=1, le=100, description="Max records to return"),
 ):
     """
     Get email logs with optional filters.
 
-    Global endpoint - requires ADMIN role in any school.
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.dashboard` (global)
+
     Returns paginated list of email logs with client and user details.
     """
     log_service = EmailLogService(db)
@@ -66,7 +74,9 @@ async def get_email_logs(
 @router.get(
     "/statistics",
     response_model=EmailStatsResponse,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("reports.dashboard"))],
+    responses=AUTHENTICATED,
+    operation_id="getEmailStatistics",
 )
 async def get_email_statistics(
     db: DatabaseSession,
@@ -76,6 +86,9 @@ async def get_email_statistics(
 ):
     """
     Get email statistics for a period.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.dashboard` (global)
 
     Includes:
     - Total counts by status
@@ -91,26 +104,41 @@ async def get_email_statistics(
 
 @router.get(
     "/failures",
-    response_model=list[EmailLogWithDetails],
-    dependencies=[Depends(require_any_school_admin)]
+    response_model=PaginatedResponse[EmailLogWithDetails],
+    dependencies=[Depends(require_global_permission("reports.dashboard"))],
+    responses=AUTHENTICATED,
+    operation_id="listEmailFailures",
 )
 async def get_recent_failures(
     db: DatabaseSession,
     current_user: CurrentUser,
+    skip: int = Query(default=0, ge=0),
     limit: int = Query(default=10, ge=1, le=50, description="Max failures to return"),
 ):
     """
     Get recent failed emails for quick debugging.
 
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.dashboard` (global)
+
     Returns the most recent failed email attempts with error messages.
     """
+    count_result = await db.execute(
+        select(func.count(EmailLog.id)).where(EmailLog.status == EmailStatus.FAILED)
+    )
+    total = count_result.scalar_one()
+
     log_service = EmailLogService(db)
-    return await log_service.get_recent_failures(limit)
+    all_failures = await log_service.get_recent_failures(skip + limit)
+    items = all_failures[skip:skip + limit]
+    return paginate(items, total, skip, limit)
 
 
 @router.post(
     "/process-queue",
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("reports.dashboard"))],
+    responses=AUTHENTICATED,
+    operation_id="processEmailQueue",
 )
 async def process_pending_logs(
     db: DatabaseSession,
@@ -120,7 +148,10 @@ async def process_pending_logs(
     """
     Process pending email logs in the queue.
 
-    This endpoint manually triggers processing of any queued email logs.
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.dashboard` (global)
+
+    Manually triggers processing of any queued email logs.
     Normally this happens automatically, but can be useful for debugging.
     """
     queue_size = get_email_log_queue_size()
@@ -139,13 +170,18 @@ async def process_pending_logs(
 
 @router.get(
     "/queue-status",
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("reports.dashboard"))],
+    responses=AUTHENTICATED,
+    operation_id="getEmailQueueStatus",
 )
 async def get_queue_status(
     current_user: CurrentUser,
 ):
     """
     Get the current status of the email log queue.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.dashboard` (global)
 
     Returns the number of pending logs waiting to be processed.
     """

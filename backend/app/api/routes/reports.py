@@ -5,8 +5,8 @@ from uuid import UUID
 from datetime import date
 from fastapi import APIRouter, Query, Depends
 
-from app.api.dependencies import DatabaseSession, require_school_access
-from app.models.user import UserRole
+from app.api.dependencies import DatabaseSession, require_permission
+from app.api.error_responses import responses, AUTHENTICATED
 from app.services.reports import ReportsService
 
 
@@ -15,7 +15,9 @@ router = APIRouter(prefix="/schools/{school_id}/reports", tags=["Reports"])
 
 @router.get(
     "/dashboard",
-    dependencies=[Depends(require_school_access(UserRole.VIEWER))]
+    dependencies=[Depends(require_permission("reports.dashboard"))],
+    responses=AUTHENTICATED,
+    operation_id="getReportDashboardSummary",
 )
 async def get_dashboard_summary(
     school_id: UUID,
@@ -28,7 +30,9 @@ async def get_dashboard_summary(
 
 @router.get(
     "/sales/daily",
-    dependencies=[Depends(require_school_access(UserRole.VIEWER))]
+    dependencies=[Depends(require_permission("reports.sales"))],
+    responses=AUTHENTICATED,
+    operation_id="getReportDailySales",
 )
 async def get_daily_sales(
     school_id: UUID,
@@ -42,7 +46,9 @@ async def get_daily_sales(
 
 @router.get(
     "/sales/summary",
-    dependencies=[Depends(require_school_access(UserRole.VIEWER))]
+    dependencies=[Depends(require_permission("reports.sales"))],
+    responses=AUTHENTICATED,
+    operation_id="getReportSalesSummary",
 )
 async def get_sales_summary(
     school_id: UUID,
@@ -57,7 +63,9 @@ async def get_sales_summary(
 
 @router.get(
     "/sales/top-products",
-    dependencies=[Depends(require_school_access(UserRole.VIEWER))]
+    dependencies=[Depends(require_permission("reports.sales"))],
+    responses=AUTHENTICATED,
+    operation_id="getReportTopProducts",
 )
 async def get_top_products(
     school_id: UUID,
@@ -73,7 +81,9 @@ async def get_top_products(
 
 @router.get(
     "/inventory/low-stock",
-    dependencies=[Depends(require_school_access(UserRole.VIEWER))]
+    dependencies=[Depends(require_permission("reports.inventory"))],
+    responses=AUTHENTICATED,
+    operation_id="getReportLowStock",
 )
 async def get_low_stock(
     school_id: UUID,
@@ -87,7 +97,9 @@ async def get_low_stock(
 
 @router.get(
     "/inventory/value",
-    dependencies=[Depends(require_school_access(UserRole.VIEWER))]
+    dependencies=[Depends(require_permission("reports.inventory"))],
+    responses=AUTHENTICATED,
+    operation_id="getReportInventoryValue",
 )
 async def get_inventory_value(
     school_id: UUID,
@@ -100,7 +112,9 @@ async def get_inventory_value(
 
 @router.get(
     "/orders/pending",
-    dependencies=[Depends(require_school_access(UserRole.VIEWER))]
+    dependencies=[Depends(require_permission("reports.dashboard"))],
+    responses=AUTHENTICATED,
+    operation_id="getReportPendingOrders",
 )
 async def get_pending_orders(
     school_id: UUID,
@@ -113,7 +127,9 @@ async def get_pending_orders(
 
 @router.get(
     "/clients/top",
-    dependencies=[Depends(require_school_access(UserRole.VIEWER))]
+    dependencies=[Depends(require_permission("reports.sales"))],
+    responses=AUTHENTICATED,
+    operation_id="getReportTopClients",
 )
 async def get_top_clients(
     school_id: UUID,

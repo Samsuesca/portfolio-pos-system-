@@ -13,6 +13,7 @@ export type ModalType =
   | 'createDeliveryZone'
   | 'editDeliveryZone'
   | 'businessInfo'
+  | 'managePositions'
   | null;
 
 export type BusinessInfoSection = 'general' | 'contact' | 'address' | 'hours' | 'web';

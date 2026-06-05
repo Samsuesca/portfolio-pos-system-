@@ -1,8 +1,7 @@
 # ============================================
 # Project specific - Excluded folders
 # ============================================
-ListasPrecios/
-ListaPrecios/
+documentos/
 .claude/
 
 # ============================================
@@ -257,3 +256,9 @@ frontend/src/**/*.js
 # Payment proofs, documents, etc.
 backend/uploads/
 uploads/
+typescript
+.design-director/
+claudesing/
+
+# Script operativo con credenciales de superusuario por entorno — nunca commitear
+backend/scripts/fix_role_config.py

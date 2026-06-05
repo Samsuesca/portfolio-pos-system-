@@ -7,14 +7,18 @@ import logging
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
 
 logger = logging.getLogger(__name__)
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import select, func
+
 from app.api.dependencies import get_current_superuser, get_db
+from app.api.error_responses import responses, AUTHENTICATED
 from app.models.user import User
+from app.models.document import BusinessDocument
 from app.services.document import (
     DocumentFolderService,
     BusinessDocumentService,
@@ -31,10 +35,11 @@ from app.schemas.document import (
     BusinessDocumentListItem,
     DocumentStorageStats,
 )
+from app.schemas.base import PaginatedResponse, paginate
 
 router = APIRouter(
     prefix="/documents",
-    tags=["documents"],
+    tags=["Documents"],
     dependencies=[Depends(get_current_superuser)]  # ALL endpoints require superuser
 )
 
@@ -51,7 +56,9 @@ CurrentSuperuser = Annotated[User, Depends(get_current_superuser)]
     "/folders",
     response_model=DocumentFolderResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Create a new folder"
+    summary="Create a new folder",
+    responses=responses(400, 404),
+    operation_id="createDocumentFolder",
 )
 async def create_folder(
     folder_data: DocumentFolderCreate,
@@ -86,7 +93,9 @@ async def create_folder(
 @router.get(
     "/folders",
     response_model=list[DocumentFolderResponse],
-    summary="Get all folders"
+    summary="Get all folders",
+    responses=AUTHENTICATED,
+    operation_id="listDocumentFolders",
 )
 async def get_folders(
     db: DatabaseSession,
@@ -101,7 +110,9 @@ async def get_folders(
 @router.get(
     "/folders/{folder_id}",
     response_model=DocumentFolderResponse,
-    summary="Get folder by ID"
+    summary="Get folder by ID",
+    responses=responses(404),
+    operation_id="getDocumentFolder",
 )
 async def get_folder(
     folder_id: UUID,
@@ -132,7 +143,9 @@ async def get_folder(
 @router.put(
     "/folders/{folder_id}",
     response_model=DocumentFolderResponse,
-    summary="Update folder"
+    summary="Update folder",
+    responses=responses(400, 404),
+    operation_id="updateDocumentFolder",
 )
 async def update_folder(
     folder_id: UUID,
@@ -172,7 +185,9 @@ async def update_folder(
 @router.delete(
     "/folders/{folder_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete folder"
+    summary="Delete folder",
+    responses=responses(400, 404),
+    operation_id="deleteDocumentFolder",
 )
 async def delete_folder(
     folder_id: UUID,
@@ -205,7 +220,9 @@ async def delete_folder(
     "",
     response_model=BusinessDocumentResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Upload a new document"
+    summary="Upload a new document",
+    responses=responses(400),
+    operation_id="uploadDocument",
 )
 async def upload_document(
     db: DatabaseSession,
@@ -258,16 +275,18 @@ async def upload_document(
 
 @router.get(
     "",
-    response_model=list[BusinessDocumentListItem],
-    summary="Get documents"
+    response_model=PaginatedResponse[BusinessDocumentListItem],
+    summary="Get documents",
+    responses=AUTHENTICATED,
+    operation_id="listDocuments",
 )
 async def get_documents(
     db: DatabaseSession,
     current_user: CurrentSuperuser,
     folder_id: UUID | None = None,
     search: str | None = None,
-    skip: int = 0,
-    limit: int = 100
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
 ):
     """
     Get documents with optional filtering.
@@ -282,13 +301,31 @@ async def get_documents(
         skip=skip,
         limit=limit
     )
-    return [BusinessDocumentListItem.model_validate(d) for d in documents]
+
+    count_query = select(func.count(BusinessDocument.id)).where(
+        BusinessDocument.is_active == True
+    )
+    if folder_id is not None:
+        count_query = count_query.where(BusinessDocument.folder_id == folder_id)
+    if search:
+        search_term = f"%{search}%"
+        count_query = count_query.where(
+            BusinessDocument.name.ilike(search_term)
+            | BusinessDocument.original_filename.ilike(search_term)
+            | BusinessDocument.description.ilike(search_term)
+        )
+    total = (await db.execute(count_query)).scalar() or 0
+
+    items = [BusinessDocumentListItem.model_validate(d) for d in documents]
+    return PaginatedResponse[BusinessDocumentListItem](**paginate(items, total, skip, limit))
 
 
 @router.get(
     "/stats",
     response_model=DocumentStorageStats,
-    summary="Get storage statistics"
+    summary="Get storage statistics",
+    responses=AUTHENTICATED,
+    operation_id="getDocumentStorageStats",
 )
 async def get_storage_stats(
     db: DatabaseSession,
@@ -303,14 +340,20 @@ async def get_storage_stats(
 @router.get(
     "/{document_id}",
     response_model=BusinessDocumentResponse,
-    summary="Get document metadata"
+    summary="Get document metadata",
+    responses=responses(404),
+    operation_id="getDocument",
 )
 async def get_document(
     document_id: UUID,
     db: DatabaseSession,
     current_user: CurrentSuperuser
 ):
-    """Get document metadata"""
+    """
+    Get document metadata.
+
+    **Tenant isolation:** Requires superuser access; documents are global business assets.
+    """
     doc_service = BusinessDocumentService(db)
     document = await doc_service.get(document_id)
 
@@ -325,7 +368,9 @@ async def get_document(
 
 @router.get(
     "/{document_id}/download",
-    summary="Download document file"
+    summary="Download document file",
+    responses=responses(404),
+    operation_id="downloadDocument",
 )
 async def download_document(
     document_id: UUID,
@@ -360,7 +405,9 @@ async def download_document(
 @router.put(
     "/{document_id}",
     response_model=BusinessDocumentResponse,
-    summary="Update document"
+    summary="Update document",
+    responses=responses(400, 404),
+    operation_id="updateDocument",
 )
 async def update_document(
     document_id: UUID,
@@ -375,6 +422,8 @@ async def update_document(
     Update document metadata and optionally replace the file.
 
     To move to root folder, set folder_id to null.
+
+    **Tenant isolation:** Requires superuser access; documents are global business assets.
     """
     doc_service = BusinessDocumentService(db)
 
@@ -425,7 +474,9 @@ async def update_document(
 @router.delete(
     "/{document_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete document"
+    summary="Delete document",
+    responses=responses(404),
+    operation_id="deleteDocument",
 )
 async def delete_document(
     document_id: UUID,
@@ -438,6 +489,8 @@ async def delete_document(
 
     By default, performs soft delete (keeps file).
     Set hard_delete=true to permanently delete the file.
+
+    **Tenant isolation:** Requires superuser access; documents are global business assets.
     """
     doc_service = BusinessDocumentService(db)
 

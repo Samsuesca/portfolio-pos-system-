@@ -14,8 +14,8 @@ case "$1" in
     docker-compose -f "$COMPOSE_FILE" up -d
     echo ""
     echo "✓ Development environment started"
-    echo "  - Backend API: http://localhost:8000"
-    echo "  - API Docs:    http://localhost:8000/docs"
+    echo "  - Backend API: http://localhost:8001"
+    echo "  - API Docs:    http://localhost:8001/docs"
     echo "  - PostgreSQL:  localhost:5432"
     echo "  - Redis:       localhost:6379"
     echo ""

@@ -135,9 +135,9 @@ export default function ResponsibilitiesTab() {
       {/* Filter bar */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
-          <label className="text-sm font-medium text-gray-700">Filtrar por cargo:</label>
+          <label className="text-sm font-medium text-stone-700">Filtrar por cargo:</label>
           <select
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500"
+            className="border border-stone-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500"
             value={respPositionFilter}
             onChange={(e) => setRespPositionFilter(e.target.value)}
           >
@@ -160,12 +160,12 @@ export default function ResponsibilitiesTab() {
 
       {/* Loading */}
       {respLoading && (
-        <div className="text-center py-8 text-gray-500 text-sm">Cargando responsabilidades...</div>
+        <div className="text-center py-8 text-stone-500 text-sm">Cargando responsabilidades...</div>
       )}
 
       {/* Empty state */}
       {!respLoading && filtered.length === 0 && (
-        <div className="text-center py-12 text-gray-400">
+        <div className="text-center py-12 text-stone-400">
           <ShieldCheck size={48} className="mx-auto mb-3 opacity-50" />
           <p className="text-lg font-medium">No hay responsabilidades registradas</p>
           <p className="text-sm mt-1">Crea la primera responsabilidad para un cargo.</p>
@@ -183,11 +183,11 @@ export default function ResponsibilitiesTab() {
         }
 
         return (
-          <div key={position} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div key={position} className="bg-white border border-stone-200 rounded-xl overflow-hidden">
             {/* Position header */}
-            <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
-              <h3 className="text-base font-semibold text-gray-800">{position}</h3>
-              <p className="text-xs text-gray-500 mt-0.5">
+            <div className="bg-stone-50 px-5 py-3 border-b border-stone-200">
+              <h3 className="text-base font-semibold text-stone-800">{position}</h3>
+              <p className="text-xs text-stone-500 mt-0.5">
                 {items.length} responsabilidad{items.length !== 1 ? 'es' : ''}
               </p>
             </div>
@@ -205,27 +205,27 @@ export default function ResponsibilitiesTab() {
                       {catItems.map((resp) => (
                         <div
                           key={resp.id}
-                          className="flex items-start justify-between gap-3 p-3 bg-gray-50 rounded-lg"
+                          className="flex items-start justify-between gap-3 p-3 bg-stone-50 rounded-lg"
                         >
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm text-gray-900">{resp.title}</p>
+                            <p className="font-medium text-sm text-stone-900">{resp.title}</p>
                             {resp.description && (
                               <p className="text-xs text-slate-600 mt-0.5">{resp.description}</p>
                             )}
-                            <p className="text-xs text-gray-400 mt-1">Orden: {resp.sort_order}</p>
+                            <p className="text-xs text-stone-400 mt-1">Orden: {resp.sort_order}</p>
                           </div>
                           <RequirePermission permission="workforce.manage_shifts">
                             <div className="flex items-center gap-1 flex-shrink-0">
                               <button
                                 onClick={() => openEditModal(resp)}
-                                className="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded"
+                                className="p-1.5 text-stone-400 hover:text-brand-600 hover:bg-brand-50 rounded"
                                 title="Editar"
                               >
                                 <Pencil size={14} />
                               </button>
                               <button
                                 onClick={() => handleDelete(resp)}
-                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                                className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded"
                                 title="Eliminar"
                               >
                                 <Trash2 size={14} />
@@ -248,10 +248,10 @@ export default function ResponsibilitiesTab() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4">
             <div className="flex items-center justify-between px-6 py-4 border-b">
-              <h2 className="text-lg font-semibold text-gray-900">
+              <h2 className="text-lg font-semibold text-stone-900">
                 {editingResp ? 'Editar Responsabilidad' : 'Nueva Responsabilidad'}
               </h2>
-              <button onClick={() => setShowRespModal(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setShowRespModal(false)} className="text-stone-400 hover:text-stone-600">
                 <X size={20} />
               </button>
             </div>
@@ -265,25 +265,25 @@ export default function ResponsibilitiesTab() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cargo *</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1">Cargo *</label>
                 <input
                   type="text"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  className="w-full border border-stone-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                   placeholder="Ej: Vendedora, Costurera, Administradora"
                   value={respForm.position}
                   onChange={(e) => setRespForm({ ...respForm, position: e.target.value })}
                   disabled={!!editingResp}
                 />
                 {editingResp && (
-                  <p className="text-xs text-gray-400 mt-1">El cargo no se puede cambiar al editar.</p>
+                  <p className="text-xs text-stone-400 mt-1">El cargo no se puede cambiar al editar.</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Titulo *</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1">Titulo *</label>
                 <input
                   type="text"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  className="w-full border border-stone-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                   placeholder="Ej: Atender clientes en tienda"
                   value={respForm.title}
                   onChange={(e) => setRespForm({ ...respForm, title: e.target.value })}
@@ -291,9 +291,9 @@ export default function ResponsibilitiesTab() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Descripcion</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1">Descripcion</label>
                 <textarea
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  className="w-full border border-stone-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                   rows={3}
                   placeholder="Descripcion detallada de la responsabilidad (opcional)"
                   value={respForm.description}
@@ -303,9 +303,9 @@ export default function ResponsibilitiesTab() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Categoria</label>
                   <select
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500"
+                    className="w-full border border-stone-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500"
                     value={respForm.category}
                     onChange={(e) => setRespForm({ ...respForm, category: e.target.value as ResponsibilityCategory })}
                   >
@@ -315,10 +315,10 @@ export default function ResponsibilitiesTab() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Orden</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Orden</label>
                   <input
                     type="number"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    className="w-full border border-stone-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                     min={0}
                     value={respForm.sort_order}
                     onChange={(e) => setRespForm({ ...respForm, sort_order: parseInt(e.target.value) || 0 })}
@@ -327,10 +327,10 @@ export default function ResponsibilitiesTab() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50 rounded-b-xl">
+            <div className="flex justify-end gap-3 px-6 py-4 border-t bg-stone-50 rounded-b-xl">
               <button
                 onClick={() => setShowRespModal(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 text-sm font-medium text-stone-700 bg-white border border-stone-200 rounded-lg hover:bg-stone-50"
               >
                 Cancelar
               </button>

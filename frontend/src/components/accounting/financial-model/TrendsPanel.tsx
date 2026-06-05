@@ -33,9 +33,9 @@ function formatMoney(value: number): string {
 export default function TrendsPanel({ data }: Props) {
   if (!data || data.series.length === 0) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
-        <TrendingUp className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-        <p className="text-gray-500">No hay datos de tendencias disponibles</p>
+      <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-8 text-center">
+        <TrendingUp className="w-12 h-12 text-stone-300 mx-auto mb-3" />
+        <p className="text-stone-500">No hay datos de tendencias disponibles</p>
       </div>
     );
   }
@@ -53,14 +53,14 @@ export default function TrendsPanel({ data }: Props) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-800">Análisis de Tendencias</h3>
-        <span className="text-xs text-gray-400">
+        <h3 className="text-lg font-semibold text-stone-800">Análisis de Tendencias</h3>
+        <span className="text-xs text-stone-400">
           {data.start_date} a {data.end_date}
         </span>
       </div>
 
       {/* Chart */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-6">
         <ResponsiveContainer width="100%" height={400}>
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" />
@@ -87,9 +87,9 @@ export default function TrendsPanel({ data }: Props) {
       {/* Growth rates */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {data.series.map((series) => (
-          <div key={series.metric} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <p className="text-xs text-gray-500 uppercase tracking-wide">{METRIC_LABELS[series.metric] || series.label}</p>
-            <p className="text-lg font-bold text-gray-800 mt-1">
+          <div key={series.metric} className="bg-white rounded-xl shadow-sm border border-stone-200 p-4">
+            <p className="text-xs text-stone-500 uppercase tracking-wide">{METRIC_LABELS[series.metric] || series.label}</p>
+            <p className="text-lg font-bold text-stone-800 mt-1">
               {series.data.length > 0
                 ? `$${Math.round(Number(series.data[series.data.length - 1].value)).toLocaleString('es-CO')}`
                 : '-'}

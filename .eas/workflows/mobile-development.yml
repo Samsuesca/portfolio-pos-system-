@@ -1,0 +1,20 @@
+name: Mobile Development Build
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build-ios-dev:
+    name: Build iOS Dev Client
+    type: build
+    params:
+      platform: ios
+      profile: development
+      working_directory: mobile
+
+  build-android-dev:
+    name: Build Android Dev Client
+    type: build
+    params:
+      platform: android
+      profile: development
+      working_directory: mobile

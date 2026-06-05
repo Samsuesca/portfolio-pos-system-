@@ -5,7 +5,7 @@
  * Endpoints: /api/v1/clients
  */
 import apiClient from '../utils/api-client';
-import type { Client } from '../types/api';
+import type { Client, PaginatedResponse } from '../types/api';
 
 export interface ClientFilters {
   search?: string;
@@ -20,7 +20,7 @@ export const clientService = {
    * Get all clients (global)
    * @deprecated schoolId parameter is no longer used - clients are global
    */
-  async getClients(_schoolId?: string, filters?: ClientFilters): Promise<Client[]> {
+  async getClients(_schoolId?: string, filters?: ClientFilters): Promise<PaginatedResponse<Client>> {
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
     if (filters?.client_type) params.append('client_type', filters.client_type);
@@ -30,7 +30,7 @@ export const clientService = {
 
     const queryString = params.toString();
     const url = queryString ? `/clients?${queryString}` : '/clients';
-    const response = await apiClient.get<Client[]>(url);
+    const response = await apiClient.get<PaginatedResponse<Client>>(url);
     return response.data;
   },
 

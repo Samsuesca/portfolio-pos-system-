@@ -27,14 +27,14 @@ export default function PermissionEditor({
 }: PermissionEditorProps) {
   if (!permissionCatalog) {
     return (
-      <div className="text-center py-4 text-gray-500">Cargando permisos...</div>
+      <div className="text-center py-4 text-stone-500">Cargando permisos...</div>
     );
   }
 
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <label className="block text-sm font-medium text-gray-700">
+        <label className="block text-sm font-medium text-stone-700">
           Permisos ({selectedPermissions.length} seleccionados)
         </label>
         <div className="flex gap-2">
@@ -48,7 +48,7 @@ export default function PermissionEditor({
           <button
             type="button"
             onClick={onClearAll}
-            className="text-xs text-gray-500 hover:text-gray-700"
+            className="text-xs text-stone-500 hover:text-stone-700"
           >
             Limpiar
           </button>
@@ -69,25 +69,25 @@ export default function PermissionEditor({
 
           return (
             <div key={category.code}>
-              <div className="flex items-center justify-between px-4 py-3 hover:bg-gray-50">
+              <div className="flex items-center justify-between px-4 py-3 hover:bg-surface-100">
                 <button
                   type="button"
                   onClick={() => onToggleCategory(category.code)}
                   className="flex items-center gap-2 flex-1 text-left"
                 >
                   {isExpanded ? (
-                    <ChevronDown className="w-4 h-4 text-gray-400" />
+                    <ChevronDown className="w-4 h-4 text-stone-400" />
                   ) : (
-                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                    <ChevronRight className="w-4 h-4 text-stone-400" />
                   )}
-                  <span className="font-medium text-gray-700">{category.name}</span>
+                  <span className="font-medium text-stone-700">{category.name}</span>
                   <span
                     className={`text-xs px-2 py-0.5 rounded-full ${
                       allSelected
-                        ? 'bg-green-100 text-green-700'
+                        ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
                         : someSelected
-                        ? 'bg-yellow-100 text-yellow-700'
-                        : 'bg-gray-100 text-gray-500'
+                        ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
+                        : 'bg-stone-100 text-stone-500'
                     }`}
                   >
                     {selectedCount}/{categoryPermissions.length}
@@ -109,7 +109,7 @@ export default function PermissionEditor({
                 </button>
               </div>
               {isExpanded && (
-                <div className="px-4 pb-3 bg-gray-50">
+                <div className="px-4 pb-3 bg-stone-50/60">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     {categoryPermissions.map((permission) => (
                       <label
@@ -117,7 +117,7 @@ export default function PermissionEditor({
                         className={`flex items-start gap-3 p-2 rounded cursor-pointer border transition ${
                           selectedPermissions.includes(permission.code)
                             ? 'bg-indigo-50 border-indigo-200'
-                            : 'bg-white border-gray-200 hover:border-gray-300'
+                            : 'bg-white border-stone-200 hover:border-stone-300'
                         }`}
                       >
                         <input
@@ -128,7 +128,7 @@ export default function PermissionEditor({
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-gray-700">
+                            <span className="text-sm font-medium text-stone-700">
                               {permission.name}
                             </span>
                             {permission.is_sensitive && (
@@ -138,7 +138,7 @@ export default function PermissionEditor({
                             )}
                           </div>
                           {permission.description && (
-                            <div className="text-xs text-gray-500 mt-0.5">
+                            <div className="text-xs text-stone-500 mt-0.5">
                               {permission.description}
                             </div>
                           )}

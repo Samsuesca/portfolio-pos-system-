@@ -121,17 +121,16 @@ class CashForecastService:
                 "periods": periods,
             })
 
-        # Runway calculation (expected scenario)
-        expected_monthly_burn = avg_monthly_expenses - avg_monthly_income
-        if expected_monthly_burn > ZERO:
-            runway = current_balance / expected_monthly_burn
-        else:
-            runway = Decimal("999")  # Profitable - infinite runway
+        # Runway: usamos el helper compartido para garantizar el mismo
+        # número en Proyección caja, Alertas y Resumen Ejecutivo.
+        from app.services.accounting.financial_model._runway import compute_runway
+        runway_data = await compute_runway(self.db)
 
         return {
             "current_balance": current_balance,
             "min_threshold": min_threshold,
-            "runway_months": runway,
+            "runway_months": runway_data["runway_months"],
+            "is_profitable": runway_data["is_profitable"],
             "scenarios": scenarios,
         }
 

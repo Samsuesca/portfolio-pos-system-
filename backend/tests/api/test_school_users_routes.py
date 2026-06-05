@@ -31,9 +31,9 @@ async def test_list_school_users(
 
     assert response.status_code == 200
     data = response.json()
-    assert "users" in data
+    assert "items" in data
     assert "total" in data
-    assert isinstance(data["users"], list)
+    assert isinstance(data["items"], list)
 
 
 @pytest.mark.asyncio
@@ -50,7 +50,7 @@ async def test_list_school_users_with_pagination(
 
     assert response.status_code == 200
     data = response.json()
-    assert "users" in data
+    assert "items" in data
     assert "total" in data
 
 
@@ -69,7 +69,7 @@ async def test_list_school_users_with_role_filter(
     assert response.status_code == 200
     data = response.json()
     # All users should have admin role or be empty
-    for user in data["users"]:
+    for user in data["items"]:
         if user["role"]:
             assert user["role"] == "admin"
 
@@ -123,7 +123,7 @@ async def test_invite_user_to_school(
         f"/api/v1/schools/{test_school.id}/users",
         headers=superuser_headers
     )
-    existing_users = response.json()["users"]
+    existing_users = response.json()["items"]
     existing_emails = [u["email"] for u in existing_users]
 
     # If user already in school, skip

@@ -141,7 +141,7 @@ export default function DrawerAccessModal({ isOpen, onClose, onSuccess }: Drawer
             <Lock className="w-5 h-5 text-amber-600 mr-2" />
             <h3 className="text-lg font-semibold">Solicitar Apertura de Cajon</h3>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -154,7 +154,7 @@ export default function DrawerAccessModal({ isOpen, onClose, onSuccess }: Drawer
               <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-100 flex items-center justify-center">
                 <Mail className="w-8 h-8 text-amber-600" />
               </div>
-              <p className="text-gray-600 mb-6">
+              <p className="text-stone-600 mb-6">
                 Se enviara un codigo de 6 digitos al administrador para autorizar la apertura del cajon.
               </p>
               <button
@@ -170,7 +170,7 @@ export default function DrawerAccessModal({ isOpen, onClose, onSuccess }: Drawer
           {state === 'requesting' && (
             <div className="text-center py-8">
               <Loader2 className="w-12 h-12 mx-auto text-amber-600 animate-spin mb-4" />
-              <p className="text-gray-600">Enviando codigo al administrador...</p>
+              <p className="text-stone-600">Enviando codigo al administrador...</p>
             </div>
           )}
 
@@ -179,12 +179,12 @@ export default function DrawerAccessModal({ isOpen, onClose, onSuccess }: Drawer
             <div className="text-center">
               <div className="flex items-center justify-center gap-2 mb-4">
                 <Clock className="w-5 h-5 text-amber-600" />
-                <span className={`text-lg font-mono font-bold ${timeLeft < 60 ? 'text-red-600' : 'text-gray-800'}`}>
+                <span className={`text-lg font-mono font-bold ${timeLeft < 60 ? 'text-red-600' : 'text-stone-800'}`}>
                   {formatTime(timeLeft)}
                 </span>
               </div>
 
-              <p className="text-gray-600 mb-6">
+              <p className="text-stone-600 mb-6">
                 Ingresa el codigo de 6 digitos que recibio el administrador
               </p>
 
@@ -207,7 +207,7 @@ export default function DrawerAccessModal({ isOpen, onClose, onSuccess }: Drawer
                     value={digit}
                     onChange={(e) => handleCodeChange(index, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(index, e)}
-                    className="w-12 h-14 text-center text-2xl font-bold border-2 border-gray-300 rounded-lg focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none transition"
+                    className="w-12 h-14 text-center text-2xl font-bold border-2 border-stone-200 rounded-lg focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none transition"
                   />
                 ))}
               </div>
@@ -225,7 +225,7 @@ export default function DrawerAccessModal({ isOpen, onClose, onSuccess }: Drawer
           {state === 'validating' && (
             <div className="text-center py-8">
               <Loader2 className="w-12 h-12 mx-auto text-amber-600 animate-spin mb-4" />
-              <p className="text-gray-600">Verificando codigo...</p>
+              <p className="text-stone-600">Verificando codigo...</p>
             </div>
           )}
 
@@ -235,8 +235,8 @@ export default function DrawerAccessModal({ isOpen, onClose, onSuccess }: Drawer
               <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
                 <CheckCircle className="w-10 h-10 text-green-600" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-800 mb-2">Cajon Abierto</h3>
-              <p className="text-gray-600">El cajon se ha abierto exitosamente</p>
+              <h3 className="text-lg font-semibold text-stone-800 mb-2">Cajon Abierto</h3>
+              <p className="text-stone-600">El cajon se ha abierto exitosamente</p>
             </div>
           )}
 

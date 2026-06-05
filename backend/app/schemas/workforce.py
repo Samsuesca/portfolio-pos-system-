@@ -68,7 +68,7 @@ class ScheduleCreate(BaseSchema):
 
 class BulkScheduleCreate(BaseSchema):
     """Create multiple schedule entries at once"""
-    schedules: list[ScheduleCreate]
+    schedules: list[ScheduleCreate] = Field(max_length=100)
 
 
 class ScheduleUpdate(BaseSchema):
@@ -363,6 +363,14 @@ class PerformanceSummaryItem(BaseSchema):
     punctuality_rate: Decimal
     checklist_completion_rate: Decimal
     overall_score: Decimal
+
+
+class PerformanceStatsResponse(BaseSchema):
+    """Aggregated performance KPIs across all employees in a period."""
+    total_employees: int
+    avg_score: int
+    top_performers: int  # overall_score >= 90
+    needs_attention: int  # overall_score < 50
 
 
 class ReviewGenerateRequest(BaseSchema):

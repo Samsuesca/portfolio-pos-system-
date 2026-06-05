@@ -15,7 +15,7 @@ const GARMENT_TYPES = [
   'Falda',
   'Chompa',
   'Sudadera',
-  'Yomber',
+  'Jumper',
   'Zapatos',
   'Medias',
   'Otro'

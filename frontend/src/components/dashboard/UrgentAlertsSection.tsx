@@ -8,8 +8,8 @@ import {
   Package,
   ChevronRight,
   CheckCircle,
-  DollarSign,
   Scissors,
+  CalendarOff,
 } from 'lucide-react';
 import type { OrderListItem, Product } from '../../types/api';
 import { formatCurrency } from '../../utils/formatting';
@@ -28,10 +28,11 @@ export interface AlertsData {
   orders_today: UrgentOrderAlert[];
   orders_tomorrow: UrgentOrderAlert[];
   orders_overdue: UrgentOrderAlert[];
+  orders_no_date: number;
   critical_stock_count: number;
   out_of_stock_products: Product[];
-  out_of_stock_count: number;  // Real count of products with 0 stock
-  low_stock_count: number;     // Real count of products with low stock
+  out_of_stock_count: number;
+  low_stock_count: number;
   alterations_ready?: number;
 }
 
@@ -51,6 +52,7 @@ export function processOrdersForAlerts(orders: OrderListItem[]): {
   overdue: UrgentOrderAlert[];
   today: UrgentOrderAlert[];
   tomorrow: UrgentOrderAlert[];
+  noDateCount: number;
 } {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -61,38 +63,49 @@ export function processOrdersForAlerts(orders: OrderListItem[]): {
   const overdue: UrgentOrderAlert[] = [];
   const todayOrders: UrgentOrderAlert[] = [];
   const tomorrowOrders: UrgentOrderAlert[] = [];
+  let noDateCount = 0;
 
-  orders
-    .filter((order) => ['pending', 'in_production', 'ready'].includes(order.status))
-    .forEach((order) => {
-      if (!order.delivery_date) return;
+  if (!Array.isArray(orders)) {
+    return { overdue: [], today: [], tomorrow: [], noDateCount: 0 };
+  }
 
-      const deliveryDate = new Date(order.delivery_date);
-      deliveryDate.setHours(0, 0, 0, 0);
+  const activeOrders = orders.filter((order) =>
+    ['pending', 'in_production', 'ready'].includes(order.status)
+  );
 
-      const alert: UrgentOrderAlert = {
-        id: order.id,
-        code: order.code,
-        client_name: order.client_name || order.student_name || 'Sin cliente',
-        items_summary: `${order.items_count} item${order.items_count !== 1 ? 's' : ''}`,
-        balance: order.balance,
-        delivery_date: order.delivery_date,
-        is_overdue: deliveryDate < today,
-      };
+  activeOrders.forEach((order) => {
+    if (!order.delivery_date) {
+      noDateCount++;
+      return;
+    }
 
-      if (deliveryDate < today) {
-        overdue.push(alert);
-      } else if (deliveryDate.getTime() === today.getTime()) {
-        todayOrders.push(alert);
-      } else if (deliveryDate.getTime() === tomorrow.getTime()) {
-        tomorrowOrders.push(alert);
-      }
-    });
+    const deliveryDate = new Date(order.delivery_date);
+    deliveryDate.setHours(0, 0, 0, 0);
+
+    const alert: UrgentOrderAlert = {
+      id: order.id,
+      code: order.code,
+      client_name: order.client_name || order.student_name || 'Sin cliente',
+      items_summary: `${order.items_count} item${order.items_count !== 1 ? 's' : ''}`,
+      balance: order.balance,
+      delivery_date: order.delivery_date,
+      is_overdue: deliveryDate < today,
+    };
+
+    if (deliveryDate < today) {
+      overdue.push(alert);
+    } else if (deliveryDate.getTime() === today.getTime()) {
+      todayOrders.push(alert);
+    } else if (deliveryDate.getTime() === tomorrow.getTime()) {
+      tomorrowOrders.push(alert);
+    }
+  });
 
   return {
-    overdue: overdue.slice(0, 5),
-    today: todayOrders.slice(0, 5),
-    tomorrow: tomorrowOrders.slice(0, 5),
+    overdue,
+    today: todayOrders,
+    tomorrow: tomorrowOrders,
+    noDateCount,
   };
 }
 
@@ -103,16 +116,18 @@ export function processCriticalStock(products: Product[]): {
   lowStockCount: number;
   criticalCount: number;
 } {
+  if (!Array.isArray(products)) {
+    return { outOfStock: [], outOfStockCount: 0, lowStockCount: 0, criticalCount: 0 };
+  }
+
   const outOfStock = products.filter((p) => {
-    // Use same logic as Products.tsx: check both stock and inventory_quantity
-    const stock = (p as any).stock ?? p.inventory_quantity ?? 0;
+    const stock = p.stock ?? p.inventory_quantity ?? 0;
     return stock === 0;
   });
 
   const lowStock = products.filter((p) => {
-    // Use same logic as Products.tsx: check both stock and inventory_quantity
-    const stock = (p as any).stock ?? p.inventory_quantity ?? 0;
-    const minStock = (p as any).min_stock ?? p.inventory_min_stock ?? 5;
+    const stock = p.stock ?? p.inventory_quantity ?? 0;
+    const minStock = p.min_stock ?? p.inventory_min_stock ?? 5;
     return stock > 0 && stock <= minStock;
   });
 
@@ -131,7 +146,8 @@ function OrderAlertItem({
   alert: UrgentOrderAlert;
   onClick: () => void;
 }) {
-  const isPaid = alert.balance <= 0;
+  const isPaid = alert.balance === 0;
+  const hasCredit = alert.balance < 0;
 
   return (
     <div
@@ -157,9 +173,12 @@ function OrderAlertItem({
             <CheckCircle className="w-3 h-3 mr-1" />
             Pagado
           </span>
+        ) : hasCredit ? (
+          <span className="inline-flex items-center text-xs text-brand-700 font-medium bg-brand-100 px-2 py-0.5 rounded-full">
+            Saldo a favor {formatCurrency(Math.abs(alert.balance))}
+          </span>
         ) : (
           <span className="inline-flex items-center text-xs font-medium bg-white/50 px-2 py-0.5 rounded-full">
-            <DollarSign className="w-3 h-3" />
             {formatCurrency(alert.balance)}
           </span>
         )}
@@ -190,10 +209,12 @@ export function UrgentAlertsSection({
   const hasOverdue = showOrderAlerts && data.orders_overdue.length > 0;
   const hasToday = showOrderAlerts && data.orders_today.length > 0;
   const hasTomorrow = showOrderAlerts && data.orders_tomorrow.length > 0;
+  const hasNoDate = showOrderAlerts && data.orders_no_date > 0;
   const hasStockIssues = showStockAlerts && data.critical_stock_count > 0;
   const hasAlterationsReady = showAlterationAlerts && (data.alterations_ready ?? 0) > 0;
 
-  const hasAnyAlert = hasOverdue || hasToday || hasTomorrow || hasStockIssues || hasAlterationsReady;
+  const MAX_ITEMS = 5;
+  const hasAnyAlert = hasOverdue || hasToday || hasTomorrow || hasNoDate || hasStockIssues || hasAlterationsReady;
 
   if (!hasAnyAlert) {
     return null;
@@ -211,13 +232,18 @@ export function UrgentAlertsSection({
             </h4>
           </div>
           <div className="space-y-1 text-red-800">
-            {data.orders_overdue.map((alert) => (
+            {data.orders_overdue.slice(0, MAX_ITEMS).map((alert) => (
               <OrderAlertItem
                 key={alert.id}
                 alert={alert}
                 onClick={() => navigate(`/orders/${alert.id}`)}
               />
             ))}
+            {data.orders_overdue.length > MAX_ITEMS && (
+              <p className="text-xs text-red-600 pt-1 pl-3">
+                y {data.orders_overdue.length - MAX_ITEMS} más...
+              </p>
+            )}
           </div>
           <button
             onClick={() => navigate('/orders?filter=overdue')}
@@ -239,13 +265,18 @@ export function UrgentAlertsSection({
             </h4>
           </div>
           <div className="space-y-1 text-orange-800">
-            {data.orders_today.map((alert) => (
+            {data.orders_today.slice(0, MAX_ITEMS).map((alert) => (
               <OrderAlertItem
                 key={alert.id}
                 alert={alert}
                 onClick={() => navigate(`/orders/${alert.id}`)}
               />
             ))}
+            {data.orders_today.length > MAX_ITEMS && (
+              <p className="text-xs text-orange-600 pt-1 pl-3">
+                y {data.orders_today.length - MAX_ITEMS} más...
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -260,13 +291,39 @@ export function UrgentAlertsSection({
             </h4>
           </div>
           <div className="space-y-1 text-amber-800">
-            {data.orders_tomorrow.map((alert) => (
+            {data.orders_tomorrow.slice(0, MAX_ITEMS).map((alert) => (
               <OrderAlertItem
                 key={alert.id}
                 alert={alert}
                 onClick={() => navigate(`/orders/${alert.id}`)}
               />
             ))}
+            {data.orders_tomorrow.length > MAX_ITEMS && (
+              <p className="text-xs text-amber-600 pt-1 pl-3">
+                y {data.orders_tomorrow.length - MAX_ITEMS} más...
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Orders without delivery date - Blue info */}
+      {hasNoDate && (
+        <div className="bg-brand-50 border border-brand-200 rounded-xl p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CalendarOff className="w-5 h-5 text-brand-600" />
+              <h4 className="font-semibold text-brand-700">
+                {data.orders_no_date} encargo{data.orders_no_date !== 1 ? 's' : ''} sin fecha de entrega
+              </h4>
+            </div>
+            <button
+              onClick={() => navigate('/orders')}
+              className="text-sm text-brand-700 hover:text-brand-700 font-medium flex items-center gap-1"
+            >
+              Ver encargos
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
         </div>
       )}
@@ -291,12 +348,12 @@ export function UrgentAlertsSection({
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
             {data.out_of_stock_count > 0 && (
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-50 text-red-700 ring-1 ring-red-200">
                 {data.out_of_stock_count} sin stock
               </span>
             )}
             {data.low_stock_count > 0 && (
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-amber-50 text-amber-700 ring-1 ring-amber-200">
                 {data.low_stock_count} con stock bajo
               </span>
             )}

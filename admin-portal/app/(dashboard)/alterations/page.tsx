@@ -77,12 +77,7 @@ export default function AlterationsPage() {
       received_date: new Date().toISOString().split('T')[0],
     }
   );
-  const [clientType, setClientType] = useState<'existing' | 'external'>(
-    'external'
-  );
   const [selectedClientId, setSelectedClientId] = useState<string>('');
-  const [externalClientName, setExternalClientName] = useState('');
-  const [externalClientPhone, setExternalClientPhone] = useState('');
   const [clientSearch, setClientSearch] = useState('');
 
   const LIMIT = 50;
@@ -142,8 +137,8 @@ export default function AlterationsPage() {
   const loadClients = async (search?: string) => {
     try {
       setLoadingClients(true);
-      const data = await clientService.getClients({ search, limit: 20 });
-      setClients(data);
+      const response = await clientService.getClients({ search, limit: 20 });
+      setClients(response.items);
     } catch (err) {
       console.error('Error loading clients:', err);
     } finally {
@@ -169,10 +164,7 @@ export default function AlterationsPage() {
       cost: 0,
       received_date: new Date().toISOString().split('T')[0],
     });
-    setClientType('external');
     setSelectedClientId('');
-    setExternalClientName('');
-    setExternalClientPhone('');
     setClientSearch('');
   };
 
@@ -182,12 +174,8 @@ export default function AlterationsPage() {
       return;
     }
 
-    if (
-      clientType === 'existing' &&
-      !selectedClientId &&
-      !externalClientName
-    ) {
-      alert('Por favor seleccione un cliente o ingrese los datos del cliente');
+    if (!selectedClientId) {
+      alert('Por favor seleccione un cliente registrado');
       return;
     }
 
@@ -195,6 +183,7 @@ export default function AlterationsPage() {
       setSavingAlteration(true);
 
       const data: AlterationCreate = {
+        client_id: selectedClientId,
         alteration_type: newAlteration.alteration_type!,
         garment_name: newAlteration.garment_name!,
         description: newAlteration.description!,
@@ -205,13 +194,6 @@ export default function AlterationsPage() {
         initial_payment: newAlteration.initial_payment,
         initial_payment_method: newAlteration.initial_payment_method,
       };
-
-      if (clientType === 'existing' && selectedClientId) {
-        data.client_id = selectedClientId;
-      } else {
-        data.external_client_name = externalClientName;
-        data.external_client_phone = externalClientPhone;
-      }
 
       await alterationService.create(data);
       handleCloseCreateModal();
@@ -588,122 +570,63 @@ export default function AlterationsPage() {
                 {/* Client Section */}
                 <div>
                   <h3 className="text-sm font-medium text-slate-700 mb-3">
-                    Datos del Cliente
+                    Cliente registrado *
                   </h3>
-                  <div className="flex gap-4 mb-4">
-                    <button
-                      onClick={() => setClientType('external')}
-                      className={`flex-1 py-2 px-4 rounded-lg border text-sm ${
-                        clientType === 'external'
-                          ? 'bg-brand-50 border-brand-500 text-brand-700'
-                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      Cliente externo
-                    </button>
-                    <button
-                      onClick={() => {
-                        setClientType('existing');
-                        loadClients();
-                      }}
-                      className={`flex-1 py-2 px-4 rounded-lg border text-sm ${
-                        clientType === 'existing'
-                          ? 'bg-brand-50 border-brand-500 text-brand-700'
-                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      Cliente registrado
-                    </button>
-                  </div>
-
-                  {clientType === 'external' ? (
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm text-slate-600 mb-1">
-                          Nombre *
-                        </label>
-                        <input
-                          type="text"
-                          value={externalClientName}
-                          onChange={(e) =>
-                            setExternalClientName(e.target.value)
-                          }
-                          className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none"
-                          placeholder="Nombre del cliente"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm text-slate-600 mb-1">
-                          Telefono
-                        </label>
-                        <input
-                          type="tel"
-                          value={externalClientPhone}
-                          onChange={(e) =>
-                            setExternalClientPhone(e.target.value)
-                          }
-                          className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none"
-                          placeholder="300 123 4567"
-                        />
-                      </div>
+                  <div>
+                    <label className="block text-sm text-slate-600 mb-1">
+                      Buscar cliente
+                    </label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        type="text"
+                        value={clientSearch}
+                        onChange={(e) => setClientSearch(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none"
+                        placeholder="Buscar por nombre o telefono..."
+                      />
                     </div>
-                  ) : (
-                    <div>
-                      <label className="block text-sm text-slate-600 mb-1">
-                        Buscar cliente
-                      </label>
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                        <input
-                          type="text"
-                          value={clientSearch}
-                          onChange={(e) => setClientSearch(e.target.value)}
-                          className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none"
-                          placeholder="Buscar por nombre o telefono..."
-                        />
+                    {loadingClients ? (
+                      <div className="py-4 text-center">
+                        <Loader2 className="w-5 h-5 animate-spin mx-auto text-brand-500" />
                       </div>
-                      {loadingClients ? (
-                        <div className="py-4 text-center">
-                          <Loader2 className="w-5 h-5 animate-spin mx-auto text-brand-500" />
-                        </div>
-                      ) : (
-                        <div className="mt-2 max-h-40 overflow-y-auto border border-slate-200 rounded-lg">
-                          {filteredClients.length === 0 ? (
-                            <p className="p-4 text-sm text-slate-500 text-center">
-                              No se encontraron clientes
-                            </p>
-                          ) : (
-                            filteredClients.map((client) => (
-                              <button
-                                key={client.id}
-                                onClick={() => setSelectedClientId(client.id)}
-                                className={`w-full flex items-center gap-3 p-3 text-left hover:bg-slate-50 border-b border-slate-100 last:border-0 ${
-                                  selectedClientId === client.id
-                                    ? 'bg-brand-50'
-                                    : ''
-                                }`}
-                              >
-                                <User className="w-4 h-4 text-slate-400" />
-                                <div>
-                                  <p className="font-medium text-slate-900">
-                                    {client.name}
+                    ) : (
+                      <div className="mt-2 max-h-40 overflow-y-auto border border-slate-200 rounded-lg">
+                        {filteredClients.length === 0 ? (
+                          <p className="p-4 text-sm text-slate-500 text-center">
+                            No se encontraron clientes
+                          </p>
+                        ) : (
+                          filteredClients.map((client) => (
+                            <button
+                              key={client.id}
+                              onClick={() => setSelectedClientId(client.id)}
+                              className={`w-full flex items-center gap-3 p-3 text-left hover:bg-slate-50 border-b border-slate-100 last:border-0 ${
+                                selectedClientId === client.id
+                                  ? 'bg-brand-50'
+                                  : ''
+                              }`}
+                            >
+                              <User className="w-4 h-4 text-slate-400" />
+                              <div>
+                                <p className="font-medium text-slate-900">
+                                  {client.name}
+                                </p>
+                                {client.phone && (
+                                  <p className="text-xs text-slate-500">
+                                    {client.phone}
                                   </p>
-                                  {client.phone && (
-                                    <p className="text-xs text-slate-500">
-                                      {client.phone}
-                                    </p>
-                                  )}
-                                </div>
-                                {selectedClientId === client.id && (
-                                  <CheckCircle className="w-4 h-4 text-brand-500 ml-auto" />
                                 )}
-                              </button>
-                            ))
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                              </div>
+                              {selectedClientId === client.id && (
+                                <CheckCircle className="w-4 h-4 text-brand-500 ml-auto" />
+                              )}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Garment Section */}
@@ -897,8 +820,7 @@ export default function AlterationsPage() {
                     savingAlteration ||
                     !newAlteration.garment_name ||
                     !newAlteration.description ||
-                    (clientType === 'external' && !externalClientName) ||
-                    (clientType === 'existing' && !selectedClientId)
+                    !selectedClientId
                   }
                   className="flex-1 px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition disabled:opacity-50 flex items-center justify-center"
                 >

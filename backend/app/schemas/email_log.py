@@ -116,9 +116,6 @@ class EmailStatsResponse(BaseSchema):
 # List Response
 # ============================================
 
-class EmailLogListResponse(BaseSchema):
-    """Paginated list of email logs"""
-    items: list[EmailLogWithDetails]
-    total: int
-    skip: int
-    limit: int
+from app.schemas.base import PaginatedResponse
+
+EmailLogListResponse = PaginatedResponse[EmailLogWithDetails]

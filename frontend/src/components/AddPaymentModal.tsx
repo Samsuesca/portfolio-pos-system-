@@ -93,13 +93,13 @@ export default function AddPaymentModal({
               <DollarSign className="w-5 h-5 text-green-600" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Agregar Pago</h2>
-              <p className="text-sm text-gray-500">Venta {saleCode}</p>
+              <h2 className="text-lg font-semibold text-stone-900">Agregar Pago</h2>
+              <p className="text-sm text-stone-500">Venta {saleCode}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-stone-100 rounded-lg transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -125,7 +125,7 @@ export default function AddPaymentModal({
 
           {/* Monto */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-stone-700 mb-1">
               Monto del pago
             </label>
             <div className="flex gap-2">
@@ -133,14 +133,14 @@ export default function AddPaymentModal({
                 <CurrencyInput
                   value={amount}
                   onChange={setAmount}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500"
                   placeholder="0"
                 />
               </div>
               <button
                 type="button"
                 onClick={handleFillPending}
-                className="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                className="px-3 py-2 text-sm bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors"
                 title="Llenar con saldo pendiente"
               >
                 Todo
@@ -150,7 +150,7 @@ export default function AddPaymentModal({
 
           {/* Método de pago */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-stone-700 mb-1">
               Método de pago
             </label>
             <div className="grid grid-cols-3 gap-2">
@@ -161,8 +161,8 @@ export default function AddPaymentModal({
                   onClick={() => setPaymentMethod(method.value)}
                   className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
                     paymentMethod === method.value
-                      ? 'bg-blue-50 border-blue-500 text-blue-700'
-                      : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                      ? 'bg-brand-50 border-brand-500 text-brand-700'
+                      : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50'
                   }`}
                 >
                   {method.label}
@@ -173,14 +173,14 @@ export default function AddPaymentModal({
 
           {/* Notas */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-stone-700 mb-1">
               Notas (opcional)
             </label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+              className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500 resize-none"
               placeholder="Ej: Pago parcial, referencia de transferencia..."
             />
           </div>
@@ -192,16 +192,16 @@ export default function AddPaymentModal({
               id="applyAccounting"
               checked={applyAccounting}
               onChange={(e) => setApplyAccounting(e.target.checked)}
-              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              className="w-4 h-4 text-brand-600 border-stone-200 rounded focus:ring-brand-400/30"
             />
-            <label htmlFor="applyAccounting" className="text-sm text-gray-700">
+            <label htmlFor="applyAccounting" className="text-sm text-stone-700">
               Registrar en contabilidad
             </label>
           </div>
 
           {/* Info about credit */}
           {paymentMethod === 'credit' && (
-            <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
+            <div className="p-3 bg-brand-50 rounded-lg text-sm text-brand-700">
               <CreditCard className="w-4 h-4 inline mr-1" />
               El pago a crédito generará una cuenta por cobrar.
             </div>
@@ -213,7 +213,7 @@ export default function AddPaymentModal({
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              className="flex-1 px-4 py-2 border border-stone-200 rounded-lg text-stone-700 hover:bg-stone-50 transition-colors disabled:opacity-50"
             >
               Cancelar
             </button>

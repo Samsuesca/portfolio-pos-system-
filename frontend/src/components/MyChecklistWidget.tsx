@@ -13,9 +13,9 @@ export default function MyChecklistWidget({ employeeId }: Props) {
   const load = useCallback(async () => {
     try {
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
-      const data = await workforceService.getDailyChecklists({ employee_id: employeeId, checklist_date: today });
-      if (data.length > 0) {
-        setChecklist(data[0]);
+      const result = await workforceService.getDailyChecklists({ employee_id: employeeId, checklist_date: today });
+      if (result.items.length > 0) {
+        setChecklist(result.items[0]);
       }
     } catch {
       // No checklist
@@ -68,9 +68,9 @@ export default function MyChecklistWidget({ employeeId }: Props) {
         <h3 className="text-sm font-semibold text-slate-700">Mi Checklist de Hoy</h3>
         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
           completionPct === 100
-            ? 'bg-green-100 text-green-700'
+            ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
             : completionPct > 0
-            ? 'bg-yellow-100 text-yellow-700'
+            ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
             : 'bg-slate-100 text-slate-600'
         }`}>
           {checklist.completed_items}/{checklist.total_items}

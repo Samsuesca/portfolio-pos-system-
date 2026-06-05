@@ -65,7 +65,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose }) 
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
         <div className="flex items-center justify-between p-4 border-b">
           <h3 className="text-lg font-semibold">Editar Perfil</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -83,44 +83,44 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose }) 
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de usuario</label>
+            <label className="block text-sm font-medium text-stone-700 mb-1">Nombre de usuario</label>
             <input
               type="text"
               value={user?.username || ''}
               disabled
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500"
+              className="w-full px-3 py-2 border border-stone-200 rounded-lg bg-stone-100 text-stone-500"
             />
-            <p className="text-xs text-gray-500 mt-1">El nombre de usuario no se puede cambiar</p>
+            <p className="text-xs text-stone-500 mt-1">El nombre de usuario no se puede cambiar</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre completo</label>
+            <label className="block text-sm font-medium text-stone-700 mb-1">Nombre completo</label>
             <input
               type="text"
               value={profileForm.full_name}
               onChange={(e) => setProfileForm({ ...profileForm, full_name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent"
               placeholder="Tu nombre completo"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label className="block text-sm font-medium text-stone-700 mb-1">Email</label>
             <input
               type="email"
               value={profileForm.email}
               onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent"
               placeholder="tu@email.com"
             />
           </div>
         </div>
         <div className="flex justify-end gap-2 p-4 border-t">
-          <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:text-gray-800 transition">
+          <button onClick={onClose} className="px-4 py-2 text-stone-600 hover:text-stone-800 transition">
             Cancelar
           </button>
           <button
             onClick={handleSave}
             disabled={loading}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition flex items-center disabled:opacity-50"
+            className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg transition flex items-center disabled:opacity-50"
           >
             {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
             Guardar

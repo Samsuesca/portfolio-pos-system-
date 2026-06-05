@@ -22,12 +22,12 @@ class TestSaleCreated:
     def test_sale_created_basic_fields(self):
         """Includes code, total, and school name."""
         msg = TelegramMessageBuilder.sale_created(
-            code="VNT-2025-0001",
+            code="CARACAS-001-VNT-2025-0001",
             total=Decimal("150000"),
             school_name="I.E. Caracas",
         )
         assert "<b>Venta Registrada</b>" in msg
-        assert "<code>VNT-2025-0001</code>" in msg
+        assert "<code>CARACAS-001-VNT-2025-0001</code>" in msg
         assert "$150,000" in msg
         assert "I.E. Caracas" in msg
 
@@ -35,7 +35,7 @@ class TestSaleCreated:
     def test_sale_created_with_optional_fields(self):
         """Includes client, seller, and payment method when provided."""
         msg = TelegramMessageBuilder.sale_created(
-            code="VNT-2025-0002",
+            code="CARACAS-001-VNT-2025-0002",
             total=Decimal("250000"),
             school_name="Colegio Test",
             seller_name="Ana Lopez",
@@ -50,7 +50,7 @@ class TestSaleCreated:
     def test_sale_created_without_optional_fields(self):
         """Omits optional lines when not provided."""
         msg = TelegramMessageBuilder.sale_created(
-            code="VNT-2025-0003",
+            code="CARACAS-001-VNT-2025-0003",
             total=Decimal("100000"),
             school_name="Colegio A",
         )
@@ -62,7 +62,7 @@ class TestSaleCreated:
     def test_sale_created_large_total_formatted(self):
         """Large monetary values are formatted with thousand separators."""
         msg = TelegramMessageBuilder.sale_created(
-            code="VNT-2025-0004",
+            code="CARACAS-001-VNT-2025-0004",
             total=Decimal("12345678"),
             school_name="School",
         )
@@ -81,12 +81,12 @@ class TestWebOrderCreated:
     def test_web_order_basic(self):
         """Contains header, code, total, school."""
         msg = TelegramMessageBuilder.web_order_created(
-            code="ENC-2025-0001",
+            code="CARACAS-001-ENC-2025-0001",
             total=Decimal("200000"),
             school_name="Colegio Web",
         )
         assert "<b>Nuevo Pedido Web</b>" in msg
-        assert "<code>ENC-2025-0001</code>" in msg
+        assert "<code>CARACAS-001-ENC-2025-0001</code>" in msg
         assert "$200,000" in msg
         assert "Colegio Web" in msg
 
@@ -94,7 +94,7 @@ class TestWebOrderCreated:
     def test_web_order_with_client_and_delivery(self):
         """Includes client and delivery type when provided."""
         msg = TelegramMessageBuilder.web_order_created(
-            code="ENC-2025-0002",
+            code="CARACAS-001-ENC-2025-0002",
             total=Decimal("350000"),
             school_name="Test",
             client_name="Pedro Ruiz",
@@ -107,7 +107,7 @@ class TestWebOrderCreated:
     def test_web_order_without_optionals(self):
         """Omits optional lines when None."""
         msg = TelegramMessageBuilder.web_order_created(
-            code="ENC-2025-0003",
+            code="CARACAS-001-ENC-2025-0003",
             total=Decimal("50000"),
             school_name="School",
         )
@@ -127,13 +127,13 @@ class TestOrderStatusChanged:
     def test_order_status_basic(self):
         """Contains code, old/new status, and school name."""
         msg = TelegramMessageBuilder.order_status_changed(
-            code="ENC-2025-0001",
+            code="CARACAS-001-ENC-2025-0001",
             old_status="pending",
             new_status="in_production",
             school_name="Colegio X",
         )
         assert "<b>Pedido Actualizado</b>" in msg
-        assert "<code>ENC-2025-0001</code>" in msg
+        assert "<code>CARACAS-001-ENC-2025-0001</code>" in msg
         assert "pending" in msg
         assert "<b>in_production</b>" in msg
         assert "Colegio X" in msg
@@ -314,9 +314,9 @@ class TestWompiPayment:
             status="APPROVED",
             amount=Decimal("50000"),
             reference="REF-003",
-            order_code="ENC-2025-ABCD",
+            order_code="CARACAS-001-ENC-2025-ABCD",
         )
-        assert "<code>ENC-2025-ABCD</code>" in msg
+        assert "<code>CARACAS-001-ENC-2025-ABCD</code>" in msg
 
     @pytest.mark.unit
     def test_wompi_payment_without_order_code(self):
@@ -369,6 +369,32 @@ class TestPqrsReceived:
         )
         assert "Asunto:" not in msg
         assert "Colegio:" not in msg
+
+    @pytest.mark.unit
+    def test_pqrs_escapes_anchor_injection(self):
+        """A subject with an <a href> tag from the public form is neutralized.
+
+        POST /contacts/submit is unauthenticated, so name/subject are attacker
+        input. Telegram renders <a href> in HTML mode — escaping prevents a
+        phishing link reaching the admins' chat.
+        """
+        msg = TelegramMessageBuilder.pqrs_received(
+            contact_type="queja",
+            name="Atacante",
+            subject='<a href="http://malicioso">Reclamo urgente</a>',
+        )
+        assert "<a href" not in msg
+        assert "&lt;a href" in msg
+
+    @pytest.mark.unit
+    def test_pqrs_escapes_ampersand_in_name(self):
+        """A legitimate '&' in a name does not break Telegram's HTML parser."""
+        msg = TelegramMessageBuilder.pqrs_received(
+            contact_type="solicitud",
+            name="Smith & Co",
+        )
+        assert "Smith &amp; Co" in msg
+        assert "Smith & Co" not in msg
 
 
 # ---------------------------------------------------------------------------
@@ -510,6 +536,102 @@ class TestDailyDigest:
             low_stock_count=0,
         )
         assert "Productos bajo stock:" not in msg
+
+
+# ---------------------------------------------------------------------------
+# daily_digest_seller
+# ---------------------------------------------------------------------------
+
+
+class TestDailyDigestSeller:
+    """Test TelegramMessageBuilder.daily_digest_seller — per-school view for sellers."""
+
+    @pytest.mark.unit
+    def test_includes_school_name(self):
+        """Per-school digest shows the school name."""
+        msg = TelegramMessageBuilder.daily_digest_seller(
+            date_str="01/05/2026",
+            school_name="I.E. San Jose",
+            total_sales=3,
+            sales_revenue=Decimal("450000"),
+            total_orders=2,
+            pending_orders=1,
+            low_stock_count=0,
+        )
+        assert "I.E. San Jose" in msg
+        assert "01/05/2026" in msg
+
+    @pytest.mark.unit
+    def test_omits_cash_balance(self):
+        """Seller digest must not leak cash balances."""
+        msg = TelegramMessageBuilder.daily_digest_seller(
+            date_str="01/05/2026",
+            school_name="Colegio X",
+            total_sales=1,
+            sales_revenue=Decimal("50000"),
+            total_orders=0,
+            pending_orders=0,
+        )
+        assert "Caja" not in msg
+        assert "Banco" not in msg
+
+    @pytest.mark.unit
+    def test_omits_expenses(self):
+        """Seller digest must not show global expenses."""
+        msg = TelegramMessageBuilder.daily_digest_seller(
+            date_str="01/05/2026",
+            school_name="Colegio X",
+            total_sales=1,
+            sales_revenue=Decimal("50000"),
+            total_orders=0,
+            pending_orders=0,
+        )
+        assert "Gastos" not in msg
+
+    @pytest.mark.unit
+    def test_includes_sales_and_orders(self):
+        """Seller digest shows sales count, revenue, and orders."""
+        msg = TelegramMessageBuilder.daily_digest_seller(
+            date_str="01/05/2026",
+            school_name="Colegio X",
+            total_sales=5,
+            sales_revenue=Decimal("125000"),
+            total_orders=3,
+            pending_orders=2,
+        )
+        assert "5" in msg
+        assert "$125,000" in msg
+        assert "3 nuevos" in msg
+        assert "2 pendientes" in msg
+
+    @pytest.mark.unit
+    def test_low_stock_zero_hides_line(self):
+        """Zero low-stock items do not render the bajo stock line."""
+        msg = TelegramMessageBuilder.daily_digest_seller(
+            date_str="01/05/2026",
+            school_name="Colegio X",
+            total_sales=0,
+            sales_revenue=Decimal("0"),
+            total_orders=0,
+            pending_orders=0,
+            low_stock_count=0,
+        )
+        assert "Productos bajo stock" not in msg
+
+    @pytest.mark.unit
+    def test_low_stock_positive_shows_line(self):
+        """Positive low-stock count renders the line."""
+        msg = TelegramMessageBuilder.daily_digest_seller(
+            date_str="01/05/2026",
+            school_name="Colegio X",
+            total_sales=0,
+            sales_revenue=Decimal("0"),
+            total_orders=0,
+            pending_orders=0,
+            low_stock_count=4,
+        )
+        assert "Productos bajo stock:" in msg
+        assert "4" in msg
 
 
 # ---------------------------------------------------------------------------

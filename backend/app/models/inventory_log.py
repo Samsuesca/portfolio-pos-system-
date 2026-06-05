@@ -5,7 +5,7 @@ Similar to BalanceEntry for accounting, this tracks all inventory changes
 for full auditability and historical tracking.
 """
 from datetime import datetime, date
-from sqlalchemy import String, DateTime, Date, Integer, ForeignKey, Enum as SQLEnum
+from sqlalchemy import String, Boolean, DateTime, Date, Integer, ForeignKey, Text, Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
@@ -45,16 +45,9 @@ class InventoryLog(Base):
         default=uuid.uuid4
     )
 
-    # Product reference - one of these should be set
     inventory_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("inventory.id", ondelete="CASCADE"),
-        nullable=True,
-        index=True
-    )
-    global_inventory_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("global_inventory.id", ondelete="CASCADE"),
         nullable=True,
         index=True
     )
@@ -100,7 +93,7 @@ class InventoryLog(Base):
     )
     reference: Mapped[str | None] = mapped_column(
         String(100)
-    )  # VNT-2025-0001, ENC-2025-0001, etc.
+    )  # e.g. CARACAS-001-VNT-2026-0001, CARACAS-001-ENC-2026-0001
 
     # Source document references
     sale_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -138,10 +131,6 @@ class InventoryLog(Base):
         "Inventory",
         foreign_keys=[inventory_id]
     )
-    global_inventory: Mapped["GlobalInventory | None"] = relationship(
-        "GlobalInventory",
-        foreign_keys=[global_inventory_id]
-    )
     school: Mapped["School | None"] = relationship(
         "School",
         foreign_keys=[school_id]
@@ -165,3 +154,50 @@ class InventoryLog(Base):
 
     def __repr__(self) -> str:
         return f"<InventoryLog(type='{self.movement_type.value}', delta={self.quantity_delta}, after={self.quantity_after})>"
+
+
+class FailedInventoryLog(Base):
+    """Dead-letter queue para inventory_logs que no pudieron persistirse.
+
+    Cuando `InventoryLogService.create_log_with_retry` agota sus 3 intentos
+    contra la tabla principal, escribe aqui para preservar la auditoria.
+    Un cron worker (`inventory_log_dlq_worker`) reprocesa periodicamente
+    los rows con `resolved=false`. Al re-insertar exitosamente, marca
+    `resolved=true` y guarda el `resolved_log_id` apuntando al InventoryLog
+    final.
+
+    `movement_type` se persiste como string (no enum) porque las migraciones
+    del enum no necesitan replicarse aqui — la DLQ es transitoria y el
+    valor se valida al re-insertar.
+    """
+    __tablename__ = "failed_inventory_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    inventory_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    school_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    movement_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    movement_date: Mapped[date] = mapped_column(Date, nullable=False)
+    quantity_delta: Mapped[int] = mapped_column(Integer, nullable=False)
+    quantity_after: Mapped[int] = mapped_column(Integer, nullable=False)
+    description: Mapped[str] = mapped_column(String(500), nullable=False)
+    reference: Mapped[str | None] = mapped_column(String(100))
+
+    sale_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    order_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    sale_change_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+
+    original_created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    failed_at: Mapped[datetime] = mapped_column(DateTime, default=get_colombia_now_naive, nullable=False)
+    error_message: Mapped[str] = mapped_column(Text, nullable=False)
+    retry_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_retry_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    resolved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    resolved_log_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+
+    def __repr__(self) -> str:
+        status = "resolved" if self.resolved else "pending"
+        return f"<FailedInventoryLog(type='{self.movement_type}', delta={self.quantity_delta}, {status})>"

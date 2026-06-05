@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   BarChart3, TrendingUp, Target, LineChart, AlertTriangle, FileText, Building2,
-  Loader2, AlertCircle, RefreshCw
+  Loader2, AlertCircle, RefreshCw, Sparkles
 } from 'lucide-react';
 import { financialModelService } from '../../../services/financialModelService';
 import type {
@@ -22,15 +22,17 @@ import BudgetPanel from './BudgetPanel';
 import CashForecastPanel from './CashForecastPanel';
 import AlertsPanel from './AlertsPanel';
 import ExecutiveSummaryPanel from './ExecutiveSummaryPanel';
+import ProjectionsPanel from './projections/ProjectionsPanel';
 
-type SubTab = 'kpis' | 'profitability' | 'trends' | 'budget' | 'forecast' | 'alerts' | 'summary';
+type SubTab = 'kpis' | 'profitability' | 'trends' | 'budget' | 'forecast' | 'projections' | 'alerts' | 'summary';
 
 const SUB_TABS: { key: SubTab; label: string; icon: typeof BarChart3 }[] = [
   { key: 'kpis', label: 'Indicadores', icon: BarChart3 },
   { key: 'profitability', label: 'Rentabilidad', icon: Building2 },
   { key: 'trends', label: 'Tendencias', icon: TrendingUp },
   { key: 'budget', label: 'Presupuesto', icon: Target },
-  { key: 'forecast', label: 'Proyección', icon: LineChart },
+  { key: 'forecast', label: 'Proyección caja', icon: LineChart },
+  { key: 'projections', label: 'Escenarios', icon: Sparkles },
   { key: 'alerts', label: 'Alertas', icon: AlertTriangle },
   { key: 'summary', label: 'Resumen', icon: FileText },
 ];
@@ -51,6 +53,12 @@ export default function FinancialModelTab() {
   const [summaryData, setSummaryData] = useState<ExecutiveSummaryResponse | null>(null);
 
   const loadTabData = useCallback(async (tab: SubTab) => {
+    if (tab === 'projections') {
+      // Projections sub-panel manages its own data fetching.
+      setLoading(false);
+      setError(null);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -110,7 +118,7 @@ export default function FinancialModelTab() {
   return (
     <div className="space-y-6">
       {/* Sub-navigation */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-1">
+      <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-1">
         <div className="flex flex-wrap gap-1">
           {SUB_TABS.map(({ key, label, icon: Icon }) => (
             <button
@@ -119,8 +127,8 @@ export default function FinancialModelTab() {
               className={`
                 flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors relative
                 ${activeSubTab === key
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-gray-600 hover:bg-gray-100'
+                  ? 'bg-brand-500 text-white shadow-sm'
+                  : 'text-stone-600 hover:bg-stone-100'
                 }
               `}
             >
@@ -138,7 +146,7 @@ export default function FinancialModelTab() {
           ))}
           <button
             onClick={() => loadTabData(activeSubTab)}
-            className="ml-auto flex items-center gap-1 px-3 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+            className="ml-auto flex items-center gap-1 px-3 py-2 text-sm text-stone-500 hover:text-stone-700 transition-colors"
             title="Actualizar"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -166,8 +174,8 @@ export default function FinancialModelTab() {
       {/* Loading state */}
       {loading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-          <span className="ml-3 text-gray-500">Cargando datos...</span>
+          <Loader2 className="w-8 h-8 text-brand-600 animate-spin" />
+          <span className="ml-3 text-stone-500">Cargando datos...</span>
         </div>
       )}
 
@@ -189,6 +197,9 @@ export default function FinancialModelTab() {
           {activeSubTab === 'summary' && <ExecutiveSummaryPanel data={summaryData} />}
         </>
       )}
+
+      {/* Projections panel manages its own loading/error state */}
+      {activeSubTab === 'projections' && <ProjectionsPanel />}
     </div>
   );
 }

@@ -52,7 +52,7 @@ class FixedExpenseBase(BaseSchema):
     next_generation_date: date | None = None
 
     # Vendor info
-    vendor: str | None = Field(None, max_length=255)
+    vendor_id: UUID | None = None
 
 
 class FixedExpenseCreate(FixedExpenseBase):
@@ -113,7 +113,7 @@ class FixedExpenseUpdate(BaseSchema):
     auto_generate: bool | None = None
     next_generation_date: date | None = None
 
-    vendor: str | None = Field(None, max_length=255)
+    vendor_id: UUID | None = None
     is_active: bool | None = None
 
 
@@ -129,7 +129,7 @@ class FixedExpenseInDB(FixedExpenseBase, IDModelSchema):
 
 class FixedExpenseResponse(FixedExpenseInDB):
     """Fixed expense for API responses"""
-    # Computed fields for UI convenience
+    vendor_name: str | None = None
     uses_new_recurrence: bool = False
     is_expired: bool = False
 
@@ -155,7 +155,8 @@ class FixedExpenseListResponse(BaseSchema):
     recurrence_month_days: list[int] | None = None
     recurrence_month_day_type: MonthDayType | None = None
     # Common
-    vendor: str | None
+    vendor_id: UUID | None = None
+    vendor_name: str | None = None
     auto_generate: bool
     next_generation_date: date | None
     last_generated_date: date | None

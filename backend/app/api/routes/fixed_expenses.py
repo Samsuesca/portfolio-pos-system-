@@ -9,9 +9,13 @@ from datetime import date
 from decimal import Decimal
 from fastapi import APIRouter, HTTPException, status, Query, Depends
 
-from app.api.dependencies import DatabaseSession, CurrentUser, require_any_school_admin
-from app.models.accounting import ExpenseCategory
-from app.models.fixed_expense import FixedExpenseType, ExpenseFrequency
+from sqlalchemy import select, func
+
+from app.api.dependencies import DatabaseSession, CurrentUser, require_global_permission
+from app.api.error_responses import responses, AUTHENTICATED
+from app.schemas.base import PaginatedResponse, paginate
+from app.models.accounting import Expense, ExpenseCategory
+from app.models.fixed_expense import FixedExpense, FixedExpenseType, ExpenseFrequency
 from app.services.fixed_expense_service import FixedExpenseService
 from app.schemas.fixed_expense import (
     FixedExpenseCreate,
@@ -33,13 +37,15 @@ router = APIRouter(prefix="/global/fixed-expenses", tags=["Fixed Expenses"])
 
 @router.get(
     "",
-    response_model=list[FixedExpenseListResponse],
-    dependencies=[Depends(require_any_school_admin)]
+    response_model=PaginatedResponse[FixedExpenseListResponse],
+    dependencies=[Depends(require_global_permission("accounting.view_expenses"))],
+    responses=AUTHENTICATED,
+    operation_id="listFixedExpenses",
 )
 async def list_fixed_expenses(
     db: DatabaseSession,
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(100, ge=1, le=100),
     is_active: bool | None = Query(None, description="Filter by active status"),
     category: ExpenseCategory | None = Query(None, description="Filter by category")
 ):
@@ -47,7 +53,17 @@ async def list_fixed_expenses(
     List all fixed expense templates.
 
     Returns templates for recurring expenses like rent, utilities, etc.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_expenses` (global)
     """
+    count_query = select(func.count(FixedExpense.id))
+    if is_active is not None:
+        count_query = count_query.where(FixedExpense.is_active == is_active)
+    if category is not None:
+        count_query = count_query.where(FixedExpense.category == category)
+    total = (await db.execute(count_query)).scalar_one()
+
     service = FixedExpenseService(db)
     fixed_expenses = await service.get_multi(
         skip=skip,
@@ -56,7 +72,7 @@ async def list_fixed_expenses(
         category=category
     )
 
-    return [
+    items = [
         FixedExpenseListResponse(
             id=fe.id,
             name=fe.name,
@@ -65,18 +81,16 @@ async def list_fixed_expenses(
             amount=fe.amount,
             min_amount=fe.min_amount,
             max_amount=fe.max_amount,
-            # Legacy frequency
             frequency=fe.frequency,
             day_of_month=fe.day_of_month,
-            # Advanced recurrence
             recurrence_frequency=fe.recurrence_frequency,
             recurrence_interval=fe.recurrence_interval,
             recurrence_weekdays=fe.recurrence_weekdays,
             recurrence_month_days=fe.recurrence_month_days,
             recurrence_month_day_type=fe.recurrence_month_day_type,
             uses_new_recurrence=fe.uses_new_recurrence,
-            # Common
-            vendor=fe.vendor,
+            vendor_id=fe.vendor_id,
+            vendor_name=fe.vendor.name if fe.vendor else None,
             auto_generate=fe.auto_generate,
             next_generation_date=fe.next_generation_date,
             last_generated_date=fe.last_generated_date,
@@ -84,13 +98,16 @@ async def list_fixed_expenses(
         )
         for fe in fixed_expenses
     ]
+    return paginate(items, total, skip, limit)
 
 
 @router.post(
     "",
     response_model=FixedExpenseResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.create_expense"))],
+    responses=responses(400),
+    operation_id="createFixedExpense",
 )
 async def create_fixed_expense(
     data: FixedExpenseCreate,
@@ -109,6 +126,9 @@ async def create_fixed_expense(
 
     For variable expenses, provide min_amount and max_amount to define the expected range.
     The amount field represents the default/estimated value.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.create_expense` (global)
     """
     service = FixedExpenseService(db)
 
@@ -133,7 +153,9 @@ async def create_fixed_expense(
 @router.get(
     "/pending-generation",
     response_model=PendingGenerationResponse,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.view_expenses"))],
+    responses=AUTHENTICATED,
+    operation_id="getPendingGeneration",
 )
 async def get_pending_generation(db: DatabaseSession):
     """
@@ -141,6 +163,9 @@ async def get_pending_generation(db: DatabaseSession):
 
     Returns a list of fixed expense templates that are due for expense generation,
     along with counts of pending and overdue items.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_expenses` (global)
     """
     service = FixedExpenseService(db)
     return await service.get_pending_generation()
@@ -149,7 +174,9 @@ async def get_pending_generation(db: DatabaseSession):
 @router.get(
     "/{fixed_expense_id}",
     response_model=FixedExpenseWithStats,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.view_expenses"))],
+    responses=responses(404),
+    operation_id="getFixedExpense",
 )
 async def get_fixed_expense(
     fixed_expense_id: UUID,
@@ -157,6 +184,9 @@ async def get_fixed_expense(
 ):
     """
     Get a single fixed expense template with generation statistics.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_expenses` (global)
     """
     service = FixedExpenseService(db)
     fixed_expense = await service.get(fixed_expense_id)
@@ -188,7 +218,8 @@ async def get_fixed_expense(
         auto_generate=fixed_expense.auto_generate,
         next_generation_date=fixed_expense.next_generation_date,
         last_generated_date=fixed_expense.last_generated_date,
-        vendor=fixed_expense.vendor,
+        vendor_id=fixed_expense.vendor_id,
+        vendor_name=fixed_expense.vendor.name if fixed_expense.vendor else None,
         is_active=fixed_expense.is_active,
         created_by=fixed_expense.created_by,
         created_at=fixed_expense.created_at,
@@ -202,7 +233,9 @@ async def get_fixed_expense(
 @router.patch(
     "/{fixed_expense_id}",
     response_model=FixedExpenseResponse,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.create_expense"))],
+    responses=responses(404),
+    operation_id="updateFixedExpense",
 )
 async def update_fixed_expense(
     fixed_expense_id: UUID,
@@ -214,6 +247,9 @@ async def update_fixed_expense(
 
     Changes will apply to future generated expenses.
     Already generated expenses are not affected.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.create_expense` (global)
     """
     service = FixedExpenseService(db)
 
@@ -247,7 +283,9 @@ async def update_fixed_expense(
 @router.delete(
     "/{fixed_expense_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.create_expense"))],
+    responses=responses(404),
+    operation_id="deleteFixedExpense",
 )
 async def delete_fixed_expense(
     fixed_expense_id: UUID,
@@ -258,6 +296,9 @@ async def delete_fixed_expense(
 
     This performs a soft delete by setting is_active = False.
     The template won't generate new expenses but historical data is preserved.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.create_expense` (global)
     """
     service = FixedExpenseService(db)
 
@@ -279,7 +320,9 @@ async def delete_fixed_expense(
 @router.post(
     "/generate",
     response_model=GenerateExpensesResponse,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.create_expense"))],
+    responses=responses(400),
+    operation_id="generateExpenses",
 )
 async def generate_expenses(
     db: DatabaseSession,
@@ -298,6 +341,9 @@ async def generate_expenses(
     - **override_amounts**: Override amounts for specific templates (for variable expenses)
 
     If no request body is provided, generates all due expenses for today.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.create_expense` (global)
     """
     service = FixedExpenseService(db)
 
@@ -325,7 +371,9 @@ async def generate_expenses(
 @router.post(
     "/{fixed_expense_id}/generate",
     response_model=dict,
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("accounting.create_expense"))],
+    responses=responses(404),
+    operation_id="generateSingleExpense",
 )
 async def generate_single_expense(
     fixed_expense_id: UUID,
@@ -339,6 +387,9 @@ async def generate_single_expense(
 
     Useful for manually triggering expense generation or generating
     with a custom amount for variable expenses.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.create_expense` (global)
     """
     service = FixedExpenseService(db)
 
@@ -383,23 +434,28 @@ async def generate_single_expense(
 
 @router.get(
     "/{fixed_expense_id}/history",
-    response_model=list[dict],
-    dependencies=[Depends(require_any_school_admin)]
+    response_model=PaginatedResponse[dict],
+    dependencies=[Depends(require_global_permission("accounting.view_expenses"))],
+    responses=responses(404),
+    operation_id="getFixedExpenseHistory",
 )
 async def get_expense_history(
     fixed_expense_id: UUID,
     db: DatabaseSession,
-    limit: int = Query(12, ge=1, le=100, description="Number of records to return")
+    skip: int = Query(0, ge=0),
+    limit: int = Query(12, ge=1, le=100, description="Number of records to return"),
 ):
     """
     Get the history of generated expenses for a fixed expense template.
 
-    Returns the most recent generated expenses, useful for tracking
+    Returns paginated generated expenses, useful for tracking
     payment history and patterns.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `accounting.view_expenses` (global)
     """
     service = FixedExpenseService(db)
 
-    # Verify fixed expense exists
     fixed_expense = await service.get(fixed_expense_id)
     if not fixed_expense:
         raise HTTPException(
@@ -407,9 +463,21 @@ async def get_expense_history(
             detail="Fixed expense not found"
         )
 
-    expenses = await service.get_generated_expenses(fixed_expense_id, limit=limit)
+    count_result = await db.execute(
+        select(func.count(Expense.id)).where(Expense.fixed_expense_id == fixed_expense_id)
+    )
+    total = count_result.scalar_one()
 
-    return [
+    result = await db.execute(
+        select(Expense)
+        .where(Expense.fixed_expense_id == fixed_expense_id)
+        .order_by(Expense.expense_date.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    expenses = result.scalars().all()
+
+    items = [
         {
             "id": str(e.id),
             "description": e.description,
@@ -424,3 +492,4 @@ async def get_expense_history(
         }
         for e in expenses
     ]
+    return paginate(items, total, skip, limit)

@@ -66,8 +66,8 @@ export default function ClientsPage() {
     try {
       setLoading(true);
       setError(null);
-      const data = await clientService.getClients({ search: searchTerm || undefined });
-      setClients(data);
+      const response = await clientService.getClients({ search: searchTerm || undefined });
+      setClients(response.items);
     } catch (err) {
       setError(getErrorMessage(err, 'Error al cargar clientes'));
     } finally {

@@ -18,10 +18,10 @@ const SettingsSecurityCard: React.FC<SettingsSecurityCardProps> = ({
     <div className="bg-white rounded-lg shadow-sm p-6">
       <div className="flex items-center mb-4">
         <Lock className="w-5 h-5 text-red-600 mr-2" />
-        <h2 className="text-lg font-semibold text-gray-800">Seguridad</h2>
+        <h2 className="text-lg font-semibold text-stone-800">Seguridad</h2>
       </div>
       <div className="space-y-3">
-        <p className="text-sm text-gray-600">Cambia tu contrasena o correo electronico.</p>
+        <p className="text-sm text-stone-600">Cambia tu contrasena o correo electronico.</p>
         <div className="flex gap-2 mt-4">
           <button
             onClick={onChangePassword}

@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import toast, { Toaster } from 'react-hot-toast';
 import Layout from '../components/Layout';
+import { RequirePermission } from '../components/RequirePermission';
 
 // Type for location state when navigating from Quick Actions
 interface LocationState {
@@ -13,7 +14,7 @@ interface LocationState {
 import { Users, Plus, Search, AlertCircle, Loader2, Mail, Phone, User, Edit2, Trash2, X, Save, CheckCircle, Clock, Send, MessageCircle } from 'lucide-react';
 import { clientService } from '../services/clientService';
 import { useSchoolStore } from '../stores/schoolStore';
-import type { Client } from '../types/api';
+import type { Client, IdentificationType } from '../types/api';
 import ClientDetailModal from '../components/ClientDetailModal';
 import PhoneInput from '../components/PhoneInput';
 import { openWhatsApp, DEFAULT_WHATSAPP_MESSAGE, isValidColombianPhone } from '../utils/whatsapp';
@@ -24,6 +25,8 @@ interface ClientFormData {
   phone: string;
   email: string;
   address: string;
+  identification_type: IdentificationType | '';
+  identification_number: string;
   student_name: string;
   student_grade: string;
   notes: string;
@@ -34,10 +37,20 @@ const emptyFormData: ClientFormData = {
   phone: '',
   email: '',
   address: '',
+  identification_type: '',
+  identification_number: '',
   student_name: '',
   student_grade: '',
   notes: '',
 };
+
+const IDENTIFICATION_TYPES: { value: IdentificationType; label: string }[] = [
+  { value: 'CC', label: 'Cédula de ciudadanía' },
+  { value: 'NIT', label: 'NIT' },
+  { value: 'CE', label: 'Cédula de extranjería' },
+  { value: 'TI', label: 'Tarjeta de identidad' },
+  { value: 'PA', label: 'Pasaporte' },
+];
 
 const LIMIT = 50;
 
@@ -85,11 +98,12 @@ export default function Clients() {
       }
 
       const skip = append ? clients.length : 0;
-      const data = await clientService.getClients(schoolId, {
+      const response = await clientService.getClients(schoolId, {
         search: debouncedSearch || undefined,
         skip,
         limit: LIMIT,
       });
+      const data = response.items;
 
       if (append) {
         setClients(prev => [...prev, ...data]);
@@ -97,7 +111,7 @@ export default function Clients() {
         setClients(data);
       }
 
-      setHasMore(data.length === LIMIT);
+      setHasMore(response.has_more);
     } catch (err: any) {
       console.error('Error loading clients:', err);
       setError(err.response?.data?.detail || 'Error al cargar clientes');
@@ -139,6 +153,8 @@ export default function Clients() {
       phone: client.phone || '',
       email: client.email || '',
       address: client.address || '',
+      identification_type: client.identification_type || '',
+      identification_number: client.identification_number || '',
       student_name: client.student_name || '',
       student_grade: client.student_grade || '',
       notes: client.notes || '',
@@ -156,7 +172,7 @@ export default function Clients() {
   };
 
   // Handle form input change
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
@@ -190,6 +206,8 @@ export default function Clients() {
         phone: formData.phone.trim() || null,
         email: formData.email.trim() || null,
         address: formData.address.trim() || null,
+        identification_type: formData.identification_type || null,
+        identification_number: formData.identification_number.trim() || null,
         student_name: formData.student_name.trim() || null,
         student_grade: formData.student_grade.trim() || null,
         notes: formData.notes.trim() || null,
@@ -273,9 +291,9 @@ export default function Clients() {
       return { label: 'Pendiente', color: 'text-yellow-600 bg-yellow-50', icon: Clock };
     }
     if (client.email) {
-      return { label: 'Sin enviar', color: 'text-gray-500 bg-gray-50', icon: Mail };
+      return { label: 'Sin enviar', color: 'text-stone-500 bg-stone-50', icon: Mail };
     }
-    return { label: 'Sin email', color: 'text-gray-400 bg-gray-50', icon: Mail };
+    return { label: 'Sin email', color: 'text-stone-400 bg-stone-50', icon: Mail };
   };
 
   return (
@@ -283,30 +301,32 @@ export default function Clients() {
       <Toaster position="top-right" />
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Clientes</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-2xl font-bold text-stone-800">Clientes</h1>
+          <p className="text-stone-600 mt-1">
             {loading ? 'Cargando...' : `${clients.length} clientes encontrados`}
           </p>
         </div>
-        <button
-          onClick={handleOpenCreate}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center transition"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          Nuevo Cliente
-        </button>
+        <RequirePermission permission="clients.create">
+          <button
+            onClick={handleOpenCreate}
+            className="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg flex items-center transition"
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            Nuevo Cliente
+          </button>
+        </RequirePermission>
       </div>
 
       {/* Search */}
       <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-stone-400" />
           <input
             type="text"
             placeholder="Buscar por nombre, teléfono, email, estudiante, código..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+            className="w-full pl-10 pr-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
           />
         </div>
       </div>
@@ -314,8 +334,8 @@ export default function Clients() {
       {/* Loading State */}
       {loading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-          <span className="ml-3 text-gray-600">Cargando clientes...</span>
+          <Loader2 className="w-8 h-8 animate-spin text-brand-600" />
+          <span className="ml-3 text-stone-600">Cargando clientes...</span>
         </div>
       )}
 
@@ -351,17 +371,17 @@ export default function Clients() {
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-semibold text-gray-800">{client.name}</h3>
-                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                    <h3 className="text-lg font-semibold text-stone-800">{client.name}</h3>
+                    <span className="text-xs text-stone-500 bg-stone-100 px-2 py-0.5 rounded">
                       {client.code}
                     </span>
                   </div>
                   {client.student_name && (
-                    <div className="flex items-center mt-1 text-sm text-gray-600">
+                    <div className="flex items-center mt-1 text-sm text-stone-600">
                       <User className="w-4 h-4 mr-1" />
                       <span>{client.student_name}</span>
                       {client.student_grade && (
-                        <span className="ml-1 text-gray-400">({client.student_grade})</span>
+                        <span className="ml-1 text-stone-400">({client.student_grade})</span>
                       )}
                     </div>
                   )}
@@ -379,53 +399,57 @@ export default function Clients() {
                       <MessageCircle className="w-4 h-4" />
                     </button>
                   )}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleOpenEdit(client);
-                    }}
-                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                    title="Editar"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeleteConfirmId(client.id);
-                    }}
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                    title="Eliminar"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <RequirePermission permission="clients.edit">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenEdit(client);
+                      }}
+                      className="p-2 text-stone-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition"
+                      title="Editar"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                  </RequirePermission>
+                  <RequirePermission permission="clients.delete">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteConfirmId(client.id);
+                      }}
+                      className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                      title="Eliminar"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </RequirePermission>
                 </div>
               </div>
 
               {/* Contact Info */}
               <div className="space-y-2">
                 {client.phone && (
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Phone className="w-4 h-4 mr-2 text-gray-400" />
+                  <div className="flex items-center text-sm text-stone-600">
+                    <Phone className="w-4 h-4 mr-2 text-stone-400" />
                     <span>{client.phone}</span>
                   </div>
                 )}
                 {client.email && (
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Mail className="w-4 h-4 mr-2 text-gray-400" />
+                  <div className="flex items-center text-sm text-stone-600">
+                    <Mail className="w-4 h-4 mr-2 text-stone-400" />
                     <span className="truncate">{client.email}</span>
                   </div>
                 )}
               </div>
 
               {/* Status Badges */}
-              <div className="mt-4 pt-4 border-t border-gray-200">
+              <div className="mt-4 pt-4 border-t border-stone-200">
                 <div className="flex flex-wrap gap-2 items-center justify-between">
                   <div className="flex gap-2">
                     <span className={`px-2 py-1 text-xs leading-5 font-semibold rounded-full ${
                       client.is_active
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-gray-100 text-gray-800'
+                        ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+                        : 'bg-stone-100 text-stone-800'
                     }`}>
                       {client.is_active ? 'Activo' : 'Inactivo'}
                     </span>
@@ -448,7 +472,7 @@ export default function Clients() {
                     <button
                       onClick={() => handleResendActivation(client)}
                       disabled={resendingEmail === client.id}
-                      className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition disabled:opacity-50"
+                      className="flex items-center gap-1 px-2 py-1 text-xs text-brand-600 hover:text-brand-700 hover:bg-brand-50 rounded transition disabled:opacity-50"
                       title="Reenviar correo de activación"
                     >
                       {resendingEmail === client.id ? (
@@ -461,7 +485,7 @@ export default function Clients() {
                   )}
                 </div>
                 {client.notes && (
-                  <span className="text-xs text-gray-400 truncate block mt-2" title={client.notes}>
+                  <span className="text-xs text-stone-400 truncate block mt-2" title={client.notes}>
                     {client.notes}
                   </span>
                 )}
@@ -482,7 +506,7 @@ export default function Clients() {
                     <button
                       onClick={() => setDeleteConfirmId(null)}
                       disabled={deleteLoading}
-                      className="flex-1 px-3 py-1.5 border border-gray-300 text-gray-700 text-sm rounded hover:bg-gray-50"
+                      className="flex-1 px-3 py-1.5 border border-stone-200 text-stone-700 text-sm rounded hover:bg-stone-50"
                     >
                       Cancelar
                     </button>
@@ -500,7 +524,7 @@ export default function Clients() {
           <button
             onClick={() => loadClients(true)}
             disabled={loadingMore}
-            className="px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition disabled:opacity-50"
+            className="px-6 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg transition disabled:opacity-50"
           >
             {loadingMore ? (
               <span className="flex items-center justify-center">
@@ -516,25 +540,27 @@ export default function Clients() {
 
       {/* Empty State */}
       {!loading && !error && clients.length === 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-12 text-center">
-          <Users className="w-16 h-16 text-blue-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-blue-900 mb-2">
+        <div className="bg-brand-50 border border-brand-200 rounded-lg p-12 text-center">
+          <Users className="w-16 h-16 text-brand-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-brand-700 mb-2">
             {searchTerm ? 'No se encontraron clientes' : 'No hay clientes'}
           </h3>
-          <p className="text-blue-700 mb-4">
+          <p className="text-brand-700 mb-4">
             {searchTerm
               ? 'Intenta ajustar el término de búsqueda'
               : 'Comienza agregando tu primer cliente'
             }
           </p>
           {!searchTerm && (
+            <RequirePermission permission="clients.create">
             <button
               onClick={handleOpenCreate}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg inline-flex items-center"
+              className="bg-brand-500 hover:bg-brand-600 text-white px-6 py-2 rounded-lg inline-flex items-center"
             >
               <Plus className="w-5 h-5 mr-2" />
               Agregar Cliente
             </button>
+            </RequirePermission>
           )}
         </div>
       )}
@@ -549,13 +575,13 @@ export default function Clients() {
           <div className="flex min-h-screen items-center justify-center p-4">
             <div className="relative bg-white rounded-lg shadow-xl max-w-lg w-full">
               {/* Modal Header */}
-              <div className="flex items-center justify-between p-6 border-b border-gray-200">
-                <h2 className="text-xl font-semibold text-gray-800">
+              <div className="flex items-center justify-between p-6 border-b border-stone-200">
+                <h2 className="text-xl font-semibold text-stone-800">
                   {modalMode === 'create' ? 'Nuevo Cliente' : 'Editar Cliente'}
                 </h2>
                 <button
                   onClick={handleCloseModal}
-                  className="text-gray-400 hover:text-gray-600 transition"
+                  className="text-stone-400 hover:text-stone-600 transition"
                 >
                   <X className="w-6 h-6" />
                 </button>
@@ -573,7 +599,7 @@ export default function Clients() {
                 <div className="space-y-4">
                   {/* Name */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-stone-700 mb-1">
                       Nombre *
                     </label>
                     <input
@@ -582,7 +608,7 @@ export default function Clients() {
                       value={formData.name}
                       onChange={handleInputChange}
                       required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                      className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
                       placeholder="Nombre completo del cliente"
                     />
                   </div>
@@ -596,7 +622,7 @@ export default function Clients() {
 
                   {/* Email */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-stone-700 mb-1">
                       Email
                     </label>
                     <input
@@ -604,14 +630,14 @@ export default function Clients() {
                       name="email"
                       value={formData.email}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                      className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
                       placeholder="cliente@email.com"
                     />
                   </div>
 
                   {/* Address */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-stone-700 mb-1">
                       Dirección
                     </label>
                     <input
@@ -619,15 +645,48 @@ export default function Clients() {
                       name="address"
                       value={formData.address}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                      className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
                       placeholder="Dirección del cliente"
                     />
+                  </div>
+
+                  {/* DIAN identification (for electronic invoicing) */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-1">
+                        Tipo de documento
+                      </label>
+                      <select
+                        name="identification_type"
+                        value={formData.identification_type}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none bg-white"
+                      >
+                        <option value="">Sin documento</option>
+                        {IDENTIFICATION_TYPES.map((t) => (
+                          <option key={t.value} value={t.value}>{t.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-1">
+                        Identificación
+                      </label>
+                      <input
+                        type="text"
+                        name="identification_number"
+                        value={formData.identification_number}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
+                        placeholder="Cédula / NIT (para facturación)"
+                      />
+                    </div>
                   </div>
 
                   {/* Student Info */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-stone-700 mb-1">
                         Nombre del Estudiante
                       </label>
                       <input
@@ -635,12 +694,12 @@ export default function Clients() {
                         name="student_name"
                         value={formData.student_name}
                         onChange={handleInputChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                        className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
                         placeholder="Nombre del estudiante"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-stone-700 mb-1">
                         Grado
                       </label>
                       <input
@@ -648,7 +707,7 @@ export default function Clients() {
                         name="student_grade"
                         value={formData.student_grade}
                         onChange={handleInputChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                        className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
                         placeholder="Ej: 5° Primaria"
                       />
                     </div>
@@ -656,7 +715,7 @@ export default function Clients() {
 
                   {/* Notes */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-stone-700 mb-1">
                       Notas
                     </label>
                     <textarea
@@ -664,26 +723,26 @@ export default function Clients() {
                       value={formData.notes}
                       onChange={handleInputChange}
                       rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
+                      className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none resize-none"
                       placeholder="Notas adicionales sobre el cliente..."
                     />
                   </div>
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-3 pt-6 mt-6 border-t border-gray-200">
+                <div className="flex gap-3 pt-6 mt-6 border-t border-stone-200">
                   <button
                     type="button"
                     onClick={handleCloseModal}
                     disabled={formLoading}
-                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+                    className="flex-1 px-4 py-2 border border-stone-200 text-stone-700 rounded-lg hover:bg-stone-50 transition disabled:opacity-50"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
                     disabled={formLoading}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 flex items-center justify-center"
+                    className="flex-1 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition disabled:opacity-50 flex items-center justify-center"
                   >
                     {formLoading ? (
                       <>

@@ -24,7 +24,7 @@ from app.models.accounting import (
     AccountsReceivable,
     AccountsPayable
 )
-from app.models.product import Product, Inventory, GlobalProduct, GlobalInventory
+from app.models.product import Product, Inventory
 from app.services.balance_integration import BalanceIntegrationService
 
 
@@ -109,13 +109,14 @@ class PatrimonyService:
                 "total_value": float(item_value)
             })
 
-        # Also calculate global products inventory (if any)
+        # Also include global products (school_id IS NULL)
         global_result = await self.db.execute(
-            select(GlobalProduct, GlobalInventory)
-            .join(GlobalInventory, GlobalProduct.id == GlobalInventory.product_id)
+            select(Product, Inventory)
+            .join(Inventory, Product.id == Inventory.product_id)
             .where(
-                GlobalProduct.is_active == True,
-                GlobalInventory.quantity > 0
+                Product.school_id.is_(None),
+                Product.is_active == True,
+                Inventory.quantity > 0
             )
         )
         global_rows = global_result.all()
@@ -689,13 +690,14 @@ class PatrimonyService:
             else:
                 by_school[school_id]["with_cost"] += quantity
 
-        # Global products
+        # Global products (school_id IS NULL)
         global_result = await self.db.execute(
-            select(GlobalProduct, GlobalInventory)
-            .join(GlobalInventory, GlobalProduct.id == GlobalInventory.product_id)
+            select(Product, Inventory)
+            .join(Inventory, Product.id == Inventory.product_id)
             .where(
-                GlobalProduct.is_active == True,
-                GlobalInventory.quantity > 0
+                Product.school_id.is_(None),
+                Product.is_active == True,
+                Inventory.quantity > 0
             )
         )
         global_rows = global_result.all()

@@ -24,9 +24,9 @@ const SCENARIO_COLORS = {
 export default function CashForecastPanel({ data }: Props) {
   if (!data) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
-        <LineChartIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-        <p className="text-gray-500">No hay datos de proyección disponibles</p>
+      <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-8 text-center">
+        <LineChartIcon className="w-12 h-12 text-stone-300 mx-auto mb-3" />
+        <p className="text-stone-500">No hay datos de proyección disponibles</p>
       </div>
     );
   }
@@ -65,28 +65,28 @@ export default function CashForecastPanel({ data }: Props) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-800">Proyección de Flujo de Caja</h3>
+        <h3 className="text-lg font-semibold text-stone-800">Proyección de Flujo de Caja</h3>
       </div>
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-          <p className="text-xs text-gray-500 uppercase tracking-wide">Saldo Actual</p>
-          <p className="text-xl font-bold text-gray-800 mt-1">{formatMoney(data.current_balance)}</p>
+        <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-4">
+          <p className="text-xs text-stone-500 uppercase tracking-wide">Saldo Actual</p>
+          <p className="text-xl font-bold text-stone-800 mt-1">{formatMoney(data.current_balance)}</p>
         </div>
         <div className={`rounded-xl border p-4 ${runwayColors[runwayStatus]}`}>
           <p className="text-xs uppercase tracking-wide opacity-75">Runway</p>
           <p className="text-xl font-bold mt-1">{runwayLabel}</p>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-          <p className="text-xs text-gray-500 uppercase tracking-wide">Umbral Mínimo</p>
-          <p className="text-xl font-bold text-gray-800 mt-1">{formatMoney(data.min_threshold)}</p>
+        <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-4">
+          <p className="text-xs text-stone-500 uppercase tracking-wide">Umbral Mínimo</p>
+          <p className="text-xl font-bold text-stone-800 mt-1">{formatMoney(data.min_threshold)}</p>
         </div>
       </div>
 
       {/* Chart */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h4 className="text-sm font-medium text-gray-600 mb-4">Proyección por Escenario</h4>
+      <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-6">
+        <h4 className="text-sm font-medium text-stone-600 mb-4">Proyección por Escenario</h4>
         <ResponsiveContainer width="100%" height={400}>
           <AreaChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" />
@@ -130,24 +130,24 @@ export default function CashForecastPanel({ data }: Props) {
 
       {/* Detailed table */}
       {expected && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Período</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Ingresos</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Gastos</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Neto</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Saldo</th>
+                <tr className="bg-stone-50 border-b border-stone-200">
+                  <th className="text-left px-4 py-3 font-medium text-stone-600">Período</th>
+                  <th className="text-right px-4 py-3 font-medium text-stone-600">Ingresos</th>
+                  <th className="text-right px-4 py-3 font-medium text-stone-600">Gastos</th>
+                  <th className="text-right px-4 py-3 font-medium text-stone-600">Neto</th>
+                  <th className="text-right px-4 py-3 font-medium text-stone-600">Saldo</th>
                 </tr>
               </thead>
               <tbody>
                 {expected.periods.map((p) => {
                   const belowThreshold = Number(p.projected_balance) < Number(data.min_threshold);
                   return (
-                    <tr key={p.period} className={`border-b border-gray-100 ${belowThreshold ? 'bg-red-50' : 'hover:bg-gray-50'}`}>
-                      <td className="px-4 py-3 font-medium text-gray-800">
+                    <tr key={p.period} className={`border-b border-stone-100 ${belowThreshold ? 'bg-red-50' : 'hover:bg-stone-50'}`}>
+                      <td className="px-4 py-3 font-medium text-stone-800">
                         {belowThreshold && <AlertTriangle className="w-4 h-4 text-red-500 inline mr-1" />}
                         {p.period_label}
                       </td>
@@ -156,7 +156,7 @@ export default function CashForecastPanel({ data }: Props) {
                       <td className={`px-4 py-3 text-right font-semibold ${Number(p.projected_net) >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                         {formatMoney(p.projected_net)}
                       </td>
-                      <td className={`px-4 py-3 text-right font-semibold ${belowThreshold ? 'text-red-700' : 'text-gray-800'}`}>
+                      <td className={`px-4 py-3 text-right font-semibold ${belowThreshold ? 'text-red-700' : 'text-stone-800'}`}>
                         {formatMoney(p.projected_balance)}
                       </td>
                     </tr>

@@ -36,10 +36,10 @@ export function DraftsBar({
   };
 
   return (
-    <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-b border-blue-200 px-4 py-2 shadow-sm">
+    <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-b border-brand-200 px-4 py-2 shadow-sm">
       <div className="max-w-7xl mx-auto flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-blue-200 scrollbar-track-transparent">
         {/* Label */}
-        <span className="text-xs font-medium text-gray-500 whitespace-nowrap mr-1 flex items-center gap-1">
+        <span className="text-xs font-medium text-stone-500 whitespace-nowrap mr-1 flex items-center gap-1">
           <Clock className="w-3 h-3" />
           En proceso ({drafts.length}/5):
         </span>
@@ -53,8 +53,8 @@ export function DraftsBar({
               flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium
               transition-all whitespace-nowrap group relative
               ${activeDraftId === draft.id
-                ? 'bg-blue-600 text-white shadow-md scale-105'
-                : 'bg-white text-gray-700 border border-gray-200 hover:border-blue-400 hover:shadow-md hover:scale-102'
+                ? 'bg-brand-500 text-white shadow-md scale-105'
+                : 'bg-white text-stone-700 border border-stone-200 hover:border-brand-400 hover:shadow-md hover:scale-102'
               }
             `}
             title={`Última edición: ${getTimeAgo(draft.updatedAt)}`}
@@ -72,7 +72,7 @@ export function DraftsBar({
             </span>
 
             {/* Tiempo */}
-            <span className={`text-xs ${activeDraftId === draft.id ? 'text-blue-200' : 'text-gray-400'}`}>
+            <span className={`text-xs ${activeDraftId === draft.id ? 'text-blue-200' : 'text-stone-400'}`}>
               {getTimeAgo(draft.updatedAt)}
             </span>
 
@@ -82,8 +82,8 @@ export function DraftsBar({
               className={`
                 ml-1 p-0.5 rounded-full transition-all opacity-60 hover:opacity-100
                 ${activeDraftId === draft.id
-                  ? 'hover:bg-blue-500 text-white'
-                  : 'hover:bg-red-100 hover:text-red-600 text-gray-400'
+                  ? 'hover:bg-brand-500 text-white'
+                  : 'hover:bg-red-100 hover:text-red-600 text-stone-400'
                 }
               `}
               title="Eliminar borrador"
@@ -95,11 +95,11 @@ export function DraftsBar({
 
         {/* Separador y botones de nuevo */}
         {canAddDraft() && (onNewSale || onNewOrder) && (
-          <div className="flex items-center gap-1 ml-2 pl-2 border-l border-gray-300">
+          <div className="flex items-center gap-1 ml-2 pl-2 border-l border-stone-200">
             {onNewSale && (
               <button
                 onClick={onNewSale}
-                className="flex items-center gap-1 px-2 py-1.5 text-xs text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                className="flex items-center gap-1 px-2 py-1.5 text-xs text-brand-600 hover:bg-brand-100 rounded-lg transition-colors"
                 title="Nueva venta"
               >
                 <Plus className="w-3 h-3" />

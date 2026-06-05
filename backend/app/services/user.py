@@ -3,8 +3,9 @@ User and Authentication Service
 """
 from datetime import datetime, timedelta
 from uuid import UUID
-from passlib.context import CryptContext
-from jose import JWTError, jwt
+import bcrypt
+import jwt
+from jwt.exceptions import PyJWTError
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -22,46 +23,18 @@ from app.schemas.user import (
 from app.services.base import BaseService
 
 
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
 class UserService(BaseService[User]):
-    """Service for User operations and authentication"""
 
     def __init__(self, db: AsyncSession):
         super().__init__(User, db)
 
-    # ==========================================
-    # Password Operations
-    # ==========================================
-
     @staticmethod
     def hash_password(password: str) -> str:
-        """
-        Hash a password
-
-        Args:
-            password: Plain text password
-
-        Returns:
-            Hashed password
-        """
-        return pwd_context.hash(password)
+        return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str) -> bool:
-        """
-        Verify password against hash
-
-        Args:
-            plain_password: Plain text password
-            hashed_password: Hashed password
-
-        Returns:
-            True if password matches
-        """
-        return pwd_context.verify(plain_password, hashed_password)
+        return bcrypt.checkpw(plain_password.encode(), hashed_password.encode())
 
     # ==========================================
     # User CRUD
@@ -93,6 +66,10 @@ class UserService(BaseService[User]):
         # Create user with hashed password
         user_dict = user_data.model_dump(exclude={'password'})
         user_dict['hashed_password'] = self.hash_password(user_data.password)
+        if user_dict.get('email'):
+            # Normalizar a minúsculas: get_by_email busca lowercase y el
+            # auto-link de Google compara contra el email verificado (lowercase).
+            user_dict['email'] = user_dict['email'].lower()
 
         return await self.create(user_dict)
 
@@ -108,6 +85,8 @@ class UserService(BaseService[User]):
             Updated user or None
         """
         update_dict = user_data.model_dump(exclude_unset=True, exclude={'password'})
+        if update_dict.get('email'):
+            update_dict['email'] = update_dict['email'].lower()
 
         # Handle password separately
         if user_data.password:
@@ -144,6 +123,28 @@ class UserService(BaseService[User]):
             select(User).where(User.email == email.lower())
         )
         return result.scalar_one_or_none()
+
+    async def get_by_google_id(self, google_id: str) -> User | None:
+        result = await self.db.execute(
+            select(User).where(User.google_id == google_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def link_google_account(self, user_id: UUID, google_id: str) -> None:
+        await self.db.execute(
+            update(User)
+            .where(User.id == user_id)
+            .values(google_id=google_id, auth_provider="both")
+        )
+        await self.db.flush()
+
+    async def unlink_google_account(self, user_id: UUID) -> None:
+        await self.db.execute(
+            update(User)
+            .where(User.id == user_id)
+            .values(google_id=None, auth_provider="local")
+        )
+        await self.db.flush()
 
     async def get_user_with_roles(self, user_id: UUID) -> User | None:
         """
@@ -188,6 +189,9 @@ class UserService(BaseService[User]):
         if not user.is_active:
             return None
 
+        if not user.hashed_password:
+            return None
+
         if not self.verify_password(password, user.hashed_password):
             return None
 
@@ -206,7 +210,8 @@ class UserService(BaseService[User]):
         user_id: UUID,
         username: str,
         school_id: UUID | None = None,
-        role: UserRole | None = None
+        role: UserRole | None = None,
+        token_version: int = 0,
     ) -> Token:
         """
         Create JWT access token
@@ -216,6 +221,10 @@ class UserService(BaseService[User]):
             username: Username
             school_id: Active school ID (optional)
             role: User role in school (optional)
+            token_version: Versión del token (User.token_version al
+                momento de emisión). Validada en cada request por
+                ``get_current_user``. Bumpeada en password/email change
+                para invalidar tokens existentes.
 
         Returns:
             Token with access_token and expiration
@@ -227,6 +236,7 @@ class UserService(BaseService[User]):
         to_encode = {
             "sub": str(user_id),
             "username": username,
+            "token_version": token_version,
             "exp": expire,
         }
 
@@ -272,15 +282,19 @@ class UserService(BaseService[User]):
 
             school_id = payload.get("school_id")
             role = payload.get("role")
+            # token_version es opcional para compatibilidad con JWTs
+            # emitidos antes de la migración usr_token_ver_001.
+            token_version = payload.get("token_version")
 
             return TokenData(
                 user_id=user_id,
                 username=username,
                 school_id=UUID(school_id) if school_id else None,
-                role=UserRole(role) if role else None
+                role=UserRole(role) if role else None,
+                token_version=token_version,
             )
 
-        except (JWTError, ValueError):
+        except (PyJWTError, ValueError):
             return None
 
     async def change_password(
@@ -307,7 +321,7 @@ class UserService(BaseService[User]):
 
         # Verify old password
         if not self.verify_password(password_data.old_password, user.hashed_password):
-            raise ValueError("Old password is incorrect")
+            raise ValueError("La contraseña actual es incorrecta")
 
         # Update with new password
         await self.update(
@@ -490,3 +504,15 @@ class UserService(BaseService[User]):
             .order_by(UserSchoolRole.role, UserSchoolRole.created_at)
         )
         return list(result.scalars().all())
+
+    async def bump_permissions_version(self, user_id) -> None:
+        """Increment the user's permissions_version counter.
+
+        Frontends detect this change and refresh permissions without re-login.
+        """
+        from sqlalchemy import update
+        await self.db.execute(
+            update(User)
+            .where(User.id == user_id)
+            .values(permissions_version=User.permissions_version + 1)
+        )

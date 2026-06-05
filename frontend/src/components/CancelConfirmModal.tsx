@@ -11,7 +11,7 @@ interface CancelConfirmModalProps {
   onClose: () => void;
   onConfirm: (reason: string) => Promise<void>;
   title: string;           // "Cancelar Venta" or "Cancelar Encargo"
-  entityCode: string;      // VNT-2025-0001 or ENC-2025-0001
+  entityCode: string;      // {SCHOOL}-VNT-YYYY-NNNN or {SCHOOL}-ENC-YYYY-NNNN
   warnings: string[];      // List of warnings about what will happen
   requireReason?: boolean; // Default true
   loading?: boolean;       // External loading state
@@ -76,15 +76,15 @@ export default function CancelConfirmModal({
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full">
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-stone-200">
             <div className="flex items-center">
               <AlertTriangle className="w-5 h-5 text-red-600 mr-2" />
-              <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+              <h2 className="text-lg font-semibold text-stone-900">{title}</h2>
             </div>
             <button
               onClick={handleClose}
               disabled={loading}
-              className="text-gray-400 hover:text-gray-600 transition disabled:opacity-50"
+              className="text-stone-400 hover:text-stone-600 transition disabled:opacity-50"
             >
               <X className="w-5 h-5" />
             </button>
@@ -94,7 +94,7 @@ export default function CancelConfirmModal({
           <form onSubmit={handleSubmit} className="px-6 py-4">
             {/* Entity Code */}
             <div className="mb-4">
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-stone-600">
                 Código: <span className="font-mono font-semibold">{entityCode}</span>
               </p>
             </div>
@@ -126,31 +126,31 @@ export default function CancelConfirmModal({
 
             {/* Reason Field */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-stone-700 mb-1">
                 Razón de cancelación {requireReason && <span className="text-red-500">*</span>}
               </label>
               <textarea
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Escriba la razón de la cancelación..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 resize-none"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 resize-none"
                 rows={3}
                 disabled={loading}
                 required={requireReason}
                 minLength={5}
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-stone-500 mt-1">
                 Mínimo 5 caracteres
               </p>
             </div>
 
             {/* Actions */}
-            <div className="flex gap-3 pt-4 border-t border-gray-200">
+            <div className="flex gap-3 pt-4 border-t border-stone-200">
               <button
                 type="button"
                 onClick={handleClose}
                 disabled={loading}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+                className="flex-1 px-4 py-2 border border-stone-200 text-stone-700 rounded-lg hover:bg-stone-50 transition disabled:opacity-50"
               >
                 Volver
               </button>

@@ -67,9 +67,9 @@ export default function ReceiptPrintButton({
 
   // Variant styles
   const variantStyles = {
-    primary: 'bg-blue-600 hover:bg-blue-700 text-white',
-    secondary: 'bg-gray-600 hover:bg-gray-700 text-white',
-    outline: 'border border-gray-300 text-gray-700 hover:bg-gray-50',
+    primary: 'bg-brand-500 hover:bg-brand-600 text-white',
+    secondary: 'bg-stone-600 hover:bg-stone-700 text-white',
+    outline: 'border border-stone-200 text-stone-700 hover:bg-stone-50',
   };
 
   return (
@@ -133,7 +133,7 @@ export function ReceiptPrintIconButton({
       onClick={handlePrint}
       disabled={disabled || isPrinting}
       title={title}
-      className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition disabled:opacity-50"
+      className="p-2 text-stone-600 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition disabled:opacity-50"
     >
       {isPrinting ? (
         <Loader2 className="w-4 h-4 animate-spin" />

@@ -312,20 +312,15 @@ export default function CheckoutPage() {
           client_id: clientId,
           items: schoolItems.map(item => {
             const isCustomItem = item.product.price === 0 || item.product.school_id === 'pending-quotation';
-            const isGlobalItem = item.isGlobal === true;
 
             return {
-              // For custom items, don't send garment_type_id - backend will create generic type
               garment_type_id: isCustomItem ? undefined : item.product.garment_type_id,
               quantity: item.quantity,
               unit_price: item.product.price,
               size: item.product.size,
               gender: item.product.gender,
               order_type: isCustomItem ? 'web_custom' : 'catalog',
-              // Global products use global_product_id, school products use product_id
-              product_id: (isCustomItem || isGlobalItem) ? undefined : item.product.id,
-              global_product_id: isGlobalItem ? item.product.id : undefined,
-              is_global_product: isGlobalItem || undefined,
+              product_id: isCustomItem ? undefined : item.product.id,
               needs_quotation: isCustomItem,
               notes: isCustomItem ? item.product.description : undefined,
             };

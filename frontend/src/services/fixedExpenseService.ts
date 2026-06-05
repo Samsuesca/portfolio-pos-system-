@@ -5,7 +5,8 @@
  * that automatically generate pending Expense records at specified intervals.
  */
 import apiClient from '../utils/api-client';
-import type { ExpenseCategory } from '../types/api';
+import type { ExpenseCategory, PaginatedResponse } from '../types/api';
+import { unwrapPaginated } from '../utils/pagination';
 
 const BASE_URL = '/global/fixed-expenses';
 
@@ -40,7 +41,8 @@ export interface FixedExpenseListItem {
   recurrence_month_day_type?: MonthDayType | null;
   uses_new_recurrence?: boolean;
   // Common
-  vendor: string | null;
+  vendor_id: string | null;
+  vendor_name: string | null;
   auto_generate: boolean;
   next_generation_date: string | null;
   last_generated_date: string | null;
@@ -70,7 +72,7 @@ export interface FixedExpenseCreate {
   // Common
   auto_generate?: boolean;
   next_generation_date?: string;
-  vendor?: string;
+  vendor_id?: string;
 }
 
 export interface FixedExpenseUpdate {
@@ -181,9 +183,9 @@ export const getFixedExpenses = async (params?: {
   limit?: number;
   is_active?: boolean;
   category?: ExpenseCategory;
-}): Promise<FixedExpenseListItem[]> => {
-  const response = await apiClient.get<FixedExpenseListItem[]>(BASE_URL, { params });
-  return response.data;
+}): Promise<PaginatedResponse<FixedExpenseListItem>> => {
+  const response = await apiClient.get<PaginatedResponse<FixedExpenseListItem> | FixedExpenseListItem[]>(BASE_URL, { params });
+  return unwrapPaginated(response.data);
 };
 
 /**
@@ -310,19 +312,19 @@ export const getFrequencyLabel = (frequency: ExpenseFrequency): string => {
  */
 export const getExpenseTypeColor = (type: FixedExpenseType): string => {
   const colors: Record<FixedExpenseType, string> = {
-    exact: 'bg-blue-100 text-blue-800',
+    exact: 'bg-brand-100 text-brand-700',
     variable: 'bg-amber-100 text-amber-800'
   };
-  return colors[type] || 'bg-gray-100 text-gray-800';
+  return colors[type] || 'bg-stone-100 text-stone-800';
 };
 
 /**
  * Get color class for status
  */
 export const getStatusColor = (isActive: boolean, daysOverdue: number): string => {
-  if (!isActive) return 'bg-gray-100 text-gray-600';
-  if (daysOverdue > 0) return 'bg-red-100 text-red-800';
-  return 'bg-green-100 text-green-800';
+  if (!isActive) return 'bg-stone-100 text-stone-600';
+  if (daysOverdue > 0) return 'bg-red-50 text-red-700 ring-1 ring-red-200';
+  return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200';
 };
 
 /**

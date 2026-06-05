@@ -43,7 +43,7 @@ function getUrgencyStyles(level: UrgencyLevel): { bg: string; text: string; bord
         bg: 'bg-red-50 hover:bg-red-100',
         text: 'text-red-800',
         border: 'border-l-4 border-red-500',
-        badge: 'bg-red-100 text-red-800',
+        badge: 'bg-red-50 text-red-700 ring-1 ring-red-200',
       };
     case 'today':
       return {
@@ -61,10 +61,10 @@ function getUrgencyStyles(level: UrgencyLevel): { bg: string; text: string; bord
       };
     case 'this_week':
       return {
-        bg: 'bg-blue-50 hover:bg-blue-100',
-        text: 'text-blue-800',
-        border: 'border-l-4 border-blue-400',
-        badge: 'bg-blue-100 text-blue-800',
+        bg: 'bg-brand-50 hover:bg-brand-100',
+        text: 'text-brand-700',
+        border: 'border-l-4 border-brand-400',
+        badge: 'bg-brand-100 text-brand-700',
       };
     default:
       return {
@@ -142,7 +142,8 @@ export function UpcomingOrdersWidget({ orders, loading = false }: UpcomingOrders
             const urgency = getUrgencyLevel(order.delivery_date);
             const styles = getUrgencyStyles(urgency);
             const urgencyLabel = getUrgencyLabel(urgency);
-            const isPaid = order.balance <= 0;
+            const isPaid = order.balance === 0;
+            const hasCredit = order.balance < 0;
 
             return (
               <div
@@ -153,7 +154,7 @@ export function UpcomingOrdersWidget({ orders, loading = false }: UpcomingOrders
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-gray-800">{order.code}</span>
+                      <span className="font-medium text-stone-800">{order.code}</span>
                       {urgencyLabel && (
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${styles.badge}`}>
                           {urgency === 'overdue' && <AlertTriangle className="w-3 h-3 inline mr-1" />}
@@ -166,10 +167,10 @@ export function UpcomingOrdersWidget({ orders, loading = false }: UpcomingOrders
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-gray-600 truncate mt-0.5">
+                    <p className="text-sm text-stone-600 truncate mt-0.5">
                       {order.client_name || order.student_name || 'Sin cliente'}
                     </p>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                    <div className="flex items-center gap-3 mt-1 text-xs text-stone-500">
                       <span>{order.items_count} item{order.items_count !== 1 ? 's' : ''}</span>
                       <span>Entrega: {formatDeliveryDate(order.delivery_date)}</span>
                     </div>
@@ -179,6 +180,11 @@ export function UpcomingOrdersWidget({ orders, loading = false }: UpcomingOrders
                       <span className="inline-flex items-center text-xs text-green-600 font-medium">
                         <CheckCircle className="w-3.5 h-3.5 mr-1" />
                         Pagado
+                      </span>
+                    ) : hasCredit ? (
+                      <span className="inline-flex items-center text-xs text-brand-600 font-medium">
+                        <DollarSign className="w-3.5 h-3.5 mr-1" />
+                        Saldo a favor
                       </span>
                     ) : (
                       <span className="inline-flex items-center text-xs text-amber-600 font-medium">

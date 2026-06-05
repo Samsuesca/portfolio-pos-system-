@@ -1,4 +1,5 @@
 import apiClient, {
+  PaginatedResponse,
   Sale,
   SaleWithItems,
   SaleItem,
@@ -10,6 +11,7 @@ import apiClient, {
   ChangeType,
   ChangeStatus,
 } from '../api';
+import { unwrapPaginated } from '../utils/pagination';
 
 export interface SaleListParams {
   school_id?: string;
@@ -78,13 +80,13 @@ const salesService = {
 
     const queryString = params.toString();
     const url = queryString ? `/sale-changes?${queryString}` : '/sale-changes';
-    const response = await apiClient.get<SaleChangeListItem[]>(url);
-    return response.data;
+    const response = await apiClient.get<SaleChangeListItem[] | PaginatedResponse<SaleChangeListItem>>(url);
+    return unwrapPaginated(response.data).items;
   },
 
   // List sales (multi-school)
-  list: async (params?: SaleListParams): Promise<Sale[]> => {
-    const response = await apiClient.get<Sale[]>('/sales', { params });
+  list: async (params?: SaleListParams): Promise<PaginatedResponse<Sale>> => {
+    const response = await apiClient.get<PaginatedResponse<Sale>>('/sales', { params });
     return response.data;
   },
 

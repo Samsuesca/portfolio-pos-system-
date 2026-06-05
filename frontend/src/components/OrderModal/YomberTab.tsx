@@ -42,7 +42,7 @@ export default function YomberTab({
     <div className="space-y-4">
       {/* Direct Yomber Product Selection */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-stone-700 mb-2">
           Selecciona el Yomber *
         </label>
         <button
@@ -80,28 +80,28 @@ export default function YomberTab({
           <div className="grid grid-cols-2 gap-4">
             {/* Quantity */}
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Cantidad *</label>
+              <label className="block text-xs text-stone-600 mb-1">Cantidad *</label>
               <input
                 type="number"
                 min="1"
                 value={yomberQuantity}
                 onChange={(e) => onQuantityChange(parseInt(e.target.value) || 1)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
               />
             </div>
 
             {/* Additional Price */}
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Adicional (opcional)</label>
+              <label className="block text-xs text-stone-600 mb-1">Adicional (opcional)</label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400">$</span>
                 <input
                   type="number"
                   min="0"
                   value={yomberAdditionalPrice || ''}
                   onChange={(e) => onAdditionalPriceChange(parseInt(e.target.value) || 0)}
                   placeholder="0"
-                  className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  className="w-full pl-8 pr-3 py-2 border border-stone-200 rounded-lg text-sm"
                 />
               </div>
             </div>
@@ -109,13 +109,13 @@ export default function YomberTab({
 
           {/* Embroidery Text */}
           <div>
-            <label className="block text-xs text-gray-600 mb-1">Texto Bordado</label>
+            <label className="block text-xs text-stone-600 mb-1">Texto Bordado</label>
             <input
               type="text"
               value={yomberEmbroideryText}
               onChange={(e) => onEmbroideryTextChange(e.target.value)}
               placeholder="Nombre para bordar"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
             />
           </div>
 

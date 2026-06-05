@@ -130,7 +130,7 @@ class TestGlobalDashboardStats:
         await db_session.flush()
 
         sale = Sale(
-            code=f"VNT-TST-{uuid4().hex[:6].upper()}",
+            code=f"{test_school.code}-VNT-2026-{uuid4().hex[:4].upper()}",
             school_id=test_school.id,
             client_id=client.id,
             user_id=test_superuser.id,  # Required field

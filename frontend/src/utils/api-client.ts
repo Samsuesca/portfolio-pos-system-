@@ -121,6 +121,8 @@ export const apiClient = {
     options?: { headers?: Record<string, string>; params?: Record<string, unknown> }
   ): Promise<{ data: T; status: number }> {
     const apiUrl = useConfigStore.getState().apiUrl;
+    // Cache-bust for Tauri WKWebView which aggressively caches API responses
+    const cacheBust = isTauri ? `_t=${Date.now()}` : '';
     let url = `${apiUrl}/api/v1${endpoint}`;
 
     // Add query params if provided
@@ -135,6 +137,11 @@ export const apiClient = {
       if (queryString) {
         url += `?${queryString}`;
       }
+    }
+
+    // Append cache-bust param for Tauri WKWebView
+    if (cacheBust) {
+      url += (url.includes('?') ? '&' : '?') + cacheBust;
     }
 
     const token = localStorage.getItem('access_token');
@@ -323,7 +330,7 @@ export const apiClient = {
 export async function checkConnection(): Promise<boolean> {
   try {
     const apiUrl = useConfigStore.getState().apiUrl;
-    const url = `${apiUrl}/health`;
+    const url = `${apiUrl}/ping`;
 
     let isOnline: boolean;
 

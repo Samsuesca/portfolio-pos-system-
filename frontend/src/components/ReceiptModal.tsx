@@ -266,9 +266,7 @@ export default function ReceiptModal({
 
         if (isSale) {
           saleItems.forEach((item: SaleItemWithProduct) => {
-            const productName = item.is_global_product
-              ? `${item.global_product_name || 'Producto'} ${item.global_product_size || ''}`
-              : `${item.product_name || 'Producto'} ${item.product_size || ''}`;
+            const productName = `${item.product_name || 'Producto'} ${item.product_size || ''}`;
             const qty = item.quantity;
             const subtotal = formatCurrency(Number(item.subtotal));
 
@@ -309,9 +307,7 @@ export default function ReceiptModal({
 
         if (isSale) {
           saleItems.forEach((item: SaleItemWithProduct, idx: number) => {
-            const productName = item.is_global_product
-              ? `${item.global_product_name || 'Producto'} ${item.global_product_size || ''}`
-              : `${item.product_name || 'Producto'} ${item.product_size || ''}`;
+            const productName = `${item.product_name || 'Producto'} ${item.product_size || ''}`;
 
             // Alternate row background
             if (idx % 2 === 1) {
@@ -584,13 +580,13 @@ export default function ReceiptModal({
         </div>
 
         {/* Content - Preview */}
-        <div className="flex-1 overflow-auto p-6 bg-gray-50">
+        <div className="flex-1 overflow-auto p-6 bg-stone-50">
           <div className="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
             {/* Receipt preview header */}
-            <div className="text-center border-b-2 border-dashed border-gray-300 pb-4 mb-4">
+            <div className="text-center border-b-2 border-dashed border-stone-200 pb-4 mb-4">
               <h3 className="text-lg font-bold">CONSUELO RIOS</h3>
-              <p className="text-sm text-gray-600">Confeccion y Venta de Uniformes</p>
-              <p className="text-sm text-gray-500">Tel: 3001234567</p>
+              <p className="text-sm text-stone-600">Confeccion y Venta de Uniformes</p>
+              <p className="text-sm text-stone-500">Tel: 3001234567</p>
             </div>
 
             {/* Receipt info */}
@@ -598,29 +594,29 @@ export default function ReceiptModal({
               <p className="font-bold text-center text-lg">
                 {isSale ? 'RECIBO DE VENTA' : isOrder ? 'ENCARGO' : 'RECIBO'} #{receiptCode}
               </p>
-              <p className="text-sm text-gray-600 text-center">
+              <p className="text-sm text-stone-600 text-center">
                 {receiptDate ? formatDateShort(receiptDate) : 'N/A'}
               </p>
             </div>
 
             {/* Client info */}
-            <div className="text-sm mb-4 border-b border-gray-200 pb-3">
-              <p><span className="text-gray-500">Cliente:</span> {clientName || 'Cliente General'}</p>
+            <div className="text-sm mb-4 border-b border-stone-200 pb-3">
+              <p><span className="text-stone-500">Cliente:</span> {clientName || 'Cliente General'}</p>
               {studentName && (
-                <p><span className="text-gray-500">Estudiante:</span> {studentName}</p>
+                <p><span className="text-stone-500">Estudiante:</span> {studentName}</p>
               )}
               {schoolName && (
-                <p><span className="text-gray-500">Colegio:</span> {schoolName}</p>
+                <p><span className="text-stone-500">Colegio:</span> {schoolName}</p>
               )}
               {isOrder && order && (
                 <>
                   <p>
-                    <span className="text-gray-500">Entrega:</span>{' '}
+                    <span className="text-stone-500">Entrega:</span>{' '}
                     {order.delivery_type === 'delivery' ? 'Domicilio' : 'Retiro en Tienda'}
                   </p>
                   <p>
-                    <span className="text-gray-500">Estado:</span>{' '}
-                    <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">
+                    <span className="text-stone-500">Estado:</span>{' '}
+                    <span className="px-2 py-0.5 bg-brand-100 text-brand-700 rounded text-xs">
                       {getOrderStatusText(order.status)}
                     </span>
                   </p>
@@ -629,21 +625,21 @@ export default function ReceiptModal({
               {isAlteration && alteration && (
                 <>
                   <p>
-                    <span className="text-gray-500">Tipo:</span>{' '}
+                    <span className="text-stone-500">Tipo:</span>{' '}
                     {ALTERATION_TYPE_LABELS[alteration.alteration_type] || alteration.alteration_type}
                   </p>
                   <p>
-                    <span className="text-gray-500">Prenda:</span> {alteration.garment_name}
+                    <span className="text-stone-500">Prenda:</span> {alteration.garment_name}
                   </p>
                   <p>
-                    <span className="text-gray-500">Estado:</span>{' '}
+                    <span className="text-stone-500">Estado:</span>{' '}
                     <span className="px-2 py-0.5 bg-purple-100 text-purple-800 rounded text-xs">
                       {ALTERATION_STATUS_LABELS[alteration.status] || alteration.status}
                     </span>
                   </p>
                   {alteration.description && (
                     <p className="mt-1">
-                      <span className="text-gray-500">Descripcion:</span> {alteration.description}
+                      <span className="text-stone-500">Descripcion:</span> {alteration.description}
                     </p>
                   )}
                 </>
@@ -653,16 +649,14 @@ export default function ReceiptModal({
             {/* Items summary (only for sales and orders) */}
             {!isAlteration && (
               <div className="mb-4">
-                <p className="text-sm text-gray-500 mb-2">{itemsCount} producto(s)</p>
+                <p className="text-sm text-stone-500 mb-2">{itemsCount} producto(s)</p>
                 <div className="space-y-1 max-h-32 overflow-auto">
                   {isSale
                     ? saleItems.slice(0, 5).map((item, idx) => (
                         <div key={idx} className="flex justify-between text-sm">
                           <span className="truncate flex-1">
                             {item.quantity}x{' '}
-                            {item.is_global_product
-                              ? item.global_product_name
-                              : item.product_name}
+                            {item.product_name}
                           </span>
                           <span className="ml-2 font-medium">
                             {formatCurrency(Number(item.subtotal))}
@@ -680,7 +674,7 @@ export default function ReceiptModal({
                         </div>
                       ))}
                   {itemsCount > 5 && (
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-stone-400">
                       ... y {itemsCount - 5} mas
                     </p>
                   )}
@@ -689,7 +683,7 @@ export default function ReceiptModal({
             )}
 
             {/* Totals */}
-            <div className="border-t-2 border-dashed border-gray-300 pt-3">
+            <div className="border-t-2 border-dashed border-stone-200 pt-3">
               <div className="flex justify-between text-lg font-bold">
                 <span>Total:</span>
                 <span>{formatCurrency(total)}</span>
@@ -714,7 +708,7 @@ export default function ReceiptModal({
                     .filter((p) => p.payment_method === 'cash' && p.change_given && p.change_given > 0)
                     .map((p, idx) => (
                       <div key={idx}>
-                        <div className="flex justify-between text-sm text-gray-600">
+                        <div className="flex justify-between text-sm text-stone-600">
                           <span>Recibido:</span>
                           <span>{formatCurrency(p.amount_received || 0)}</span>
                         </div>
@@ -734,14 +728,14 @@ export default function ReceiptModal({
         <div className="px-6 py-4 border-t bg-white">
           {/* Format toggle */}
           <div className="flex items-center justify-center gap-2 mb-4">
-            <span className="text-sm text-gray-600">Formato:</span>
-            <div className="flex rounded-lg border border-gray-300 overflow-hidden">
+            <span className="text-sm text-stone-600">Formato:</span>
+            <div className="flex rounded-lg border border-stone-200 overflow-hidden">
               <button
                 onClick={() => setFormat('letter')}
                 className={`px-4 py-2 text-sm font-medium transition-colors ${
                   format === 'letter'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                    ? 'bg-brand-500 text-white'
+                    : 'bg-white text-stone-700 hover:bg-stone-50'
                 }`}
               >
                 Carta
@@ -750,8 +744,8 @@ export default function ReceiptModal({
                 onClick={() => setFormat('thermal')}
                 className={`px-4 py-2 text-sm font-medium transition-colors border-l ${
                   format === 'thermal'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                    ? 'bg-brand-500 text-white'
+                    : 'bg-white text-stone-700 hover:bg-stone-50'
                 }`}
               >
                 Termica 80mm
@@ -764,7 +758,7 @@ export default function ReceiptModal({
             <button
               onClick={handleDownload}
               disabled={isGenerating}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-stone-100 text-stone-700 rounded-lg font-medium hover:bg-stone-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isGenerating ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -776,7 +770,7 @@ export default function ReceiptModal({
             <button
               onClick={handlePrint}
               disabled={isGenerating}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-brand-500 text-white rounded-lg font-medium hover:bg-brand-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isGenerating ? (
                 <Loader2 className="w-5 h-5 animate-spin" />

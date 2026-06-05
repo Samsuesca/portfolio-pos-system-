@@ -74,7 +74,7 @@ class TestDevMode:
         result = send_order_ready(
             phone="3001234567",
             name="Test User",
-            order_code="ENC-2026-0001"
+            order_code="CARACAS-001-ENC-2026-0001"
         )
 
         assert result is True
@@ -89,7 +89,7 @@ class TestDevMode:
         result = send_order_ready(
             phone="3001234567",
             name="Test User",
-            order_code="ENC-2026-0001"
+            order_code="CARACAS-001-ENC-2026-0001"
         )
 
         assert result is True
@@ -106,14 +106,14 @@ class TestNotificationFunctions:
         result = send_order_ready(
             phone="3001234567",
             name="Juan Garcia",
-            order_code="ENC-2026-0001",
+            order_code="CARACAS-001-ENC-2026-0001",
             school_name="Colegio San Jose"
         )
 
         mock_send.assert_called_once_with(
             "3001234567",
             "order_ready_v1",
-            ["Juan Garcia", "ENC-2026-0001"]
+            ["Juan Garcia", "CARACAS-001-ENC-2026-0001"]
         )
         assert result is True
 
@@ -125,14 +125,14 @@ class TestNotificationFunctions:
         result = send_order_confirmation(
             phone="3001234567",
             name="Maria Lopez",
-            order_code="ENC-2026-0002",
+            order_code="CARACAS-001-ENC-2026-0002",
             total=Decimal("150000")
         )
 
         mock_send.assert_called_once_with(
             "3001234567",
             "order_confirmation_v1",
-            ["Maria Lopez", "ENC-2026-0002", "$150.000"]
+            ["Maria Lopez", "CARACAS-001-ENC-2026-0002", "$150.000"]
         )
         assert result is True
 
@@ -144,14 +144,14 @@ class TestNotificationFunctions:
         result = send_sale_confirmation(
             phone="3001234567",
             name="Pedro Ramirez",
-            sale_code="VNT-2026-0001",
+            sale_code="CARACAS-001-VNT-2026-0001",
             total=Decimal("85000")
         )
 
         mock_send.assert_called_once_with(
             "3001234567",
             "sale_confirmation_v1",
-            ["Pedro Ramirez", "VNT-2026-0001", "$85.000"]
+            ["Pedro Ramirez", "CARACAS-001-VNT-2026-0001", "$85.000"]
         )
         assert result is True
 

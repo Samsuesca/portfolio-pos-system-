@@ -203,7 +203,12 @@ class FixedExpense(Base):
     last_generated_date: Mapped[date | None] = mapped_column(Date)
 
     # Vendor/Provider info
-    vendor: Mapped[str | None] = mapped_column(String(255))
+    vendor_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("vendors.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
 
     # Status
     is_active: Mapped[bool] = mapped_column(
@@ -232,6 +237,7 @@ class FixedExpense(Base):
 
     # Relationships
     created_by_user: Mapped["User | None"] = relationship()
+    vendor: Mapped["Vendor | None"] = relationship(foreign_keys=[vendor_id])
     generated_expenses: Mapped[list["Expense"]] = relationship(
         back_populates="fixed_expense_template"
     )

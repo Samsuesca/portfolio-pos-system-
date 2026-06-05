@@ -6,7 +6,7 @@
  * - School-specific: /schools/{school_id}/orders - Original endpoints
  */
 import apiClient from '../utils/api-client';
-import type { Order, OrderListItem, OrderWithItems, OrderCreate, OrderPayment, OrderStatus, OrderItemStatus, OrderItem, ProductDemandResponse, ProductDemandFilters } from '../types/api';
+import type { Order, OrderListItem, OrderWithItems, OrderCreate, OrderPayment, OrderStatus, OrderItemStatus, OrderItem, ProductDemandResponse, ProductDemandFilters, PaginatedResponse } from '../types/api';
 
 export interface OrderFilters {
   school_id?: string;
@@ -24,7 +24,7 @@ export const orderService = {
   /**
    * Get all orders from ALL schools user has access to (multi-school)
    */
-  async getAllOrders(filters?: OrderFilters): Promise<OrderListItem[]> {
+  async getAllOrders(filters?: OrderFilters): Promise<PaginatedResponse<OrderListItem>> {
     const params = new URLSearchParams();
     if (filters?.school_id) params.append('school_id', filters.school_id);
     if (filters?.status) params.append('status', filters.status);
@@ -38,7 +38,19 @@ export const orderService = {
 
     const queryString = params.toString();
     const url = queryString ? `/orders?${queryString}` : '/orders';
-    const response = await apiClient.get<OrderListItem[]>(url);
+    const response = await apiClient.get<PaginatedResponse<OrderListItem>>(url);
+    return response.data;
+  },
+
+  async getOrderStats(filters?: Pick<OrderFilters, 'school_id' | 'source_filter' | 'start_date' | 'end_date'>): Promise<Record<string, number>> {
+    const params = new URLSearchParams();
+    if (filters?.school_id) params.append('school_id', filters.school_id);
+    if (filters?.source_filter) params.append('source_filter', filters.source_filter);
+    if (filters?.start_date) params.append('start_date', filters.start_date);
+    if (filters?.end_date) params.append('end_date', filters.end_date);
+    const queryString = params.toString();
+    const url = queryString ? `/orders/stats?${queryString}` : '/orders/stats';
+    const response = await apiClient.get<Record<string, number>>(url);
     return response.data;
   },
 
@@ -46,7 +58,7 @@ export const orderService = {
    * Get all orders for a school (backwards compatible)
    * Uses multi-school endpoint with school filter
    */
-  async getOrders(schoolId?: string, status?: OrderStatus): Promise<OrderListItem[]> {
+  async getOrders(schoolId?: string, status?: OrderStatus): Promise<PaginatedResponse<OrderListItem>> {
     const filters: OrderFilters = {};
     if (schoolId) filters.school_id = schoolId;
     if (status) filters.status = status;
@@ -105,6 +117,21 @@ export const orderService = {
     const response = await apiClient.post<Order>(
       `/schools/${schoolId}/orders/${orderId}/payments`,
       payment
+    );
+    return response.data;
+  },
+
+  async approvePayment(schoolId: string, orderId: string): Promise<Order> {
+    const response = await apiClient.post<Order>(
+      `/schools/${schoolId}/orders/${orderId}/payment/approve`
+    );
+    return response.data;
+  },
+
+  async rejectPayment(schoolId: string, orderId: string, reason: string): Promise<Order> {
+    const response = await apiClient.post<Order>(
+      `/schools/${schoolId}/orders/${orderId}/payment/reject`,
+      { reason }
     );
     return response.data;
   },
@@ -185,26 +212,6 @@ export const orderService = {
   },
 
   /**
-   * Approve payment proof for an order
-   */
-  async approvePayment(schoolId: string, orderId: string): Promise<any> {
-    const response = await apiClient.post(`/schools/${schoolId}/orders/${orderId}/approve-payment`);
-    return response.data;
-  },
-
-  /**
-   * Reject payment proof for an order
-   */
-  async rejectPayment(schoolId: string, orderId: string, rejectionNotes: string): Promise<any> {
-    const response = await apiClient.post(
-      `/schools/${schoolId}/orders/${orderId}/reject-payment`,
-      null,
-      { params: { rejection_notes: rejectionNotes } }
-    );
-    return response.data;
-  },
-
-  /**
    * Get receipt URL for printing
    */
   getReceiptUrl(schoolId: string, orderId: string): string {
@@ -259,8 +266,8 @@ export const orderService = {
    * Used to warn vendors about potential duplicate orders during sale creation.
    */
   async getClientActiveOrders(clientId: string): Promise<OrderListItem[]> {
-    const allOrders = await this.getAllOrders({ client_id: clientId });
-    return allOrders.filter(o => !['cancelled', 'delivered'].includes(o.status));
+    const response = await this.getAllOrders({ client_id: clientId });
+    return response.items.filter(o => !['cancelled', 'delivered'].includes(o.status));
   },
 
   /**

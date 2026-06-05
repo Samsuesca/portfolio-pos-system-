@@ -44,8 +44,8 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
   const loadDailyChecklists = useCallback(async () => {
     setLoadingDaily(true);
     try {
-      const data = await workforceService.getDailyChecklists({ checklist_date: selectedDate });
-      setDailyChecklists(data);
+      const result = await workforceService.getDailyChecklists({ checklist_date: selectedDate });
+      setDailyChecklists(result.items);
     } catch (err) {
       console.error('Error loading daily checklists:', err);
     } finally {
@@ -202,12 +202,12 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
   return (
     <div className="space-y-4">
       {/* Sub-tabs */}
-      <div className="flex gap-4 border-b border-gray-200">
+      <div className="flex gap-4 border-b border-stone-200">
         <button
           className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${
             subTab === 'daily'
               ? 'border-brand-600 text-brand-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
+              : 'border-transparent text-stone-500 hover:text-stone-700'
           }`}
           onClick={() => setSubTab('daily')}
         >
@@ -217,7 +217,7 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
           className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${
             subTab === 'templates'
               ? 'border-brand-600 text-brand-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
+              : 'border-transparent text-stone-500 hover:text-stone-700'
           }`}
           onClick={() => setSubTab('templates')}
         >
@@ -230,12 +230,12 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <Calendar size={18} className="text-gray-500" />
+              <Calendar size={18} className="text-stone-500" />
               <input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                className="px-3 py-2 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
               />
             </div>
             <RequirePermission permission="workforce.manage_checklists">
@@ -249,9 +249,9 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
           </div>
 
           {loadingDaily ? (
-            <div className="text-center py-8 text-gray-500">Cargando checklists...</div>
+            <div className="text-center py-8 text-stone-500">Cargando checklists...</div>
           ) : dailyChecklists.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-stone-500">
               No hay checklists para esta fecha. Genera los checklists del dia.
             </div>
           ) : (
@@ -261,22 +261,22 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
                 return (
                   <div
                     key={cl.id}
-                    className="bg-white rounded-lg border border-gray-200 p-4 space-y-3"
+                    className="bg-white rounded-lg border border-stone-200 p-4 space-y-3"
                   >
                     <div className="flex items-center justify-between">
-                      <h4 className="font-semibold text-gray-900">{cl.employee_name || 'Empleado'}</h4>
+                      <h4 className="font-semibold text-stone-900">{cl.employee_name || 'Empleado'}</h4>
                       <span className={`text-sm font-medium ${getScoreColor(rate)}`}>
                         {rate}%
                       </span>
                     </div>
                     {/* Progress bar */}
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-stone-200 rounded-full h-2">
                       <div
                         className={`h-2 rounded-full transition-all ${getScoreBg(rate)}`}
                         style={{ width: `${rate}%` }}
                       />
                     </div>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-stone-500">
                       {cl.completed_items} de {cl.total_items} items completados
                     </p>
                     {/* Items */}
@@ -291,7 +291,7 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
                                 className={`w-4 h-4 rounded border flex items-center justify-center text-xs ${
                                   item.status === 'completed'
                                     ? 'bg-green-500 border-green-500 text-white'
-                                    : 'border-gray-300'
+                                    : 'border-stone-200'
                                 }`}
                               >
                                 {item.status === 'completed' && <Check size={10} />}
@@ -299,8 +299,8 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
                               <span
                                 className={`text-sm ${
                                   item.status === 'completed'
-                                    ? 'text-gray-400 line-through'
-                                    : 'text-gray-700'
+                                    ? 'text-stone-400 line-through'
+                                    : 'text-stone-700'
                                 }`}
                               >
                                 {item.description}
@@ -309,14 +309,14 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
                           }
                         >
                           <button
-                            className="flex items-center gap-2 py-1 w-full text-left hover:bg-gray-50 rounded px-1"
+                            className="flex items-center gap-2 py-1 w-full text-left hover:bg-stone-50 rounded px-1"
                             onClick={() => handleToggleItem(item)}
                           >
                             <span
                               className={`w-4 h-4 rounded border flex items-center justify-center text-xs flex-shrink-0 ${
                                 item.status === 'completed'
                                   ? 'bg-green-500 border-green-500 text-white'
-                                  : 'border-gray-300'
+                                  : 'border-stone-200'
                               }`}
                             >
                               {item.status === 'completed' && <Check size={10} />}
@@ -324,8 +324,8 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
                             <span
                               className={`text-sm ${
                                 item.status === 'completed'
-                                  ? 'text-gray-400 line-through'
-                                  : 'text-gray-700'
+                                  ? 'text-stone-400 line-through'
+                                  : 'text-stone-700'
                               }`}
                             >
                               {item.description}
@@ -361,7 +361,7 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
       {subTab === 'templates' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">Plantillas de Checklist</h3>
+            <h3 className="text-lg font-semibold text-stone-900">Plantillas de Checklist</h3>
             <RequirePermission permission="workforce.manage_checklists">
               <button
                 className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm font-medium"
@@ -377,8 +377,8 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
 
           {/* Create template form */}
           {showTemplateForm && (
-            <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
-              <h4 className="font-semibold text-gray-900">Nueva Plantilla de Checklist</h4>
+            <div className="bg-white rounded-lg border border-stone-200 p-4 space-y-4">
+              <h4 className="font-semibold text-stone-900">Nueva Plantilla de Checklist</h4>
               {templateError && (
                 <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 p-3 rounded-lg">
                   <AlertCircle size={16} /> {templateError}
@@ -386,39 +386,39 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
               )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Nombre</label>
                   <input
                     type="text"
                     value={templateForm.name}
                     onChange={(e) => setTemplateForm((p) => ({ ...p, name: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                     placeholder="Checklist apertura"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cargo</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Cargo</label>
                   <input
                     type="text"
                     value={templateForm.position}
                     onChange={(e) => setTemplateForm((p) => ({ ...p, position: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                     placeholder="Vendedor"
                   />
                 </div>
               </div>
               {/* Items */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Items</label>
+                <label className="block text-sm font-medium text-stone-700 mb-2">Items</label>
                 {(templateForm.items || []).length > 0 && (
                   <ul className="space-y-1 mb-2">
                     {(templateForm.items || []).map((item, idx) => (
                       <li
                         key={idx}
-                        className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded-lg text-sm"
+                        className="flex items-center justify-between bg-stone-50 px-3 py-2 rounded-lg text-sm"
                       >
-                        <span className="text-gray-700">{item.description}</span>
+                        <span className="text-stone-700">{item.description}</span>
                         <button
-                          className="text-gray-400 hover:text-red-600"
+                          className="text-stone-400 hover:text-red-600"
                           onClick={() => handleRemoveFormItem(idx)}
                         >
                           <X size={14} />
@@ -433,11 +433,11 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
                     value={newItemText}
                     onChange={(e) => setNewItemText(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleAddFormItem()}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    className="flex-1 px-3 py-2 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                     placeholder="Agregar item..."
                   />
                   <button
-                    className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
+                    className="px-3 py-2 bg-stone-200 text-stone-700 rounded-lg hover:bg-stone-300 text-sm"
                     onClick={handleAddFormItem}
                   >
                     <Plus size={16} />
@@ -452,7 +452,7 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
                   Crear
                 </button>
                 <button
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm font-medium"
+                  className="px-4 py-2 bg-stone-200 text-stone-700 rounded-lg hover:bg-stone-300 text-sm font-medium"
                   onClick={resetTemplateForm}
                 >
                   Cancelar
@@ -466,9 +466,9 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
             <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
               <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6 space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-gray-900">Editar Plantilla</h3>
+                  <h3 className="text-lg font-semibold text-stone-900">Editar Plantilla</h3>
                   <button
-                    className="p-1 text-gray-400 hover:text-gray-600"
+                    className="p-1 text-stone-400 hover:text-stone-600"
                     onClick={() => setEditingTemplate(null)}
                   >
                     <X size={20} />
@@ -476,25 +476,25 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
                 </div>
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Nombre</label>
                     <input
                       type="text"
                       value={editTemplateForm.name}
                       onChange={(e) =>
                         setEditTemplateForm((p) => ({ ...p, name: e.target.value }))
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                      className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Cargo</label>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Cargo</label>
                     <input
                       type="text"
                       value={editTemplateForm.position}
                       onChange={(e) =>
                         setEditTemplateForm((p) => ({ ...p, position: e.target.value }))
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                      className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                     />
                   </div>
                   <div className="flex items-center gap-2">
@@ -505,16 +505,16 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
                       onChange={(e) =>
                         setEditTemplateForm((p) => ({ ...p, is_active: e.target.checked }))
                       }
-                      className="rounded border-gray-300"
+                      className="rounded border-stone-200"
                     />
-                    <label htmlFor="edit-template-active" className="text-sm text-gray-700">
+                    <label htmlFor="edit-template-active" className="text-sm text-stone-700">
                       Activo
                     </label>
                   </div>
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
                   <button
-                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm font-medium"
+                    className="px-4 py-2 bg-stone-200 text-stone-700 rounded-lg hover:bg-stone-300 text-sm font-medium"
                     onClick={() => setEditingTemplate(null)}
                   >
                     Cancelar
@@ -532,23 +532,23 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
 
           {/* Template cards */}
           {loadingTemplates ? (
-            <div className="text-center py-8 text-gray-500">Cargando plantillas...</div>
+            <div className="text-center py-8 text-stone-500">Cargando plantillas...</div>
           ) : checklistTemplates.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">No hay plantillas de checklist.</div>
+            <div className="text-center py-8 text-stone-500">No hay plantillas de checklist.</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {checklistTemplates.map((t) => (
                 <div
                   key={t.id}
-                  className="bg-white rounded-lg border border-gray-200 p-4 space-y-3"
+                  className="bg-white rounded-lg border border-stone-200 p-4 space-y-3"
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                      <h4 className="font-semibold text-stone-900 flex items-center gap-2">
                         {t.name}
                         <RequirePermission permission="workforce.manage_checklists">
                           <button
-                            className="p-1 text-gray-400 hover:text-brand-600"
+                            className="p-1 text-stone-400 hover:text-brand-600"
                             onClick={() => handleEditTemplateOpen(t)}
                             title="Editar plantilla"
                           >
@@ -556,13 +556,13 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
                           </button>
                         </RequirePermission>
                       </h4>
-                      <p className="text-xs text-gray-500">{t.position}</p>
+                      <p className="text-xs text-stone-500">{t.position}</p>
                     </div>
                     <span
                       className={`px-2 py-1 rounded-full text-xs font-medium ${
                         t.is_active
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-600'
+                          ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+                          : 'bg-stone-100 text-stone-600'
                       }`}
                     >
                       {t.is_active ? 'Activo' : 'Inactivo'}
@@ -572,12 +572,12 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
                     {t.items.map((item) => (
                       <li
                         key={item.id}
-                        className="flex items-center justify-between group text-sm text-gray-700 bg-gray-50 px-3 py-1.5 rounded"
+                        className="flex items-center justify-between group text-sm text-stone-700 bg-stone-50 px-3 py-1.5 rounded"
                       >
                         <span>{item.description}</span>
                         <RequirePermission permission="workforce.manage_checklists">
                           <button
-                            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600 transition-opacity"
+                            className="opacity-0 group-hover:opacity-100 text-stone-400 hover:text-red-600 transition-opacity"
                             onClick={() => handleDeleteTemplateItem(item.id)}
                             title="Eliminar item"
                           >
@@ -602,7 +602,7 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
                               setInlineItemText('');
                             }
                           }}
-                          className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                          className="flex-1 px-2 py-1 border border-stone-200 rounded text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                           placeholder="Nuevo item..."
                           autoFocus
                         />
@@ -613,7 +613,7 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
                           <Check size={16} />
                         </button>
                         <button
-                          className="p-1 text-gray-400 hover:text-gray-600"
+                          className="p-1 text-stone-400 hover:text-stone-600"
                           onClick={() => {
                             setAddingItemToTemplate(null);
                             setInlineItemText('');

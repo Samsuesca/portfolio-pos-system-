@@ -49,7 +49,7 @@ export function DevelopmentBanner() {
       icon: AlertTriangle,
     },
     lan: {
-      bg: 'bg-blue-500',
+      bg: 'bg-brand-500',
       text: 'RED LOCAL - Conectado al servidor de testing',
       icon: Server,
     },

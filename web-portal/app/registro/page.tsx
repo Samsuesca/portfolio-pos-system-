@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, User, Eye, EyeOff, Mail, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { clientsApi, schoolsApi, type School } from '@/lib/api';
 import { useClientAuth } from '@/lib/clientAuth';
+import { GoogleLogin } from '@react-oauth/google';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -12,7 +13,7 @@ type RegistrationStep = 'email' | 'verify' | 'details';
 
 export default function RegistroPage() {
   const router = useRouter();
-  const { login } = useClientAuth();
+  const { login, googleLogin } = useClientAuth();
 
   const [step, setStep] = useState<RegistrationStep>('email');
   const [loading, setLoading] = useState(false);
@@ -288,6 +289,32 @@ export default function RegistroPage() {
                     'Enviar código'
                   )}
                 </button>
+
+                {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID && (
+                  <>
+                    <div className="flex items-center gap-3 my-2">
+                      <div className="h-px flex-1 bg-slate-200" />
+                      <span className="text-xs text-slate-400">o registrate con</span>
+                      <div className="h-px flex-1 bg-slate-200" />
+                    </div>
+
+                    <div className="flex justify-center">
+                      <GoogleLogin
+                        onSuccess={(response) => {
+                          if (response.credential) {
+                            googleLogin(response.credential).then((success) => {
+                              if (success) {
+                                router.push('/mi-cuenta');
+                              }
+                            });
+                          }
+                        }}
+                        onError={() => setError('Error al conectar con Google')}
+                        text="signup_with"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             </>
           )}

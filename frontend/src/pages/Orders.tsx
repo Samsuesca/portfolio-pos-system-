@@ -9,19 +9,20 @@
  * - Draft support for minimized orders
  */
 import { useEffect, useState, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout';
 import OrderModal from '../components/OrderModal';
 import _PaymentVerificationModal from '../components/PaymentVerificationModal';
 import { RequirePermission } from '../components/RequirePermission';
-import { FileText, Plus, Search, AlertCircle, Loader2, Calendar, Package, Clock, CheckCircle, XCircle, Truck, Eye, Building2, RefreshCw, Ruler, BarChart3, TrendingUp, X, Wrench, Receipt, ChevronDown, Filter, ArrowUpDown, Globe } from 'lucide-react';
+import { FileText, Plus, Search, AlertCircle, Loader2, Calendar, Package, Clock, CheckCircle, XCircle, Truck, Eye, Building2, RefreshCw, Ruler, BarChart3, TrendingUp, X, Wrench, Receipt, ChevronDown, Filter, ArrowUpDown, Globe, User } from 'lucide-react';
 import { formatDateSpanish } from '../components/DatePicker';
 import DateFilter, { DateRange } from '../components/DateFilter';
 import { orderService } from '../services/orderService';
+import { clientService } from '../services/clientService';
 import { useSchoolStore } from '../stores/schoolStore';
 import { useDebounce } from '../hooks/useDebounce';
 import ProductDemandModal from '../components/ProductDemandModal';
-import type { OrderListItem, OrderStatus, OrderItemStatus, ProductDemandItem, ProductDemandResponse, ProductDemandFilters } from '../types/api';
+import type { OrderListItem, OrderStatus, OrderItemStatus, ProductDemandItem, ProductDemandResponse, ProductDemandFilters, Client } from '../types/api';
 import { formatCurrency } from '../utils/formatting';
 
 // Type for location state when navigating from DraftsBar or Quick Actions
@@ -55,8 +56,31 @@ interface YomberItem {
 export default function Orders() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const locationState = location.state as LocationState | null;
   const { currentSchool, availableSchools, loadSchools } = useSchoolStore();
+  const clientIdFilter = searchParams.get('client');
+  const [filterClient, setFilterClient] = useState<Client | null>(null);
+
+  useEffect(() => {
+    if (!clientIdFilter) {
+      setFilterClient(null);
+      return;
+    }
+    let cancelled = false;
+    clientService
+      .getClient(clientIdFilter)
+      .then((c) => { if (!cancelled) setFilterClient(c); })
+      .catch(() => { if (!cancelled) setFilterClient(null); });
+    return () => { cancelled = true; };
+  }, [clientIdFilter]);
+
+  const clearClientFilter = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('client');
+    setSearchParams(next, { replace: true });
+  };
+
   const [orders, setOrders] = useState<OrderListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -149,7 +173,7 @@ export default function Orders() {
   // Reload when filters or debounced search changes
   useEffect(() => {
     loadOrders();
-  }, [statusFilter, schoolFilter, debouncedSearch, dateRange]);
+  }, [statusFilter, schoolFilter, debouncedSearch, dateRange, clientIdFilter]);
 
   const handleSuccess = () => {
     loadOrders();
@@ -167,16 +191,18 @@ export default function Orders() {
       const skip = append ? orders.length : 0;
 
       // Load orders with backend search and pagination
-      const data = await orderService.getAllOrders({
+      const response = await orderService.getAllOrders({
         school_id: schoolFilter || undefined,
         status: statusFilter || undefined,
         search: debouncedSearch || undefined,
         source_filter: 'exclude_web_portal',
+        client_id: clientIdFilter || undefined,
         start_date: dateRange.start_date,
         end_date: dateRange.end_date,
         limit: LIMIT,
         skip: skip
       });
+      const data = response?.items ?? [];
 
       if (append) {
         setOrders(prev => [...prev, ...data]);
@@ -187,18 +213,17 @@ export default function Orders() {
 
       // Calculate stats (only on initial load, not on append)
       if (!append) {
-        const statsData = await orderService.getAllOrders({
+        const counts = await orderService.getOrderStats({
           school_id: schoolFilter || undefined,
           source_filter: 'exclude_web_portal',
           start_date: dateRange.start_date,
           end_date: dateRange.end_date,
-          limit: 500
         });
         setStats({
-          pending: statsData.filter(o => o.status === 'pending').length,
-          inProduction: statsData.filter(o => o.status === 'in_production').length,
-          ready: statsData.filter(o => o.status === 'ready').length,
-          delivered: statsData.filter(o => o.status === 'delivered').length,
+          pending: counts.pending ?? 0,
+          inProduction: counts.in_production ?? 0,
+          ready: counts.ready ?? 0,
+          delivered: counts.delivered ?? 0,
           yombers: 0, // Will be calculated when loading product stats
         });
       }
@@ -209,7 +234,7 @@ export default function Orders() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [schoolFilter, statusFilter, debouncedSearch, dateRange, orders.length]);
+  }, [schoolFilter, statusFilter, debouncedSearch, dateRange, orders.length, clientIdFilter]);
 
   // Load product demand statistics - optimized version using backend endpoint
   const loadProductDemand = async () => {
@@ -367,11 +392,11 @@ export default function Orders() {
   const getSourceBadge = (source: string | null | undefined) => {
     if (!source) return null;
     const sourceConfig: Record<string, { label: string; color: string }> = {
-      desktop_app: { label: 'Desktop', color: 'bg-blue-100 text-blue-700' },
+      desktop_app: { label: 'Desktop', color: 'bg-brand-100 text-brand-700' },
       web_portal: { label: 'Web', color: 'bg-purple-100 text-purple-700' },
-      api: { label: 'API', color: 'bg-gray-100 text-gray-700' }
+      api: { label: 'API', color: 'bg-stone-100 text-stone-700' }
     };
-    const config = sourceConfig[source] || { label: source, color: 'bg-gray-100 text-gray-700' };
+    const config = sourceConfig[source] || { label: source, color: 'bg-stone-100 text-stone-700' };
     return (
       <span className={`ml-2 px-1.5 py-0.5 text-xs rounded ${config.color}`}>
         {config.label}
@@ -389,37 +414,37 @@ export default function Orders() {
       case 'pending':
         return {
           label: 'Pendiente',
-          color: 'bg-yellow-100 text-yellow-800',
+          color: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
           icon: <Clock className="w-4 h-4" />,
         };
       case 'in_production':
         return {
           label: 'En Producción',
-          color: 'bg-blue-100 text-blue-800',
+          color: 'bg-brand-100 text-brand-700',
           icon: <Package className="w-4 h-4" />,
         };
       case 'ready':
         return {
           label: 'Listo',
-          color: 'bg-green-100 text-green-800',
+          color: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
           icon: <CheckCircle className="w-4 h-4" />,
         };
       case 'delivered':
         return {
           label: 'Entregado',
-          color: 'bg-gray-100 text-gray-800',
+          color: 'bg-stone-100 text-stone-800',
           icon: <Truck className="w-4 h-4" />,
         };
       case 'cancelled':
         return {
           label: 'Cancelado',
-          color: 'bg-red-100 text-red-800',
+          color: 'bg-red-50 text-red-700 ring-1 ring-red-200',
           icon: <XCircle className="w-4 h-4" />,
         };
       default:
         return {
           label: status,
-          color: 'bg-gray-100 text-gray-800',
+          color: 'bg-stone-100 text-stone-800',
           icon: null,
         };
     }
@@ -436,11 +461,11 @@ export default function Orders() {
     <Layout>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Encargos</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-2xl font-bold text-stone-800">Encargos</h1>
+          <p className="text-stone-600 mt-1">
             {loading ? 'Cargando...' : `${orders.length} encargos encontrados`}
             {schoolFilter && availableSchools.length > 1 && (
-              <span className="ml-2 text-blue-600">
+              <span className="ml-2 text-brand-600">
                 • Filtrado por colegio
               </span>
             )}
@@ -462,7 +487,7 @@ export default function Orders() {
               }
             }}
             disabled={loading}
-            className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg flex items-center transition disabled:opacity-50"
+            className="bg-stone-100 hover:bg-stone-200 text-stone-700 px-3 py-2 rounded-lg flex items-center transition disabled:opacity-50"
             title="Actualizar"
           >
             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
@@ -474,7 +499,7 @@ export default function Orders() {
             className={`px-3 py-2 rounded-lg flex items-center transition ${
               showProductStats
                 ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-                : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                : 'bg-stone-100 hover:bg-stone-200 text-stone-700'
             }`}
             title="Estadísticas de productos"
           >
@@ -485,7 +510,7 @@ export default function Orders() {
           <RequirePermission permission="orders.create">
             <button
               onClick={() => setIsModalOpen(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center transition"
+              className="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg flex items-center transition"
             >
               <Plus className="w-5 h-5 mr-2" />
               Nuevo Encargo
@@ -530,16 +555,16 @@ export default function Orders() {
           onClick={() => setStatusFilter(statusFilter === 'in_production' ? '' : 'in_production')}
           className={`text-left rounded-lg p-4 transition-all ${
             statusFilter === 'in_production'
-              ? 'bg-blue-200 border-2 border-blue-500 ring-2 ring-blue-300'
-              : 'bg-blue-50 border border-blue-200 hover:border-blue-400'
+              ? 'bg-brand-200 border-2 border-brand-500 ring-2 ring-blue-300'
+              : 'bg-brand-50 border border-brand-200 hover:border-brand-400'
           }`}
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-blue-700">En Producción</p>
-              <p className="text-2xl font-bold text-blue-900">{stats.inProduction}</p>
+              <p className="text-sm text-brand-700">En Producción</p>
+              <p className="text-2xl font-bold text-brand-700">{stats.inProduction}</p>
             </div>
-            <Package className="w-8 h-8 text-blue-600" />
+            <Package className="w-8 h-8 text-brand-600" />
           </div>
         </button>
 
@@ -564,16 +589,16 @@ export default function Orders() {
           onClick={() => setStatusFilter(statusFilter === 'delivered' ? '' : 'delivered')}
           className={`text-left rounded-lg p-4 transition-all ${
             statusFilter === 'delivered'
-              ? 'bg-gray-300 border-2 border-gray-500 ring-2 ring-gray-300'
-              : 'bg-gray-50 border border-gray-200 hover:border-gray-400'
+              ? 'bg-stone-300 border-2 border-stone-500 ring-2 ring-stone-300'
+              : 'bg-stone-50 border border-stone-200 hover:border-stone-400'
           }`}
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-700">Entregados</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.delivered}</p>
+              <p className="text-sm text-stone-700">Entregados</p>
+              <p className="text-2xl font-bold text-stone-900">{stats.delivered}</p>
             </div>
-            <Truck className="w-8 h-8 text-gray-600" />
+            <Truck className="w-8 h-8 text-stone-600" />
           </div>
         </button>
 
@@ -600,10 +625,32 @@ export default function Orders() {
         <div className="mb-4">
           <button
             onClick={() => setStatusFilter('')}
-            className="text-sm text-gray-600 hover:text-gray-800 flex items-center gap-1"
+            className="text-sm text-stone-600 hover:text-stone-800 flex items-center gap-1"
           >
             <XCircle className="w-4 h-4" />
             Limpiar filtro de estado
+          </button>
+        </div>
+      )}
+
+      {/* Active client filter banner */}
+      {clientIdFilter && (
+        <div className="mb-4 bg-brand-50 border border-brand-200 rounded-lg px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm text-brand-800">
+            <User className="w-4 h-4" />
+            <span>
+              Filtrado por cliente:{' '}
+              <strong>
+                {filterClient ? `${filterClient.name} (${filterClient.code})` : clientIdFilter}
+              </strong>
+            </span>
+          </div>
+          <button
+            onClick={clearClientFilter}
+            className="flex items-center gap-1 text-sm text-brand-700 hover:text-brand-900 font-medium"
+          >
+            Quitar filtro
+            <X className="w-4 h-4" />
           </button>
         </div>
       )}
@@ -612,13 +659,13 @@ export default function Orders() {
       <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex-1 min-w-[200px] relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-stone-400" />
             <input
               type="text"
               placeholder="Buscar por código, cliente, estudiante..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              className="w-full pl-10 pr-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
             />
           </div>
 
@@ -627,7 +674,7 @@ export default function Orders() {
             <select
               value={schoolFilter}
               onChange={(e) => setSchoolFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              className="px-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 outline-none"
             >
               <option value="">Todos los colegios</option>
               {availableSchools.map(school => (
@@ -641,7 +688,7 @@ export default function Orders() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as OrderStatus | '')}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            className="px-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 outline-none"
           >
             <option value="">Todos los estados</option>
             <option value="pending">Pendiente</option>
@@ -651,7 +698,7 @@ export default function Orders() {
             <option value="cancelled">Cancelado</option>
           </select>
         </div>
-        <div className="mt-3 pt-3 border-t border-gray-100">
+        <div className="mt-3 pt-3 border-t border-stone-100">
           <DateFilter value={dateRange} onChange={setDateRange} />
         </div>
       </div>
@@ -661,18 +708,18 @@ export default function Orders() {
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           {/* Header with filters */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-            <h2 className="text-lg font-semibold text-gray-800 flex items-center">
+            <h2 className="text-lg font-semibold text-stone-800 flex items-center">
               <TrendingUp className="w-5 h-5 mr-2 text-purple-600" />
               Demanda de Productos (Pendientes + En Producción)
             </h2>
             <div className="flex items-center gap-3 flex-wrap">
               {/* Type filter */}
               <div className="flex items-center gap-2">
-                <Filter className="w-4 h-4 text-gray-400" />
+                <Filter className="w-4 h-4 text-stone-400" />
                 <select
                   value={demandFilters.type_filter || 'all'}
                   onChange={(e) => setDemandFilters(prev => ({ ...prev, type_filter: e.target.value as 'all' | 'yomber' | 'standard' }))}
-                  className="text-sm border border-gray-300 rounded-lg px-2 py-1 focus:ring-purple-500 focus:border-purple-500"
+                  className="text-sm border border-stone-200 rounded-lg px-2 py-1 focus:ring-purple-500 focus:border-purple-500"
                 >
                   <option value="all">Todos</option>
                   <option value="yomber">Yomber</option>
@@ -681,11 +728,11 @@ export default function Orders() {
               </div>
               {/* Sort by */}
               <div className="flex items-center gap-2">
-                <ArrowUpDown className="w-4 h-4 text-gray-400" />
+                <ArrowUpDown className="w-4 h-4 text-stone-400" />
                 <select
                   value={demandFilters.sort_by || 'quantity'}
                   onChange={(e) => setDemandFilters(prev => ({ ...prev, sort_by: e.target.value as 'quantity' | 'delivery_date' | 'order_count' }))}
-                  className="text-sm border border-gray-300 rounded-lg px-2 py-1 focus:ring-purple-500 focus:border-purple-500"
+                  className="text-sm border border-stone-200 rounded-lg px-2 py-1 focus:ring-purple-500 focus:border-purple-500"
                 >
                   <option value="quantity">Por cantidad</option>
                   <option value="delivery_date">Por fecha entrega</option>
@@ -707,17 +754,17 @@ export default function Orders() {
           {/* Summary stats */}
           {demandResponse && !loadingProductStats && (
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
-              <div className="bg-gray-50 rounded-lg p-3 text-center">
-                <p className="text-xs text-gray-500">Total Unidades</p>
-                <p className="text-xl font-bold text-gray-900">{demandResponse.total_quantity}</p>
+              <div className="bg-stone-50 rounded-lg p-3 text-center">
+                <p className="text-xs text-stone-500">Total Unidades</p>
+                <p className="text-xl font-bold text-stone-900">{demandResponse.total_quantity}</p>
               </div>
               <div className="bg-yellow-50 rounded-lg p-3 text-center">
                 <p className="text-xs text-yellow-700">Pendientes</p>
                 <p className="text-xl font-bold text-yellow-900">{demandResponse.pending_quantity}</p>
               </div>
-              <div className="bg-blue-50 rounded-lg p-3 text-center">
-                <p className="text-xs text-blue-700">En Producción</p>
-                <p className="text-xl font-bold text-blue-900">{demandResponse.in_production_quantity}</p>
+              <div className="bg-brand-50 rounded-lg p-3 text-center">
+                <p className="text-xs text-brand-700">En Producción</p>
+                <p className="text-xl font-bold text-brand-700">{demandResponse.in_production_quantity}</p>
               </div>
               <div className="bg-purple-50 rounded-lg p-3 text-center">
                 <p className="text-xs text-purple-700">Yomber</p>
@@ -733,79 +780,79 @@ export default function Orders() {
           {loadingProductStats && (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-6 h-6 animate-spin text-purple-600 mr-2" />
-              <span className="text-gray-600">Analizando encargos...</span>
+              <span className="text-stone-600">Analizando encargos...</span>
             </div>
           )}
 
           {!loadingProductStats && productDemand.length === 0 && (
-            <p className="text-gray-500 text-center py-4">
+            <p className="text-stone-500 text-center py-4">
               No hay encargos pendientes o en producción para analizar.
             </p>
           )}
 
           {!loadingProductStats && productDemand.length > 0 && (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-stone-100">
+                <thead className="bg-stone-50">
                   <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-4 py-2 text-left text-xs font-medium text-stone-500 uppercase">
                       Producto
                     </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-4 py-2 text-left text-xs font-medium text-stone-500 uppercase">
                       Talla
                     </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-4 py-2 text-left text-xs font-medium text-stone-500 uppercase">
                       Color
                     </th>
-                    <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-4 py-2 text-center text-xs font-medium text-stone-500 uppercase">
                       Tipo
                     </th>
                     {availableSchools.length > 1 && (
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-4 py-2 text-left text-xs font-medium text-stone-500 uppercase">
                         Colegio
                       </th>
                     )}
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-4 py-2 text-right text-xs font-medium text-stone-500 uppercase">
                       Total
                     </th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-4 py-2 text-right text-xs font-medium text-stone-500 uppercase">
                       Pendientes
                     </th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-4 py-2 text-right text-xs font-medium text-stone-500 uppercase">
                       En Prod.
                     </th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-4 py-2 text-right text-xs font-medium text-stone-500 uppercase">
                       # Encargos
                     </th>
-                    <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-4 py-2 text-center text-xs font-medium text-stone-500 uppercase">
                       Entrega
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white divide-y divide-stone-100">
                   {productDemand.map((item, index) => (
                     <tr
                       key={`${item.garment_type_id}-${item.size}-${item.color}-${item.is_yomber}-${index}`}
                       className="hover:bg-purple-50 cursor-pointer transition"
                       onClick={() => handleDemandRowClick(item)}
                     >
-                      <td className="px-4 py-2 text-sm font-medium text-gray-900">
+                      <td className="px-4 py-2 text-sm font-medium text-stone-900">
                         <div className="flex items-center gap-1">
-                          {item.is_global_product && (
+                          {item.is_global && (
                             <span title="Producto Global">
-                              <Globe className="w-3.5 h-3.5 text-blue-500" />
+                              <Globe className="w-3.5 h-3.5 text-brand-500" />
                             </span>
                           )}
                           {item.garment_type_name}
                           {item.garment_type_category && (
-                            <span className="text-xs text-gray-400 ml-1">({item.garment_type_category})</span>
+                            <span className="text-xs text-stone-400 ml-1">({item.garment_type_category})</span>
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-600">
+                      <td className="px-4 py-2 text-sm text-stone-600">
                         {item.size || '-'}
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-600">
+                      <td className="px-4 py-2 text-sm text-stone-600">
                         {item.color || '-'}
                       </td>
                       <td className="px-4 py-2 text-center">
@@ -815,49 +862,49 @@ export default function Orders() {
                             Yomber
                           </span>
                         ) : (
-                          <span className="text-xs text-gray-400">Estándar</span>
+                          <span className="text-xs text-stone-400">Estándar</span>
                         )}
                       </td>
                       {availableSchools.length > 1 && (
-                        <td className="px-4 py-2 text-left text-xs text-gray-600">
+                        <td className="px-4 py-2 text-left text-xs text-stone-600">
                           {item.school_names.length === 1 ? (
                             <span className="flex items-center gap-1">
                               <Building2 className="w-3 h-3" />
                               {item.school_names[0]}
                             </span>
                           ) : (
-                            <span className="text-gray-400" title={item.school_names.join(', ')}>
+                            <span className="text-stone-400" title={item.school_names.join(', ')}>
                               {item.school_names.length} colegios
                             </span>
                           )}
                         </td>
                       )}
                       <td className="px-4 py-2 text-right">
-                        <span className="text-sm font-semibold text-gray-900">
+                        <span className="text-sm font-semibold text-stone-900">
                           {item.total_quantity}
                         </span>
                       </td>
                       <td className="px-4 py-2 text-right">
-                        <span className={`text-sm font-medium ${item.pending_quantity > 0 ? 'text-yellow-700' : 'text-gray-500'}`}>
+                        <span className={`text-sm font-medium ${item.pending_quantity > 0 ? 'text-yellow-700' : 'text-stone-500'}`}>
                           {item.pending_quantity}
                         </span>
                       </td>
                       <td className="px-4 py-2 text-right">
-                        <span className={`text-sm font-medium ${item.in_production_quantity > 0 ? 'text-blue-700' : 'text-gray-500'}`}>
+                        <span className={`text-sm font-medium ${item.in_production_quantity > 0 ? 'text-brand-700' : 'text-stone-500'}`}>
                           {item.in_production_quantity}
                         </span>
                       </td>
-                      <td className="px-4 py-2 text-right text-sm text-gray-600">
+                      <td className="px-4 py-2 text-right text-sm text-stone-600">
                         {item.order_count}
                       </td>
-                      <td className="px-4 py-2 text-center text-xs text-gray-500">
+                      <td className="px-4 py-2 text-center text-xs text-stone-500">
                         {item.earliest_delivery_date ? formatDateSpanish(item.earliest_delivery_date) : '-'}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <p className="text-xs text-gray-500 text-center mt-3">
+              <p className="text-xs text-stone-500 text-center mt-3">
                 Haz clic en una fila para ver los encargos que contienen este producto
               </p>
             </div>
@@ -868,8 +915,8 @@ export default function Orders() {
       {/* Loading State */}
       {loading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-          <span className="ml-3 text-gray-600">Cargando encargos...</span>
+          <Loader2 className="w-8 h-8 animate-spin text-brand-600" />
+          <span className="ml-3 text-stone-600">Cargando encargos...</span>
         </div>
       )}
 
@@ -895,63 +942,63 @@ export default function Orders() {
       {/* Orders Table */}
       {!loading && !error && orders.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-stone-100">
+            <thead className="bg-stone-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Código
                 </th>
                 {availableSchools.length > 1 && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                     Colegio
                   </th>
                 )}
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Cliente
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Estado
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Entrega
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Total
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Saldo
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Items
                 </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-center text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Comprobante
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Acciones
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white divide-y divide-stone-100">
               {orders.map((order) => {
                 const statusConfig = getStatusConfig(order.status);
                 const hasBalance = order.balance > 0;
 
                 return (
-                  <tr key={order.id} className="hover:bg-gray-50">
+                  <tr key={order.id} className="hover:bg-stone-50">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-medium text-gray-900">{order.code}</span>
+                      <span className="text-sm font-medium text-stone-900">{order.code}</span>
                       {getSourceBadge(order.source)}
                     </td>
                     {availableSchools.length > 1 && (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-900">
                         <div className="flex items-center gap-2">
-                          <Building2 className="w-4 h-4 text-gray-400" />
+                          <Building2 className="w-4 h-4 text-stone-400" />
                           <span className="truncate max-w-[120px]" title={order.school_name || ''}>
                             {order.school_name || 'Sin colegio'}
                           </span>
                           {order.school_name?.startsWith('+') && (
-                            <span className="px-2 py-0.5 text-xs bg-yellow-100 text-yellow-800 rounded font-medium whitespace-nowrap">
+                            <span className="px-2 py-0.5 text-xs bg-amber-50 text-amber-700 ring-1 ring-amber-200 rounded font-medium whitespace-nowrap">
                               +Colegio Nuevo
                             </span>
                           )}
@@ -959,9 +1006,9 @@ export default function Orders() {
                       </td>
                     )}
                     <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">{order.client_name || 'Sin cliente'}</div>
+                      <div className="text-sm text-stone-900">{order.client_name || 'Sin cliente'}</div>
                       {order.student_name && (
-                        <div className="text-xs text-gray-500">{order.student_name}</div>
+                        <div className="text-xs text-stone-500">{order.student_name}</div>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -976,7 +1023,7 @@ export default function Orders() {
                             <span className="px-2 py-0.5 text-xs bg-orange-100 text-orange-700 rounded-full">
                               Entrega Parcial
                             </span>
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-stone-500">
                               {order.items_delivered}/{order.items_total}
                             </span>
                           </div>
@@ -984,13 +1031,13 @@ export default function Orders() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center text-sm text-gray-600">
-                        <Calendar className="w-4 h-4 mr-1 text-gray-400" />
+                      <div className="flex items-center text-sm text-stone-600">
+                        <Calendar className="w-4 h-4 mr-1 text-stone-400" />
                         {formatDate(order.delivery_date)}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <span className="text-sm font-medium text-gray-900">
+                      <span className="text-sm font-medium text-stone-900">
                         {formatCurrency(order.total)}
                       </span>
                     </td>
@@ -1000,7 +1047,7 @@ export default function Orders() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <span className="text-sm text-gray-600">{order.items_count}</span>
+                      <span className="text-sm text-stone-600">{order.items_count}</span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       {order.payment_proof_url ? (
@@ -1013,13 +1060,13 @@ export default function Orders() {
                           <span className="text-xs">Ver</span>
                         </button>
                       ) : (
-                        <span className="text-xs text-gray-400">Sin comprobante</span>
+                        <span className="text-xs text-stone-400">Sin comprobante</span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <button
                         onClick={() => handleViewOrder(order.id, order.school_id || '')}
-                        className="text-blue-600 hover:text-blue-800 p-2 rounded hover:bg-blue-50 transition"
+                        className="text-brand-600 hover:text-brand-700 p-2 rounded hover:bg-brand-50 transition"
                         title="Ver detalle"
                       >
                         <Eye className="w-5 h-5" />
@@ -1033,11 +1080,11 @@ export default function Orders() {
 
           {/* Load More Button */}
           {hasMore && orders.length > 0 && (
-            <div className="p-4 border-t border-gray-200 text-center">
+            <div className="p-4 border-t border-stone-200 text-center">
               <button
                 onClick={() => { loadOrders(true); }}
                 disabled={loadingMore}
-                className="px-4 py-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg inline-flex items-center transition disabled:opacity-50"
+                className="px-4 py-2 text-brand-600 hover:text-brand-700 hover:bg-brand-50 rounded-lg inline-flex items-center transition disabled:opacity-50"
               >
                 {loadingMore ? (
                   <>
@@ -1058,12 +1105,12 @@ export default function Orders() {
 
       {/* Empty State */}
       {!loading && !error && orders.length === 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-12 text-center">
-          <FileText className="w-16 h-16 text-blue-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-blue-900 mb-2">
+        <div className="bg-brand-50 border border-brand-200 rounded-lg p-12 text-center">
+          <FileText className="w-16 h-16 text-brand-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-brand-700 mb-2">
             {debouncedSearch || statusFilter || schoolFilter || dateRange.start_date || dateRange.end_date ? 'No se encontraron encargos' : 'No hay encargos'}
           </h3>
-          <p className="text-blue-700 mb-4">
+          <p className="text-brand-700 mb-4">
             {debouncedSearch || statusFilter || schoolFilter || dateRange.start_date || dateRange.end_date
               ? 'Intenta ajustar los filtros de busqueda'
               : 'Comienza creando tu primer encargo'
@@ -1073,7 +1120,7 @@ export default function Orders() {
             <RequirePermission permission="orders.create">
               <button
                 onClick={() => setIsModalOpen(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg inline-flex items-center"
+                className="bg-brand-500 hover:bg-brand-600 text-white px-6 py-2 rounded-lg inline-flex items-center"
               >
                 <Plus className="w-5 h-5 mr-2" />
                 Nuevo Encargo
@@ -1100,7 +1147,7 @@ export default function Orders() {
           <div className="flex min-h-screen items-center justify-center p-4">
             <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
               {/* Modal Header */}
-              <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-purple-50">
+              <div className="flex items-center justify-between p-6 border-b border-stone-200 bg-purple-50">
                 <div>
                   <h2 className="text-xl font-bold text-purple-800 flex items-center">
                     <Ruler className="w-6 h-6 mr-2" />
@@ -1124,7 +1171,7 @@ export default function Orders() {
                   </button>
                   <button
                     onClick={() => setShowYombersModal(false)}
-                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                    className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-lg transition"
                   >
                     <X className="w-6 h-6" />
                   </button>
@@ -1132,14 +1179,14 @@ export default function Orders() {
               </div>
 
               {/* Stats Cards */}
-              <div className="p-4 border-b border-gray-200 bg-gray-50">
+              <div className="p-4 border-b border-stone-200 bg-stone-50">
                 <div className="flex flex-wrap gap-3">
                   <button
                     onClick={() => setYomberStatusFilter('all')}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
                       yomberStatusFilter === 'all'
                         ? 'bg-purple-600 text-white'
-                        : 'bg-white border border-gray-300 text-gray-700 hover:border-purple-400'
+                        : 'bg-white border border-stone-200 text-stone-700 hover:border-purple-400'
                     }`}
                   >
                     Todos ({yomberStats.total})
@@ -1149,7 +1196,7 @@ export default function Orders() {
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 ${
                       yomberStatusFilter === 'pending'
                         ? 'bg-yellow-500 text-white'
-                        : 'bg-white border border-gray-300 text-gray-700 hover:border-yellow-400'
+                        : 'bg-white border border-stone-200 text-stone-700 hover:border-yellow-400'
                     }`}
                   >
                     <Clock className="w-4 h-4" />
@@ -1159,8 +1206,8 @@ export default function Orders() {
                     onClick={() => setYomberStatusFilter('in_production')}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 ${
                       yomberStatusFilter === 'in_production'
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-white border border-gray-300 text-gray-700 hover:border-blue-400'
+                        ? 'bg-brand-500 text-white'
+                        : 'bg-white border border-stone-200 text-stone-700 hover:border-brand-400'
                     }`}
                   >
                     <Wrench className="w-4 h-4" />
@@ -1171,7 +1218,7 @@ export default function Orders() {
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 ${
                       yomberStatusFilter === 'ready'
                         ? 'bg-green-500 text-white'
-                        : 'bg-white border border-gray-300 text-gray-700 hover:border-green-400'
+                        : 'bg-white border border-stone-200 text-stone-700 hover:border-green-400'
                     }`}
                   >
                     <CheckCircle className="w-4 h-4" />
@@ -1185,12 +1232,12 @@ export default function Orders() {
                 {loadingYombers ? (
                   <div className="flex items-center justify-center py-12">
                     <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
-                    <span className="ml-3 text-gray-600">Cargando yombers...</span>
+                    <span className="ml-3 text-stone-600">Cargando yombers...</span>
                   </div>
                 ) : filteredYomberItems.length === 0 ? (
                   <div className="text-center py-12">
-                    <Ruler className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-500">
+                    <Ruler className="w-16 h-16 text-stone-300 mx-auto mb-4" />
+                    <p className="text-stone-500">
                       {yomberItems.length === 0
                         ? 'No hay yombers en producción'
                         : 'No hay yombers con este filtro'}
@@ -1201,7 +1248,7 @@ export default function Orders() {
                     {filteredYomberItems.map((yomber) => {
                       const statusConfig: Record<string, { label: string; color: string; bg: string; icon: string }> = {
                         pending: { label: 'Pendiente', color: 'text-yellow-700', bg: 'bg-yellow-100', icon: '🟡' },
-                        in_production: { label: 'En Producción', color: 'text-blue-700', bg: 'bg-blue-100', icon: '🔵' },
+                        in_production: { label: 'En Producción', color: 'text-brand-700', bg: 'bg-brand-100', icon: '🔵' },
                         ready: { label: 'Listo', color: 'text-green-700', bg: 'bg-green-100', icon: '🟢' },
                       };
                       const status = statusConfig[yomber.item_status] || statusConfig.pending;
@@ -1220,16 +1267,16 @@ export default function Orders() {
                                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${status.bg} ${status.color}`}>
                                   {status.icon} {status.label}
                                 </span>
-                                <span className="text-sm text-gray-500">
+                                <span className="text-sm text-stone-500">
                                   x{yomber.quantity}
                                 </span>
                               </div>
-                              <p className="text-sm text-gray-700">
+                              <p className="text-sm text-stone-700">
                                 <span className="font-medium">{yomber.garment_type_name}</span>
                                 {yomber.size && ` - Talla ${yomber.size}`}
                                 {yomber.color && ` - ${yomber.color}`}
                               </p>
-                              <p className="text-sm text-gray-500">
+                              <p className="text-sm text-stone-500">
                                 Cliente: {yomber.client_name}
                                 {yomber.student_name && ` (${yomber.student_name})`}
                               </p>
@@ -1237,7 +1284,7 @@ export default function Orders() {
                             <div className="text-right">
                               {yomber.delivery_date && (
                                 <p className="text-sm">
-                                  <span className="text-gray-500">Entrega:</span>{' '}
+                                  <span className="text-stone-500">Entrega:</span>{' '}
                                   <span className="font-medium text-purple-700">
                                     {formatDateSpanish(yomber.delivery_date)}
                                   </span>
@@ -1274,9 +1321,9 @@ export default function Orders() {
                               {Object.entries(yomber.custom_measurements)
                                 .filter(([key]) => !['delantero', 'trasero', 'cintura', 'largo'].includes(key))
                                 .map(([key, value]) => (
-                                  <div key={key} className="bg-gray-50 rounded px-2 py-1.5 text-center">
-                                    <span className="text-xs text-gray-500 block">{measurementLabels[key] || key}</span>
-                                    <span className="text-sm font-semibold text-gray-700">{value}</span>
+                                  <div key={key} className="bg-stone-50 rounded px-2 py-1.5 text-center">
+                                    <span className="text-xs text-stone-500 block">{measurementLabels[key] || key}</span>
+                                    <span className="text-sm font-semibold text-stone-700">{value}</span>
                                   </div>
                                 ))
                               }
@@ -1285,15 +1332,15 @@ export default function Orders() {
 
                           {/* Notes */}
                           {yomber.notes && (
-                            <div className="mt-2 text-sm text-gray-600 bg-yellow-50 rounded px-3 py-2">
+                            <div className="mt-2 text-sm text-stone-600 bg-yellow-50 rounded px-3 py-2">
                               <span className="font-medium">Notas:</span> {yomber.notes}
                             </div>
                           )}
 
                           {/* Status Change Buttons */}
-                          <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-2">
+                          <div className="mt-3 pt-3 border-t border-stone-100 flex flex-wrap gap-2">
                             {isUpdating ? (
-                              <div className="flex items-center text-sm text-gray-500">
+                              <div className="flex items-center text-sm text-stone-500">
                                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
                                 Actualizando...
                               </div>
@@ -1303,14 +1350,14 @@ export default function Orders() {
                                   <>
                                     <button
                                       onClick={() => handleYomberStatusChange(yomber, 'in_production')}
-                                      className="px-3 py-1.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition flex items-center gap-1"
+                                      className="px-3 py-1.5 text-xs font-medium bg-brand-100 text-brand-700 rounded-lg hover:bg-brand-200 transition flex items-center gap-1"
                                     >
                                       <Wrench className="w-3 h-3" />
                                       Iniciar Producción
                                     </button>
                                     <button
                                       onClick={() => handleYomberStatusChange(yomber, 'ready')}
-                                      className="px-3 py-1.5 text-xs font-medium bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition flex items-center gap-1"
+                                      className="px-3 py-1.5 text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 rounded-lg hover:bg-green-200 transition flex items-center gap-1"
                                     >
                                       <CheckCircle className="w-3 h-3" />
                                       Marcar Listo
@@ -1321,14 +1368,14 @@ export default function Orders() {
                                   <>
                                     <button
                                       onClick={() => handleYomberStatusChange(yomber, 'ready')}
-                                      className="px-3 py-1.5 text-xs font-medium bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition flex items-center gap-1"
+                                      className="px-3 py-1.5 text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 rounded-lg hover:bg-green-200 transition flex items-center gap-1"
                                     >
                                       <CheckCircle className="w-3 h-3" />
                                       Marcar Listo
                                     </button>
                                     <button
                                       onClick={() => handleYomberStatusChange(yomber, 'delivered')}
-                                      className="px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition flex items-center gap-1"
+                                      className="px-3 py-1.5 text-xs font-medium bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 transition flex items-center gap-1"
                                     >
                                       <Truck className="w-3 h-3" />
                                       Entregar
@@ -1338,7 +1385,7 @@ export default function Orders() {
                                 {yomber.item_status === 'ready' && (
                                   <button
                                     onClick={() => handleYomberStatusChange(yomber, 'delivered')}
-                                    className="px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition flex items-center gap-1"
+                                    className="px-3 py-1.5 text-xs font-medium bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 transition flex items-center gap-1"
                                   >
                                     <Truck className="w-3 h-3" />
                                     Marcar Entregado
@@ -1355,8 +1402,8 @@ export default function Orders() {
               </div>
 
               {/* Footer */}
-              <div className="p-4 border-t border-gray-200 bg-gray-50 text-center">
-                <p className="text-sm text-gray-500">
+              <div className="p-4 border-t border-stone-200 bg-stone-50 text-center">
+                <p className="text-sm text-stone-500">
                   Mostrando {filteredYomberItems.length} de {yomberItems.length} yombers
                 </p>
               </div>

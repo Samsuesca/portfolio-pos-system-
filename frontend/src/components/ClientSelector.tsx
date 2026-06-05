@@ -178,21 +178,22 @@ export default function ClientSelector({
       }
 
       const skip = append ? clients.length : 0;
-      const data = await clientService.getClients(schoolId, {
+      const response = await clientService.getClients(schoolId, {
         search: debouncedSearch || undefined,
         skip,
         limit: 50
       });
 
+      const items = response.items ?? [];
       if (append) {
-        setClients(prev => [...prev, ...data]);
-        setFilteredClients(prev => [...prev, ...data]);
+        setClients(prev => [...prev, ...items]);
+        setFilteredClients(prev => [...prev, ...items]);
       } else {
-        setClients(data);
-        setFilteredClients(data);
+        setClients(items);
+        setFilteredClients(items);
       }
 
-      setHasMore(data.length === 50);
+      setHasMore(response.has_more ?? false);
     } catch (err) {
       console.error('Error loading clients:', err);
     } finally {
@@ -341,8 +342,8 @@ export default function ClientSelector({
           <div
             className={`
               w-full border rounded-lg overflow-hidden
-              ${disabled ? 'bg-gray-100' : 'bg-white'}
-              ${error ? 'border-red-300' : 'border-gray-300'}
+              ${disabled ? 'bg-stone-100' : 'bg-white'}
+              ${error ? 'border-red-300' : 'border-stone-200'}
             `}
           >
             {/* Main row - clickable to open search */}
@@ -350,28 +351,28 @@ export default function ClientSelector({
               onClick={() => !disabled && !showEditForm && setIsOpen(true)}
               className={`
                 px-3 py-2 flex items-center justify-between
-                ${disabled || showEditForm ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50'}
+                ${disabled || showEditForm ? 'cursor-default' : 'cursor-pointer hover:bg-stone-50'}
               `}
             >
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 {value === NO_CLIENT_ID ? (
                   <>
-                    <UserX className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                    <span className="text-gray-500">Sin cliente</span>
+                    <UserX className="w-4 h-4 text-stone-400 flex-shrink-0" />
+                    <span className="text-stone-500">Sin cliente</span>
                   </>
                 ) : selectedClient ? (
                   <>
-                    <User className="w-5 h-5 text-blue-500 flex-shrink-0" />
+                    <User className="w-5 h-5 text-brand-500 flex-shrink-0" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-900 truncate">{selectedClient.name}</span>
+                        <span className="font-medium text-stone-900 truncate">{selectedClient.name}</span>
                         {selectedClient.code && (
-                          <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                          <span className="text-xs text-stone-400 bg-stone-100 px-1.5 py-0.5 rounded">
                             #{selectedClient.code}
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
+                      <div className="flex items-center gap-3 text-xs text-stone-500 mt-0.5">
                         {selectedClient.phone && (
                           <span className="flex items-center gap-1">
                             <Phone className="w-3 h-3" />
@@ -397,7 +398,7 @@ export default function ClientSelector({
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); setShowExpandedInfo(!showExpandedInfo); setShowEditForm(false); }}
-                    className="p-1.5 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-600"
+                    className="p-1.5 hover:bg-stone-100 rounded text-stone-400 hover:text-stone-600"
                     title={showExpandedInfo ? 'Ocultar detalles' : 'Ver detalles'}
                   >
                     {showExpandedInfo ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -406,7 +407,7 @@ export default function ClientSelector({
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); handleStartEdit(); setShowExpandedInfo(true); }}
-                    className="p-1.5 hover:bg-blue-50 rounded text-gray-400 hover:text-blue-600"
+                    className="p-1.5 hover:bg-brand-50 rounded text-stone-400 hover:text-brand-600"
                     title="Editar cliente"
                   >
                     <Pencil className="w-4 h-4" />
@@ -415,7 +416,7 @@ export default function ClientSelector({
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); handleClear(); }}
-                    className="p-1.5 hover:bg-red-50 rounded text-gray-400 hover:text-red-500"
+                    className="p-1.5 hover:bg-red-50 rounded text-stone-400 hover:text-red-500"
                     title="Quitar cliente"
                   >
                     <X className="w-4 h-4" />
@@ -428,39 +429,39 @@ export default function ClientSelector({
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); handleClear(); }}
-                  className="p-1 hover:bg-gray-100 rounded"
+                  className="p-1 hover:bg-stone-100 rounded"
                 >
-                  <X className="w-4 h-4 text-gray-400" />
+                  <X className="w-4 h-4 text-stone-400" />
                 </button>
               )}
             </div>
 
             {/* Expanded info section */}
             {showExpandedInfo && selectedClient && !showEditForm && (
-              <div className="px-3 py-2 bg-gray-50 border-t border-gray-200 text-sm">
+              <div className="px-3 py-2 bg-stone-50 border-t border-stone-200 text-sm">
                 <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                   {selectedClient.student_name && (
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <GraduationCap className="w-4 h-4 text-gray-400" />
+                    <div className="flex items-center gap-2 text-stone-600">
+                      <GraduationCap className="w-4 h-4 text-stone-400" />
                       <span>{selectedClient.student_name}</span>
                       {selectedClient.student_grade && (
-                        <span className="text-gray-400">({selectedClient.student_grade})</span>
+                        <span className="text-stone-400">({selectedClient.student_grade})</span>
                       )}
                     </div>
                   )}
                   {selectedClient.address && (
-                    <div className="flex items-center gap-2 text-gray-600 col-span-2">
-                      <MapPin className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <div className="flex items-center gap-2 text-stone-600 col-span-2">
+                      <MapPin className="w-4 h-4 text-stone-400 flex-shrink-0" />
                       <span className="truncate">{selectedClient.address}</span>
                     </div>
                   )}
                   {selectedClient.notes && (
-                    <div className="col-span-2 text-gray-500 italic text-xs mt-1 border-t border-gray-200 pt-2">
+                    <div className="col-span-2 text-stone-500 italic text-xs mt-1 border-t border-stone-200 pt-2">
                       {selectedClient.notes}
                     </div>
                   )}
                   {!selectedClient.student_name && !selectedClient.address && !selectedClient.notes && (
-                    <div className="col-span-2 text-gray-400 text-xs">
+                    <div className="col-span-2 text-stone-400 text-xs">
                       No hay información adicional
                     </div>
                   )}
@@ -470,14 +471,14 @@ export default function ClientSelector({
 
             {/* Edit form */}
             {showEditForm && selectedClient && (
-              <div className="px-3 py-3 bg-blue-50 border-t border-blue-200">
-                <h4 className="font-medium text-sm text-blue-800 mb-3 flex items-center gap-2">
+              <div className="px-3 py-3 bg-brand-50 border-t border-brand-200">
+                <h4 className="font-medium text-sm text-brand-700 mb-3 flex items-center gap-2">
                   <Pencil className="w-4 h-4" />
                   Editar cliente
                 </h4>
 
                 {editError && (
-                  <div className="mb-3 p-2 bg-red-100 text-red-700 text-sm rounded">
+                  <div className="mb-3 p-2 bg-red-50 text-red-700 ring-1 ring-red-200 text-sm rounded">
                     {editError}
                   </div>
                 )}
@@ -485,20 +486,20 @@ export default function ClientSelector({
                 <div className="grid grid-cols-2 gap-2">
                   {/* Name */}
                   <div className="relative col-span-2">
-                    <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
                     <input
                       type="text"
                       value={editClientData.name}
                       onChange={(e) => setEditClientData({...editClientData, name: e.target.value})}
                       placeholder="Nombre *"
-                      className="w-full pl-8 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full pl-8 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500"
                     />
                   </div>
 
                   {/* Phone */}
                   <div>
                     <div className="relative">
-                      <Phone className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Phone className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
                       <input
                         type="tel"
                         inputMode="numeric"
@@ -506,7 +507,7 @@ export default function ClientSelector({
                         value={editClientData.phone}
                         onChange={(e) => setEditClientData({...editClientData, phone: e.target.value.replace(/\D/g, '').slice(0, 10)})}
                         placeholder="3001234567"
-                        className={`w-full pl-8 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                        className={`w-full pl-8 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500 ${
                           editClientData.phone && !isValidColombianPhone(editClientData.phone) ? 'border-red-300' : ''
                         }`}
                       />
@@ -521,25 +522,25 @@ export default function ClientSelector({
 
                   {/* Email */}
                   <div className="relative">
-                    <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
                     <input
                       type="email"
                       value={editClientData.email}
                       onChange={(e) => setEditClientData({...editClientData, email: e.target.value})}
                       placeholder="Email"
-                      className="w-full pl-8 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full pl-8 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500"
                     />
                   </div>
 
                   {/* Student name */}
                   <div className="relative">
-                    <GraduationCap className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <GraduationCap className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
                     <input
                       type="text"
                       value={editClientData.student_name}
                       onChange={(e) => setEditClientData({...editClientData, student_name: e.target.value})}
                       placeholder="Nombre estudiante"
-                      className="w-full pl-8 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full pl-8 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500"
                     />
                   </div>
 
@@ -550,19 +551,19 @@ export default function ClientSelector({
                       value={editClientData.student_grade}
                       onChange={(e) => setEditClientData({...editClientData, student_grade: e.target.value})}
                       placeholder="Grado (ej: 5A)"
-                      className="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500"
                     />
                   </div>
 
                   {/* Address */}
                   <div className="relative col-span-2">
-                    <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
                     <input
                       type="text"
                       value={editClientData.address}
                       onChange={(e) => setEditClientData({...editClientData, address: e.target.value})}
                       placeholder="Dirección"
-                      className="w-full pl-8 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full pl-8 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500"
                     />
                   </div>
 
@@ -573,7 +574,7 @@ export default function ClientSelector({
                       onChange={(e) => setEditClientData({...editClientData, notes: e.target.value})}
                       placeholder="Notas adicionales..."
                       rows={2}
-                      className="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                      className="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500 resize-none"
                     />
                   </div>
                 </div>
@@ -582,7 +583,7 @@ export default function ClientSelector({
                   <button
                     type="button"
                     onClick={() => setShowEditForm(false)}
-                    className="px-3 py-1.5 text-sm text-gray-600 hover:bg-white rounded-lg transition"
+                    className="px-3 py-1.5 text-sm text-stone-600 hover:bg-white rounded-lg transition"
                     disabled={editLoading}
                   >
                     Cancelar
@@ -591,7 +592,7 @@ export default function ClientSelector({
                     type="button"
                     onClick={handleSaveEdit}
                     disabled={editLoading || !editClientData.name.trim()}
-                    className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                    className="px-3 py-1.5 text-sm bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                   >
                     {editLoading ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -607,7 +608,7 @@ export default function ClientSelector({
         ) : (
           // Search input
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
             <input
               ref={inputRef}
               type="text"
@@ -618,13 +619,13 @@ export default function ClientSelector({
               disabled={disabled}
               className={`
                 w-full pl-9 pr-3 py-2 border rounded-lg
-                focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none
-                ${disabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}
-                ${error ? 'border-red-300' : 'border-gray-300'}
+                focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500 outline-none
+                ${disabled ? 'bg-stone-100 cursor-not-allowed' : 'bg-white'}
+                ${error ? 'border-red-300' : 'border-stone-200'}
               `}
             />
             {loading && (
-              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 animate-spin" />
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 animate-spin" />
             )}
           </div>
         )}
@@ -639,7 +640,7 @@ export default function ClientSelector({
       {isOpen && !disabled && createPortal(
         <div
           id="client-selector-dropdown"
-          className="bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden"
+          className="bg-white border border-stone-200 rounded-lg shadow-lg overflow-hidden"
           style={{
             position: 'absolute',
             top: dropdownPosition.top,
@@ -651,12 +652,12 @@ export default function ClientSelector({
           }}
         >
           {/* Quick actions */}
-          <div className="p-2 border-b border-gray-100 flex gap-2">
+          <div className="p-2 border-b border-stone-100 flex gap-2">
             {allowNoClient && (
               <button
                 type="button"
                 onClick={handleSelectNoClient}
-                className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-100 rounded-lg transition"
               >
                 <UserX className="w-4 h-4" />
                 Sin cliente
@@ -665,7 +666,7 @@ export default function ClientSelector({
             <button
               type="button"
               onClick={() => setShowQuickCreate(true)}
-              className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition"
+              className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-brand-600 hover:bg-brand-50 rounded-lg transition"
             >
               <UserPlus className="w-4 h-4" />
               Nuevo cliente
@@ -674,34 +675,34 @@ export default function ClientSelector({
 
           {/* Quick create form */}
           {showQuickCreate ? (
-            <div className="p-3 border-b border-gray-100 bg-blue-50 max-h-[360px] overflow-y-auto">
-              <h4 className="font-medium text-sm text-blue-800 mb-3 flex items-center gap-2">
+            <div className="p-3 border-b border-stone-100 bg-brand-50 max-h-[360px] overflow-y-auto">
+              <h4 className="font-medium text-sm text-brand-700 mb-3 flex items-center gap-2">
                 <UserPlus className="w-4 h-4" />
                 Crear cliente rápido
               </h4>
 
               {quickCreateError && (
-                <div className="mb-3 p-2 bg-red-100 text-red-700 text-sm rounded">
+                <div className="mb-3 p-2 bg-red-50 text-red-700 ring-1 ring-red-200 text-sm rounded">
                   {quickCreateError}
                 </div>
               )}
 
               <div className="space-y-2">
                 <div className="relative">
-                  <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
                   <input
                     type="text"
                     value={quickClientData.name}
                     onChange={(e) => setQuickClientData({...quickClientData, name: e.target.value})}
                     placeholder="Nombre del cliente *"
-                    className="w-full pl-8 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full pl-8 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500"
                     autoFocus
                   />
                 </div>
 
                 <div>
                   <div className="relative">
-                    <Phone className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Phone className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
                     <input
                       type="tel"
                       inputMode="numeric"
@@ -709,7 +710,7 @@ export default function ClientSelector({
                       value={quickClientData.phone}
                       onChange={(e) => setQuickClientData({...quickClientData, phone: e.target.value.replace(/\D/g, '').slice(0, 10)})}
                       placeholder="3001234567 (opcional)"
-                      className={`w-full pl-8 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      className={`w-full pl-8 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500 ${
                         quickClientData.phone && !isValidColombianPhone(quickClientData.phone) ? 'border-red-300' : ''
                       }`}
                     />
@@ -723,31 +724,31 @@ export default function ClientSelector({
                 </div>
 
                 <div className="relative">
-                  <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
                   <input
                     type="email"
                     value={quickClientData.email}
                     onChange={(e) => setQuickClientData({...quickClientData, email: e.target.value})}
                     placeholder={requireEmail ? "Email del cliente *" : "Email (opcional - para portal web)"}
-                    className={`w-full pl-8 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      requireEmail ? 'border-blue-300 bg-blue-50' : ''
+                    className={`w-full pl-8 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500 ${
+                      requireEmail ? 'border-brand-300 bg-brand-50' : ''
                     }`}
                   />
                 </div>
                 {requireEmail && (
-                  <p className="text-xs text-blue-600 -mt-1 ml-1">
+                  <p className="text-xs text-brand-600 -mt-1 ml-1">
                     El cliente recibirá notificaciones del encargo
                   </p>
                 )}
 
                 <div className="relative">
-                  <GraduationCap className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <GraduationCap className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
                   <input
                     type="text"
                     value={quickClientData.student_name}
                     onChange={(e) => setQuickClientData({...quickClientData, student_name: e.target.value})}
                     placeholder="Nombre estudiante (opcional)"
-                    className="w-full pl-8 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full pl-8 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500"
                   />
                 </div>
               </div>
@@ -760,7 +761,7 @@ export default function ClientSelector({
                     setQuickClientData({ name: '', phone: '', email: '', student_name: '' });
                     setQuickCreateError(null);
                   }}
-                  className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                  className="px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-100 rounded-lg transition"
                 >
                   Cancelar
                 </button>
@@ -768,7 +769,7 @@ export default function ClientSelector({
                   type="button"
                   onClick={handleQuickCreate}
                   disabled={quickCreateLoading || !quickClientData.name.trim()}
-                  className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                  className="px-3 py-1.5 text-sm bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                 >
                   {quickCreateLoading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -783,14 +784,14 @@ export default function ClientSelector({
             /* Client list */
             <div className="max-h-56 overflow-y-auto">
               {filteredClients.length === 0 ? (
-                <div className="p-4 text-center text-gray-500 text-sm">
+                <div className="p-4 text-center text-stone-500 text-sm">
                   {searchQuery ? (
                     <>
                       No se encontraron clientes con "{searchQuery}"
                       <button
                         type="button"
                         onClick={() => setShowQuickCreate(true)}
-                        className="block mx-auto mt-2 text-blue-600 hover:underline"
+                        className="block mx-auto mt-2 text-brand-600 hover:underline"
                       >
                         Crear nuevo cliente
                       </button>
@@ -806,16 +807,16 @@ export default function ClientSelector({
                     type="button"
                     onClick={() => handleSelectClient(client)}
                     className={`
-                      w-full px-3 py-2.5 flex items-start gap-3 hover:bg-gray-50 transition text-left
-                      ${client.id === value ? 'bg-blue-50' : ''}
+                      w-full px-3 py-2.5 flex items-start gap-3 hover:bg-stone-50 transition text-left
+                      ${client.id === value ? 'bg-brand-50' : ''}
                     `}
                   >
-                    <User className={`w-5 h-5 mt-0.5 flex-shrink-0 ${client.id === value ? 'text-blue-600' : 'text-gray-400'}`} />
+                    <User className={`w-5 h-5 mt-0.5 flex-shrink-0 ${client.id === value ? 'text-brand-600' : 'text-stone-400'}`} />
                     <div className="min-w-0 flex-1">
-                      <p className={`font-medium truncate ${client.id === value ? 'text-blue-900' : 'text-gray-900'}`}>
+                      <p className={`font-medium truncate ${client.id === value ? 'text-brand-700' : 'text-stone-900'}`}>
                         {client.name}
                       </p>
-                      <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
+                      <div className="flex items-center gap-3 text-xs text-stone-500 mt-0.5">
                         {client.phone && (
                           <span className="flex items-center gap-1">
                             <Phone className="w-3 h-3" />
@@ -831,7 +832,7 @@ export default function ClientSelector({
                       </div>
                     </div>
                     {client.id === value && (
-                      <Check className="w-4 h-4 text-blue-600 flex-shrink-0 mt-1" />
+                      <Check className="w-4 h-4 text-brand-600 flex-shrink-0 mt-1" />
                     )}
                   </button>
                 ))
@@ -843,7 +844,7 @@ export default function ClientSelector({
                   type="button"
                   onClick={() => loadClients(true)}
                   disabled={loadingMore}
-                  className="w-full px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 transition border-t border-gray-100 disabled:opacity-50"
+                  className="w-full px-3 py-2 text-sm text-brand-600 hover:bg-brand-50 transition border-t border-stone-100 disabled:opacity-50"
                 >
                   {loadingMore ? (
                     <span className="flex items-center justify-center gap-2">
@@ -860,7 +861,7 @@ export default function ClientSelector({
 
           {/* Results count */}
           {!showQuickCreate && filteredClients.length > 0 && (
-            <div className="px-3 py-2 border-t border-gray-100 text-xs text-gray-500 text-center">
+            <div className="px-3 py-2 border-t border-stone-100 text-xs text-stone-500 text-center">
               {`${filteredClients.length} cliente${filteredClients.length !== 1 ? 's' : ''} cargado${filteredClients.length !== 1 ? 's' : ''}`}
               {hasMore && ' (hay mas)'}
             </div>

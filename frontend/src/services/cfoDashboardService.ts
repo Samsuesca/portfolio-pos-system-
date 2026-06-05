@@ -92,7 +92,7 @@ export const getHealthStatusColorClass = (color: string): string => {
     orange: 'bg-orange-500',
     red: 'bg-red-500'
   };
-  return colorMap[color] || 'bg-gray-500';
+  return colorMap[color] || 'bg-stone-500';
 };
 
 /**
@@ -105,7 +105,7 @@ export const getHealthStatusTextClass = (color: string): string => {
     orange: 'text-orange-600',
     red: 'text-red-600'
   };
-  return colorMap[color] || 'text-gray-600';
+  return colorMap[color] || 'text-stone-600';
 };
 
 /**

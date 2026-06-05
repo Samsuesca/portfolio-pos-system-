@@ -27,7 +27,6 @@ export interface DashboardStatsConfig {
 export interface DashboardQuickAccessConfig {
   schools: boolean;
   users: boolean;
-  paymentAccounts: boolean;
   deliveryZones: boolean;
   products: boolean;
   accounting: boolean;
@@ -94,7 +93,6 @@ export function useDashboardConfig(): DashboardConfig {
         quickAccess: {
           schools: true,
           users: true,
-          paymentAccounts: true,
           deliveryZones: true,
           products: true,
           accounting: true,
@@ -135,7 +133,6 @@ export function useDashboardConfig(): DashboardConfig {
     const quickAccess: DashboardQuickAccessConfig = {
       schools: false, // Never for non-superusers
       users: false,   // Never for non-superusers
-      paymentAccounts: permissions.canAccessAccounting,
       deliveryZones: permissions.hasPermission('orders.view'),
       products: permissions.hasPermission('products.view'),
       accounting: permissions.canAccessAccounting,

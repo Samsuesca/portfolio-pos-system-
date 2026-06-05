@@ -12,13 +12,11 @@ export interface PaymentLine {
   amount_received?: number;  // Cash change tracking
 }
 
-// Extended type for sale items with global flag AND school info for multi-school support
 export interface SaleItemCreateExtended extends SaleItemCreate {
-  is_global: boolean;
   display_name?: string;
-  size?: string;          // Product size for display
-  school_id: string;      // School this item belongs to
-  school_name: string;    // For display in UI
+  size?: string;
+  school_id: string;
+  school_name: string;
 }
 
 // Result of creating a sale (for multi-school success modal)
@@ -47,5 +45,4 @@ export interface CurrentItem {
   product_id: string;
   quantity: number;
   unit_price: number;
-  is_global: boolean;
 }

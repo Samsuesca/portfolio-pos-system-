@@ -5,6 +5,8 @@
   --font-sans: var(--font-inter);
   --font-display: var(--font-outfit);
   --font-mono: var(--font-jetbrains-mono);
+  /* Editorial serif with opsz axis — used by v3 components for headlines */
+  --font-editorial: var(--font-fraunces);
 
   /* Brand Colors - True Warm Gold (cohesive scale) */
   --color-brand-50:  #FBF6EA;
@@ -13,7 +15,7 @@
   --color-brand-300: #DFC67E;
   --color-brand-400: #D4AF37;
   --color-brand-500: #B8860B;
-  --color-brand-600: #866108;
+  --color-brand-600: #9A7209;
   --color-brand-700: #7C5B07;
   --color-brand-800: #5E4505;
   --color-brand-900: #3D2D03;
@@ -51,12 +53,12 @@
   --color-error:   #DC2626;
   --color-info:    #2563EB;
 
-  /* Shadows - warm-toned */
-  --shadow-xs:  0 1px 2px 0 rgb(28 25 23 / 0.04);
-  --shadow-sm:  0 1px 3px 0 rgb(28 25 23 / 0.06), 0 1px 2px -1px rgb(28 25 23 / 0.06);
-  --shadow-md:  0 4px 6px -1px rgb(28 25 23 / 0.06), 0 2px 4px -2px rgb(28 25 23 / 0.06);
-  --shadow-lg:  0 10px 15px -3px rgb(28 25 23 / 0.06), 0 4px 6px -4px rgb(28 25 23 / 0.06);
-  --shadow-xl:  0 20px 25px -5px rgb(28 25 23 / 0.08), 0 8px 10px -6px rgb(28 25 23 / 0.08);
+  /* Shadows - multi-layer warm-toned */
+  --shadow-xs:  0 1px 2px rgba(28 25 23 / 0.04);
+  --shadow-sm:  0 1px 3px rgba(28 25 23 / 0.06), 0 1px 2px rgba(28 25 23 / 0.04);
+  --shadow-md:  0 4px 12px rgba(28 25 23 / 0.07), 0 1px 3px rgba(28 25 23 / 0.05);
+  --shadow-lg:  0 12px 40px rgba(28 25 23 / 0.08), 0 4px 12px rgba(28 25 23 / 0.04);
+  --shadow-xl:  0 24px 64px rgba(28 25 23 / 0.12), 0 8px 24px rgba(28 25 23 / 0.06);
 
   /* Base Colors */
   --color-background: var(--color-surface-100);
@@ -90,10 +92,44 @@
   --shadow-xl:  0 20px 25px -5px rgb(0 0 0 / 0.5), 0 8px 10px -6px rgb(0 0 0 / 0.4);
 }
 
+/* ─── Semantic Tokens ─────────────────────────────────────── */
+:root {
+  /* Surface */
+  --ucr-surface-base: var(--color-surface-100);
+  --ucr-surface-card: var(--color-surface-50);
+  --ucr-surface-hover: var(--color-surface-200);
+  --ucr-surface-overlay: rgba(28,25,23, 0.6);
+
+  /* Text */
+  --ucr-text-primary: var(--color-primary);
+  --ucr-text-secondary: var(--color-stone-600);
+  --ucr-text-tertiary: var(--color-stone-400);
+  --ucr-text-muted: var(--color-stone-300);
+
+  /* Border */
+  --ucr-border-subtle: rgba(28,25,23, 0.06);
+  --ucr-border-default: rgba(28,25,23, 0.10);
+  --ucr-border-strong: rgba(28,25,23, 0.16);
+  --ucr-border-focus: var(--color-brand-400);
+
+  /* Motion */
+  --ucr-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ucr-ease-in: cubic-bezier(0.55, 0, 1, 0.45);
+  --ucr-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ucr-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ucr-duration-instant: 80ms;
+  --ucr-duration-fast: 150ms;
+  --ucr-duration-base: 200ms;
+  --ucr-duration-moderate: 300ms;
+  --ucr-duration-slow: 400ms;
+}
+
 body {
   background: var(--color-background);
   color: var(--color-foreground);
   font-family: var(--font-sans);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -106,6 +142,14 @@ h5,
 h6 {
   font-family: var(--font-display);
   letter-spacing: -0.02em;
+}
+
+/* Editorial display utility — used by v3 components for headlines / italic emphasis.
+   Fraunces ships an `opsz` (9–144) axis; v3 sets it per-element via inline
+   fontVariationSettings (e.g. '"opsz" 144' for hero, '"opsz" 72' for cards). */
+.font-editorial {
+  font-family: var(--font-editorial), var(--font-display), serif;
+  font-optical-sizing: auto;
 }
 
 /* Print styles for Price List */
@@ -248,13 +292,13 @@ h6 {
 }
 
 .animate-page-enter {
-  animation: page-enter 0.3s ease-out forwards;
+  animation: page-enter var(--ucr-duration-moderate) var(--ucr-ease-out) forwards;
 }
 
 /* Stagger children animation */
 .animate-stagger > * {
   opacity: 0;
-  animation: page-enter 0.3s ease-out forwards;
+  animation: page-enter var(--ucr-duration-moderate) var(--ucr-ease-out) forwards;
 }
 
 .animate-stagger > *:nth-child(1) { animation-delay: 0ms; }
@@ -281,11 +325,44 @@ h6 {
 }
 
 .animate-scale-in {
-  animation: scale-in 0.2s ease-out forwards;
+  animation: scale-in var(--ucr-duration-base) var(--ucr-ease-out) forwards;
+}
+
+/* Utility classes */
+.card {
+  background-color: var(--ucr-surface-card);
+  border: 1px solid var(--ucr-border-subtle);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+}
+
+.card-hover {
+  transition: box-shadow var(--ucr-duration-fast) var(--ucr-ease-out),
+              transform var(--ucr-duration-fast) var(--ucr-ease-out),
+              border-color var(--ucr-duration-fast) var(--ucr-ease-out);
+}
+.card-hover:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--ucr-border-default);
+  transform: translateY(-1px);
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--ucr-border-focus);
+  outline-offset: 2px;
 }
 
 /* Tabular numbers for prices */
 .font-tabular {
   font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum";
+  font-feature-settings: "tnum", "cv02";
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

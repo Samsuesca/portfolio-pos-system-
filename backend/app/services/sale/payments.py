@@ -108,14 +108,16 @@ class SalePaymentMixin:
 
         if payment_data.apply_accounting and payment_data.amount > Decimal("0"):
             if payment_data.payment_method == PaymentMethod.CREDIT:
+                from app.services.accounting.receivables import default_ar_due_date
+                ar_invoice_date = sale.sale_date.date() if hasattr(sale.sale_date, 'date') else sale.sale_date
                 receivable = AccountsReceivable(
                     school_id=sale.school_id,
                     client_id=sale.client_id,
                     sale_id=sale.id,
                     amount=payment_data.amount,
                     description=f"Pago agregado a venta {sale.code} (credito)",
-                    invoice_date=sale.sale_date.date() if hasattr(sale.sale_date, 'date') else sale.sale_date,
-                    due_date=None,
+                    invoice_date=ar_invoice_date,
+                    due_date=default_ar_due_date(ar_invoice_date),
                     created_by=user_id
                 )
                 self.db.add(receivable)

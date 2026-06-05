@@ -28,8 +28,6 @@ import {
   Boxes,
   Sparkles,
   Factory,
-  Image as ImageIcon,
-  FileText,
   Home,
   Truck,
 } from 'lucide-react';
@@ -131,11 +129,6 @@ export default function WebOrdersPage() {
   // Status update
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
-  // Payment proof modal
-  const [showPaymentProofModal, setShowPaymentProofModal] = useState(false);
-  const [paymentProofUrl, setPaymentProofUrl] = useState<string | null>(null);
-  const [processingPaymentProof, setProcessingPaymentProof] = useState(false);
-
   // Get accessible schools
   const getAccessibleSchools = () => {
     if (user?.is_superuser) {
@@ -187,8 +180,8 @@ export default function WebOrdersPage() {
       const ordersPromises = accessible.map((school) =>
         ordersService
           .list({ school_id: school.id })
-          .then((orders) =>
-            orders.map((o) => ({ ...o, school_name: school.name }))
+          .then((res) =>
+            res.items.map((o) => ({ ...o, school_name: school.name }))
           )
           .catch(() => [] as OrderListItem[])
       );
@@ -367,60 +360,6 @@ export default function WebOrdersPage() {
       ? cleanPhone
       : `57${cleanPhone}`;
     window.open(`https://wa.me/${formattedPhone}`, '_blank');
-  };
-
-  const handleApprovePayment = async () => {
-    if (!selectedOrderSchoolId || !selectedOrder) return;
-
-    try {
-      setProcessingPaymentProof(true);
-      await ordersService.approvePayment(
-        selectedOrderSchoolId,
-        selectedOrder.id
-      );
-
-      const updatedOrder = await ordersService.getWithItems(
-        selectedOrderSchoolId,
-        selectedOrder.id
-      );
-      setSelectedOrder(updatedOrder);
-      setShowPaymentProofModal(false);
-      await loadOrders();
-    } catch (err) {
-      console.error('Error approving payment:', err);
-      setError('Error al aprobar el pago');
-    } finally {
-      setProcessingPaymentProof(false);
-    }
-  };
-
-  const handleRejectPayment = async () => {
-    if (!selectedOrderSchoolId || !selectedOrder) return;
-
-    const reason = prompt('Motivo del rechazo:');
-    if (!reason) return;
-
-    try {
-      setProcessingPaymentProof(true);
-      await ordersService.rejectPayment(
-        selectedOrderSchoolId,
-        selectedOrder.id,
-        reason
-      );
-
-      const updatedOrder = await ordersService.getWithItems(
-        selectedOrderSchoolId,
-        selectedOrder.id
-      );
-      setSelectedOrder(updatedOrder);
-      setShowPaymentProofModal(false);
-      await loadOrders();
-    } catch (err) {
-      console.error('Error rejecting payment:', err);
-      setError('Error al rechazar el pago');
-    } finally {
-      setProcessingPaymentProof(false);
-    }
   };
 
   const accessibleSchools = getAccessibleSchools();
@@ -693,7 +632,6 @@ export default function WebOrdersPage() {
                     <th className="px-4 py-3 text-center">Items</th>
                     <th className="px-4 py-3 text-right">Total</th>
                     <th className="px-4 py-3 text-right">Saldo</th>
-                    <th className="px-4 py-3 text-center">Comprobante</th>
                     <th className="px-4 py-3 text-center">Estado</th>
                     <th className="px-4 py-3 text-center">Fecha</th>
                     <th className="px-4 py-3 text-center">Acciones</th>
@@ -753,34 +691,6 @@ export default function WebOrdersPage() {
                           >
                             {balance > 0 ? formatCurrency(balance) : 'Pagado'}
                           </span>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          {order.payment_proof_url ? (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setPaymentProofUrl(order.payment_proof_url!);
-                                setSelectedOrderSchoolId(order.school_id!);
-                                handleViewDetail(order.id, order.school_id!);
-                                setTimeout(
-                                  () => setShowPaymentProofModal(true),
-                                  300
-                                );
-                              }}
-                              className="inline-flex items-center text-blue-600 hover:text-blue-700"
-                              title="Ver comprobante de pago"
-                            >
-                              {order.payment_proof_url.endsWith('.pdf') ? (
-                                <FileText className="w-5 h-5" />
-                              ) : (
-                                <ImageIcon className="w-5 h-5" />
-                              )}
-                            </button>
-                          ) : (
-                            <span className="text-xs text-slate-400">
-                              Sin comprobante
-                            </span>
-                          )}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span
@@ -1399,120 +1309,6 @@ export default function WebOrdersPage() {
         </div>
       )}
 
-      {/* Payment Proof Modal */}
-      {showPaymentProofModal && paymentProofUrl && selectedOrder && (
-        <div className="fixed inset-0 z-[70] overflow-y-auto">
-          <div
-            className="fixed inset-0 bg-black/75"
-            onClick={() => setShowPaymentProofModal(false)}
-          />
-          <div className="flex min-h-screen items-center justify-center p-4">
-            <div className="relative bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between p-6 border-b border-slate-200 sticky top-0 bg-white z-10">
-                <h2 className="text-xl font-semibold text-slate-800 flex items-center">
-                  <ImageIcon className="w-6 h-6 mr-2 text-blue-600" />
-                  Comprobante de Pago - {selectedOrder.code}
-                </h2>
-                <button
-                  onClick={() => setShowPaymentProofModal(false)}
-                  className="text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-
-              <div className="p-6">
-                {/* Image/PDF Viewer */}
-                <div className="mb-6 bg-slate-100 rounded-lg p-4 flex items-center justify-center min-h-[400px]">
-                  {paymentProofUrl.endsWith('.pdf') ? (
-                    <div className="text-center">
-                      <FileText className="w-16 h-16 mx-auto text-slate-400 mb-4" />
-                      <p className="text-slate-600 mb-4">Archivo PDF</p>
-                      <a
-                        href={`https://api.yourdomain.com${paymentProofUrl}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition inline-block"
-                      >
-                        Abrir PDF
-                      </a>
-                    </div>
-                  ) : (
-                    <img
-                      src={`https://api.yourdomain.com${paymentProofUrl}`}
-                      alt="Comprobante de pago"
-                      className="max-w-full max-h-[600px] object-contain rounded"
-                    />
-                  )}
-                </div>
-
-                {/* Order Info */}
-                <div className="bg-slate-50 rounded-lg p-4 mb-6">
-                  <div className="grid grid-cols-3 gap-4 text-center">
-                    <div>
-                      <p className="text-sm text-slate-600">Total</p>
-                      <p className="font-bold text-lg">
-                        {formatCurrency(Number(selectedOrder.total))}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-slate-600">Pagado</p>
-                      <p className="font-bold text-lg text-green-600">
-                        {formatCurrency(Number(selectedOrder.paid_amount))}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-slate-600">Saldo</p>
-                      <p
-                        className={`font-bold text-lg ${Number(selectedOrder.balance) > 0 ? 'text-red-600' : 'text-green-600'}`}
-                      >
-                        {Number(selectedOrder.balance) > 0
-                          ? formatCurrency(Number(selectedOrder.balance))
-                          : 'Pagado'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowPaymentProofModal(false)}
-                    disabled={processingPaymentProof}
-                    className="flex-1 px-4 py-2 border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition disabled:opacity-50"
-                  >
-                    Cerrar
-                  </button>
-                  <button
-                    onClick={handleRejectPayment}
-                    disabled={processingPaymentProof}
-                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:opacity-50 flex items-center justify-center"
-                  >
-                    {processingPaymentProof ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <X className="w-4 h-4 mr-2" />
-                    )}
-                    Rechazar
-                  </button>
-                  <button
-                    onClick={handleApprovePayment}
-                    disabled={processingPaymentProof}
-                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 flex items-center justify-center"
-                  >
-                    {processingPaymentProof ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <CheckCircle className="w-4 h-4 mr-2" />
-                    )}
-                    Aprobar Pago
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

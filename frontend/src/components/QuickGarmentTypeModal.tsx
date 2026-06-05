@@ -3,7 +3,7 @@
  * Used inside ProductModal to quickly create a new garment type
  */
 import { useState } from 'react';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, Factory, ShoppingBag } from 'lucide-react';
 import { productService } from '../services/productService';
 import { extractErrorMessage } from '../utils/api-client';
 import type { GarmentType } from '../types/api';
@@ -27,6 +27,7 @@ export default function QuickGarmentTypeModal({
     name: '',
     category: '',
     description: '',
+    cost_type: 'manufactured' as 'manufactured' | 'purchased',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -58,10 +59,12 @@ export default function QuickGarmentTypeModal({
         data.description = formData.description.trim();
       }
 
+      data.cost_type = formData.cost_type;
+
       const newType = await productService.createGarmentType(schoolId, data);
 
       // Reset form
-      setFormData({ name: '', category: '', description: '' });
+      setFormData({ name: '', category: '', description: '', cost_type: 'manufactured' });
 
       onSuccess(newType);
       onClose();
@@ -74,7 +77,7 @@ export default function QuickGarmentTypeModal({
   };
 
   const handleClose = () => {
-    setFormData({ name: '', category: '', description: '' });
+    setFormData({ name: '', category: '', description: '', cost_type: 'manufactured' });
     setError(null);
     onClose();
   };
@@ -93,13 +96,13 @@ export default function QuickGarmentTypeModal({
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="relative bg-white rounded-lg shadow-xl max-w-sm w-full">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-800">
+          <div className="flex items-center justify-between p-4 border-b border-stone-200">
+            <h3 className="text-lg font-semibold text-stone-800">
               Nuevo Tipo de Prenda
             </h3>
             <button
               onClick={handleClose}
-              className="text-gray-400 hover:text-gray-600 transition"
+              className="text-stone-400 hover:text-stone-600 transition"
             >
               <X className="w-5 h-5" />
             </button>
@@ -116,7 +119,7 @@ export default function QuickGarmentTypeModal({
 
             {/* Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-stone-700 mb-1">
                 Nombre *
               </label>
               <input
@@ -125,19 +128,19 @@ export default function QuickGarmentTypeModal({
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="Ej: Camisa, Pantalon, Falda"
                 autoFocus
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
               />
             </div>
 
             {/* Category */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-stone-700 mb-1">
                 Categoria
               </label>
               <select
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
               >
                 <option value="">Sin categoria</option>
                 <option value="uniforme_diario">Uniforme Diario</option>
@@ -148,7 +151,7 @@ export default function QuickGarmentTypeModal({
 
             {/* Description (optional) */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-stone-700 mb-1">
                 Descripcion (opcional)
               </label>
               <input
@@ -156,8 +159,41 @@ export default function QuickGarmentTypeModal({
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Breve descripcion"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
               />
+            </div>
+
+            {/* Cost Type */}
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-2">
+                Origen
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, cost_type: 'manufactured' })}
+                  className={`flex items-center gap-2 p-2 rounded-lg border-2 text-left transition ${
+                    formData.cost_type === 'manufactured'
+                      ? 'border-brand-500 bg-brand-50'
+                      : 'border-stone-200 bg-white hover:border-stone-300'
+                  }`}
+                >
+                  <Factory className={`w-4 h-4 ${formData.cost_type === 'manufactured' ? 'text-brand-600' : 'text-stone-400'}`} />
+                  <span className="text-xs font-medium text-stone-900">Se fabrica</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, cost_type: 'purchased' })}
+                  className={`flex items-center gap-2 p-2 rounded-lg border-2 text-left transition ${
+                    formData.cost_type === 'purchased'
+                      ? 'border-emerald-500 bg-emerald-50'
+                      : 'border-stone-200 bg-white hover:border-stone-300'
+                  }`}
+                >
+                  <ShoppingBag className={`w-4 h-4 ${formData.cost_type === 'purchased' ? 'text-emerald-600' : 'text-stone-400'}`} />
+                  <span className="text-xs font-medium text-stone-900">Se compra</span>
+                </button>
+              </div>
             </div>
 
             {/* Actions */}
@@ -166,14 +202,14 @@ export default function QuickGarmentTypeModal({
                 type="button"
                 onClick={handleClose}
                 disabled={loading}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+                className="flex-1 px-4 py-2 border border-stone-200 text-stone-700 rounded-lg hover:bg-stone-50 transition disabled:opacity-50"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 flex items-center justify-center"
+                className="flex-1 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition disabled:opacity-50 flex items-center justify-center"
               >
                 {loading ? (
                   <>

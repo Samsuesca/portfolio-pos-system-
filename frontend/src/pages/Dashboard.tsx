@@ -88,6 +88,7 @@ export default function Dashboard() {
       orders_overdue: orderAlerts.overdue,
       orders_today: orderAlerts.today,
       orders_tomorrow: orderAlerts.tomorrow,
+      orders_no_date: orderAlerts.noDateCount,
       critical_stock_count: stockAlerts.criticalCount,
       out_of_stock_products: stockAlerts.outOfStock,
       out_of_stock_count: stockAlerts.outOfStockCount,
@@ -121,27 +122,29 @@ export default function Dashboard() {
       setError(null);
 
       // Phase 1: Critical data (stats, orders for alerts, products for stock)
-      const [globalStats, ordersData, productsData] = await Promise.all([
+      const [globalStats, ordersResponse, productsResponse] = await Promise.all([
         dashboardService.getGlobalStats(),
-        orderService.getAllOrders({ limit: 100 }).catch(() => []),
-        productService.getAllProducts({ with_stock: true, limit: 500 }).catch(() => []),
+        orderService.getAllOrders({ limit: 100 }).catch(() => ({ items: [], total: 0, skip: 0, limit: 100, page: 1, total_pages: 0, has_more: false })),
+        productService.getAllProducts({ with_stock: true, limit: 500 }).catch(() => ({ items: [], total: 0, skip: 0, limit: 500, page: 1, total_pages: 0, has_more: false })),
       ]);
 
       setStats(globalStats);
-      setAllOrders(ordersData);
-      setAllProducts(productsData);
+      setAllOrders(ordersResponse.items ?? []);
+      setAllProducts(productsResponse.items ?? []);
 
       // Phase 2: Secondary data (sales, contacts)
-      const [salesData, contactsData] = await Promise.all([
-        saleService.getAllSales({ limit: 5 }).catch(() => []),
+      const [salesResponse, contactsData] = await Promise.all([
+        saleService.getAllSales({ limit: 5 }).catch(() => ({ items: [], total: 0, skip: 0, limit: 5, page: 1, total_pages: 0, has_more: false })),
         contactService
-          .getContacts({ page: 1, page_size: 5, unread_only: false })
+          .getContacts({ skip: 0, limit: 5, unread_only: false })
           .catch(() => ({ items: [], total: 0, page: 1, page_size: 5, total_pages: 0 })),
       ]);
 
-      setRecentSales(salesData);
-      setRecentContacts(contactsData.items);
-      setUnreadContactsCount(contactsData.items.filter((c) => !c.is_read).length);
+      const salesItems = salesResponse?.items ?? [];
+      const contactItems = contactsData?.items ?? [];
+      setRecentSales(salesItems);
+      setRecentContacts(contactItems);
+      setUnreadContactsCount(contactItems.filter((c) => !c.is_read).length);
 
       // Phase 3: Permission-specific data (loaded only if user has micropermiso)
       if (dashboardConfig.permissions.canViewAlterations) {
@@ -254,17 +257,34 @@ export default function Dashboard() {
           </>
         ) : (
           <>
-            {dashboardConfig.stats.sales && (
-              <StatCard
-                title="Ventas Totales"
-                value={stats ? stats.totals.total_sales.toLocaleString() : '-'}
-                subtitle={stats ? `${formatCurrency(stats.totals.sales_amount_month)} este mes` : undefined}
-                icon={ShoppingCart}
-                color="text-green-600"
-                bgColor="bg-green-100"
-                onClick={() => navigate('/sales')}
-              />
-            )}
+            {dashboardConfig.stats.sales && (() => {
+              // Users with cost/financial visibility see the all-time
+              // revenue as the primary value; everyone else sees the count.
+              const canSeeRevenue =
+                dashboardConfig.permissions.canViewCosts ||
+                dashboardConfig.permissions.canViewFinancialReport;
+              const value = stats
+                ? canSeeRevenue && stats.totals.sales_amount_total !== undefined
+                  ? formatCurrency(stats.totals.sales_amount_total)
+                  : stats.totals.total_sales.toLocaleString()
+                : '-';
+              const subtitle = stats
+                ? canSeeRevenue
+                  ? `${stats.totals.total_sales.toLocaleString()} ventas · ${formatCurrency(stats.totals.sales_amount_month)} este mes`
+                  : `${formatCurrency(stats.totals.sales_amount_month)} este mes`
+                : undefined;
+              return (
+                <StatCard
+                  title="Ventas Totales"
+                  value={value}
+                  subtitle={subtitle}
+                  icon={ShoppingCart}
+                  color="text-green-600"
+                  bgColor="bg-green-100"
+                  onClick={() => navigate('/sales')}
+                />
+              );
+            })()}
             {dashboardConfig.stats.orders && (
               <StatCard
                 title="Encargos Pendientes"
@@ -284,8 +304,8 @@ export default function Dashboard() {
                   stats && stats.school_count > 1 ? `en ${stats.school_count} colegios` : undefined
                 }
                 icon={Users}
-                color="text-blue-600"
-                bgColor="bg-blue-100"
+                color="text-brand-600"
+                bgColor="bg-brand-100"
                 onClick={() => navigate('/clients')}
               />
             )}
@@ -362,36 +382,36 @@ export default function Dashboard() {
       {/* Stats by School (only if multiple schools and user can see both sales and orders) */}
       {!loading && stats && stats.school_count > 1 && dashboardConfig.widgets.schoolSummary && (
         <div className="bg-white rounded-xl shadow-sm border border-surface-200 p-6 mb-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+          <h3 className="text-lg font-semibold text-stone-800 mb-4 flex items-center">
             <Building2 className="w-5 h-5 mr-2 text-brand-600" />
             Resumen por Colegio
           </h3>
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-stone-100">
+              <thead className="bg-stone-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                     Colegio
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">
                     Ventas (mes)
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">
                     Monto Ventas
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">
                     Encargos Pend.
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white divide-y divide-stone-100">
                 {stats.schools_summary.map((school: SchoolSummaryItem) => (
-                  <tr key={school.school_id} className="hover:bg-gray-50">
+                  <tr key={school.school_id} className="hover:bg-stone-50">
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="font-medium text-gray-900">{school.school_name}</div>
-                      <div className="text-xs text-gray-500">{school.school_code}</div>
+                      <div className="font-medium text-stone-900">{school.school_name}</div>
+                      <div className="text-xs text-stone-500">{school.school_code}</div>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-right text-sm text-gray-900">
+                    <td className="px-4 py-3 whitespace-nowrap text-right text-sm text-stone-900">
                       {school.sales_count.toLocaleString()}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium text-green-600">
@@ -400,7 +420,7 @@ export default function Dashboard() {
                     <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
                       <span
                         className={
-                          school.pending_orders > 0 ? 'text-orange-600 font-medium' : 'text-gray-900'
+                          school.pending_orders > 0 ? 'text-orange-600 font-medium' : 'text-stone-900'
                         }
                       >
                         {school.pending_orders}
@@ -442,23 +462,23 @@ export default function Dashboard() {
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-800">{sale.code}</span>
+                        <span className="font-medium text-stone-800">{sale.code}</span>
                         {sale.school_name && availableSchools.length > 1 && (
                           <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
                             {sale.school_name}
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-gray-500 truncate">
+                      <p className="text-sm text-stone-500 truncate">
                         {sale.client_name || 'Venta directa'}
                       </p>
                     </div>
                     <div className="text-right flex-shrink-0 ml-4">
-                      <p className="font-semibold text-gray-800 flex items-center justify-end">
+                      <p className="font-semibold text-stone-800 flex items-center justify-end">
                         <DollarSign className="w-4 h-4 text-green-500" />
                         {Number(sale.total).toLocaleString()}
                       </p>
-                      <p className="text-xs text-gray-400">{getTimeAgo(sale.sale_date)}</p>
+                      <p className="text-xs text-stone-400">{getTimeAgo(sale.sale_date)}</p>
                     </div>
                   </div>
                 ))}
@@ -504,11 +524,11 @@ export default function Dashboard() {
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-800 truncate">
+                          <span className="font-medium text-stone-800 truncate">
                             {product.name || product.code}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-stone-500">
                           {product.code} - Talla {product.size}
                         </p>
                       </div>
@@ -516,7 +536,7 @@ export default function Dashboard() {
                         <span
                           className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
                             isOutOfStock
-                              ? 'bg-red-100 text-red-800'
+                              ? 'bg-red-50 text-red-700 ring-1 ring-red-200'
                               : 'bg-orange-100 text-orange-800'
                           }`}
                         >
@@ -569,11 +589,11 @@ export default function Dashboard() {
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-800 truncate">
+                          <span className="font-medium text-stone-800 truncate">
                             {product.name || product.code}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-stone-500">
                           {product.code} - Talla {product.size}
                         </p>
                       </div>
@@ -581,7 +601,7 @@ export default function Dashboard() {
                         <span
                           className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
                             isOutOfStock
-                              ? 'bg-red-100 text-red-800'
+                              ? 'bg-red-50 text-red-700 ring-1 ring-red-200'
                               : 'bg-orange-100 text-orange-800'
                           }`}
                         >
@@ -601,7 +621,7 @@ export default function Dashboard() {
           <DashboardWidget
             title="Mensajes PQRS"
             icon={MessageSquare}
-            iconColor="text-blue-600"
+            iconColor="text-brand-600"
             headerAction={{
               label: 'Ver todos',
               onClick: () => navigate('/contacts'),
@@ -623,26 +643,26 @@ export default function Dashboard() {
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-800 truncate">{contact.name}</span>
+                          <span className="font-medium text-stone-800 truncate">{contact.name}</span>
                           {!contact.is_read && (
-                            <span className="flex-shrink-0 w-2 h-2 bg-blue-600 rounded-full"></span>
+                            <span className="flex-shrink-0 w-2 h-2 bg-brand-500 rounded-full"></span>
                           )}
                         </div>
-                        <p className="text-sm text-gray-500 truncate">{contact.subject}</p>
+                        <p className="text-sm text-stone-500 truncate">{contact.subject}</p>
                       </div>
                       <div className="flex-shrink-0 ml-4">
                         {contact.is_read ? (
-                          <span className="text-xs text-gray-400">Leido</span>
+                          <span className="text-xs text-stone-400">Leido</span>
                         ) : (
-                          <Mail className="w-4 h-4 text-blue-600" />
+                          <Mail className="w-4 h-4 text-brand-600" />
                         )}
                       </div>
                     </div>
                   ))}
                 </div>
                 {unreadContactsCount > 0 && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <div className="flex items-center justify-center gap-2 text-sm text-blue-600">
+                  <div className="mt-4 pt-4 border-t border-stone-200">
+                    <div className="flex items-center justify-center gap-2 text-sm text-brand-600">
                       <Mail className="w-4 h-4" />
                       <span className="font-medium">
                         {unreadContactsCount} mensaje{unreadContactsCount !== 1 ? 's' : ''} sin leer

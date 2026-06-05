@@ -1,4 +1,5 @@
 import apiClient, { School, PaginatedResponse } from '../api';
+import { unwrapPaginated } from '../utils/pagination';
 
 export interface SchoolSettings {
   currency: string;
@@ -34,9 +35,9 @@ export interface UpdateSchoolData {
 
 const schoolService = {
   // List all schools
-  list: async (params?: { skip?: number; limit?: number; include_inactive?: boolean }) => {
-    const response = await apiClient.get<School[]>('/schools', { params });
-    return response.data;
+  list: async (params?: { skip?: number; limit?: number; include_inactive?: boolean }): Promise<School[]> => {
+    const response = await apiClient.get<School[] | PaginatedResponse<School>>('/schools', { params });
+    return unwrapPaginated(response.data).items;
   },
 
   // Get school by ID

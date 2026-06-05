@@ -2,7 +2,8 @@
  * Sale Change Service - API calls for sale changes/returns
  */
 import apiClient from '../utils/api-client';
-import type { SaleChange, SaleChangeCreate, SaleChangeListItem, SaleChangeDetailResponse } from '../types/api';
+import type { SaleChange, SaleChangeCreate, SaleChangeListItem, SaleChangeDetailResponse, PaginatedResponse } from '../types/api';
+import { unwrapPaginated } from '../utils/pagination';
 
 export interface SaleChangeFilters {
   status?: 'pending' | 'pending_stock' | 'approved' | 'rejected';
@@ -15,7 +16,7 @@ export const saleChangeService = {
    * Get all changes from all schools (global endpoint)
    * Much more efficient than loading changes per sale
    */
-  async getAllChanges(filters?: SaleChangeFilters): Promise<SaleChangeListItem[]> {
+  async getAllChanges(filters?: SaleChangeFilters): Promise<PaginatedResponse<SaleChangeListItem>> {
     const params = new URLSearchParams();
     if (filters?.status) params.append('status', filters.status);
     if (filters?.change_type) params.append('change_type', filters.change_type);
@@ -23,8 +24,8 @@ export const saleChangeService = {
 
     const queryString = params.toString();
     const url = queryString ? `/sale-changes?${queryString}` : '/sale-changes';
-    const response = await apiClient.get<SaleChangeListItem[]>(url);
-    return response.data;
+    const response = await apiClient.get<PaginatedResponse<SaleChangeListItem> | SaleChangeListItem[]>(url);
+    return unwrapPaginated(response.data);
   },
 
   /**
@@ -46,10 +47,12 @@ export const saleChangeService = {
    * Get all changes for a specific sale
    */
   async getSaleChanges(schoolId: string, saleId: string): Promise<SaleChangeListItem[]> {
-    const response = await apiClient.get<SaleChangeListItem[]>(
+    const response = await apiClient.get<PaginatedResponse<SaleChangeListItem> | SaleChangeListItem[]>(
       `/schools/${schoolId}/sales/${saleId}/changes`
     );
-    return response.data;
+    const data = response.data;
+    if (Array.isArray(data)) return data;
+    return data.items;
   },
 
   /**

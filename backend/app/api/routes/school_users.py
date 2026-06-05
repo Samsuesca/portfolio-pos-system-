@@ -24,14 +24,19 @@ from app.api.dependencies import (
     CurrentUser,
     DatabaseSession,
 )
+from app.api.error_responses import responses, AUTHENTICATED
+from app.schemas.base import PaginatedResponse
 from app.models.user import User, UserSchoolRole, UserRole
 from app.models.permission import CustomRole
 from app.services.user import UserService
+from app.services.audit import audit_service
+from app.services.permission_invalidation import PermissionInvalidator
+
 from app.schemas.base import BaseSchema
 from pydantic import EmailStr, Field
 
 
-router = APIRouter(prefix="/schools/{school_id}/users", tags=["school-users"])
+router = APIRouter(prefix="/schools/{school_id}/users", tags=["School Users"])
 
 
 # ============================================
@@ -53,10 +58,8 @@ class SchoolUserResponse(BaseSchema):
     joined_at: str  # ISO format datetime
 
 
-class SchoolUserListResponse(BaseSchema):
-    """List of users in a school"""
-    users: list[SchoolUserResponse]
-    total: int
+class SchoolUserListResponse(PaginatedResponse[SchoolUserResponse]):
+    pass
 
 
 class InviteUserRequest(BaseSchema):
@@ -76,11 +79,17 @@ class InviteUserResponse(BaseSchema):
     message: str
 
 
+class PermissionOverridesRequest(BaseSchema):
+    grant: list[str] = []
+    revoke: list[str] = []
+
+
 class UpdateUserRoleRequest(BaseSchema):
     """Request to update a user's role"""
     role: UserRole | None = None
     custom_role_id: UUID | None = None
     is_primary: bool | None = None
+    permission_overrides: PermissionOverridesRequest | None = None
 
 
 class RemoveUserResponse(BaseSchema):
@@ -113,7 +122,9 @@ class AvailableUsersListResponse(BaseSchema):
     "",
     response_model=SchoolUserListResponse,
     summary="List users in school",
-    description="Get all users with access to this school. Requires users.view permission."
+    description="Get all users with access to this school. Requires users.view permission.",
+    responses=AUTHENTICATED,
+    operation_id="listSchoolUsers",
 )
 async def list_school_users(
     school_id: UUID,
@@ -121,7 +132,7 @@ async def list_school_users(
     current_user: CurrentUser,
     _: None = Depends(require_permission("users.view")),
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(100, ge=1, le=100),
     search: str | None = Query(None, description="Search by username, email, or full name"),
     role_filter: UserRole | None = Query(None, description="Filter by role"),
 ):
@@ -198,14 +209,16 @@ async def list_school_users(
             joined_at=sr.created_at.isoformat(),
         ))
 
-    return SchoolUserListResponse(users=users, total=total)
+    return SchoolUserListResponse(items=users, total=total, skip=skip, limit=limit)
 
 
 @router.get(
     "/available",
     response_model=AvailableUsersListResponse,
     summary="List users available to add to school",
-    description="Search for users not already in this school. OWNER or superuser required."
+    description="Search for users not already in this school. OWNER or superuser required.",
+    responses=AUTHENTICATED,
+    operation_id="listAvailableUsers",
 )
 async def list_available_users(
     school_id: UUID,
@@ -274,7 +287,9 @@ async def list_available_users(
     response_model=InviteUserResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Invite user to school",
-    description="Add an existing user to this school with a role. OWNER or superuser required."
+    description="Add an existing user to this school with a role. OWNER or superuser required.",
+    responses=responses(400, 409),
+    operation_id="inviteUserToSchool",
 )
 async def invite_user_to_school(
     school_id: UUID,
@@ -341,7 +356,28 @@ async def invite_user_to_school(
             is_primary=request.is_primary,
         )
         db.add(school_role)
+
+        await audit_service.log(
+            db=db,
+            actor_id=current_user.id,
+            action="role_change",
+            resource_type="user_school_role",
+            resource_id=str(target_user.id),
+            school_id=school_id,
+            description=f"User '{target_user.username}' added to school",
+            data_after={
+                "role": (
+                    (request.role.value if hasattr(request.role, "value") else request.role)
+                    if request.role else None
+                ),
+                "custom_role_id": str(request.custom_role_id) if request.custom_role_id else None,
+            },
+        )
+        invalidator = PermissionInvalidator(db)
+        await invalidator.bump_user(target_user.id, school_id)
+
         await db.commit()
+        invalidator.flush_cache_after_commit()
 
         return InviteUserResponse(
             user_id=target_user.id,
@@ -362,7 +398,9 @@ async def invite_user_to_school(
     "/{user_id}/role",
     response_model=SchoolUserResponse,
     summary="Update user role",
-    description="Change a user's role in this school. OWNER or superuser required."
+    description="Change a user's role in this school. OWNER or superuser required.",
+    responses=responses(404),
+    operation_id="updateSchoolUserRole",
 )
 async def update_user_role(
     school_id: UUID,
@@ -434,6 +472,13 @@ async def update_user_role(
                 detail="Invalid custom role for this school"
             )
 
+    old_role = (
+        (school_role.role.value if hasattr(school_role.role, "value") else school_role.role)
+        if school_role.role else None
+    )
+    old_custom_role_id = str(school_role.custom_role_id) if school_role.custom_role_id else None
+    old_overrides = dict(school_role.permission_overrides or {"grant": [], "revoke": []})
+
     # Update the role
     if request.role is not None:
         school_role.role = request.role
@@ -446,7 +491,72 @@ async def update_user_role(
     if request.is_primary is not None:
         school_role.is_primary = request.is_primary
 
+    overrides_diff = None
+    if request.permission_overrides is not None:
+        # Validar codes contra el catalogo de Permission antes de aplicar.
+        # Defends against typos that would silently grant/revoke nothing.
+        from app.models.permission import Permission
+        all_codes = list(set(
+            request.permission_overrides.grant
+            + request.permission_overrides.revoke
+        ))
+        if all_codes:
+            valid_result = await db.execute(
+                select(Permission.code).where(Permission.code.in_(all_codes))
+            )
+            valid_codes = {row[0] for row in valid_result.all()}
+            unknown = [c for c in all_codes if c not in valid_codes]
+            if unknown:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Codigos de permiso desconocidos: {unknown}"
+                )
+
+        new_grant = list(request.permission_overrides.grant)
+        new_revoke = list(request.permission_overrides.revoke)
+        school_role.permission_overrides = {
+            "grant": new_grant,
+            "revoke": new_revoke,
+        }
+
+        old_grant = list(old_overrides.get("grant") or [])
+        old_revoke = list(old_overrides.get("revoke") or [])
+        overrides_diff = {
+            "added_grants": sorted(set(new_grant) - set(old_grant)),
+            "removed_grants": sorted(set(old_grant) - set(new_grant)),
+            "added_revokes": sorted(set(new_revoke) - set(old_revoke)),
+            "removed_revokes": sorted(set(old_revoke) - set(new_revoke)),
+        }
+
+    # ``school_role.role`` is mapped to ``UserRole`` but SQLAlchemy can hand it
+    # back as a raw string in some refresh paths — accept both shapes so the
+    # audit log doesn't blow up with AttributeError after a role change.
+    audit_data_after: dict = {
+        "role": (
+            (school_role.role.value if hasattr(school_role.role, "value") else school_role.role)
+            if school_role.role else None
+        ),
+        "custom_role_id": str(school_role.custom_role_id) if school_role.custom_role_id else None,
+    }
+    if overrides_diff is not None:
+        audit_data_after["overrides_diff"] = overrides_diff
+
+    await audit_service.log(
+        db=db,
+        actor_id=current_user.id,
+        action="role_change",
+        resource_type="user_school_role",
+        resource_id=str(user_id),
+        school_id=school_id,
+        description=f"Role updated for user {user_id}",
+        data_before={"role": old_role, "custom_role_id": old_custom_role_id},
+        data_after=audit_data_after,
+    )
+    invalidator = PermissionInvalidator(db)
+    await invalidator.bump_user(user_id, school_id)
+
     await db.commit()
+    invalidator.flush_cache_after_commit()
     await db.refresh(school_role)
 
     # Load custom role for response
@@ -473,7 +583,9 @@ async def update_user_role(
     "/{user_id}",
     response_model=RemoveUserResponse,
     summary="Remove user from school",
-    description="Remove a user's access to this school. OWNER or superuser required."
+    description="Remove a user's access to this school. OWNER or superuser required.",
+    responses=responses(404),
+    operation_id="removeUserFromSchool",
 )
 async def remove_user_from_school(
     school_id: UUID,
@@ -522,9 +634,28 @@ async def remove_user_from_school(
 
     username = school_role.user.username if school_role.user else "Unknown"
 
-    # Remove the role
+    await audit_service.log(
+        db=db,
+        actor_id=current_user.id,
+        action="role_change",
+        resource_type="user_school_role",
+        resource_id=str(user_id),
+        school_id=school_id,
+        description=f"User '{username}' removed from school",
+        data_before={
+            "role": (
+                (school_role.role.value if hasattr(school_role.role, "value") else school_role.role)
+                if school_role.role else None
+            ),
+            "custom_role_id": str(school_role.custom_role_id) if school_role.custom_role_id else None,
+        },
+    )
+
+    invalidator = PermissionInvalidator(db)
+    await invalidator.bump_user(user_id, school_id)
     await db.delete(school_role)
     await db.commit()
+    invalidator.flush_cache_after_commit()
 
     return RemoveUserResponse(
         user_id=user_id,
@@ -536,7 +667,9 @@ async def remove_user_from_school(
     "/{user_id}",
     response_model=SchoolUserResponse,
     summary="Get user details",
-    description="Get details of a specific user in this school."
+    description="Get details of a specific user in this school.",
+    responses=responses(404),
+    operation_id="getSchoolUser",
 )
 async def get_school_user(
     school_id: UUID,

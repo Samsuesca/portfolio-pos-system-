@@ -21,6 +21,7 @@ from datetime import date, timedelta
 
 from tests.fixtures.assertions import (
     assert_success_response,
+    assert_list_response,
     assert_created_response,
     assert_no_content_response,
     assert_not_found,
@@ -72,7 +73,6 @@ async def school_expense(db_session, test_school, test_superuser):
         amount=Decimal("80000"),
         expense_date=date.today(),
         due_date=date.today() + timedelta(days=15),
-        vendor="Papelería XYZ",
         is_paid=False,
         is_active=True,
         created_by=test_superuser.id
@@ -120,14 +120,14 @@ async def school_receivable(db_session, test_school, test_superuser):
 
 
 @pytest.fixture
-async def school_payable(db_session, test_school, test_superuser):
+async def school_payable(db_session, test_school, test_superuser, test_vendor):
     """Create an accounts payable for testing."""
     from app.models.accounting import AccountsPayable
 
     payable = AccountsPayable(
         id=str(uuid4()),
         school_id=test_school.id,
-        vendor="Distribuidor ABC",
+        vendor_id=test_vendor.id,
         amount=Decimal("250000"),
         description="Compra de uniformes",
         invoice_number="INV-123",
@@ -299,7 +299,7 @@ class TestTransactions:
             headers=superuser_headers
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
 
         assert isinstance(data, list)
 
@@ -321,7 +321,7 @@ class TestTransactions:
             }
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
 
         assert isinstance(data, list)
 
@@ -340,7 +340,7 @@ class TestTransactions:
             params={"transaction_type": "income"}
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
 
         assert isinstance(data, list)
         for transaction in data:
@@ -434,7 +434,7 @@ class TestSchoolExpenses:
             headers=superuser_headers
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
 
         assert isinstance(data, list)
 
@@ -454,7 +454,7 @@ class TestSchoolExpenses:
             params={"category": "supplies"}
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
 
         assert isinstance(data, list)
         for expense in data:
@@ -475,7 +475,7 @@ class TestSchoolExpenses:
             headers=superuser_headers
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
 
         assert isinstance(data, list)
         for expense in data:
@@ -499,7 +499,7 @@ class TestSchoolExpenses:
             }
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
 
         assert isinstance(data, list)
 
@@ -745,7 +745,7 @@ class TestSchoolAccountsReceivable:
             headers=superuser_headers
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
 
         assert isinstance(data, list)
 
@@ -839,7 +839,7 @@ class TestSchoolAccountsPayable:
             headers=superuser_headers
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
 
         assert isinstance(data, list)
 
@@ -1030,6 +1030,7 @@ class TestMultiTenantIsolation:
 
         # Should either return empty list or 403 depending on implementation
         if response.status_code == 200:
-            data = response.json()
+            body = response.json()
+            data = body["items"] if isinstance(body, dict) and "items" in body else body
             assert isinstance(data, list)
             # If accessible, should be empty (no data for this school)

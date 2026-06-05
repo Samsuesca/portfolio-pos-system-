@@ -27,6 +27,7 @@ import {
 import { openWhatsApp } from '../utils/whatsapp';
 import ClientDetailModal from '../components/ClientDetailModal';
 import ReceiptModal from '../components/ReceiptModal';
+import { ElectronicInvoiceButton } from '../components/ElectronicInvoiceButton';
 import { clientService } from '../services/clientService';
 import type { Client } from '../types/api';
 import { formatCurrency } from '../utils/formatting';
@@ -71,6 +72,14 @@ export default function AlterationDetail() {
 
       const data = await alterationService.getById(alterationId);
       setAlteration(data);
+
+      // Preload client info to show phone + WhatsApp action without an extra click
+      try {
+        const client = await clientService.getClient(data.client_id);
+        setClientDetail(client);
+      } catch (clientErr) {
+        console.error('Error preloading client info:', clientErr);
+      }
     } catch (err: any) {
       console.error('Error loading alteration detail:', err);
       setError(err.response?.data?.detail || 'Error al cargar los detalles del arreglo');
@@ -118,13 +127,16 @@ export default function AlterationDetail() {
     return formatDateTimeSpanish(dateString);
   };
 
-  // Handle opening client detail modal (only for registered clients)
   const handleOpenClientDetail = async () => {
-    if (!alteration || !alteration.client_id) return;
+    if (!alteration) return;
+
+    if (clientDetail) {
+      setIsClientDetailModalOpen(true);
+      return;
+    }
 
     setLoadingClient(true);
     try {
-      // Clients are global - only need client_id
       const client = await clientService.getClient(alteration.client_id);
       setClientDetail(client);
       setIsClientDetailModalOpen(true);
@@ -164,7 +176,7 @@ export default function AlterationDetail() {
         <div className="space-y-4">
           <button
             onClick={() => navigate('/alterations')}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+            className="flex items-center gap-2 text-stone-600 hover:text-stone-900"
           >
             <ArrowLeft className="w-5 h-5" />
             Volver a Arreglos
@@ -188,16 +200,16 @@ export default function AlterationDetail() {
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate('/alterations')}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div>
-              <h1 className="text-2xl font-semibold text-gray-900 flex items-center gap-2">
+              <h1 className="text-2xl font-semibold text-stone-900 flex items-center gap-2">
                 <Scissors className="w-7 h-7 text-brand-600" />
                 {alteration.code}
               </h1>
-              <p className="text-gray-500 mt-1">
+              <p className="text-stone-500 mt-1">
                 {ALTERATION_TYPE_LABELS[alteration.alteration_type]} - {alteration.garment_name}
               </p>
             </div>
@@ -206,11 +218,18 @@ export default function AlterationDetail() {
             {/* PDF Download Button */}
             <button
               onClick={() => setIsReceiptModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors"
             >
               <Printer className="w-4 h-4" />
               Descargar PDF
             </button>
+            {/* Electronic invoice (Facturacion Electronica DIAN) */}
+            <ElectronicInvoiceButton
+              documentType="alteration"
+              documentId={alteration.id}
+              disabled={alteration.status === 'cancelled'}
+              disabledReason="No se puede facturar un arreglo cancelado"
+            />
             {/* Thermal Printer Button */}
             {thermalPrinterService.isPrinterConfigured() && (
               <button
@@ -229,7 +248,7 @@ export default function AlterationDetail() {
             )}
             <button
               onClick={() => setIsEditModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 border border-stone-200 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors"
             >
               <Edit className="w-4 h-4" />
               Editar
@@ -251,15 +270,15 @@ export default function AlterationDetail() {
           {/* Left Column - Main Info */}
           <div className="lg:col-span-2 space-y-6">
             {/* Status Card */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Estado</h2>
+            <div className="bg-white rounded-lg shadow-sm border border-stone-100 p-6">
+              <h2 className="text-lg font-medium text-stone-900 mb-4">Estado</h2>
               <div className="flex items-center gap-4 flex-wrap">
                 <span className={`px-3 py-1.5 text-sm rounded-full font-medium ${ALTERATION_STATUS_COLORS[alteration.status]}`}>
                   {ALTERATION_STATUS_LABELS[alteration.status]}
                 </span>
                 {nextStatuses.length > 0 && (
                   <div className="flex items-center gap-2">
-                    <span className="text-gray-400">Cambiar a:</span>
+                    <span className="text-stone-400">Cambiar a:</span>
                     {nextStatuses.map(status => (
                       <button
                         key={status}
@@ -284,54 +303,54 @@ export default function AlterationDetail() {
             </div>
 
             {/* Description Card */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Descripción del Trabajo</h2>
-              <p className="text-gray-700 whitespace-pre-wrap">{alteration.description}</p>
+            <div className="bg-white rounded-lg shadow-sm border border-stone-100 p-6">
+              <h2 className="text-lg font-medium text-stone-900 mb-4">Descripción del Trabajo</h2>
+              <p className="text-stone-700 whitespace-pre-wrap">{alteration.description}</p>
               {alteration.notes && (
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <p className="text-sm text-gray-500 mb-2">Notas adicionales:</p>
-                  <p className="text-gray-700">{alteration.notes}</p>
+                <div className="mt-4 pt-4 border-t border-stone-100">
+                  <p className="text-sm text-stone-500 mb-2">Notas adicionales:</p>
+                  <p className="text-stone-700">{alteration.notes}</p>
                 </div>
               )}
             </div>
 
             {/* Payments History */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+            <div className="bg-white rounded-lg shadow-sm border border-stone-100 p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-medium text-gray-900">Historial de Pagos</h2>
-                <span className="text-sm text-gray-500">
+                <h2 className="text-lg font-medium text-stone-900">Historial de Pagos</h2>
+                <span className="text-sm text-stone-500">
                   {alteration.payments?.length || 0} pago(s)
                 </span>
               </div>
               {!alteration.payments || alteration.payments.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">No hay pagos registrados</p>
+                <p className="text-stone-500 text-center py-4">No hay pagos registrados</p>
               ) : (
                 <div className="space-y-3">
                   {alteration.payments.map((payment: AlterationPayment) => (
                     <div
                       key={payment.id}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                      className="flex items-center justify-between p-3 bg-stone-50 rounded-lg"
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
                           <DollarSign className="w-5 h-5 text-green-600" />
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900">
+                          <p className="font-medium text-stone-900">
                             {formatCurrency(payment.amount)}
                           </p>
-                          <p className="text-sm text-gray-500">
+                          <p className="text-sm text-stone-500">
                             {PAYMENT_METHOD_LABELS[payment.payment_method] || payment.payment_method}
                             {payment.notes && ` - ${payment.notes}`}
                           </p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-stone-600">
                           {formatDateTime(payment.created_at)}
                         </p>
                         {payment.created_by_username && (
-                          <p className="text-xs text-gray-400">
+                          <p className="text-xs text-stone-400">
                             por {payment.created_by_username}
                           </p>
                         )}
@@ -346,29 +365,25 @@ export default function AlterationDetail() {
           {/* Right Column - Sidebar */}
           <div className="space-y-6">
             {/* Client Info */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Cliente</h2>
+            <div className="bg-white rounded-lg shadow-sm border border-stone-100 p-6">
+              <h2 className="text-lg font-medium text-stone-900 mb-4">Cliente</h2>
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <User className="w-5 h-5 text-gray-400" />
-                  {alteration.client_id ? (
-                    <button
-                      onClick={handleOpenClientDetail}
-                      disabled={loadingClient}
-                      className="text-blue-600 hover:text-blue-800 hover:underline disabled:opacity-50"
-                    >
-                      {loadingClient ? 'Cargando...' : alteration.client_display_name}
-                    </button>
-                  ) : (
-                    <span className="text-gray-900">{alteration.client_display_name}</span>
-                  )}
+                  <User className="w-5 h-5 text-stone-400" />
+                  <button
+                    onClick={handleOpenClientDetail}
+                    disabled={loadingClient}
+                    className="text-brand-600 hover:text-brand-700 hover:underline disabled:opacity-50"
+                  >
+                    {loadingClient ? 'Cargando...' : alteration.client_display_name}
+                  </button>
                 </div>
-                {alteration.external_client_phone && (
+                {clientDetail?.phone && (
                   <div className="flex items-center gap-3">
-                    <Phone className="w-5 h-5 text-gray-400" />
-                    <span className="text-gray-700">{alteration.external_client_phone}</span>
+                    <Phone className="w-5 h-5 text-stone-400" />
+                    <span className="text-stone-700">{clientDetail.phone}</span>
                     <button
-                      onClick={() => openWhatsApp(alteration.external_client_phone!, `Hola ${alteration.client_display_name}, me comunico de Uniformes Consuelo respecto a su arreglo ${alteration.code}.`)}
+                      onClick={() => openWhatsApp(clientDetail.phone!, `Hola ${alteration.client_display_name}, me comunico de Uniformes Consuelo respecto a su arreglo ${alteration.code}.`)}
                       className="p-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition"
                       title="Abrir WhatsApp"
                     >
@@ -376,34 +391,29 @@ export default function AlterationDetail() {
                     </button>
                   </div>
                 )}
-                {alteration.client_id && (
-                  <p className="text-xs text-gray-400">Cliente registrado</p>
-                )}
-                {!alteration.client_id && (
-                  <p className="text-xs text-gray-400">Cliente externo</p>
-                )}
+                <p className="text-xs text-stone-400">Cliente registrado</p>
               </div>
             </div>
 
             {/* Financial Summary */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Resumen Financiero</h2>
+            <div className="bg-white rounded-lg shadow-sm border border-stone-100 p-6">
+              <h2 className="text-lg font-medium text-stone-900 mb-4">Resumen Financiero</h2>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Costo Total</span>
-                  <span className="font-semibold text-gray-900">
+                  <span className="text-stone-600">Costo Total</span>
+                  <span className="font-semibold text-stone-900">
                     {formatCurrency(alteration.cost)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Pagado</span>
+                  <span className="text-stone-600">Pagado</span>
                   <span className="font-semibold text-green-600">
                     {formatCurrency(alteration.amount_paid)}
                   </span>
                 </div>
-                <div className="border-t border-gray-100 pt-3">
+                <div className="border-t border-stone-100 pt-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Saldo</span>
+                    <span className="text-stone-600">Saldo</span>
                     {alteration.balance > 0 ? (
                       <span className="font-semibold text-red-600">
                         {formatCurrency(alteration.balance)}
@@ -420,22 +430,22 @@ export default function AlterationDetail() {
             </div>
 
             {/* Dates */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Fechas</h2>
+            <div className="bg-white rounded-lg shadow-sm border border-stone-100 p-6">
+              <h2 className="text-lg font-medium text-stone-900 mb-4">Fechas</h2>
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
-                  <Calendar className="w-5 h-5 text-gray-400 mt-0.5" />
+                  <Calendar className="w-5 h-5 text-stone-400 mt-0.5" />
                   <div>
-                    <p className="text-sm text-gray-500">Recibido</p>
-                    <p className="text-gray-900">{formatDate(alteration.received_date)}</p>
+                    <p className="text-sm text-stone-500">Recibido</p>
+                    <p className="text-stone-900">{formatDate(alteration.received_date)}</p>
                   </div>
                 </div>
                 {alteration.estimated_delivery_date && (
                   <div className="flex items-start gap-3">
-                    <Clock className="w-5 h-5 text-gray-400 mt-0.5" />
+                    <Clock className="w-5 h-5 text-stone-400 mt-0.5" />
                     <div>
-                      <p className="text-sm text-gray-500">Entrega Estimada</p>
-                      <p className="text-gray-900">{formatDate(alteration.estimated_delivery_date)}</p>
+                      <p className="text-sm text-stone-500">Entrega Estimada</p>
+                      <p className="text-stone-900">{formatDate(alteration.estimated_delivery_date)}</p>
                     </div>
                   </div>
                 )}
@@ -443,8 +453,8 @@ export default function AlterationDetail() {
                   <div className="flex items-start gap-3">
                     <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
                     <div>
-                      <p className="text-sm text-gray-500">Entregado</p>
-                      <p className="text-gray-900">{formatDate(alteration.delivered_date)}</p>
+                      <p className="text-sm text-stone-500">Entregado</p>
+                      <p className="text-stone-900">{formatDate(alteration.delivered_date)}</p>
                     </div>
                   </div>
                 )}
@@ -452,11 +462,11 @@ export default function AlterationDetail() {
             </div>
 
             {/* Metadata */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-xs text-gray-400">
+            <div className="bg-stone-50 rounded-lg p-4">
+              <p className="text-xs text-stone-400">
                 Creado: {formatDateTime(alteration.created_at)}
               </p>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-stone-400">
                 Actualizado: {formatDateTime(alteration.updated_at)}
               </p>
             </div>

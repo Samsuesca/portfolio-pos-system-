@@ -16,7 +16,8 @@ from typing import Optional
 from datetime import datetime
 
 from app.utils.timezone import get_colombia_now_naive
-from app.api.dependencies import DatabaseSession, CurrentUser, UserSchoolIds
+from app.api.dependencies import DatabaseSession, CurrentUser, CurrentPortalClient, UserSchoolIds
+from app.api.error_responses import responses, AUTHENTICATED
 from app.core.limiter import limiter
 from app.models.contact import Contact, ContactType, ContactStatus
 from app.schemas.contact import (
@@ -37,7 +38,8 @@ router = APIRouter(prefix="/contacts", tags=["Contacts"])
     "/submit",
     response_model=ContactResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Submit contact message (PUBLIC)"
+    summary="Submit contact message (PUBLIC)",
+    operation_id="submitContact",
 )
 @limiter.limit("10/minute")
 async def submit_contact(
@@ -99,7 +101,9 @@ async def submit_contact(
             name=contact.name,
             subject=contact.subject,
         )
-        fire_and_forget_routed_alert("pqrs_received", msg)
+        fire_and_forget_routed_alert(
+            "pqrs_received", msg, school_id=contact.school_id
+        )
     except Exception:
         pass
 
@@ -109,27 +113,22 @@ async def submit_contact(
 @router.get(
     "/by-email",
     response_model=list[ContactResponse],
-    summary="Get contacts by email (PUBLIC)"
+    summary="Get my PQRS messages",
+    operation_id="getContactsByEmail",
 )
+@limiter.limit("10/minute")
 async def get_contacts_by_email(
+    request: Request,
     db: DatabaseSession,
-    email: str = Query(..., description="Email address to search for")
+    current_client: CurrentPortalClient,
 ):
     """
-    Public endpoint para que los usuarios consulten sus propios mensajes de contacto.
-    NO requiere autenticación - cualquiera con el email puede ver sus PQRS.
+    Get PQRS messages for the authenticated portal client.
 
-    Args:
-        email: Email address to search for
-        db: Database session
+    **Auth:** Bearer JWT (portal client)
+    **Rate limit:** 10/minute per IP
 
-    Returns:
-        list[ContactResponse]: List of contact messages for this email
-
-    Example:
-        ```
-        GET /api/v1/contacts/by-email?email=juan@example.com
-        ```
+    Returns all contact messages associated with the client's email.
     """
     query = (
         select(Contact)
@@ -137,7 +136,7 @@ async def get_contacts_by_email(
             selectinload(Contact.client),
             selectinload(Contact.school)
         )
-        .where(Contact.email == email)
+        .where(Contact.email == current_client.email)
         .order_by(Contact.created_at.desc())
     )
 
@@ -154,14 +153,16 @@ async def get_contacts_by_email(
 @router.get(
     "",
     response_model=ContactListResponse,
-    summary="List all contacts (ADMIN)"
+    summary="List all contacts (ADMIN)",
+    responses=AUTHENTICATED,
+    operation_id="listContacts",
 )
 async def list_contacts(
     db: DatabaseSession,
     current_user: CurrentUser,
     user_school_ids: UserSchoolIds,
-    page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+    skip: int = Query(0, ge=0, description="Items a saltar"),
+    limit: int = Query(20, ge=1, le=100, description="Items por pagina"),
     school_id: Optional[UUID] = Query(None, description="Filter by school"),
     status_filter: Optional[ContactStatus] = Query(None, description="Filter by status"),
     contact_type_filter: Optional[ContactType] = Query(None, description="Filter by contact type"),
@@ -194,9 +195,8 @@ async def list_contacts(
         return ContactListResponse(
             items=[],
             total=0,
-            page=page,
-            page_size=page_size,
-            total_pages=0
+            skip=skip,
+            limit=limit,
         )
 
     # Construir query base
@@ -250,7 +250,7 @@ async def list_contacts(
 
     # Paginación
     query = query.order_by(Contact.created_at.desc())
-    query = query.offset((page - 1) * page_size).limit(page_size)
+    query = query.offset(skip).limit(limit)
 
     result = await db.execute(query)
     contacts = result.unique().scalars().all()
@@ -258,16 +258,17 @@ async def list_contacts(
     return ContactListResponse(
         items=[ContactResponse.model_validate(c) for c in contacts],
         total=total,
-        page=page,
-        page_size=page_size,
-        total_pages=(total + page_size - 1) // page_size
+        skip=skip,
+        limit=limit,
     )
 
 
 @router.get(
     "/{contact_id}",
     response_model=ContactResponse,
-    summary="Get contact by ID (ADMIN)"
+    summary="Get contact by ID (ADMIN)",
+    responses=responses(404),
+    operation_id="getContact",
 )
 async def get_contact(
     contact_id: UUID,
@@ -291,6 +292,8 @@ async def get_contact(
 
     Raises:
         HTTPException: 404 if contact not found or no access
+
+    **Tenant isolation:** Service layer filters by authenticated user's accessible schools.
     """
     query = (
         select(Contact)
@@ -330,7 +333,9 @@ async def get_contact(
 @router.put(
     "/{contact_id}",
     response_model=ContactResponse,
-    summary="Update contact (ADMIN)"
+    summary="Update contact (ADMIN)",
+    responses=responses(404),
+    operation_id="updateContact",
 )
 async def update_contact(
     contact_id: UUID,
@@ -356,6 +361,8 @@ async def update_contact(
 
     Raises:
         HTTPException: 404 if contact not found or no access
+
+    **Tenant isolation:** Service layer filters by authenticated user's accessible schools.
     """
     query = select(Contact).where(Contact.id == contact_id)
 
@@ -397,7 +404,9 @@ async def update_contact(
 
 @router.get(
     "/stats/summary",
-    summary="Get contact statistics (ADMIN)"
+    summary="Get contact statistics (ADMIN)",
+    responses=AUTHENTICATED,
+    operation_id="getContactStats",
 )
 async def get_contact_stats(
     db: DatabaseSession,

@@ -46,7 +46,7 @@ class Sale(Base):
     """
     __tablename__ = "sales"
     __table_args__ = (
-        UniqueConstraint('school_id', 'code', name='uq_school_sale_code'),
+        UniqueConstraint('code', name='uq_sale_code_global'),
         CheckConstraint('total > 0', name='chk_sale_total_positive'),
         CheckConstraint('paid_amount >= 0', name='chk_sale_paid_positive'),
     )
@@ -63,7 +63,7 @@ class Sale(Base):
         index=True
     )
 
-    code: Mapped[str] = mapped_column(String(30), nullable=False)  # Auto-generated: VNT-2024-0001
+    code: Mapped[str] = mapped_column(String(40), nullable=False)  # Auto-generated: {SCHOOL}-VNT-YYYY-NNNN
     client_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("clients.id", ondelete="SET NULL")
@@ -147,35 +147,34 @@ class SaleItem(Base):
         nullable=False,
         index=True
     )
-    # For school products
-    product_id: Mapped[uuid.UUID | None] = mapped_column(
+    product_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("products.id", ondelete="RESTRICT"),
-        nullable=True,
+        nullable=False,
         index=True
     )
-    # For global products (shared inventory)
-    global_product_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("global_products.id", ondelete="RESTRICT"),
-        nullable=True,
-        index=True
-    )
-    is_global_product: Mapped[bool] = mapped_column(default=False, nullable=False)
 
     quantity: Mapped[int] = mapped_column(nullable=False)
     unit_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)  # Price at time of sale
+    unit_cost: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))  # Cost snapshot at time of sale
     subtotal: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     discount: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0, nullable=False)
 
     # Relationships
     sale: Mapped["Sale"] = relationship(back_populates="items")
-    product: Mapped["Product | None"] = relationship(back_populates="sale_items")
-    global_product: Mapped["GlobalProduct | None"] = relationship()
+    product: Mapped["Product"] = relationship(back_populates="sale_items")
     changes_as_original: Mapped[list["SaleChange"]] = relationship(
         back_populates="original_item",
         foreign_keys="SaleChange.original_item_id"
     )
+
+    @property
+    def is_global(self) -> bool:
+        from sqlalchemy import inspect
+        state = inspect(self)
+        if 'product' not in state.unloaded and self.product:
+            return self.product.school_id is None
+        return False
 
     def __repr__(self) -> str:
         return f"<SaleItem(sale_id='{self.sale_id}', product_id='{self.product_id}', quantity={self.quantity})>"
@@ -239,17 +238,10 @@ class SaleChange(Base):
     returned_quantity: Mapped[int] = mapped_column(nullable=False)
 
     # New product (if applicable, None for pure returns)
-    # For school products
     new_product_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("products.id", ondelete="RESTRICT")
     )
-    # For global products (shared inventory)
-    new_global_product_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("global_products.id", ondelete="RESTRICT")
-    )
-    is_new_global_product: Mapped[bool] = mapped_column(default=False, nullable=False)
 
     new_quantity: Mapped[int] = mapped_column(default=0, nullable=False)
     new_unit_price: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
@@ -293,7 +285,6 @@ class SaleChange(Base):
         foreign_keys=[original_item_id]
     )
     new_product: Mapped["Product | None"] = relationship()
-    new_global_product: Mapped["GlobalProduct | None"] = relationship()
     user: Mapped["User"] = relationship()
     order: Mapped["Order | None"] = relationship(foreign_keys=[order_id])
 

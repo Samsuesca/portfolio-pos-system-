@@ -1,7 +1,7 @@
 /**
  * Shared types for the Products page and its sub-components.
  */
-import type { Product, GlobalProduct, GarmentType, GlobalGarmentType } from '../../types/api';
+import type { Product, GarmentType } from '../../types/api';
 
 export interface InventoryAdjustment {
   productId: string;
@@ -12,7 +12,8 @@ export interface InventoryAdjustment {
   schoolId?: string;
 }
 
-export type TabType = 'school' | 'global' | 'garment-types';
+export type TabType = 'school' | 'global' | 'cost-insights';
+export type ViewMode = 'table' | 'grid' | 'tree';
 export type StockFilter = 'all' | 'in_stock' | 'low_stock' | 'out_of_stock' | 'with_orders';
 export type SortField = 'code' | 'name' | 'size' | 'price' | 'stock' | 'pending_orders';
 export type SortDirection = 'asc' | 'desc';
@@ -54,4 +55,4 @@ export type ModalType =
   | null;
 
 // Re-export commonly used types from api.ts for convenience
-export type { Product, GlobalProduct, GarmentType, GlobalGarmentType };
+export type { Product, GarmentType };

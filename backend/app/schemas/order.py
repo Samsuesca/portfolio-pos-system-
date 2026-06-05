@@ -4,9 +4,9 @@ Order and OrderItem Schemas (Encargos/Yombers)
 from uuid import UUID
 from decimal import Decimal
 from datetime import date, datetime
-from pydantic import Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 from app.schemas.base import BaseSchema, IDModelSchema, TimestampSchema, SchoolIsolatedSchema
-from app.models.order import OrderStatus, OrderItemStatus, DeliveryType
+from app.models.order import OrderStatus, OrderItemStatus, DeliveryType, OriginalItemDisposal
 from app.models.sale import SaleSource, ChangeType, ChangeStatus, PaymentMethod
 
 
@@ -16,9 +16,10 @@ from app.models.sale import SaleSource, ChangeType, ChangeStatus, PaymentMethod
 
 class OrderItemBase(BaseSchema):
     """Base order item schema"""
-    garment_type_id: UUID | None = None  # Nullable for global products (use global_garment_type_id)
+    garment_type_id: UUID | None = None
     quantity: int = Field(..., gt=0)
     unit_price: Decimal = Field(..., ge=0)
+    unit_cost: Decimal | None = None
     subtotal: Decimal = Field(..., ge=0)
     size: str | None = Field(None, max_length=10)
     color: str | None = Field(None, max_length=50)
@@ -57,24 +58,18 @@ class OrderItemBase(BaseSchema):
 
 class OrderItemCreate(BaseSchema):
     """Schema for creating order item"""
-    garment_type_id: UUID | None = None  # Optional for web_custom orders with needs_quotation
-    quantity: int = Field(..., gt=0)
+    garment_type_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440000")
+    quantity: int = Field(..., gt=0, example=2)
 
     # Order type: "catalog" | "yomber" | "custom" | "web_custom"
-    order_type: str = Field(default="custom")
+    order_type: str = Field(default="custom", example="catalog")
 
-    # For catalog/yomber orders - select specific product for price (school products)
-    product_id: UUID | None = None
+    product_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440001")
 
-    # For global products (shared inventory)
-    global_product_id: UUID | None = None
-    is_global_product: bool = False
-
-    # For custom orders - manual price
-    unit_price: Decimal | None = Field(None, ge=0)
+    unit_price: Decimal | None = Field(None, ge=0, example=45000.00)
 
     # Additional services price (mainly for yomber)
-    additional_price: Decimal | None = Field(None, ge=0)
+    additional_price: Decimal | None = Field(None, ge=0, example=8000.00)
 
     # Flag for items that need quotation (web custom orders)
     needs_quotation: bool = Field(default=False)
@@ -83,12 +78,12 @@ class OrderItemCreate(BaseSchema):
     reserve_stock: bool = Field(default=True, description="Reserve from stock if available for catalog orders")
 
     # Common fields
-    size: str | None = Field(None, max_length=10)
-    color: str | None = Field(None, max_length=50)
-    gender: str | None = Field(None, max_length=10)
-    custom_measurements: dict | None = None
-    embroidery_text: str | None = Field(None, max_length=100)
-    notes: str | None = None
+    size: str | None = Field(None, max_length=10, example="M")
+    color: str | None = Field(None, max_length=50, example="Azul")
+    gender: str | None = Field(None, max_length=10, example="female")
+    custom_measurements: dict | None = Field(None, example={"cintura": 70, "largo": 85, "cadera": 95})
+    embroidery_text: str | None = Field(None, max_length=100, example="Colegio San José")
+    notes: str | None = Field(None, example="Bordado en lado izquierdo del pecho")
 
     @field_validator('order_type')
     @classmethod
@@ -102,27 +97,24 @@ class OrderItemCreate(BaseSchema):
 
 class OrderItemUpdate(BaseSchema):
     """Schema for updating order item"""
-    quantity: int | None = Field(None, gt=0)
-    size: str | None = Field(None, max_length=10)
-    color: str | None = Field(None, max_length=50)
-    gender: str | None = Field(None, max_length=10)
-    custom_measurements: dict | None = None
-    embroidery_text: str | None = Field(None, max_length=100)
-    notes: str | None = None
+    quantity: int | None = Field(None, gt=0, example=3)
+    size: str | None = Field(None, max_length=10, example="L")
+    color: str | None = Field(None, max_length=50, example="Blanco")
+    gender: str | None = Field(None, max_length=10, example="male")
+    custom_measurements: dict | None = Field(None, example={"cintura": 75, "largo": 90})
+    embroidery_text: str | None = Field(None, max_length=100, example="Instituto Pedagógico")
+    notes: str | None = Field(None, example="Ajustar largo según medidas actualizadas")
 
 
 class OrderItemStatusUpdate(BaseSchema):
     """Schema for updating order item status"""
-    item_status: OrderItemStatus
+    item_status: OrderItemStatus = Field(..., example="in_production")
 
 
 class OrderItemInDB(OrderItemBase, SchoolIsolatedSchema, IDModelSchema):
     """OrderItem as stored in database"""
     order_id: UUID
     product_id: UUID | None = None
-    global_product_id: UUID | None = None
-    global_garment_type_id: UUID | None = None  # For global products
-    is_global_product: bool = False
     item_status: OrderItemStatus = OrderItemStatus.PENDING
     status_updated_at: datetime | None = None
     # Stock reservation tracking
@@ -132,7 +124,35 @@ class OrderItemInDB(OrderItemBase, SchoolIsolatedSchema, IDModelSchema):
 
 class OrderItemResponse(OrderItemInDB):
     """OrderItem for API responses"""
-    pass
+    is_global: bool = False
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": "aa0e8400-e29b-41d4-a716-446655440010",
+                "order_id": "bb0e8400-e29b-41d4-a716-446655440020",
+                "school_id": "770e8400-e29b-41d4-a716-446655440002",
+                "garment_type_id": "cc0e8400-e29b-41d4-a716-446655440030",
+                "product_id": None,
+                "quantity": 2,
+                "unit_price": 55000.00,
+                "unit_cost": 28000.00,
+                "subtotal": 110000.00,
+                "size": "12",
+                "color": "azul",
+                "gender": "female",
+                "custom_measurements": None,
+                "embroidery_text": "Valentina G.",
+                "notes": None,
+                "item_status": "pending",
+                "status_updated_at": None,
+                "reserved_from_stock": False,
+                "quantity_reserved": 0,
+                "is_global": False,
+            }
+        },
+    )
 
 
 class OrderItemWithGarment(OrderItemResponse):
@@ -149,52 +169,55 @@ class OrderItemWithGarment(OrderItemResponse):
 
 class OrderBase(BaseSchema):
     """Base order schema"""
-    client_id: UUID
-    delivery_date: date | None = None
-    notes: str | None = None
+    client_id: UUID = Field(..., example="550e8400-e29b-41d4-a716-446655440000")
+    delivery_date: date | None = Field(None, example="2026-05-15")
+    notes: str | None = Field(None, example="Encargo urgente para evento escolar")
     # Delivery info
-    delivery_type: DeliveryType = DeliveryType.PICKUP
+    delivery_type: DeliveryType = Field(default=DeliveryType.PICKUP, example="pickup")
 
 
 class OrderCreate(OrderBase, SchoolIsolatedSchema):
     """Schema for creating order"""
     # Override school_id to be optional (for web custom orders with custom_school_name)
-    school_id: UUID | None = None
+    school_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440000")
     items: list[OrderItemCreate] = Field(..., min_length=1)
-    advance_payment: Decimal | None = Field(None, ge=0)
-    advance_payment_method: str | None = Field(None, max_length=20)  # cash, nequi, transfer, card
+    advance_payment: Decimal | None = Field(None, ge=0, example=50000.00)
+    advance_payment_method: str | None = Field(None, max_length=20, example="cash")
     advance_amount_received: Decimal | None = Field(
         None, gt=0,
-        description="Physical amount received from customer (only for cash advance payments)"
+        description="Physical amount received from customer (only for cash advance payments)",
+        example=50000.00
     )
-    source: SaleSource = SaleSource.DESKTOP_APP  # Default to desktop app
-    # Payment proof (for web orders)
-    payment_proof_url: str | None = Field(None, max_length=500)
-    payment_notes: str | None = None
+    source: SaleSource = Field(default=SaleSource.DESKTOP_APP, example="desktop_app")
     # Custom school name for non-existent schools (web custom orders)
-    custom_school_name: str | None = Field(None, max_length=200)
+    custom_school_name: str | None = Field(None, max_length=200, example="Colegio Nuevo Horizonte")
     # Delivery fields (for delivery type orders)
-    delivery_address: str | None = Field(None, max_length=300)
-    delivery_neighborhood: str | None = Field(None, max_length=100)
-    delivery_city: str | None = Field(None, max_length=100)
-    delivery_references: str | None = None
-    delivery_zone_id: UUID | None = None
+    delivery_address: str | None = Field(None, max_length=300, example="Cra 80 #45-12, Medellín")
+    delivery_neighborhood: str | None = Field(None, max_length=100, example="Laureles")
+    delivery_city: str | None = Field(None, max_length=100, example="Medellín")
+    delivery_references: str | None = Field(None, example="Edificio azul, portería principal")
+    delivery_zone_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440000")
     # code, status, totals will be auto-generated
 
 
 class OrderUpdate(BaseSchema):
-    """Schema for updating order"""
-    delivery_date: date | None = None
-    status: OrderStatus | None = None
-    notes: str | None = None
+    """Schema for updating order metadata.
+
+    Only delivery_date and notes are editable through this endpoint.
+    Status transitions use dedicated endpoints:
+    - PATCH /{order_id}/status for order status changes
+    - POST /{order_id}/cancel for cancellation
+    """
+    delivery_date: date | None = Field(None, example="2026-05-20")
+    notes: str | None = Field(None, example="Cliente confirmó medidas finales")
 
 
 class OrderPayment(BaseSchema):
     """Schema for recording order payment"""
-    amount: Decimal = Field(..., gt=0)
-    payment_method: str = Field(..., max_length=20)
-    payment_reference: str | None = Field(None, max_length=100)
-    notes: str | None = None
+    amount: Decimal = Field(..., gt=0, example=75000.00)
+    payment_method: str = Field(..., max_length=20, example="nequi")
+    payment_reference: str | None = Field(None, max_length=100, example="REF-20260412-001")
+    notes: str | None = Field(None, example="Segundo abono del encargo")
     amount_received: Decimal | None = Field(
         None, gt=0,
         description="Physical amount received from customer (only for cash)"
@@ -215,8 +238,6 @@ class OrderInDB(OrderBase, SchoolIsolatedSchema, IDModelSchema, TimestampSchema)
     amount_received: Decimal | None = None
     change_given: Decimal | None = None
     user_id: UUID | None = None  # Who created the order (None for web portal)
-    payment_proof_url: str | None = None
-    payment_notes: str | None = None
     # Delivery fields
     delivery_type: DeliveryType = DeliveryType.PICKUP
     delivery_address: str | None = None
@@ -229,7 +250,39 @@ class OrderInDB(OrderBase, SchoolIsolatedSchema, IDModelSchema, TimestampSchema)
 
 class OrderResponse(OrderInDB):
     """Order for API responses"""
-    pass
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": "bb0e8400-e29b-41d4-a716-446655440020",
+                "code": "CARACAS-001-ENC-2026-0034",
+                "school_id": "770e8400-e29b-41d4-a716-446655440002",
+                "client_id": "550e8400-e29b-41d4-a716-446655440000",
+                "user_id": "ee0e8400-e29b-41d4-a716-446655440050",
+                "status": "pending",
+                "source": "desktop_app",
+                "delivery_date": "2026-04-30",
+                "delivery_type": "pickup",
+                "delivery_address": None,
+                "delivery_neighborhood": None,
+                "delivery_city": None,
+                "delivery_references": None,
+                "delivery_zone_id": None,
+                "delivery_fee": 0,
+                "subtotal": 165000.00,
+                "tax": 0,
+                "total": 165000.00,
+                "paid_amount": 80000.00,
+                "balance": 85000.00,
+                "amount_received": None,
+                "change_given": None,
+                "notes": "Bordado especial con nombre completo",
+                "created_at": "2026-04-12T10:30:00",
+                "updated_at": "2026-04-12T10:30:00",
+            }
+        },
+    )
 
 
 class OrderWithItems(OrderResponse):
@@ -264,8 +317,6 @@ class OrderListResponse(BaseSchema):
     # Partial delivery tracking
     items_delivered: int = 0
     items_total: int = 0
-    # Payment proof
-    payment_proof_url: str | None = None
     # Quotation flag (true if any item needs quotation)
     needs_quotation: bool = False
     # Delivery info
@@ -273,6 +324,36 @@ class OrderListResponse(BaseSchema):
     delivery_fee: Decimal = Decimal("0")
     delivery_address: str | None = None
     delivery_neighborhood: str | None = None
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": "bb0e8400-e29b-41d4-a716-446655440020",
+                "code": "CARACAS-001-ENC-2026-0034",
+                "status": "pending",
+                "source": "desktop_app",
+                "client_name": "María García López",
+                "student_name": "Valentina García",
+                "delivery_date": "2026-04-30",
+                "total": 165000.00,
+                "balance": 85000.00,
+                "created_at": "2026-04-12T10:30:00",
+                "items_count": 3,
+                "user_id": "ee0e8400-e29b-41d4-a716-446655440050",
+                "user_name": "Carlos Vendedor",
+                "school_id": "770e8400-e29b-41d4-a716-446655440002",
+                "school_name": "Colegio San José",
+                "items_delivered": 1,
+                "items_total": 3,
+                "needs_quotation": False,
+                "delivery_type": "pickup",
+                "delivery_fee": 0,
+                "delivery_address": None,
+                "delivery_neighborhood": None,
+            }
+        },
+    )
 
 
 # ============================================
@@ -332,8 +413,6 @@ class WebOrderResponse(BaseSchema):
     status: OrderStatus
     total: Decimal
     created_at: datetime | None = None
-    payment_proof_url: str | None = None
-    payment_notes: str | None = None
     message: str = "Pedido creado exitosamente"
 
 
@@ -435,8 +514,7 @@ class ProductDemandItem(BaseSchema):
     # Tipo (Yomber vs Estándar)
     is_yomber: bool
 
-    # Es producto global (no específico de colegio)
-    is_global_product: bool = False
+    is_global: bool = False
 
     # Colegios involucrados
     school_ids: list[UUID]
@@ -478,21 +556,31 @@ class ProductDemandResponse(BaseSchema):
 
 class OrderChangeCreate(BaseSchema):
     """Schema for creating order change request"""
-    original_item_id: UUID
-    change_type: ChangeType
-    returned_quantity: int = Field(..., gt=0)
-    # New product (school or global)
-    new_product_id: UUID | None = None
-    is_new_global_product: bool = False
-    new_quantity: int = Field(0, ge=0)
-    reason: str = Field(..., min_length=3, max_length=500)
+    original_item_id: UUID = Field(..., example="550e8400-e29b-41d4-a716-446655440000")
+    change_type: ChangeType = Field(..., example="size_change")
+    returned_quantity: int = Field(..., gt=0, example=1)
+    new_product_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440001")
+    new_quantity: int = Field(0, ge=0, example=1)
+    reason: str = Field(..., min_length=3, max_length=500, example="Talla incorrecta, cliente solicita cambio a L")
     # Payment method for price adjustment
-    payment_method: PaymentMethod | None = None
+    payment_method: PaymentMethod | None = Field(None, example="cash")
     # Order-specific: new item specifications
-    new_size: str | None = Field(None, max_length=10)
-    new_color: str | None = Field(None, max_length=50)
-    new_custom_measurements: dict | None = None
-    new_embroidery_text: str | None = Field(None, max_length=100)
+    new_size: str | None = Field(None, max_length=10, example="L")
+    new_color: str | None = Field(None, max_length=50, example="Azul")
+    new_custom_measurements: dict | None = Field(None, example={"cintura": 75, "largo": 90})
+    new_embroidery_text: str | None = Field(None, max_length=100, example="Colegio San José")
+    # Required when original item was NOT reserved from stock (production / made-to-order)
+    original_item_disposal: OriginalItemDisposal | None = Field(
+        None,
+        description=(
+            "Destino físico del item original. Obligatorio cuando el item NO vino "
+            "de stock (estaba en producción o terminado made-to-order). "
+            "cancel_production = item en producción se cancela; "
+            "return_to_inventory = prenda terminada no personalizada vuelve al inventario; "
+            "register_loss = prenda terminada personalizada se registra como pérdida."
+        ),
+        example="cancel_production",
+    )
 
     @model_validator(mode='after')
     def validate_change_type_fields(self):
@@ -514,13 +602,14 @@ class OrderChangeApprove(BaseSchema):
     """Schema for approving order change with payment method"""
     payment_method: PaymentMethod = Field(
         default=PaymentMethod.CASH,
-        description="Payment method for price adjustment (refund or additional payment)"
+        description="Payment method for price adjustment (refund or additional payment)",
+        example="cash"
     )
 
 
 class OrderChangeReject(BaseSchema):
     """Schema for rejecting an order change"""
-    rejection_reason: str = Field(..., min_length=3, max_length=500)
+    rejection_reason: str = Field(..., min_length=3, max_length=500, example="Producto ya fue confeccionado, no aplica cambio")
 
 
 class OrderChangeResponse(BaseSchema):
@@ -533,8 +622,6 @@ class OrderChangeResponse(BaseSchema):
     change_date: datetime
     returned_quantity: int
     new_product_id: UUID | None = None
-    new_global_product_id: UUID | None = None
-    is_new_global_product: bool = False
     new_quantity: int
     new_unit_price: Decimal | None = None
     new_size: str | None = None
@@ -545,6 +632,7 @@ class OrderChangeResponse(BaseSchema):
     status: ChangeStatus
     reason: str
     rejection_reason: str | None = None
+    original_item_disposal: OriginalItemDisposal | None = None
     created_at: datetime
     updated_at: datetime
 

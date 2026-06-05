@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff, Lock, User, AlertCircle, Shield, Info } from 'lucide-react';
 import { useAdminAuth } from '@/lib/adminAuth';
+import { GoogleLogin } from '@react-oauth/google';
 
 export default function LoginPage() {
   return (
@@ -16,7 +17,7 @@ export default function LoginPage() {
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login, isAuthenticated, isLoading, error, clearError } = useAdminAuth();
+  const { login, googleLogin, isAuthenticated, isLoading, error, clearError } = useAdminAuth();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -177,6 +178,30 @@ function LoginContent() {
               )}
             </button>
           </form>
+
+          {/* Google Login */}
+          <div className="mt-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-px flex-1 bg-slate-200" />
+              <span className="text-sm text-slate-400">o continuar con</span>
+              <div className="h-px flex-1 bg-slate-200" />
+            </div>
+            <div className="flex justify-center">
+              <GoogleLogin
+                onSuccess={(response) => {
+                  if (response.credential) {
+                    googleLogin(response.credential).then((success) => {
+                      if (success) {
+                        router.push('/');
+                      }
+                    });
+                  }
+                }}
+                onError={() => clearError()}
+                text="signin_with"
+              />
+            </div>
+          </div>
 
           {/* Security Note */}
           <div className="mt-6 pt-6 border-t border-slate-200">

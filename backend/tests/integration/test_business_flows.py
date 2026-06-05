@@ -62,7 +62,7 @@ class TestSaleFlowCalculations:
 
         # Step 5: Generate receipt data
         receipt = {
-            "code": "VNT-2025-0001",
+            "code": "CARACAS-001-VNT-2025-0001",
             "date": datetime.now().isoformat(),
             "items": cart,
             "subtotal": subtotal,
@@ -234,7 +234,7 @@ class TestOrderFlowCalculations:
         PENDING → IN_PRODUCTION → READY → DELIVERED
         """
         order = {
-            "code": "ENC-2025-0001",
+            "code": "CARACAS-001-ENC-2025-0001",
             "status": OrderStatus.PENDING,
             "total": Decimal("249900"),
             "paid_amount": Decimal("124950"),

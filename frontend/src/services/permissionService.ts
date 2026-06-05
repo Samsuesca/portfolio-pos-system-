@@ -78,7 +78,7 @@ const SYSTEM_ROLE_DEFAULTS: SystemRoleInfo[] = [
     role: 'admin',
     name: 'Administrador',
     description: 'Gestión completa excepto usuarios',
-    default_permissions: ['sales.view', 'sales.create', 'sales.edit', 'sales.cancel', 'sales.apply_discount', 'products.view', 'products.create', 'products.edit', 'products.delete', 'clients.view', 'clients.create', 'clients.edit', 'orders.view', 'orders.create', 'orders.edit', 'orders.cancel', 'inventory.view', 'inventory.adjust', 'accounting.view', 'reports.view'],
+    default_permissions: ['sales.view', 'sales.create', 'sales.edit', 'sales.cancel', 'sales.apply_discount', 'products.view', 'products.create', 'products.edit', 'products.delete', 'clients.view', 'clients.create', 'clients.edit', 'orders.view', 'orders.create', 'orders.edit', 'orders.cancel', 'inventory.view', 'inventory.adjust', 'accounting.view_cash', 'reports.dashboard'],
   },
   {
     role: 'owner',
@@ -158,8 +158,13 @@ export interface SchoolUser {
 }
 
 export interface SchoolUserList {
-  users: SchoolUser[];
+  items: SchoolUser[];
   total: number;
+  skip: number;
+  limit: number;
+  page: number;
+  total_pages: number;
+  has_more: boolean;
 }
 
 export interface AvailableUser {

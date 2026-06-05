@@ -5,7 +5,7 @@
  * Similar to the web portal's product display
  */
 
-import type { Product, GarmentType, GlobalProduct, GlobalGarmentType } from '../types/api';
+import type { Product, GarmentType } from '../types/api';
 import { getImageUrlWithCacheBust } from './api-client';
 
 // ============================================
@@ -25,6 +25,7 @@ export interface ProductVariant {
 export interface ProductGroup {
   garmentTypeId: string;
   garmentTypeName: string;
+  schoolId: string | null;     // Owning school (null for global types)
   garmentTypeImageUrl: string | null;
   basePrice: number;          // Minimum price across variants
   maxPrice: number;           // Maximum price across variants
@@ -231,6 +232,7 @@ export function groupProductsByGarmentType(
     groups.push({
       garmentTypeId,
       garmentTypeName: garmentType.name,
+      schoolId: garmentType.school_id ?? null,
       // Apply cache-busting to image URL for Windows WebView2 compatibility
       garmentTypeImageUrl: imageUrl ? getImageUrlWithCacheBust(imageUrl) : null,
       basePrice: minPrice === Infinity ? 0 : minPrice,
@@ -302,23 +304,31 @@ export function formatPriceRange(basePrice: number, maxPrice: number): string {
 
 /**
  * Group global products by garment type
- * Similar to groupProductsByGarmentType but for GlobalProduct type
+ * Similar to groupProductsByGarmentType but for global (school_id=null) products
  */
 export function groupGlobalProductsByGarmentType(
-  products: GlobalProduct[],
-  garmentTypes: GlobalGarmentType[]
+  products: Product[],
+  garmentTypes: GarmentType[]
 ): ProductGroup[] {
-  // Create a map for quick garment type lookup
-  const garmentTypeMap = new Map<string, GlobalGarmentType>();
+  const garmentTypeMap = new Map<string, GarmentType>();
   garmentTypes.forEach(gt => garmentTypeMap.set(gt.id, gt));
 
   // Group products by garment_type_id
   const groupsMap = new Map<string, ProductVariant[]>();
+  // Capture garment-type images carried on the product (when with_images=true),
+  // same as groupProductsByGarmentType — so the global grid can show photos.
+  const groupImagesMap = new Map<string, { images: any[]; primaryUrl: string | null }>();
 
   products.forEach(product => {
     const gtId = product.garment_type_id;
     if (!groupsMap.has(gtId)) {
       groupsMap.set(gtId, []);
+      if (product.garment_type_images || product.garment_type_primary_image_url) {
+        groupImagesMap.set(gtId, {
+          images: product.garment_type_images || [],
+          primaryUrl: product.garment_type_primary_image_url || null,
+        });
+      }
     }
 
     const stock = product.inventory_quantity ?? 0;
@@ -359,9 +369,23 @@ export function groupGlobalProductsByGarmentType(
       totalStock += v.stock;
     });
 
-    // Get image from garment type images
+    // Image precedence: product-carried garment-type images (with_images) →
+    // garmentType.images (from the types list) → first product image.
     let imageUrl: string | null = null;
-    if (garmentType.images && garmentType.images.length > 0) {
+
+    const productImages = groupImagesMap.get(garmentTypeId);
+    if (productImages?.primaryUrl) {
+      imageUrl = productImages.primaryUrl;
+    } else if (productImages?.images && productImages.images.length > 0) {
+      const sortedImages = [...productImages.images].sort((a: any, b: any) => {
+        if (a.is_primary && !b.is_primary) return -1;
+        if (!a.is_primary && b.is_primary) return 1;
+        return (a.display_order || 0) - (b.display_order || 0);
+      });
+      imageUrl = sortedImages[0]?.image_url || null;
+    }
+
+    if (!imageUrl && garmentType.images && garmentType.images.length > 0) {
       const sortedImages = [...garmentType.images].sort((a: any, b: any) => {
         if (a.is_primary && !b.is_primary) return -1;
         if (!a.is_primary && b.is_primary) return 1;
@@ -378,6 +402,7 @@ export function groupGlobalProductsByGarmentType(
     groups.push({
       garmentTypeId,
       garmentTypeName: garmentType.name,
+      schoolId: null,   // Global types have no owning school
       // Apply cache-busting to image URL for Windows WebView2 compatibility
       garmentTypeImageUrl: imageUrl ? getImageUrlWithCacheBust(imageUrl) : null,
       basePrice: minPrice === Infinity ? 0 : minPrice,

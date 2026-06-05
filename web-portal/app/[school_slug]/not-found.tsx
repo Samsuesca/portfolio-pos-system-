@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { School as SchoolIcon, ArrowRight, Home, AlertTriangle } from 'lucide-react';
+import ImageWithFallback from '@/components/ImageWithFallback';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -93,17 +94,13 @@ export default async function SchoolNotFound() {
                 >
                   <div className="w-14 h-14 rounded-full bg-gradient-to-br from-brand-100 to-brand-200 flex items-center justify-center overflow-hidden flex-shrink-0 relative">
                     {school.logo_url ? (
-                      <Image
+                      <ImageWithFallback
                         src={`${API_BASE_URL}${school.logo_url}`}
                         alt={`Escudo ${school.name}`}
                         fill
                         sizes="56px"
                         className="object-cover"
-                        unoptimized
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                          (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-                        }}
+                        fallback={<SchoolIcon className="w-7 h-7 text-brand-600" />}
                       />
                     ) : null}
                     <SchoolIcon className={`w-7 h-7 text-brand-600 ${school.logo_url ? 'hidden' : ''}`} />

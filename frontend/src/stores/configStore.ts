@@ -20,6 +20,10 @@ interface ConfigState {
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (collapsed: boolean) => void;
   toggleSidebar: () => void;
+
+  // Theme
+  isDarkMode: boolean;
+  toggleDarkMode: () => void;
 }
 
 // Helper functions (outside store for simplicity)
@@ -50,7 +54,7 @@ export function getEnvironmentColor(apiUrl: string): string {
   const type = getEnvironmentType(apiUrl);
   switch (type) {
     case 'development': return 'bg-yellow-500';
-    case 'lan': return 'bg-blue-500';
+    case 'lan': return 'bg-brand-500';
     case 'production': return 'bg-green-500';
     case 'custom': return 'bg-purple-500';
   }
@@ -88,11 +92,18 @@ export const useConfigStore = create<ConfigState>()(
       sidebarCollapsed: false,
       setSidebarCollapsed: (collapsed: boolean) => set({ sidebarCollapsed: collapsed }),
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+
+      // Theme
+      isDarkMode: false,
+      toggleDarkMode: () => set((state) => {
+        const next = !state.isDarkMode;
+        document.documentElement.classList.toggle('dark', next);
+        return { isDarkMode: next };
+      }),
     }),
     {
       name: 'config-storage',
-      // Persist apiUrl and sidebarCollapsed
-      partialize: (state) => ({ apiUrl: state.apiUrl, sidebarCollapsed: state.sidebarCollapsed }),
+      partialize: (state) => ({ apiUrl: state.apiUrl, sidebarCollapsed: state.sidebarCollapsed, isDarkMode: state.isDarkMode }),
     }
   )
 );

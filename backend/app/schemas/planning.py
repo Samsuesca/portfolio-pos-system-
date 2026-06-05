@@ -58,11 +58,18 @@ class DebtPaymentUpdate(BaseSchema):
 
 
 class DebtPaymentMarkPaid(BaseSchema):
-    """Schema for marking a debt payment as paid"""
+    """Schema for marking a debt payment as paid.
+
+    capital_amount and interest_amount are optional; if both are omitted the
+    entire paid_amount is recorded as capital. If only one is supplied, the
+    other is derived as paid_amount - given. They must sum to paid_amount.
+    """
     paid_date: date
     paid_amount: Decimal = Field(..., gt=0)
     payment_method: str = Field(..., pattern='^(cash|nequi|transfer|card)$')
     payment_account_id: UUID
+    capital_amount: Decimal | None = Field(None, ge=0)
+    interest_amount: Decimal | None = Field(None, ge=0)
 
 
 class DebtPaymentResponse(DebtPaymentBase):

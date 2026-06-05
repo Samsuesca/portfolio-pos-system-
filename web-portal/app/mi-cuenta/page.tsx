@@ -13,7 +13,6 @@ import {
   Truck,
   Calendar,
   DollarSign,
-  Upload,
   Globe,
   Store,
   CreditCard,
@@ -29,9 +28,9 @@ import {
   getSourceLabel,
   type ClientOrder,
 } from '@/lib/clientAuth';
+import { GoogleLogin } from '@react-oauth/google';
 import { formatNumber } from '@/lib/utils';
 import { paymentsApi } from '@/lib/api';
-import UploadPaymentProofModal from '@/components/UploadPaymentProofModal';
 
 // ---------------------------------------------------------------------------
 // Status stepper configuration
@@ -243,12 +242,14 @@ function StatCard({
 export default function MiCuentaPage() {
   const router = useRouter();
   const { client, isAuthenticated, logout, getOrders } = useClientAuth();
+
+  const [googleMessage, setGoogleMessage] = useState<string | null>(null);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const API_BASE_URL_MI = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
   const [orders, setOrders] = useState<ClientOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<ClientOrder | null>(null);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [selectedOrderForUpload, setSelectedOrderForUpload] = useState<string | null>(null);
   const [wompiEnabled, setWompiEnabled] = useState(false);
   const [payingOrderId, setPayingOrderId] = useState<string | null>(null);
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
@@ -435,6 +436,79 @@ export default function MiCuentaPage() {
       {/* Main Content                                                    */}
       {/* ================================================================ */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Google Account Linking */}
+        <div className="mb-6 bg-white rounded-xl border border-stone-200 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-stone-700">Cuenta de Google</p>
+            {client.google_id ? (
+              <p className="text-xs text-green-600 mt-0.5">Vinculada</p>
+            ) : (
+              <p className="text-xs text-stone-500 mt-0.5">Vincula tu Google para iniciar sesion mas rapido</p>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {client.google_id ? (
+              <button
+                onClick={async () => {
+                  setGoogleLoading(true);
+                  setGoogleMessage(null);
+                  try {
+                    const { token } = useClientAuth.getState();
+                    const res = await fetch(`${API_BASE_URL_MI}/api/v1/portal/clients/unlink-google`, {
+                      method: 'POST',
+                      headers: { Authorization: `Bearer ${token}` },
+                    });
+                    const data = await res.json();
+                    setGoogleMessage(res.ok ? data.message : data.detail);
+                    if (res.ok) window.location.reload();
+                  } catch {
+                    setGoogleMessage('Error al desvincular Google');
+                  } finally {
+                    setGoogleLoading(false);
+                  }
+                }}
+                disabled={googleLoading}
+                className="text-sm text-red-600 hover:text-red-700 disabled:opacity-50"
+              >
+                Desvincular
+              </button>
+            ) : !process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ? null : (
+              <GoogleLogin
+                onSuccess={(response) => {
+                  if (response.credential) {
+                    setGoogleLoading(true);
+                    setGoogleMessage(null);
+                    const { token } = useClientAuth.getState();
+                    fetch(`${API_BASE_URL_MI}/api/v1/portal/clients/link-google`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
+                      },
+                      body: JSON.stringify({ id_token: response.credential }),
+                    })
+                      .then((r) => r.json())
+                      .then((data) => {
+                        setGoogleMessage(data.message || data.detail);
+                        if (data.message) window.location.reload();
+                      })
+                      .catch(() => setGoogleMessage('Error al vincular Google'))
+                      .finally(() => setGoogleLoading(false));
+                  }
+                }}
+                onError={() => setGoogleMessage('Error al conectar con Google')}
+                text="signin_with"
+                size="medium"
+              />
+            )}
+          </div>
+          {googleMessage && (
+            <p className={`text-xs ${googleMessage.includes('Error') ? 'text-red-600' : 'text-green-600'}`}>
+              {googleMessage}
+            </p>
+          )}
+        </div>
+
         {/* -------------------------------------------------------------- */}
         {/* Stats Cards                                                    */}
         {/* -------------------------------------------------------------- */}
@@ -663,23 +737,6 @@ export default function MiCuentaPage() {
                           </button>
                         )}
 
-                      {/* Upload proof (non-web orders only) */}
-                      {order.source !== 'web_portal' &&
-                        order.balance > 0 &&
-                        order.status !== 'cancelled' && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedOrderForUpload(order.id);
-                              setShowUploadModal(true);
-                            }}
-                            className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-600 bg-stone-100 border border-stone-200 rounded-lg px-3 py-2 hover:bg-stone-200 transition-colors"
-                          >
-                            <Upload className="w-3.5 h-3.5" />
-                            Subir comprobante
-                          </button>
-                        )}
-
                       {/* Expand/collapse details */}
                       <button
                         onClick={() => toggleExpanded(order.id)}
@@ -797,26 +854,6 @@ export default function MiCuentaPage() {
         </div>
       </main>
 
-      {/* ================================================================ */}
-      {/* Upload Payment Proof Modal                                      */}
-      {/* ================================================================ */}
-      {selectedOrderForUpload && (
-        <UploadPaymentProofModal
-          isOpen={showUploadModal}
-          onClose={() => {
-            setShowUploadModal(false);
-            setSelectedOrderForUpload(null);
-          }}
-          orderId={selectedOrderForUpload}
-          onUploadSuccess={() => {
-            console.log('[MiCuenta] Upload success callback triggered');
-            // Force immediate reload
-            loadOrders();
-            setShowUploadModal(false);
-            setSelectedOrderForUpload(null);
-          }}
-        />
-      )}
     </div>
   );
 }

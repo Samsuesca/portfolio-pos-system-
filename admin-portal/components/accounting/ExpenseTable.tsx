@@ -147,8 +147,8 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({
                 {/* Description */}
                 <div className="col-span-12 md:col-span-4 order-last md:order-none">
                   <p className="font-medium text-slate-900 truncate">{expense.description}</p>
-                  {expense.vendor && (
-                    <p className="text-sm text-slate-500 truncate">{expense.vendor}</p>
+                  {expense.vendor_name && (
+                    <p className="text-sm text-slate-500 truncate">{expense.vendor_name}</p>
                   )}
                 </div>
 

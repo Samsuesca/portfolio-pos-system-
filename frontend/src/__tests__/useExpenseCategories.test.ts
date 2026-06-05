@@ -73,6 +73,10 @@ const mockInactiveCategory: ExpenseCategoryListItem = {
   display_order: 99,
 };
 
+function paginated<T>(items: T[]) {
+  return { items, total: items.length, skip: 0, limit: 100, page: 1, total_pages: 1, has_more: false };
+}
+
 describe('useExpenseCategories', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -85,7 +89,7 @@ describe('useExpenseCategories', () => {
 
   describe('loading categories', () => {
     it('loads categories on mount by default', async () => {
-      mockGetExpenseCategories.mockResolvedValue(mockCategories);
+      mockGetExpenseCategories.mockResolvedValue(paginated(mockCategories));
 
       const { result } = renderHook(() => useExpenseCategories());
 
@@ -117,10 +121,10 @@ describe('useExpenseCategories', () => {
     });
 
     it('includes inactive categories when includeInactive is true', async () => {
-      mockGetExpenseCategories.mockResolvedValue([
+      mockGetExpenseCategories.mockResolvedValue(paginated([
         ...mockCategories,
         mockInactiveCategory,
-      ]);
+      ]));
 
       const { result } = renderHook(() =>
         useExpenseCategories({ includeInactive: true })
@@ -150,7 +154,7 @@ describe('useExpenseCategories', () => {
 
   describe('helper functions', () => {
     it('getCategoryByCode returns correct category', async () => {
-      mockGetExpenseCategories.mockResolvedValue(mockCategories);
+      mockGetExpenseCategories.mockResolvedValue(paginated(mockCategories));
 
       const { result } = renderHook(() => useExpenseCategories());
 
@@ -164,7 +168,7 @@ describe('useExpenseCategories', () => {
     });
 
     it('getCategoryById returns correct category', async () => {
-      mockGetExpenseCategories.mockResolvedValue(mockCategories);
+      mockGetExpenseCategories.mockResolvedValue(paginated(mockCategories));
 
       const { result } = renderHook(() => useExpenseCategories());
 
@@ -178,7 +182,7 @@ describe('useExpenseCategories', () => {
     });
 
     it('getCategoryLabel returns name or code as fallback', async () => {
-      mockGetExpenseCategories.mockResolvedValue(mockCategories);
+      mockGetExpenseCategories.mockResolvedValue(paginated(mockCategories));
 
       const { result } = renderHook(() => useExpenseCategories());
 
@@ -191,7 +195,7 @@ describe('useExpenseCategories', () => {
     });
 
     it('getCategoryColor returns color or default gray', async () => {
-      mockGetExpenseCategories.mockResolvedValue(mockCategories);
+      mockGetExpenseCategories.mockResolvedValue(paginated(mockCategories));
 
       const { result } = renderHook(() => useExpenseCategories());
 
@@ -206,10 +210,10 @@ describe('useExpenseCategories', () => {
 
   describe('computed properties', () => {
     it('activeCategories filters out inactive ones', async () => {
-      mockGetExpenseCategories.mockResolvedValue([
+      mockGetExpenseCategories.mockResolvedValue(paginated([
         ...mockCategories,
         mockInactiveCategory,
-      ]);
+      ]));
 
       const { result } = renderHook(() =>
         useExpenseCategories({ includeInactive: true })
@@ -224,7 +228,7 @@ describe('useExpenseCategories', () => {
     });
 
     it('systemCategories returns only system categories', async () => {
-      mockGetExpenseCategories.mockResolvedValue(mockCategories);
+      mockGetExpenseCategories.mockResolvedValue(paginated(mockCategories));
 
       const { result } = renderHook(() => useExpenseCategories());
 
@@ -237,7 +241,7 @@ describe('useExpenseCategories', () => {
     });
 
     it('customCategories returns only non-system categories', async () => {
-      mockGetExpenseCategories.mockResolvedValue(mockCategories);
+      mockGetExpenseCategories.mockResolvedValue(paginated(mockCategories));
 
       const { result } = renderHook(() => useExpenseCategories());
 
@@ -252,7 +256,7 @@ describe('useExpenseCategories', () => {
 
   describe('CRUD operations', () => {
     it('createCategory calls API and refreshes', async () => {
-      mockGetExpenseCategories.mockResolvedValue(mockCategories);
+      mockGetExpenseCategories.mockResolvedValue(paginated(mockCategories));
 
       const newCategory: ExpenseCategoryFull = {
         id: '5',
@@ -291,7 +295,7 @@ describe('useExpenseCategories', () => {
     });
 
     it('updateCategory calls API and refreshes', async () => {
-      mockGetExpenseCategories.mockResolvedValue(mockCategories);
+      mockGetExpenseCategories.mockResolvedValue(paginated(mockCategories));
 
       const updatedCategory: ExpenseCategoryFull = {
         id: '3',
@@ -329,7 +333,7 @@ describe('useExpenseCategories', () => {
     });
 
     it('deleteCategory calls API and refreshes', async () => {
-      mockGetExpenseCategories.mockResolvedValue(mockCategories);
+      mockGetExpenseCategories.mockResolvedValue(paginated(mockCategories));
       mockDeleteExpenseCategory.mockResolvedValue(undefined);
 
       const { result } = renderHook(() => useExpenseCategories());
@@ -350,7 +354,7 @@ describe('useExpenseCategories', () => {
 
   describe('refresh', () => {
     it('forces reload bypassing cache', async () => {
-      mockGetExpenseCategories.mockResolvedValue(mockCategories);
+      mockGetExpenseCategories.mockResolvedValue(paginated(mockCategories));
 
       const { result } = renderHook(() => useExpenseCategories());
 

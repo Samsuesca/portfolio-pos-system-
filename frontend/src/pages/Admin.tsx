@@ -13,7 +13,8 @@ import {
 import { useAuthStore } from '../stores/authStore';
 import { useSchoolStore } from '../stores/schoolStore';
 import apiClient, { extractErrorMessage } from '../utils/api-client';
-import type { School } from '../types/api';
+import { unwrapPaginated } from '../utils/pagination';
+import type { School, PaginatedResponse } from '../types/api';
 
 interface SchoolFormData {
   code: string;
@@ -64,8 +65,11 @@ export default function Admin() {
       setLoading(true);
       setError(null);
 
-      const schoolsRes = await apiClient.get<School[]>('/schools');
-      setSchools(schoolsRes.data);
+      const schoolsRes = await apiClient.get<PaginatedResponse<School> | School[]>(
+        '/schools',
+        { params: { active_only: false, limit: 100 } }
+      );
+      setSchools(unwrapPaginated(schoolsRes.data).items);
     } catch (err: unknown) {
       console.error('Error loading admin data:', err);
       setError(extractErrorMessage(err));
@@ -158,7 +162,7 @@ export default function Admin() {
       <Layout>
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
-          <span className="ml-3 text-gray-600">Cargando panel de administración...</span>
+          <span className="ml-3 text-stone-600">Cargando panel de administración...</span>
         </div>
       </Layout>
     );
@@ -168,11 +172,11 @@ export default function Admin() {
     <Layout>
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 flex items-center">
+        <h1 className="text-2xl font-bold text-stone-800 flex items-center">
           <ShieldCheck className="w-8 h-8 mr-3 text-amber-600" />
           Panel de Administración
         </h1>
-        <p className="text-gray-600 mt-1">Gestión global del sistema (solo superusuarios)</p>
+        <p className="text-stone-600 mt-1">Gestión global del sistema (solo superusuarios)</p>
       </div>
 
       {/* Error Message */}
@@ -191,14 +195,14 @@ export default function Admin() {
       )}
 
       {/* Tabs */}
-      <div className="border-b border-gray-200 mb-6">
+      <div className="border-b border-stone-200 mb-6">
         <nav className="flex gap-4">
           <button
             onClick={() => setActiveTab('schools')}
             className={`pb-3 px-1 font-medium text-sm border-b-2 transition-colors ${
               activeTab === 'schools'
                 ? 'border-amber-600 text-amber-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                : 'border-transparent text-stone-500 hover:text-stone-700'
             }`}
           >
             <Building2 className="w-4 h-4 inline mr-2" />
@@ -209,7 +213,7 @@ export default function Admin() {
             className={`pb-3 px-1 font-medium text-sm border-b-2 transition-colors ${
               activeTab === 'users'
                 ? 'border-amber-600 text-amber-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                : 'border-transparent text-stone-500 hover:text-stone-700'
             }`}
           >
             <Users className="w-4 h-4 inline mr-2" />
@@ -220,7 +224,7 @@ export default function Admin() {
             className={`pb-3 px-1 font-medium text-sm border-b-2 transition-colors ${
               activeTab === 'system'
                 ? 'border-amber-600 text-amber-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                : 'border-transparent text-stone-500 hover:text-stone-700'
             }`}
           >
             <Database className="w-4 h-4 inline mr-2" />
@@ -247,30 +251,30 @@ export default function Admin() {
             </button>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
             <table className="w-full">
-              <thead className="bg-gray-50">
+              <thead className="bg-stone-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contacto</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase">Código</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase">Nombre</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase">Contacto</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase">Estado</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-stone-500 uppercase">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-stone-100">
                 {schools.map((school) => (
-                  <tr key={school.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm font-mono text-gray-900">{school.code}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{school.name}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
+                  <tr key={school.id} className="hover:bg-stone-50">
+                    <td className="px-6 py-4 text-sm font-mono text-stone-900">{school.code}</td>
+                    <td className="px-6 py-4 text-sm text-stone-900">{school.name}</td>
+                    <td className="px-6 py-4 text-sm text-stone-500">
                       {school.email || school.phone || 'Sin contacto'}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 text-xs rounded-full ${
                         school.is_active
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
+                          ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+                          : 'bg-red-50 text-red-700 ring-1 ring-red-200'
                       }`}>
                         {school.is_active ? 'Activo' : 'Inactivo'}
                       </span>
@@ -278,7 +282,7 @@ export default function Admin() {
                     <td className="px-6 py-4 text-right">
                       <button
                         onClick={() => handleEditSchool(school)}
-                        className="text-blue-600 hover:text-blue-800 mr-3"
+                        className="text-brand-600 hover:text-brand-700 mr-3"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
@@ -311,35 +315,35 @@ export default function Admin() {
       {/* System Tab */}
       {activeTab === 'system' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-6">
             <h3 className="text-lg font-semibold mb-4 flex items-center">
-              <Database className="w-5 h-5 mr-2 text-gray-600" />
+              <Database className="w-5 h-5 mr-2 text-stone-600" />
               Estado del Sistema
             </h3>
             <div className="space-y-3">
               <div className="flex justify-between">
-                <span className="text-gray-600">Colegios registrados:</span>
+                <span className="text-stone-600">Colegios registrados:</span>
                 <span className="font-medium">{schools.length}</span>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-6">
             <h3 className="text-lg font-semibold mb-4 flex items-center">
-              <RefreshCw className="w-5 h-5 mr-2 text-gray-600" />
+              <RefreshCw className="w-5 h-5 mr-2 text-stone-600" />
               Acciones del Sistema
             </h3>
             <div className="space-y-3">
               <button
                 onClick={loadData}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg transition-colors"
               >
                 <RefreshCw className="w-4 h-4" />
                 Recargar Datos
               </button>
               <button
                 onClick={() => loadSchools()}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg transition-colors"
               >
                 <Building2 className="w-4 h-4" />
                 Sincronizar Colegios
@@ -357,67 +361,67 @@ export default function Admin() {
               <h3 className="text-lg font-semibold">
                 {editingSchool ? 'Editar Colegio' : 'Nuevo Colegio'}
               </h3>
-              <button onClick={() => setShowSchoolModal(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setShowSchoolModal(false)} className="text-stone-400 hover:text-stone-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Código *</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Código *</label>
                   <input
                     type="text"
                     value={schoolForm.code}
                     onChange={(e) => setSchoolForm({ ...schoolForm, code: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500"
                     placeholder="IE-001"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Nombre *</label>
                   <input
                     type="text"
                     value={schoolForm.name}
                     onChange={(e) => setSchoolForm({ ...schoolForm, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500"
                     placeholder="Nombre del colegio"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1">Dirección</label>
                 <input
                   type="text"
                   value={schoolForm.address}
                   onChange={(e) => setSchoolForm({ ...schoolForm, address: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                  className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Teléfono</label>
                   <input
                     type="text"
                     value={schoolForm.phone}
                     onChange={(e) => setSchoolForm({ ...schoolForm, phone: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Email</label>
                   <input
                     type="email"
                     value={schoolForm.email}
                     onChange={(e) => setSchoolForm({ ...schoolForm, email: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
               </div>
             </div>
-            <div className="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50 rounded-b-xl">
+            <div className="flex justify-end gap-3 px-6 py-4 border-t bg-stone-50 rounded-b-xl">
               <button
                 onClick={() => setShowSchoolModal(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                className="px-4 py-2 text-stone-600 hover:text-stone-800"
               >
                 Cancelar
               </button>
@@ -445,12 +449,12 @@ export default function Admin() {
               </div>
               <div>
                 <h3 className="text-lg font-semibold">Confirmar Eliminación</h3>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-stone-500">
                   Esta acción no se puede deshacer
                 </p>
               </div>
             </div>
-            <p className="text-gray-600 mb-6">
+            <p className="text-stone-600 mb-6">
               ¿Está seguro que desea eliminar este colegio?
               <span className="block mt-2 text-sm text-red-600">
                 Esto eliminará también todos los datos asociados (ventas, productos, clientes, etc.)
@@ -459,7 +463,7 @@ export default function Admin() {
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setConfirmDelete(null)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                className="px-4 py-2 text-stone-600 hover:text-stone-800"
               >
                 Cancelar
               </button>

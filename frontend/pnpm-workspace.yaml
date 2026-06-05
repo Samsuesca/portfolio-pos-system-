@@ -1,0 +1,6 @@
+allowBuilds:
+  # core-js postinstall solo printea banner de donacion (no afecta funcionalidad).
+  core-js: false
+  # esbuild: binarios nativos (darwin-arm64) usados por vite 4.5 y vitest 1.6.
+  # Dos versiones coexisten (0.18.20 y 0.21.5); aprobamos ambas con esta entrada.
+  esbuild: true

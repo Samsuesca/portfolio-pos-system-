@@ -56,7 +56,7 @@ interface RequirePermissionProps {
  *
  * @example
  * // With fallback
- * <RequirePermission permission="sales.cancel" fallback={<span className="text-gray-400">Sin permiso</span>}>
+ * <RequirePermission permission="sales.cancel" fallback={<span className="text-stone-400">Sin permiso</span>}>
  *   <button>Cancelar</button>
  * </RequirePermission>
  */

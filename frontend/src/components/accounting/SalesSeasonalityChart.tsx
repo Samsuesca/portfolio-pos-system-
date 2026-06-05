@@ -35,9 +35,9 @@ const YEAR_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
 const getSeasonBadgeColor = (behavior: 'ALTA' | 'MEDIA' | 'BAJA'): string => {
   switch (behavior) {
-    case 'ALTA': return 'bg-green-100 text-green-700';
-    case 'MEDIA': return 'bg-yellow-100 text-yellow-700';
-    case 'BAJA': return 'bg-red-100 text-red-700';
+    case 'ALTA': return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200';
+    case 'MEDIA': return 'bg-amber-50 text-amber-700 ring-1 ring-amber-200';
+    case 'BAJA': return 'bg-red-50 text-red-700 ring-1 ring-red-200';
   }
 };
 
@@ -62,7 +62,7 @@ const SalesSeasonalityChart: React.FC<SalesSeasonalityChartProps> = ({
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 h-full">
+      <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4 h-full">
         <div className="flex items-center justify-center h-64">
           <Loader2 className="animate-spin text-brand-500" size={32} />
         </div>
@@ -72,9 +72,9 @@ const SalesSeasonalityChart: React.FC<SalesSeasonalityChartProps> = ({
 
   if (!data || data.monthly_data.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 h-full">
+      <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4 h-full">
         <h3 className="text-lg font-semibold mb-4">Analisis de Estacionalidad</h3>
-        <div className="flex items-center justify-center h-48 text-gray-500">
+        <div className="flex items-center justify-center h-48 text-stone-500">
           No hay datos historicos suficientes
         </div>
       </div>
@@ -92,7 +92,7 @@ const SalesSeasonalityChart: React.FC<SalesSeasonalityChartProps> = ({
   const monthWidth = chartWidth / 12;
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 h-full">
+    <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4 h-full">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold">Analisis de Estacionalidad</h3>
         <div className="flex gap-2">
@@ -102,7 +102,7 @@ const SalesSeasonalityChart: React.FC<SalesSeasonalityChartProps> = ({
                 className="w-3 h-3 rounded-full"
                 style={{ backgroundColor: YEAR_COLORS[idx % YEAR_COLORS.length] }}
               />
-              <span className="text-gray-600">{year}</span>
+              <span className="text-stone-600">{year}</span>
             </div>
           ))}
         </div>
@@ -221,7 +221,7 @@ const SalesSeasonalityChart: React.FC<SalesSeasonalityChartProps> = ({
       {/* Growth Rates */}
       {Object.keys(data.growth_rates).length > 0 && (
         <div className="flex flex-wrap gap-4 mt-4 text-sm">
-          <span className="text-gray-500 font-medium">Crecimiento:</span>
+          <span className="text-stone-500 font-medium">Crecimiento:</span>
           {Object.entries(data.growth_rates).map(([period, rate]) => {
             const isPositive = rate >= 0;
             return (
@@ -243,15 +243,15 @@ const SalesSeasonalityChart: React.FC<SalesSeasonalityChartProps> = ({
       {/* Yearly Totals */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4 text-sm">
         {Object.entries(data.yearly_totals).map(([year, total]) => (
-          <div key={year} className="bg-gray-50 rounded p-2">
-            <span className="text-gray-500">{year}:</span>
+          <div key={year} className="bg-stone-50 rounded p-2">
+            <span className="text-stone-500">{year}:</span>
             <span className="font-semibold ml-1">{formatCurrency(total)}</span>
           </div>
         ))}
       </div>
 
       {/* Disclaimer */}
-      <p className="text-xs text-gray-400 mt-2 text-center">
+      <p className="text-xs text-stone-400 mt-2 text-center">
         {data.disclaimer}
       </p>
     </div>

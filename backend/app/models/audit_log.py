@@ -23,6 +23,9 @@ class AuditAction(str, enum.Enum):
     USER_DEACTIVATE = "user_deactivate"
     USER_ACTIVATE = "user_activate"
     PERMISSION_CHANGE = "permission_change"
+    SUPERUSER_CHANGE = "superuser_change"
+    PASSWORD_RESET = "password_reset"
+    EMAIL_CHANGE = "email_change"
 
     # Financial operations
     BALANCE_ADJUSTMENT = "balance_adjustment"

@@ -2,6 +2,8 @@
  * Employee Service - API calls for employee management
  */
 import apiClient from '../utils/api-client';
+import type { PaginatedResponse } from '../types/api';
+import { unwrapPaginated } from '../utils/pagination';
 
 const BASE_URL = '/global/employees';
 
@@ -138,9 +140,9 @@ export const getEmployees = async (params?: {
   skip?: number;
   limit?: number;
   is_active?: boolean;
-}): Promise<EmployeeListItem[]> => {
-  const response = await apiClient.get<EmployeeListItem[]>(BASE_URL, { params });
-  return response.data;
+}): Promise<PaginatedResponse<EmployeeListItem>> => {
+  const response = await apiClient.get<PaginatedResponse<EmployeeListItem> | EmployeeListItem[]>(BASE_URL, { params });
+  return unwrapPaginated(response.data);
 };
 
 /**
@@ -203,12 +205,12 @@ export const getEmployeeTotals = async (id: string): Promise<EmployeeTotals> => 
 export const getEmployeeBonuses = async (
   employeeId: string,
   params?: { is_active?: boolean }
-): Promise<EmployeeBonusResponse[]> => {
-  const response = await apiClient.get<EmployeeBonusResponse[]>(
+): Promise<PaginatedResponse<EmployeeBonusResponse>> => {
+  const response = await apiClient.get<PaginatedResponse<EmployeeBonusResponse> | EmployeeBonusResponse[]>(
     `${BASE_URL}/${employeeId}/bonuses`,
     { params }
   );
-  return response.data;
+  return unwrapPaginated(response.data);
 };
 
 /**

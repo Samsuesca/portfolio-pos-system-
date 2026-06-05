@@ -8,23 +8,25 @@
  * - Refresh button and result counter
  */
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout';
 import AlterationModal from '../components/AlterationModal';
 import {
   Scissors, Plus, Search, AlertCircle, Loader2, Eye,
   User, DollarSign, CheckCircle, Clock, Package, ChevronDown,
   RefreshCw, XCircle, AlertTriangle, Calendar, Truck, UserX,
-  ChevronUp
+  ChevronUp, X
 } from 'lucide-react';
 import { alterationService } from '../services/alterationService';
+import { clientService } from '../services/clientService';
 import DateFilter, { DateRange } from '../components/DateFilter';
 import { useDebounce } from '../hooks/useDebounce';
 import type {
   AlterationListItem,
   AlterationsSummary,
   AlterationStatus,
-  AlterationType
+  AlterationType,
+  Client
 } from '../types/api';
 import {
   ALTERATION_TYPE_LABELS,
@@ -58,7 +60,7 @@ const getDeliveryUrgency = (deliveryDate: string | null, status: AlterationStatu
   }
   if (diffDays === 0) return { type: 'today', label: 'Hoy', color: 'text-orange-600 bg-orange-100', priority: 1 };
   if (diffDays === 1) return { type: 'tomorrow', label: 'Mañana', color: 'text-yellow-600 bg-yellow-100', priority: 2 };
-  if (diffDays <= 3) return { type: 'soon', label: `En ${diffDays} días`, color: 'text-blue-600 bg-blue-100', priority: 3 };
+  if (diffDays <= 3) return { type: 'soon', label: `En ${diffDays} días`, color: 'text-brand-600 bg-brand-100', priority: 3 };
   return null;
 };
 
@@ -76,7 +78,30 @@ const getPaymentStatus = (_cost: number, amountPaid: number, balance: number) =>
 export default function Alterations() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const locationState = location.state as LocationState | null;
+  const clientIdFilter = searchParams.get('client');
+  const [filterClient, setFilterClient] = useState<Client | null>(null);
+
+  useEffect(() => {
+    if (!clientIdFilter) {
+      setFilterClient(null);
+      return;
+    }
+    let cancelled = false;
+    clientService
+      .getClient(clientIdFilter)
+      .then((c) => { if (!cancelled) setFilterClient(c); })
+      .catch(() => { if (!cancelled) setFilterClient(null); });
+    return () => { cancelled = true; };
+  }, [clientIdFilter]);
+
+  const clearClientFilter = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('client');
+    setSearchParams(next, { replace: true });
+  };
+
   const [alterations, setAlterations] = useState<AlterationListItem[]>([]);
   const [summary, setSummary] = useState<AlterationsSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -107,7 +132,7 @@ export default function Alterations() {
   // Reload when filters or debounced search changes
   useEffect(() => {
     loadData();
-  }, [statusFilter, typeFilter, paymentFilter, debouncedSearch, dateRange]);
+  }, [statusFilter, typeFilter, paymentFilter, debouncedSearch, dateRange, clientIdFilter]);
 
   const loadData = useCallback(async (append = false) => {
     try {
@@ -126,6 +151,7 @@ export default function Alterations() {
           type: typeFilter || undefined,
           is_paid: paymentFilter === 'all' ? undefined : paymentFilter === 'paid',
           search: debouncedSearch || undefined,
+          client_id: clientIdFilter || undefined,
           start_date: dateRange.start_date,
           end_date: dateRange.end_date,
           limit: LIMIT,
@@ -134,13 +160,14 @@ export default function Alterations() {
         append ? Promise.resolve(summary) : alterationService.getSummary()
       ]);
 
+      const items = alterationsData.items;
       if (append) {
-        setAlterations(prev => [...prev, ...alterationsData]);
+        setAlterations(prev => [...prev, ...items]);
       } else {
-        setAlterations(alterationsData);
+        setAlterations(items);
       }
       if (summaryData) setSummary(summaryData);
-      setHasMore(alterationsData.length === LIMIT);
+      setHasMore(alterationsData.has_more);
     } catch (err: any) {
       console.error('Error loading alterations:', err);
       setError(err.response?.data?.detail || 'Error al cargar arreglos');
@@ -148,7 +175,7 @@ export default function Alterations() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [statusFilter, typeFilter, paymentFilter, debouncedSearch, dateRange, alterations.length, summary]);
+  }, [statusFilter, typeFilter, paymentFilter, debouncedSearch, dateRange, alterations.length, summary, clientIdFilter]);
 
   const handleSuccess = () => {
     loadData();
@@ -209,15 +236,15 @@ export default function Alterations() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900 flex items-center gap-2">
+            <h1 className="text-2xl font-semibold text-stone-900 flex items-center gap-2">
               <Scissors className="w-7 h-7 text-brand-600" />
               Arreglos
             </h1>
-            <p className="text-gray-500 mt-1">
+            <p className="text-stone-500 mt-1">
               Gestiona arreglos y confecciones
               {!loading && (
                 <span className="ml-2">
-                  • <span className="font-medium text-gray-700">{alterations.length}</span> encontrados
+                  • <span className="font-medium text-stone-700">{alterations.length}</span> encontrados
                 </span>
               )}
               {hasActiveFilters && (
@@ -230,7 +257,7 @@ export default function Alterations() {
             <button
               onClick={() => loadData()}
               disabled={loading}
-              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition disabled:opacity-50"
+              className="p-2 text-stone-500 hover:text-stone-700 hover:bg-stone-100 rounded-lg transition disabled:opacity-50"
               title="Actualizar"
             >
               <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
@@ -246,7 +273,9 @@ export default function Alterations() {
         </div>
 
         {/* Summary Cards - 8 cards in 2 rows */}
-        {summary && (
+        {summary && (() => {
+          const canViewFinancials = summary.total_revenue !== null;
+          return (
           <div className="space-y-3">
             {/* Row 1: Status cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -274,17 +303,17 @@ export default function Alterations() {
                 onClick={() => setStatusFilter(statusFilter === 'in_progress' ? '' : 'in_progress')}
                 className={`text-left rounded-lg p-4 transition-all ${
                   statusFilter === 'in_progress'
-                    ? 'bg-blue-200 border-2 border-blue-500 ring-2 ring-blue-300'
-                    : 'bg-blue-50 border border-blue-200 hover:border-blue-400'
+                    ? 'bg-brand-200 border-2 border-brand-500 ring-2 ring-blue-300'
+                    : 'bg-brand-50 border border-brand-200 hover:border-brand-400'
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-blue-700">En Proceso</p>
-                    <p className="text-2xl font-bold text-blue-900">{summary.in_progress_count}</p>
-                    <p className="text-xs text-blue-600 mt-0.5">en trabajo</p>
+                    <p className="text-sm text-brand-700">En Proceso</p>
+                    <p className="text-2xl font-bold text-brand-700">{summary.in_progress_count}</p>
+                    <p className="text-xs text-brand-600 mt-0.5">en trabajo</p>
                   </div>
-                  <Scissors className="w-8 h-8 text-blue-600" />
+                  <Scissors className="w-8 h-8 text-brand-600" />
                 </div>
               </button>
 
@@ -312,23 +341,27 @@ export default function Alterations() {
                 onClick={() => setStatusFilter(statusFilter === 'delivered' ? '' : 'delivered')}
                 className={`text-left rounded-lg p-4 transition-all ${
                   statusFilter === 'delivered'
-                    ? 'bg-gray-300 border-2 border-gray-500 ring-2 ring-gray-300'
-                    : 'bg-gray-50 border border-gray-200 hover:border-gray-400'
+                    ? 'bg-stone-300 border-2 border-stone-500 ring-2 ring-stone-300'
+                    : 'bg-stone-50 border border-stone-200 hover:border-stone-400'
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-700">Entregados</p>
-                    <p className="text-2xl font-bold text-gray-900">{summary.delivered_count}</p>
-                    <p className="text-xs text-gray-600 mt-0.5">completados</p>
+                    <p className="text-sm text-stone-700">Entregados</p>
+                    <p className="text-2xl font-bold text-stone-900">{summary.delivered_count}</p>
+                    <p className="text-xs text-stone-600 mt-0.5">completados</p>
                   </div>
-                  <Truck className="w-8 h-8 text-gray-600" />
+                  <Truck className="w-8 h-8 text-stone-600" />
                 </div>
               </button>
             </div>
 
-            {/* Row 2: Financial & Activity cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {/* Row 2: Financial & Activity cards
+                The financial cards (Ingresos, Por Cobrar) are server-gated by
+                `alterations.view_revenue`; when the user lacks the permission,
+                the backend returns null on those fields and we drop the cards
+                so the grid reflows to operational metrics only. */}
+            <div className={`grid grid-cols-2 gap-3 ${canViewFinancials ? 'md:grid-cols-4' : 'md:grid-cols-2'}`}>
               {/* Hoy */}
               <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
                 <div className="flex items-center justify-between">
@@ -347,35 +380,39 @@ export default function Alterations() {
               </div>
 
               {/* Ingresos */}
-              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-emerald-700">Ingresos</p>
-                    <p className="text-xl font-bold text-emerald-900">{formatCurrency(summary.total_revenue)}</p>
-                    <p className="text-xs text-emerald-600 mt-0.5">total pagado</p>
+              {summary.total_revenue !== null && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-emerald-700">Ingresos</p>
+                      <p className="text-xl font-bold text-emerald-900">{formatCurrency(summary.total_revenue)}</p>
+                      <p className="text-xs text-emerald-600 mt-0.5">total pagado</p>
+                    </div>
+                    <DollarSign className="w-8 h-8 text-emerald-600" />
                   </div>
-                  <DollarSign className="w-8 h-8 text-emerald-600" />
                 </div>
-              </div>
+              )}
 
               {/* Por Cobrar */}
-              <button
-                onClick={() => setPaymentFilter(paymentFilter === 'pending' ? 'all' : 'pending')}
-                className={`text-left rounded-lg p-4 transition-all ${
-                  paymentFilter === 'pending'
-                    ? 'bg-red-200 border-2 border-red-500 ring-2 ring-red-300'
-                    : 'bg-red-50 border border-red-200 hover:border-red-400'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-red-700">Por Cobrar</p>
-                    <p className="text-xl font-bold text-red-900">{formatCurrency(summary.total_pending_payment)}</p>
-                    <p className="text-xs text-red-600 mt-0.5">saldo pendiente</p>
+              {summary.total_pending_payment !== null && (
+                <button
+                  onClick={() => setPaymentFilter(paymentFilter === 'pending' ? 'all' : 'pending')}
+                  className={`text-left rounded-lg p-4 transition-all ${
+                    paymentFilter === 'pending'
+                      ? 'bg-red-200 border-2 border-red-500 ring-2 ring-red-300'
+                      : 'bg-red-50 border border-red-200 hover:border-red-400'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-red-700">Por Cobrar</p>
+                      <p className="text-xl font-bold text-red-900">{formatCurrency(summary.total_pending_payment)}</p>
+                      <p className="text-xs text-red-600 mt-0.5">saldo pendiente</p>
+                    </div>
+                    <AlertCircle className="w-8 h-8 text-red-600" />
                   </div>
-                  <AlertCircle className="w-8 h-8 text-red-600" />
-                </div>
-              </button>
+                </button>
+              )}
 
               {/* Total */}
               <button
@@ -383,23 +420,24 @@ export default function Alterations() {
                 className={`text-left rounded-lg p-4 transition-all ${
                   !hasActiveFilters
                     ? 'bg-white border-2 border-brand-500 ring-2 ring-brand-200'
-                    : 'bg-white border border-gray-200 hover:border-gray-400'
+                    : 'bg-white border border-stone-200 hover:border-stone-400'
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-700">Total</p>
-                    <p className="text-2xl font-bold text-gray-900">{summary.total_count}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
+                    <p className="text-sm text-stone-700">Total</p>
+                    <p className="text-2xl font-bold text-stone-900">{summary.total_count}</p>
+                    <p className="text-xs text-stone-500 mt-0.5">
                       {hasActiveFilters ? 'click para ver todos' : 'todos los arreglos'}
                     </p>
                   </div>
-                  <Package className="w-8 h-8 text-gray-500" />
+                  <Package className="w-8 h-8 text-stone-500" />
                 </div>
               </button>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* Alerts Section */}
         {totalAlerts > 0 && (
@@ -430,7 +468,7 @@ export default function Alterations() {
                       clearAllFilters();
                       // Filter will show overdue items (we'll rely on sorting)
                     }}
-                    className="flex items-center gap-2 px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition"
+                    className="flex items-center gap-2 px-3 py-2 bg-red-50 text-red-700 ring-1 ring-red-200 rounded-lg hover:bg-red-200 transition"
                   >
                     <XCircle className="w-4 h-4" />
                     <span className="font-medium">Entrega vencida ({alerts.overdue.length})</span>
@@ -441,7 +479,7 @@ export default function Alterations() {
                 {alerts.ready.length > 0 && (
                   <button
                     onClick={() => setStatusFilter('ready')}
-                    className="flex items-center gap-2 px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition"
+                    className="flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 rounded-lg hover:bg-green-200 transition"
                   >
                     <CheckCircle className="w-4 h-4" />
                     <span className="font-medium">Listos para entregar ({alerts.ready.length})</span>
@@ -455,7 +493,7 @@ export default function Alterations() {
                       setStatusFilter('delivered');
                       setPaymentFilter('pending');
                     }}
-                    className="flex items-center gap-2 px-3 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition"
+                    className="flex items-center gap-2 px-3 py-2 bg-amber-50 text-amber-700 ring-1 ring-amber-200 rounded-lg hover:bg-yellow-200 transition"
                   >
                     <DollarSign className="w-4 h-4" />
                     <span className="font-medium">Saldo pendiente ({alerts.deliveredWithBalance.length})</span>
@@ -466,18 +504,40 @@ export default function Alterations() {
           </div>
         )}
 
+        {/* Active client filter banner */}
+        {clientIdFilter && (
+          <div className="bg-brand-50 border border-brand-200 rounded-lg px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm text-brand-800">
+              <User className="w-4 h-4" />
+              <span>
+                Filtrado por cliente:{' '}
+                <strong>
+                  {filterClient ? `${filterClient.name} (${filterClient.code})` : clientIdFilter}
+                </strong>
+              </span>
+            </div>
+            <button
+              onClick={clearClientFilter}
+              className="flex items-center gap-1 text-sm text-brand-700 hover:text-brand-900 font-medium"
+            >
+              Quitar filtro
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* Filters */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+        <div className="bg-white rounded-lg shadow-sm border border-stone-100 p-4">
           <div className="flex flex-col md:flex-row gap-4">
             {/* Search */}
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
               <input
                 type="text"
                 placeholder="Buscar por código, cliente o prenda..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                className="w-full pl-10 pr-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
               />
             </div>
 
@@ -485,7 +545,7 @@ export default function Alterations() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as AlterationStatus | '')}
-              className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+              className="px-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
             >
               <option value="">Todos los estados</option>
               {Object.entries(ALTERATION_STATUS_LABELS).map(([value, label]) => (
@@ -497,7 +557,7 @@ export default function Alterations() {
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value as AlterationType | '')}
-              className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+              className="px-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
             >
               <option value="">Todos los tipos</option>
               {Object.entries(ALTERATION_TYPE_LABELS).map(([value, label]) => (
@@ -509,7 +569,7 @@ export default function Alterations() {
             <select
               value={paymentFilter}
               onChange={(e) => setPaymentFilter(e.target.value as 'all' | 'paid' | 'pending')}
-              className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+              className="px-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
             >
               <option value="all">Todos los pagos</option>
               <option value="paid">Pagados</option>
@@ -520,7 +580,7 @@ export default function Alterations() {
             {hasActiveFilters && (
               <button
                 onClick={clearAllFilters}
-                className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition"
+                className="flex items-center gap-2 px-4 py-2 text-stone-600 hover:text-stone-800 hover:bg-stone-100 rounded-lg transition"
               >
                 <XCircle className="w-4 h-4" />
                 Limpiar
@@ -529,7 +589,7 @@ export default function Alterations() {
           </div>
 
           {/* Date Filter */}
-          <div className="border-t border-gray-200 pt-3 mt-3">
+          <div className="border-t border-stone-200 pt-3 mt-3">
             <DateFilter value={dateRange} onChange={setDateRange} />
           </div>
         </div>
@@ -557,11 +617,11 @@ export default function Alterations() {
 
         {/* Alterations Table */}
         {!loading && !error && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+          <div className="bg-white rounded-lg shadow-sm border border-stone-100 overflow-hidden">
             {alterations.length === 0 ? (
               <div className="text-center py-12">
-                <Scissors className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">
+                <Scissors className="w-12 h-12 text-stone-300 mx-auto mb-4" />
+                <p className="text-stone-500">
                   {debouncedSearch || statusFilter || typeFilter || paymentFilter !== 'all'
                     ? 'No hay arreglos que coincidan con los filtros'
                     : 'No hay arreglos que mostrar'}
@@ -578,18 +638,18 @@ export default function Alterations() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-100">
+                  <thead className="bg-stone-50 border-b border-stone-100">
                     <tr>
-                      <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Código</th>
-                      <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Cliente</th>
-                      <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Trabajo</th>
-                      <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Estado</th>
-                      <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Entrega</th>
-                      <th className="text-right px-4 py-3 text-sm font-medium text-gray-600">Financiero</th>
-                      <th className="text-center px-4 py-3 text-sm font-medium text-gray-600">Acciones</th>
+                      <th className="text-left px-4 py-3 text-sm font-medium text-stone-600">Código</th>
+                      <th className="text-left px-4 py-3 text-sm font-medium text-stone-600">Cliente</th>
+                      <th className="text-left px-4 py-3 text-sm font-medium text-stone-600">Trabajo</th>
+                      <th className="text-left px-4 py-3 text-sm font-medium text-stone-600">Estado</th>
+                      <th className="text-left px-4 py-3 text-sm font-medium text-stone-600">Entrega</th>
+                      <th className="text-right px-4 py-3 text-sm font-medium text-stone-600">Financiero</th>
+                      <th className="text-center px-4 py-3 text-sm font-medium text-stone-600">Acciones</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-stone-100">
                     {alterations.map((alteration, index) => {
                       const urgency = getDeliveryUrgency(alteration.estimated_delivery_date, alteration.status);
                       const paymentStatus = getPaymentStatus(alteration.cost, alteration.amount_paid, alteration.balance);
@@ -598,8 +658,8 @@ export default function Alterations() {
                       return (
                         <tr
                           key={alteration.id}
-                          className={`hover:bg-gray-50 cursor-pointer transition ${
-                            index % 2 === 1 ? 'bg-gray-50/50' : ''
+                          className={`hover:bg-stone-50 cursor-pointer transition ${
+                            index % 2 === 1 ? 'bg-stone-50/50' : ''
                           }`}
                           onClick={() => navigate(`/alterations/${alteration.id}`)}
                         >
@@ -614,11 +674,11 @@ export default function Alterations() {
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
                               {alteration.client_id ? (
-                                <User className="w-4 h-4 text-gray-400" />
+                                <User className="w-4 h-4 text-stone-400" />
                               ) : (
-                                <UserX className="w-4 h-4 text-gray-300" />
+                                <UserX className="w-4 h-4 text-stone-300" />
                               )}
-                              <span className="text-gray-900 truncate max-w-[150px]" title={alteration.client_display_name}>
+                              <span className="text-stone-900 truncate max-w-[150px]" title={alteration.client_display_name}>
                                 {alteration.client_display_name}
                               </span>
                             </div>
@@ -627,10 +687,10 @@ export default function Alterations() {
                           {/* Trabajo (Prenda + Tipo) */}
                           <td className="px-4 py-3">
                             <div>
-                              <p className="text-gray-900 font-medium truncate max-w-[180px]" title={alteration.garment_name}>
+                              <p className="text-stone-900 font-medium truncate max-w-[180px]" title={alteration.garment_name}>
                                 {alteration.garment_name}
                               </p>
-                              <span className="text-xs text-gray-500">
+                              <span className="text-xs text-stone-500">
                                 {ALTERATION_TYPE_LABELS[alteration.alteration_type]}
                               </span>
                             </div>
@@ -647,7 +707,7 @@ export default function Alterations() {
                           <td className="px-4 py-3">
                             {alteration.estimated_delivery_date ? (
                               <div className="flex flex-col gap-1">
-                                <span className="text-sm text-gray-600">
+                                <span className="text-sm text-stone-600">
                                   {formatDateShort(alteration.estimated_delivery_date)}
                                 </span>
                                 {urgency && (
@@ -657,14 +717,14 @@ export default function Alterations() {
                                 )}
                               </div>
                             ) : (
-                              <span className="text-gray-400 text-sm">Sin fecha</span>
+                              <span className="text-stone-400 text-sm">Sin fecha</span>
                             )}
                           </td>
 
                           {/* Financiero */}
                           <td className="px-4 py-3 text-right">
                             <div className="flex flex-col items-end gap-0.5">
-                              <span className="text-sm font-medium text-gray-900">
+                              <span className="text-sm font-medium text-stone-900">
                                 {formatCurrency(alteration.cost)}
                               </span>
                               <span className={`text-xs flex items-center gap-1 ${paymentStatus.color}`}>
@@ -681,7 +741,7 @@ export default function Alterations() {
                                 e.stopPropagation();
                                 navigate(`/alterations/${alteration.id}`);
                               }}
-                              className="p-2 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"
+                              className="p-2 text-stone-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"
                               title="Ver detalle"
                             >
                               <Eye className="w-5 h-5" />
@@ -695,7 +755,7 @@ export default function Alterations() {
 
                 {/* Load More Button */}
                 {hasMore && alterations.length > 0 && (
-                  <div className="p-4 border-t border-gray-100 text-center">
+                  <div className="p-4 border-t border-stone-100 text-center">
                     <button
                       onClick={() => { loadData(true); }}
                       disabled={loadingMore}

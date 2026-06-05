@@ -17,7 +17,7 @@ import { productService } from '../services/productService';
 import { useSchoolStore } from '../stores/schoolStore';
 import { useDraftStore, type OrderDraft, type DraftItem } from '../stores/draftStore';
 import { validateYomberMeasurements } from './YomberMeasurementsForm';
-import type { GarmentType, OrderItemCreate, Product, GlobalProduct, YomberMeasurements } from '../types/api';
+import type { GarmentType, OrderItemCreate, Product, YomberMeasurements } from '../types/api';
 
 // Import modular components
 import {
@@ -283,18 +283,19 @@ export default function OrderModal({
     await loadData(newSchoolId);
   };
 
-  const handleCatalogProductSelect = (product: Product | GlobalProduct, quantity?: number) => {
+  const handleCatalogProductSelect = (product: Product, quantity?: number) => {
     const garmentType = garmentTypes.find(gt => gt.id === product.garment_type_id);
-    const stockAvailable = product.inventory_quantity ?? (product as Product & { stock?: number }).stock ?? 0;
-    const isGlobalProduct = !('school_id' in product) || !(product as Product).school_id;
+    const stockAvailable =
+      product.inventory_available ??
+      product.available ??
+      ((product.inventory_quantity ?? product.stock ?? 0) -
+        (product.inventory_reserved ?? product.reserved ?? 0));
 
     const item: OrderItemForm = {
       tempId: Date.now().toString(),
       order_type: 'catalog',
       garment_type_id: product.garment_type_id,
-      product_id: isGlobalProduct ? undefined : product.id,
-      global_product_id: isGlobalProduct ? product.id : undefined,
-      is_global_product: isGlobalProduct,
+      product_id: product.id,
       quantity: quantity || 1,
       size: product.size,
       color: product.color || undefined,
@@ -310,7 +311,7 @@ export default function OrderModal({
     setError(null);
   };
 
-  const handleYomberProductSelect = (product: Product | GlobalProduct, quantity?: number) => {
+  const handleYomberProductSelect = (product: Product, quantity?: number) => {
     setYomberProductId(product.id);
     setYomberQuantity(quantity || 1);
     setError(null);
@@ -429,8 +430,6 @@ export default function OrderModal({
           quantity: item.quantity,
           order_type: item.order_type,
           product_id: item.product_id,
-          global_product_id: item.global_product_id,
-          is_global_product: item.is_global_product,
           unit_price: item.unit_price,
           additional_price: item.additional_price,
           size: item.size,
@@ -588,9 +587,9 @@ export default function OrderModal({
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="relative bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
-            <h2 className="text-xl font-semibold text-gray-800 flex items-center">
-              <Package className="w-6 h-6 mr-2 text-blue-600" />
+          <div className="flex items-center justify-between p-6 border-b border-stone-200 sticky top-0 bg-white z-10">
+            <h2 className="text-xl font-semibold text-stone-800 flex items-center">
+              <Package className="w-6 h-6 mr-2 text-brand-600" />
               {draftId ? 'Continuar Encargo' : 'Nuevo Encargo'}
               {draftId && (
                 <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
@@ -611,7 +610,7 @@ export default function OrderModal({
               )}
               <button
                 onClick={onClose}
-                className="text-gray-400 hover:text-gray-600 transition p-2 hover:bg-gray-100 rounded-lg"
+                className="text-stone-400 hover:text-stone-600 transition p-2 hover:bg-stone-100 rounded-lg"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -621,8 +620,8 @@ export default function OrderModal({
           {/* Loading Data */}
           {loadingData && (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-              <span className="ml-3 text-gray-600">Cargando datos...</span>
+              <Loader2 className="w-8 h-8 animate-spin text-brand-600" />
+              <span className="ml-3 text-stone-600">Cargando datos...</span>
             </div>
           )}
 
@@ -640,14 +639,14 @@ export default function OrderModal({
               {/* School Selector */}
               {showSchoolSelector && (
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-stone-700 mb-2">
                     <Building2 className="w-4 h-4 inline mr-1" />
                     Colegio *
                   </label>
                   <select
                     value={selectedSchoolId}
                     onChange={(e) => handleSchoolChange(e.target.value)}
-                    className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-blue-50"
+                    className="w-full px-3 py-2 border border-brand-300 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none bg-brand-50"
                   >
                     {availableSchools.map(school => (
                       <option key={school.id} value={school.id}>
@@ -655,7 +654,7 @@ export default function OrderModal({
                       </option>
                     ))}
                   </select>
-                  <p className="mt-1 text-xs text-blue-600">
+                  <p className="mt-1 text-xs text-brand-600">
                     Los productos, tipos de prenda y clientes se cargan del colegio seleccionado
                   </p>
                 </div>
@@ -663,7 +662,7 @@ export default function OrderModal({
 
               {/* Client Selection */}
               <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-stone-700 mb-2">
                   Cliente *
                 </label>
                 <ClientSelector
@@ -686,7 +685,7 @@ export default function OrderModal({
 
               {/* Delivery Date */}
               <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-stone-700 mb-2">
                   <Calendar className="w-4 h-4 inline mr-1" />
                   Fecha de Entrega
                 </label>
@@ -700,19 +699,19 @@ export default function OrderModal({
 
               {/* Order Type Tabs */}
               <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-3">
+                <label className="block text-sm font-medium text-stone-700 mb-3">
                   Agregar Items al Encargo
                 </label>
 
                 {/* Tabs */}
-                <div className="flex border-b border-gray-200 mb-4">
+                <div className="flex border-b border-stone-200 mb-4">
                   <button
                     type="button"
                     onClick={() => setActiveTab('catalog')}
                     className={`flex items-center px-4 py-2 text-sm font-medium border-b-2 transition ${
                       activeTab === 'catalog'
-                        ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                        ? 'border-brand-500 text-brand-600'
+                        : 'border-transparent text-stone-500 hover:text-stone-700'
                     }`}
                   >
                     <ShoppingBag className="w-4 h-4 mr-2" />
@@ -724,7 +723,7 @@ export default function OrderModal({
                     className={`flex items-center px-4 py-2 text-sm font-medium border-b-2 transition ${
                       activeTab === 'yomber'
                         ? 'border-purple-500 text-purple-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                        : 'border-transparent text-stone-500 hover:text-stone-700'
                     }`}
                   >
                     <Ruler className="w-4 h-4 mr-2" />
@@ -736,7 +735,7 @@ export default function OrderModal({
                     className={`flex items-center px-4 py-2 text-sm font-medium border-b-2 transition ${
                       activeTab === 'custom'
                         ? 'border-orange-500 text-orange-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                        : 'border-transparent text-stone-500 hover:text-stone-700'
                     }`}
                   >
                     <Settings className="w-4 h-4 mr-2" />
@@ -745,7 +744,7 @@ export default function OrderModal({
                 </div>
 
                 {/* Tab Content */}
-                <div className="bg-gray-50 rounded-lg p-4">
+                <div className="bg-stone-50 rounded-lg p-4">
                   {activeTab === 'catalog' && (
                     <CatalogTab onOpenSelector={() => setCatalogProductSelectorOpen(true)} />
                   )}
@@ -814,7 +813,7 @@ export default function OrderModal({
 
               {/* Notes */}
               <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-stone-700 mb-2">
                   Notas del Encargo
                 </label>
                 <textarea
@@ -822,24 +821,24 @@ export default function OrderModal({
                   onChange={(e) => setNotes(e.target.value)}
                   rows={2}
                   placeholder="Notas adicionales sobre el encargo..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
+                  className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none resize-none"
                 />
               </div>
 
               {/* Actions */}
-              <div className="flex gap-3 pt-4 border-t border-gray-200">
+              <div className="flex gap-3 pt-4 border-t border-stone-200">
                 <button
                   type="button"
                   onClick={onClose}
                   disabled={loading}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+                  className="flex-1 px-4 py-2 border border-stone-200 text-stone-700 rounded-lg hover:bg-stone-50 transition disabled:opacity-50"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={loading || items.length === 0 || (advancePayment > 0 && !advancePaymentMethod)}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 flex items-center justify-center"
+                  className="flex-1 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition disabled:opacity-50 flex items-center justify-center"
                 >
                   {loading ? (
                     <>

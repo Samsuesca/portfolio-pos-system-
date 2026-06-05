@@ -16,8 +16,8 @@ from fastapi import APIRouter, HTTPException, status, Query, Depends, UploadFile
 from sqlalchemy import select, or_, func
 from sqlalchemy.orm import selectinload, joinedload
 
-from app.api.dependencies import DatabaseSession, CurrentUser, require_school_access, UserSchoolIds
-from app.models.user import UserRole
+from app.api.dependencies import DatabaseSession, CurrentUser, UserSchoolIds, require_permission, require_global_permission
+from app.api.error_responses import responses, AUTHENTICATED
 from app.models.product import Product, GarmentType, GarmentTypeImage, Inventory
 from app.models.order import OrderItem, Order, OrderStatus, OrderItemStatus
 from app.models.school import School
@@ -25,8 +25,9 @@ from app.schemas.product import (
     GarmentTypeCreate, GarmentTypeUpdate, GarmentTypeResponse,
     GarmentTypeImageResponse, GarmentTypeImageReorder, GarmentTypeWithImages,
     ProductCreate, ProductUpdate, ProductResponse, ProductWithInventory,
-    ProductListResponse
+    ProductListResponse, CatalogReorder, CatalogOrderEntry
 )
+from app.schemas.base import PaginatedResponse, paginate
 from app.services.product import GarmentTypeService, ProductService
 
 # Constants for image uploads
@@ -44,8 +45,11 @@ router = APIRouter(tags=["Products"])
 
 @router.get(
     "/products",
-    response_model=list[ProductListResponse],
-    summary="List products from all schools"
+    response_model=PaginatedResponse[ProductListResponse],
+    summary="List products from all schools",
+    dependencies=[Depends(require_global_permission("products.view"))],
+    responses=AUTHENTICATED,
+    operation_id="listMultiSchoolProducts",
 )
 async def list_all_products(
     db: DatabaseSession,
@@ -59,7 +63,9 @@ async def list_all_products(
     active_only: bool = Query(True, description="Only active products"),
     with_stock: bool = Query(False, description="Include stock quantity"),
     with_images: bool = Query(False, description="Include garment type images"),
-    missing_cost: bool = Query(False, description="Only products without cost (cost IS NULL or cost = 0)")
+    missing_cost: bool = Query(False, description="Only products without cost (cost IS NULL or cost = 0)"),
+    sort_by: str = Query("name", description="Sort field: code, name, size, price, stock"),
+    order: str = Query("asc", description="Sort direction: asc or desc"),
 ):
     """
     List products from ALL schools the user has access to.
@@ -73,7 +79,7 @@ async def list_all_products(
     - with_images: Include garment type images for catalog display
     """
     if not user_school_ids:
-        return []
+        return PaginatedResponse[ProductListResponse](**paginate([], 0, skip, limit))
 
     # Build query options - avoid loader strategy conflict
     # When with_images=True, use selectinload for garment_type (to chain images)
@@ -93,7 +99,6 @@ async def list_all_products(
         select(Product)
         .options(*query_options)
         .where(Product.school_id.in_(user_school_ids))
-        .order_by(Product.name)
     )
 
     # Apply filters
@@ -128,6 +133,49 @@ async def list_all_products(
             )
         )
 
+    count_query = select(func.count(Product.id)).where(
+        Product.school_id.in_(user_school_ids)
+    )
+    if school_id:
+        count_query = count_query.where(Product.school_id == school_id)
+    if garment_type_id:
+        count_query = count_query.where(Product.garment_type_id == garment_type_id)
+    if active_only:
+        count_query = count_query.where(Product.is_active == True)
+    if search:
+        count_query = count_query.where(
+            or_(Product.code.ilike(f"%{search}%"), Product.name.ilike(f"%{search}%"))
+        )
+    if missing_cost:
+        count_query = count_query.where(or_(Product.cost.is_(None), Product.cost == 0))
+    total = (await db.execute(count_query)).scalar_one()
+
+    # Server-side sort over the FULL filtered catalog (not just the page).
+    # stock is derived from Inventory, so it sorts via a grouped subquery
+    # joined here; pending_orders is not SQL-sortable (matched in Python below)
+    # and falls back to the default name order.
+    sort_columns = {
+        "code": Product.code,
+        "name": Product.name,
+        "size": Product.size,
+        "price": Product.price,
+    }
+    descending = order.lower() == "desc"
+    if sort_by == "stock":
+        stock_subq = (
+            select(
+                Inventory.product_id.label("pid"),
+                func.coalesce(func.sum(Inventory.quantity), 0).label("stock"),
+            )
+            .group_by(Inventory.product_id)
+            .subquery()
+        )
+        query = query.outerjoin(stock_subq, stock_subq.c.pid == Product.id)
+        sort_col = func.coalesce(stock_subq.c.stock, 0)
+    else:
+        sort_col = sort_columns.get(sort_by, Product.name)
+    query = query.order_by(sort_col.desc() if descending else sort_col.asc())
+
     # Pagination
     query = query.offset(skip).limit(limit)
 
@@ -136,6 +184,7 @@ async def list_all_products(
 
     # If with_stock, get inventory data
     stock_map = {}
+    reserved_map = {}
     min_stock_map = {}
     if with_stock and products:
         product_ids = [p.id for p in products]
@@ -144,6 +193,7 @@ async def list_all_products(
         )
         for inv in inv_result.scalars().all():
             stock_map[inv.product_id] = inv.quantity
+            reserved_map[inv.product_id] = inv.reserved_quantity
             min_stock_map[inv.product_id] = inv.min_stock_alert
 
     # Get pending orders information for each product
@@ -189,6 +239,10 @@ async def list_all_products(
                     'count': int(row.order_count or 0)
                 }
 
+    # Costos solo visibles para quien tenga inventory.view_cost (cualquier colegio)
+    from app.services.permission import PermissionService
+    can_view_cost = await PermissionService(db).has_global_permission(current_user, "inventory.view_cost")
+
     # Build responses
     responses = []
     for product in products:
@@ -222,12 +276,17 @@ async def list_all_products(
             color=product.color,
             gender=product.gender,
             price=product.price,
+            cost=product.cost if can_view_cost else None,
+            cost_type=product.garment_type.cost_type if product.garment_type else None,
+            description=product.description,
             is_active=product.is_active,
             garment_type_id=product.garment_type_id,
             garment_type_name=product.garment_type.name if product.garment_type else None,
             school_id=product.school_id,
             school_name=product.school.name if product.school else None,
             stock=stock_map.get(product.id, 0) if with_stock else None,
+            reserved=reserved_map.get(product.id, 0) if with_stock else None,
+            available=(stock_map.get(product.id, 0) - reserved_map.get(product.id, 0)) if with_stock else None,
             min_stock=min_stock_map.get(product.id, 5) if with_stock else None,
             pending_orders_qty=pending_orders_map.get(product.id, {}).get('qty', 0),
             pending_orders_count=pending_orders_map.get(product.id, {}).get('count', 0),
@@ -235,13 +294,16 @@ async def list_all_products(
             garment_type_primary_image_url=primary_image_url
         ))
 
-    return responses
+    return PaginatedResponse[ProductListResponse](**paginate(responses, total, skip, limit))
 
 
 @router.get(
     "/products/{product_id}",
     response_model=ProductResponse,
-    summary="Get product by ID (from any accessible school)"
+    summary="Get product by ID (from any accessible school)",
+    dependencies=[Depends(require_global_permission("products.view"))],
+    responses=responses(404),
+    operation_id="getMultiSchoolProduct",
 )
 async def get_product_global(
     product_id: UUID,
@@ -271,8 +333,11 @@ async def get_product_global(
 
 @router.get(
     "/garment-types",
-    response_model=list[GarmentTypeWithImages],
-    summary="List garment types from all schools"
+    response_model=PaginatedResponse[GarmentTypeWithImages],
+    summary="List garment types from all schools",
+    dependencies=[Depends(require_global_permission("products.view"))],
+    responses=AUTHENTICATED,
+    operation_id="listMultiSchoolGarmentTypes",
 )
 async def list_all_garment_types(
     db: DatabaseSession,
@@ -282,14 +347,19 @@ async def list_all_garment_types(
     limit: int = Query(100, ge=1, le=500),
     school_id: UUID | None = Query(None, description="Filter by specific school"),
     active_only: bool = Query(True, description="Only active garment types"),
-    with_images: bool = Query(True, description="Include images for each garment type")
+    with_images: bool = Query(True, description="Include images for each garment type"),
+    with_stats: bool = Query(False, description="Include aggregated catalog stats (variant count, stock, price range)"),
 ):
     """
     List garment types from ALL schools the user has access to.
     Includes images by default for display purposes.
+
+    When with_stats=True, each type carries aggregated catalog stats
+    (product_count, total_stock, min_price, max_price, has_images) computed in a
+    single grouped query over the page's types — no N+1.
     """
     if not user_school_ids:
-        return []
+        return PaginatedResponse[GarmentTypeWithImages](**paginate([], 0, skip, limit))
 
     query_options = []
     if with_images:
@@ -311,10 +381,41 @@ async def list_all_garment_types(
     if active_only:
         query = query.where(GarmentType.is_active == True)
 
+    count_query = select(func.count(GarmentType.id)).where(
+        GarmentType.school_id.in_(user_school_ids)
+    )
+    if school_id:
+        count_query = count_query.where(GarmentType.school_id == school_id)
+    if active_only:
+        count_query = count_query.where(GarmentType.is_active == True)
+    total = (await db.execute(count_query)).scalar_one()
+
     query = query.offset(skip).limit(limit)
 
     result = await db.execute(query)
     garment_types = result.unique().scalars().all()
+
+    # One grouped query for the whole page's stats — avoids N+1 per type.
+    stats_by_type: dict[UUID, tuple[int, int, Decimal | None, Decimal | None]] = {}
+    if with_stats and garment_types:
+        type_ids = [gt.id for gt in garment_types]
+        stats_query = (
+            select(
+                Product.garment_type_id,
+                func.count(Product.id),
+                func.coalesce(func.sum(Inventory.quantity), 0),
+                func.min(Product.price),
+                func.max(Product.price),
+            )
+            .select_from(Product)
+            .outerjoin(Inventory, Inventory.product_id == Product.id)
+            .where(Product.garment_type_id.in_(type_ids))
+            .group_by(Product.garment_type_id)
+        )
+        if active_only:
+            stats_query = stats_query.where(Product.is_active == True)
+        for gt_id, count, stock, min_p, max_p in (await db.execute(stats_query)).all():
+            stats_by_type[gt_id] = (count, stock, min_p, max_p)
 
     # Build response with images
     responses = []
@@ -334,6 +435,8 @@ async def list_all_garment_types(
             elif relevant_images:
                 primary_image_url = relevant_images[0].image_url
 
+        count, stock, min_p, max_p = stats_by_type.get(gt.id, (0, 0, None, None))
+
         response = GarmentTypeWithImages(
             id=gt.id,
             school_id=gt.school_id,
@@ -342,15 +445,21 @@ async def list_all_garment_types(
             category=gt.category,
             requires_embroidery=gt.requires_embroidery,
             has_custom_measurements=gt.has_custom_measurements,
+            cost_type=gt.cost_type,
             is_active=gt.is_active,
             created_at=gt.created_at,
             updated_at=gt.updated_at,
             images=gt_images,
-            primary_image_url=primary_image_url
+            primary_image_url=primary_image_url,
+            product_count=count,
+            total_stock=stock,
+            min_price=min_p,
+            max_price=max_p,
+            has_images=len(gt_images) > 0,
         )
         responses.append(response)
 
-    return responses
+    return PaginatedResponse[GarmentTypeWithImages](**paginate(responses, total, skip, limit))
 
 
 # =============================================================================
@@ -367,7 +476,9 @@ school_router = APIRouter(prefix="/schools/{school_id}", tags=["Products"])
     "/garment-types",
     response_model=GarmentTypeResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("products.create"))],
+    responses=responses(400),
+    operation_id="createGarmentType",
 )
 async def create_garment_type(
     school_id: UUID,
@@ -395,18 +506,23 @@ async def create_garment_type(
 
 @school_router.get(
     "/garment-types",
-    response_model=list[GarmentTypeResponse],
-    dependencies=[Depends(require_school_access(UserRole.VIEWER))]
+    response_model=PaginatedResponse[GarmentTypeResponse],
+    dependencies=[Depends(require_permission("products.view"))],
+    responses=AUTHENTICATED,
+    operation_id="listGarmentTypes",
 )
 async def list_garment_types_for_school(
     school_id: UUID,
     db: DatabaseSession,
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
+    limit: int = Query(100, ge=1, le=500),
     active_only: bool = Query(True)
 ):
     """List garment types for a specific school"""
     garment_service = GarmentTypeService(db)
+
+    filters = {"is_active": True} if active_only else None
+    total = await garment_service.count(school_id, filters)
 
     if active_only:
         garments = await garment_service.get_active_garment_types(
@@ -417,13 +533,16 @@ async def list_garment_types_for_school(
             school_id=school_id, skip=skip, limit=limit
         )
 
-    return [GarmentTypeResponse.model_validate(g) for g in garments]
+    items = [GarmentTypeResponse.model_validate(g) for g in garments]
+    return PaginatedResponse[GarmentTypeResponse](**paginate(items, total, skip, limit))
 
 
 @school_router.put(
     "/garment-types/{garment_type_id}",
     response_model=GarmentTypeResponse,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("products.edit"))],
+    responses=responses(404),
+    operation_id="updateGarmentType",
 )
 async def update_garment_type(
     school_id: UUID,
@@ -449,6 +568,31 @@ async def update_garment_type(
     return GarmentTypeResponse.model_validate(garment_type)
 
 
+@school_router.delete(
+    "/garment-types/{garment_type_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_permission("settings.manage_garment_types"))],
+    responses=responses(404, 409),
+    operation_id="deleteGarmentType",
+)
+async def delete_garment_type(
+    school_id: UUID,
+    garment_type_id: UUID,
+    db: DatabaseSession
+):
+    """Eliminar tipo de prenda (soft o hard delete segun historial)"""
+    garment_service = GarmentTypeService(db)
+    try:
+        result = await garment_service.delete_garment_type(garment_type_id, school_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e)
+        )
+
+    await db.commit()
+
+
 # ==========================================
 # Garment Type Images
 # ==========================================
@@ -456,7 +600,9 @@ async def update_garment_type(
 @school_router.get(
     "/garment-types/{garment_type_id}/images",
     response_model=list[GarmentTypeImageResponse],
-    dependencies=[Depends(require_school_access(UserRole.VIEWER))]
+    dependencies=[Depends(require_permission("products.view"))],
+    responses=responses(404),
+    operation_id="listGarmentTypeImages",
 )
 async def list_garment_type_images(
     school_id: UUID,
@@ -496,7 +642,9 @@ async def list_garment_type_images(
     "/garment-types/{garment_type_id}/images",
     response_model=GarmentTypeImageResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("products.edit"))],
+    responses=responses(400, 404),
+    operation_id="uploadGarmentTypeImage",
 )
 async def upload_garment_type_image(
     school_id: UUID,
@@ -610,7 +758,9 @@ async def upload_garment_type_image(
 @school_router.delete(
     "/garment-types/{garment_type_id}/images/{image_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("products.edit"))],
+    responses=responses(404),
+    operation_id="deleteGarmentTypeImage",
 )
 async def delete_garment_type_image(
     school_id: UUID,
@@ -669,7 +819,9 @@ async def delete_garment_type_image(
 @school_router.put(
     "/garment-types/{garment_type_id}/images/{image_id}/primary",
     response_model=GarmentTypeImageResponse,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("products.edit"))],
+    responses=responses(404),
+    operation_id="setGarmentTypePrimaryImage",
 )
 async def set_primary_image(
     school_id: UUID,
@@ -724,7 +876,9 @@ async def set_primary_image(
 @school_router.put(
     "/garment-types/{garment_type_id}/images/reorder",
     response_model=list[GarmentTypeImageResponse],
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("products.edit"))],
+    responses=responses(400, 404),
+    operation_id="reorderGarmentTypeImages",
 )
 async def reorder_garment_type_images(
     school_id: UUID,
@@ -784,6 +938,49 @@ async def reorder_garment_type_images(
 
 
 # ==========================================
+# Catalog order (per-school garment-type card order)
+# ==========================================
+
+@school_router.get(
+    "/catalog/garment-types/order",
+    response_model=list[CatalogOrderEntry],
+    operation_id="getSchoolCatalogOrder",
+)
+async def get_school_catalog_order(
+    school_id: UUID,
+    db: DatabaseSession,
+    current_user: CurrentUser,
+):
+    """Orden persistido de las cards del catalogo (tipos de prenda) para este colegio."""
+    garment_service = GarmentTypeService(db)
+    return await garment_service.get_school_catalog_order(school_id)
+
+
+@school_router.put(
+    "/catalog/garment-types/reorder",
+    response_model=list[CatalogOrderEntry],
+    dependencies=[Depends(require_permission("catalog.reorder"))],
+    responses=responses(400),
+    operation_id="reorderSchoolCatalog",
+)
+async def reorder_school_catalog(
+    school_id: UUID,
+    reorder_data: CatalogReorder,
+    db: DatabaseSession,
+):
+    """Reordena las cards del catalogo (tipos de prenda) para este colegio."""
+    garment_service = GarmentTypeService(db)
+    try:
+        result = await garment_service.reorder_school_catalog(
+            school_id, reorder_data.garment_type_ids
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    await db.commit()
+    return result
+
+
+# ==========================================
 # Products
 # ==========================================
 
@@ -791,7 +988,9 @@ async def reorder_garment_type_images(
     "/products",
     response_model=ProductResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("products.create"))],
+    responses=responses(400),
+    operation_id="createProduct",
 )
 async def create_product(
     school_id: UUID,
@@ -835,25 +1034,32 @@ async def create_product(
 
 @school_router.get(
     "/products",
-    response_model=list[ProductWithInventory],  # Changed to support inventory fields
-    dependencies=[Depends(require_school_access(UserRole.VIEWER))]
+    response_model=PaginatedResponse[ProductWithInventory],
+    dependencies=[Depends(require_permission("products.view"))],
+    responses=AUTHENTICATED,
+    operation_id="listProducts",
 )
 async def list_products_for_school(
     school_id: UUID,
     db: DatabaseSession,
+    current_user: CurrentUser,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     active_only: bool = Query(True),
     with_inventory: bool = Query(False)
 ):
-    """List products for school"""
+    """List products for school. El campo `cost` solo se incluye si el usuario
+    tiene `inventory.view_cost` en este colegio."""
     product_service = ProductService(db)
+
+    filters = {"is_active": True} if active_only else None
+    total = await product_service.count(school_id, filters)
 
     if with_inventory:
         products = await product_service.get_products_with_inventory(
             school_id, skip=skip, limit=limit
         )
-        return products
+        items = list(products)
     else:
         if active_only:
             products = await product_service.get_active_products(
@@ -863,14 +1069,25 @@ async def list_products_for_school(
             products = await product_service.get_multi(
                 school_id=school_id, skip=skip, limit=limit
             )
+        items = [ProductResponse.model_validate(p) for p in products]
 
-        return [ProductResponse.model_validate(p) for p in products]
+    from app.services.permission import PermissionService
+    can_view_cost = current_user.is_superuser or await PermissionService(db).has_permission(
+        current_user.id, school_id, "inventory.view_cost"
+    )
+    if not can_view_cost:
+        for item in items:
+            item.cost = None
+
+    return PaginatedResponse[ProductWithInventory](**paginate(items, total, skip, limit))
 
 
 @school_router.get(
     "/products/{product_id}",
     response_model=ProductResponse,
-    dependencies=[Depends(require_school_access(UserRole.VIEWER))]
+    dependencies=[Depends(require_permission("products.view"))],
+    responses=responses(404),
+    operation_id="getProduct",
 )
 async def get_product_for_school(
     school_id: UUID,
@@ -893,7 +1110,9 @@ async def get_product_for_school(
 @school_router.put(
     "/products/{product_id}",
     response_model=ProductResponse,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("products.edit"))],
+    responses=responses(404),
+    operation_id="updateProduct",
 )
 async def update_product(
     school_id: UUID,
@@ -917,15 +1136,43 @@ async def update_product(
     return ProductResponse.model_validate(product)
 
 
+@school_router.delete(
+    "/products/{product_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_permission("products.delete"))],
+    responses=responses(404, 409),
+    operation_id="deleteProduct",
+)
+async def delete_product(
+    school_id: UUID,
+    product_id: UUID,
+    db: DatabaseSession
+):
+    """Eliminar producto (soft o hard delete segun historial)"""
+    product_service = ProductService(db)
+    try:
+        result = await product_service.delete_product(product_id, school_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e)
+        )
+
+    await db.commit()
+
+
 @school_router.get(
     "/products/search/by-term",
-    response_model=list[ProductResponse],
-    dependencies=[Depends(require_school_access(UserRole.VIEWER))]
+    response_model=PaginatedResponse[ProductResponse],
+    dependencies=[Depends(require_permission("products.view"))],
+    responses=AUTHENTICATED,
+    operation_id="searchProducts",
 )
 async def search_products(
     school_id: UUID,
     q: str = Query(..., min_length=1, description="Search term"),
     db: DatabaseSession = None,
+    skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=50)
 ):
     """Search products by code, name, size, or color"""
@@ -934,7 +1181,8 @@ async def search_products(
         school_id, q, limit=limit
     )
 
-    return [ProductResponse.model_validate(p) for p in products]
+    items = [ProductResponse.model_validate(p) for p in products]
+    return PaginatedResponse[ProductResponse](**paginate(items, len(items), skip, limit))
 
 
 # =============================================================================
@@ -967,7 +1215,9 @@ class BulkCostUpdateResult(BaseModel):
 @router.patch(
     "/products/bulk-update-costs",
     response_model=BulkCostUpdateResult,
-    summary="Bulk update product costs"
+    summary="Bulk update product costs",
+    responses=AUTHENTICATED,
+    operation_id="bulkUpdateProductCosts",
 )
 async def bulk_update_product_costs(
     request: BulkCostUpdateRequest,

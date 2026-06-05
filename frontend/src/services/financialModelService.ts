@@ -14,17 +14,24 @@ const BASE = '/global/accounting/financial-model';
 export interface KPIValue {
   key: string;
   label: string;
-  value: number;
+  // value es null cuando el cálculo no aplica (denominador 0, datos faltantes).
+  // En ese caso formatted_value es "—" y tooltip_unavailable explica la causa.
+  value: number | null;
   formatted_value: string;
   unit: string;
   trend: number[];
   trend_labels: string[];
   status: 'good' | 'caution' | 'critical' | 'neutral';
   tooltip: string;
+  tooltip_unavailable?: string | null;
 }
 
 export interface KPIDashboardResponse {
   period: string;
+  // period_label es texto largo legible (ej. "Últimos 6 meses (...)")
+  period_label?: string | null;
+  // period_warning aparece cuando el rango cae en un mes parcial.
+  period_warning?: string | null;
   generated_at: string;
   kpis: KPIValue[];
 }
@@ -170,6 +177,9 @@ export interface TopItem {
 export interface ExecutiveSummaryResponse {
   period: string;
   period_label: string;
+  // Aviso de mes parcial. El backend lo setea cuando el período cae en
+  // el mes en curso y aún no ha terminado. UI muestra banner amarillo.
+  period_warning?: string | null;
   generated_at: string;
   revenue: number;
   expenses: number;
@@ -190,7 +200,7 @@ export interface ExecutiveSummaryResponse {
 // ============================================
 
 async function getKPIs(params?: {
-  period?: string;
+  period?: 'daily' | 'weekly' | 'monthly';
   months?: number;
   school_id?: string;
 }): Promise<KPIDashboardResponse> {
@@ -213,7 +223,7 @@ async function getProfitabilityBySchool(params?: {
 
 async function getTrends(params?: {
   metrics?: string;
-  period?: string;
+  period?: 'daily' | 'weekly' | 'monthly';
   start_date?: string;
   end_date?: string;
 }): Promise<TrendAnalysisResponse> {

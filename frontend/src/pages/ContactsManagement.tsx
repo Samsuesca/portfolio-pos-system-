@@ -31,10 +31,10 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
-  in_review: 'bg-blue-100 text-blue-700',
-  resolved: 'bg-green-100 text-green-700',
-  closed: 'bg-gray-100 text-gray-700'
+  pending: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+  in_review: 'bg-brand-100 text-brand-700',
+  resolved: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+  closed: 'bg-stone-100 text-stone-700'
 };
 
 export default function ContactsManagement() {
@@ -49,23 +49,28 @@ export default function ContactsManagement() {
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [globalUnreadCount, setGlobalUnreadCount] = useState(0);
 
   const loadContacts = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const response = await contactService.getContacts({
-        page: 1,
-        page_size: 100,
-        school_id: schoolFilter || undefined,
-        status_filter: statusFilter || undefined,
-        contact_type_filter: typeFilter || undefined,
-        unread_only: unreadOnly || undefined,
-        search: searchTerm || undefined
-      });
+      const [response, stats] = await Promise.all([
+        contactService.getContacts({
+          skip: 0,
+          limit: 100,
+          school_id: schoolFilter || undefined,
+          status_filter: statusFilter || undefined,
+          contact_type_filter: typeFilter || undefined,
+          unread_only: unreadOnly || undefined,
+          search: searchTerm || undefined
+        }),
+        contactService.getStats().catch(() => null)
+      ]);
 
-      setContacts(response.items);
+      setContacts(response.items ?? []);
+      if (stats) setGlobalUnreadCount(stats.unread_count);
     } catch (err: any) {
       console.error('Error loading contacts:', err);
       setError(err.response?.data?.detail || 'Error al cargar mensajes de contacto');
@@ -115,7 +120,7 @@ export default function ContactsManagement() {
     );
   });
 
-  const unreadCount = contacts.filter(c => !c.is_read).length;
+  const unreadCount = globalUnreadCount;
 
   return (
     <Layout>
@@ -124,16 +129,16 @@ export default function ContactsManagement() {
         <div className="mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-                <MessageSquare className="w-8 h-8 text-blue-600" />
+              <h1 className="text-3xl font-bold text-stone-900 flex items-center gap-2">
+                <MessageSquare className="w-8 h-8 text-brand-600" />
                 PQRS - Mensajes de Contacto
               </h1>
-              <p className="text-gray-600 mt-1">
+              <p className="text-stone-600 mt-1">
                 Gestiona peticiones, quejas, reclamos y sugerencias del portal web
               </p>
             </div>
             {unreadCount > 0 && (
-              <div className="bg-red-100 text-red-700 px-4 py-2 rounded-lg flex items-center gap-2">
+              <div className="bg-red-50 text-red-700 ring-1 ring-red-200 px-4 py-2 rounded-lg flex items-center gap-2">
                 <Mail className="w-5 h-5" />
                 <span className="font-semibold">{unreadCount} sin leer</span>
               </div>
@@ -142,34 +147,34 @@ export default function ContactsManagement() {
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+        <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             {/* Search */}
             <div className="lg:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-stone-700 mb-1">
                 Buscar
               </label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-stone-400 w-4 h-4" />
                 <input
                   type="text"
                   placeholder="Nombre, email, asunto..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="pl-10 w-full px-3 py-2 border border-stone-200 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-400/30"
                 />
               </div>
             </div>
 
             {/* School Filter */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-stone-700 mb-1">
                 Colegio
               </label>
               <select
                 value={schoolFilter}
                 onChange={(e) => setSchoolFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-stone-200 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-400/30"
               >
                 <option value="">Todos</option>
                 {availableSchools.map(school => (
@@ -182,13 +187,13 @@ export default function ContactsManagement() {
 
             {/* Type Filter */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-stone-700 mb-1">
                 Tipo
               </label>
               <select
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-stone-200 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-400/30"
               >
                 <option value="">Todos</option>
                 <option value="inquiry">Consulta</option>
@@ -201,13 +206,13 @@ export default function ContactsManagement() {
 
             {/* Status Filter */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-stone-700 mb-1">
                 Estado
               </label>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-stone-200 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-400/30"
               >
                 <option value="">Todos</option>
                 <option value="pending">Pendiente</option>
@@ -225,9 +230,9 @@ export default function ContactsManagement() {
               id="unread-only"
               checked={unreadOnly}
               onChange={(e) => setUnreadOnly(e.target.checked)}
-              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              className="w-4 h-4 text-brand-600 border-stone-200 rounded focus:ring-brand-400/30"
             />
-            <label htmlFor="unread-only" className="text-sm text-gray-700 flex items-center gap-1">
+            <label htmlFor="unread-only" className="text-sm text-stone-700 flex items-center gap-1">
               <Mail className="w-4 h-4" />
               Solo mensajes sin leer
             </label>
@@ -245,43 +250,43 @@ export default function ContactsManagement() {
         {/* Loading */}
         {loading && (
           <div className="flex justify-center items-center py-12">
-            <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+            <Loader2 className="w-8 h-8 text-brand-600 animate-spin" />
           </div>
         )}
 
         {/* Table */}
         {!loading && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+          <div className="bg-white rounded-lg shadow-sm border border-stone-200 overflow-hidden">
+            <table className="min-w-full divide-y divide-stone-100">
+              <thead className="bg-stone-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                     Estado / Leído
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                     Fecha
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                     Tipo
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                     Contacto
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                     Asunto
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                     Colegio
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">
                     Acciones
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white divide-y divide-stone-100">
                 {filteredContacts.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan={7} className="px-6 py-12 text-center text-stone-500">
                       No hay mensajes de contacto
                     </td>
                   </tr>
@@ -289,7 +294,7 @@ export default function ContactsManagement() {
                   filteredContacts.map((contact) => (
                     <tr
                       key={contact.id}
-                      className={`hover:bg-gray-50 ${!contact.is_read ? 'bg-blue-50' : ''}`}
+                      className={`hover:bg-stone-50 ${!contact.is_read ? 'bg-brand-50' : ''}`}
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex flex-col gap-1">
@@ -297,58 +302,58 @@ export default function ContactsManagement() {
                             {STATUS_LABELS[contact.status]}
                           </span>
                           {contact.is_read ? (
-                            <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                            <span className="inline-flex items-center gap-1 text-xs text-stone-500">
                               <MailOpen className="w-3 h-3" />
                               Leído
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-xs text-blue-600 font-medium">
+                            <span className="inline-flex items-center gap-1 text-xs text-brand-600 font-medium">
                               <Mail className="w-3 h-3" />
                               No leído
                             </span>
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-900">
                         <div className="flex items-center gap-1">
-                          <Clock className="w-4 h-4 text-gray-400" />
+                          <Clock className="w-4 h-4 text-stone-400" />
                           {formatDateTimeSpanish(new Date(contact.created_at))}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm text-gray-900 font-medium">
+                        <span className="text-sm text-stone-900 font-medium">
                           {CONTACT_TYPE_LABELS[contact.contact_type]}
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">{contact.name}</div>
-                        <div className="text-sm text-gray-500">{contact.email}</div>
+                        <div className="text-sm text-stone-900">{contact.name}</div>
+                        <div className="text-sm text-stone-500">{contact.email}</div>
                         {contact.phone && (
-                          <div className="text-xs text-gray-400">{contact.phone}</div>
+                          <div className="text-xs text-stone-400">{contact.phone}</div>
                         )}
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900 max-w-xs truncate">
+                        <div className="text-sm text-stone-900 max-w-xs truncate">
                           {contact.subject}
                         </div>
-                        <div className="text-xs text-gray-500 max-w-xs truncate">
+                        <div className="text-xs text-stone-500 max-w-xs truncate">
                           {contact.message}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-500">
                         {contact.school_id ? (
                           <div className="flex items-center gap-1">
                             <Building2 className="w-4 h-4" />
                             {availableSchools.find(s => s.id === contact.school_id)?.name || 'Colegio'}
                           </div>
                         ) : (
-                          <span className="text-gray-400">General</span>
+                          <span className="text-stone-400">General</span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <button
                           onClick={() => handleViewContact(contact)}
-                          className="text-blue-600 hover:text-blue-900 inline-flex items-center gap-1"
+                          className="text-brand-600 hover:text-brand-700 inline-flex items-center gap-1"
                         >
                           Ver detalles
                           <MessageSquare className="w-4 h-4" />

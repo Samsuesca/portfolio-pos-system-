@@ -160,20 +160,6 @@ export interface User {
   school_roles?: UserSchoolRole[];
 }
 
-export interface PaymentAccount {
-  id: string;
-  method_type: string;
-  account_name: string;
-  account_number: string;
-  account_holder: string;
-  bank_name?: string;
-  account_type?: string;
-  qr_code_url?: string;
-  instructions?: string;
-  display_order: number;
-  is_active: boolean;
-}
-
 export interface DeliveryZone {
   id: string;
   name: string;
@@ -193,7 +179,11 @@ export interface Product {
   price: number;
   cost?: number;
   stock: number;
+  reserved?: number;
+  available?: number;
   inventory_quantity?: number;
+  inventory_reserved?: number;
+  inventory_available?: number;
   garment_type_id: string;
   garment_type_name?: string;
   image_url?: string;
@@ -217,6 +207,8 @@ export interface GlobalProduct {
   price: number;
   cost?: number;
   inventory_quantity: number;
+  inventory_reserved?: number;
+  inventory_available?: number;
   inventory_min_stock?: number;
   image_url?: string;
   description?: string;
@@ -258,9 +250,11 @@ export interface GlobalGarmentType {
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
+  skip: number;
+  limit: number;
   page: number;
-  page_size: number;
   total_pages: number;
+  has_more: boolean;
 }
 
 export interface DashboardStats {

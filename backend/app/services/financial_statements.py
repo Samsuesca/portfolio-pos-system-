@@ -18,7 +18,7 @@ from sqlalchemy.orm import selectinload
 
 from app.utils.timezone import get_colombia_date
 from app.models.sale import Sale, SaleItem, SaleStatus
-from app.models.product import Product, GlobalProduct, Inventory, GlobalInventory
+from app.models.product import Product, Inventory
 from app.models.school import School
 from app.models.accounting import (
     Expense,
@@ -29,34 +29,62 @@ from app.models.accounting import (
     AccountsReceivable,
     AccountsPayable,
     Transaction,
-    TransactionType
+    TransactionType,
 )
+from app.models.vendor import Vendor
 from app.services.balance_integration import BalanceIntegrationService
-
-# Same margin used in PatrimonyService
-DEFAULT_COST_MARGIN = Decimal("0.80")
+from app.services._cogs_resolver import (
+    resolved_cost as cogs_resolved_cost,
+    has_real_cost as cogs_has_real_cost,
+    DEFAULT_COST_MARGIN,
+)
 
 # Expense categories mapping for Income Statement (using string codes)
 OPERATING_EXPENSE_CODES = {
     "rent", "utilities", "payroll", "supplies",
     "transport", "maintenance", "marketing",
+    "payroll_in_kind",  # Compensacion en especie (historico pre-formalizacion)
 }
 
 OTHER_EXPENSE_CODES = {
     "taxes", "bank_fees", "other",
 }
 
-# Excluded from P&L (already counted in COGS via Product.cost)
-# Production expenses are reflected in COGS when products are sold,
-# so including them as operating expenses would be double-counting.
+# Financial expenses (gastos financieros) - se reportan separados en el P&L
+FINANCIAL_EXPENSE_CODES = {
+    "intereses_financieros",
+    "bank_fees",
+}
+
+# Excluded from P&L:
+# 1. Production categories: ya contabilizadas en COGS via Product.cost
+# 2. Capital de deuda: NO es gasto, reduce pasivo (asiento de balance)
+# 3. Descuentos: ya restados del revenue (no double-count)
+# 4. Retiros del propietario: NO van al P&L, van contra patrimonio
 EXCLUDED_EXPENSE_CODES = {
+    # Produccion (doble conteo con COGS)
     "inventory",        # Producción: General
     "confeccion",       # Confección (categoría custom legacy)
     "prod_fabric",      # Producción: Tela
     "prod_tailoring",   # Producción: Confección
     "prod_embroidery",  # Producción: Bordado
-    "prod_accessories",  # Producción: Accesorios
+    "prod_accessories", # Producción: Accesorios
     "prod_other",       # Producción: Otros
+
+    # Pago de capital de deuda (no es gasto, reduce pasivo)
+    "deuda",            # Pagos de deuda - capital (debe migrarse a balance entries)
+    "prestamos",        # Mezclado historicamente - excluir hasta limpiar
+
+    # Descuentos (ya restados del revenue en _calculate_discounts)
+    "descuento",
+    "discounts",
+
+    # Retiros del propietario (van contra patrimonio, no P&L)
+    "owner_drawings",
+    "mercado",          # Historicamente personal - reclasificar via migracion
+    "ocio",             # Historicamente personal
+    "comida",           # Historicamente personal
+    "viaticos",         # Historicamente personal/mixto
     "discounts",        # Descuentos a clientes (deducción de ingresos, no gasto operativo)
     "sale_changes",     # Reembolsos por cambios de ventas (se tratan como devoluciones)
     "order_changes",    # Reembolsos por cambios de pedidos (se tratan como devoluciones)
@@ -169,14 +197,19 @@ class FinancialStatementsService:
             (operating_income / net_revenue * 100) if net_revenue > 0 else Decimal("0")
         )
 
-        # Other expenses
+        # Other expenses (taxes, other)
         other_expenses = expenses_data["other"]
-        financial_expenses = Decimal(str(other_expenses.get("bank_fees", 0)))
         total_other_expenses = sum(
             Decimal(str(v)) for v in other_expenses.values()
         )
 
-        net_income = operating_income - total_other_expenses
+        # Financial expenses (intereses, comisiones bancarias)
+        financial_expenses_dict = expenses_data.get("financial", {})
+        financial_expenses = sum(
+            Decimal(str(v)) for v in financial_expenses_dict.values()
+        )
+
+        net_income = operating_income - total_other_expenses - financial_expenses
         net_margin_percent = (
             (net_income / net_revenue * 100) if net_revenue > 0 else Decimal("0")
         )
@@ -207,6 +240,19 @@ class FinancialStatementsService:
             amount = Decimal(str(amount_val))
             if amount > 0:
                 other_expenses_by_category.append({
+                    "category": cat_code,
+                    "category_label": category_labels.get(cat_code, cat_code),
+                    "total": float(amount),
+                    "percentage_of_revenue": float(
+                        (amount / net_revenue * 100) if net_revenue > 0 else 0
+                    )
+                })
+
+        financial_expenses_by_category = []
+        for cat_code, amount_val in sorted(financial_expenses_dict.items()):
+            amount = Decimal(str(amount_val))
+            if amount > 0:
+                financial_expenses_by_category.append({
                     "category": cat_code,
                     "category_label": category_labels.get(cat_code, cat_code),
                     "total": float(amount),
@@ -275,6 +321,7 @@ class FinancialStatementsService:
                 "total": float(total_other_expenses)
             },
             "other_expenses_by_category": other_expenses_by_category,
+            "financial_expenses_by_category": financial_expenses_by_category,
             "other_expenses_details": other_expenses_details,
             "financial_expenses": float(financial_expenses),
             # Net Income
@@ -314,6 +361,7 @@ class FinancialStatementsService:
             )
             .where(
                 Sale.status == SaleStatus.COMPLETED,
+                Sale.is_historical.is_(False),
                 Sale.sale_date >= start_datetime,
                 Sale.sale_date <= end_datetime
             )
@@ -332,115 +380,56 @@ class FinancialStatementsService:
         """
         Calculate Cost of Goods Sold from SaleItems.
 
-        Logic:
-        - If Product.cost exists: use actual cost
-        - If Product.cost is NULL: estimate as unit_price * 0.80
+        Fallback chain per item:
+        1. SaleItem.unit_cost (snapshot at sale time)
+        2. Product.cost (current cost)
+        3. unit_price * 0.80 (estimate)
         """
-        # For school products (product_id is not null)
-        school_query = select(
-            func.sum(
-                case(
-                    (Product.cost.isnot(None), SaleItem.quantity * Product.cost),
-                    else_=SaleItem.quantity * SaleItem.unit_price * float(DEFAULT_COST_MARGIN)
-                )
-            ).label('total_cogs'),
-            func.sum(
-                case(
-                    (Product.cost.isnot(None), SaleItem.quantity * Product.cost),
-                    else_=0
-                )
-            ).label('actual_cogs'),
-            func.sum(
-                case(
-                    (Product.cost.is_(None), SaleItem.quantity * SaleItem.unit_price * float(DEFAULT_COST_MARGIN)),
-                    else_=0
-                )
-            ).label('estimated_cogs'),
-            func.sum(
-                case(
-                    (Product.cost.isnot(None), SaleItem.quantity),
-                    else_=0
-                )
-            ).label('items_with_cost'),
-            func.sum(
-                case(
-                    (Product.cost.is_(None), SaleItem.quantity),
-                    else_=0
-                )
-            ).label('items_estimated')
-        ).select_from(SaleItem).join(
-            Sale, Sale.id == SaleItem.sale_id
-        ).join(
-            Product, Product.id == SaleItem.product_id
-        ).where(
-            Sale.status == SaleStatus.COMPLETED,
-            Sale.sale_date >= start_datetime,
-            Sale.sale_date <= end_datetime,
-            SaleItem.product_id.isnot(None)
+        # Delegate the fallback chain to the shared _cogs_resolver helper so
+        # this service, the orders profitability endpoint, and the
+        # ProfitabilityService all agree on the same SQL expressions.
+        def _build_cogs_query(product_model, product_id_col, join_condition):
+            resolved = cogs_resolved_cost(
+                item_unit_cost_col=SaleItem.unit_cost,
+                item_unit_price_col=SaleItem.unit_price,
+                product_cost_col=product_model.cost,
+            )
+            has_real_expr = cogs_has_real_cost(
+                item_unit_cost_col=SaleItem.unit_cost,
+                product_cost_col=product_model.cost,
+            )
+            # ``has_real`` from _cogs_resolver returns 1/0; convert to a
+            # boolean predicate for the conditional sums below.
+            has_real = has_real_expr == 1
+            return select(
+                func.sum(SaleItem.quantity * resolved).label('total_cogs'),
+                func.sum(case((has_real, SaleItem.quantity * resolved), else_=0)).label('actual_cogs'),
+                func.sum(case((~has_real, SaleItem.quantity * resolved), else_=0)).label('estimated_cogs'),
+                func.sum(case((has_real, SaleItem.quantity), else_=0)).label('items_with_cost'),
+                func.sum(case((~has_real, SaleItem.quantity), else_=0)).label('items_estimated'),
+            ).select_from(SaleItem).join(
+                Sale, Sale.id == SaleItem.sale_id
+            ).join(
+                product_model, join_condition
+            ).where(
+                Sale.status == SaleStatus.COMPLETED,
+                Sale.is_historical.is_(False),
+                Sale.sale_date >= start_datetime,
+                Sale.sale_date <= end_datetime,
+                product_id_col.isnot(None)
+            )
+
+        result = await self.db.execute(
+            _build_cogs_query(Product, SaleItem.product_id, Product.id == SaleItem.product_id)
         )
-
-        school_result = await self.db.execute(school_query)
-        school_row = school_result.one()
-
-        # For global products (global_product_id is not null)
-        global_query = select(
-            func.sum(
-                case(
-                    (GlobalProduct.cost.isnot(None), SaleItem.quantity * GlobalProduct.cost),
-                    else_=SaleItem.quantity * SaleItem.unit_price * float(DEFAULT_COST_MARGIN)
-                )
-            ).label('total_cogs'),
-            func.sum(
-                case(
-                    (GlobalProduct.cost.isnot(None), SaleItem.quantity * GlobalProduct.cost),
-                    else_=0
-                )
-            ).label('actual_cogs'),
-            func.sum(
-                case(
-                    (GlobalProduct.cost.is_(None), SaleItem.quantity * SaleItem.unit_price * float(DEFAULT_COST_MARGIN)),
-                    else_=0
-                )
-            ).label('estimated_cogs'),
-            func.sum(
-                case(
-                    (GlobalProduct.cost.isnot(None), SaleItem.quantity),
-                    else_=0
-                )
-            ).label('items_with_cost'),
-            func.sum(
-                case(
-                    (GlobalProduct.cost.is_(None), SaleItem.quantity),
-                    else_=0
-                )
-            ).label('items_estimated')
-        ).select_from(SaleItem).join(
-            Sale, Sale.id == SaleItem.sale_id
-        ).join(
-            GlobalProduct, GlobalProduct.id == SaleItem.global_product_id
-        ).where(
-            Sale.status == SaleStatus.COMPLETED,
-            Sale.sale_date >= start_datetime,
-            Sale.sale_date <= end_datetime,
-            SaleItem.global_product_id.isnot(None)
-        )
-
-        global_result = await self.db.execute(global_query)
-        global_row = global_result.one()
-
-        # Combine results
-        total_cogs = (school_row.total_cogs or 0) + (global_row.total_cogs or 0)
-        actual_cogs = (school_row.actual_cogs or 0) + (global_row.actual_cogs or 0)
-        estimated_cogs = (school_row.estimated_cogs or 0) + (global_row.estimated_cogs or 0)
-        items_with_cost = (school_row.items_with_cost or 0) + (global_row.items_with_cost or 0)
-        items_estimated = (school_row.items_estimated or 0) + (global_row.items_estimated or 0)
+        row = result.one()
 
         return {
-            "total": float(total_cogs),
-            "from_actual_cost": float(actual_cogs),
-            "from_estimated_cost": float(estimated_cogs),
-            "items_with_actual_cost": int(items_with_cost),
-            "items_with_estimated_cost": int(items_estimated)
+            "total": float(row.total_cogs or 0),
+            "from_actual_cost": float(row.actual_cogs or 0),
+            "from_estimated_cost": float(row.estimated_cogs or 0),
+            "items_with_actual_cost": int(row.items_with_cost or 0),
+            "items_with_estimated_cost": int(row.items_estimated or 0)
         }
 
     async def _get_category_labels(self) -> dict[str, str]:
@@ -462,8 +451,18 @@ class FinancialStatementsService:
         """
         Get expenses grouped by category for a period.
 
-        Custom/unrecognized categories are classified as operating expenses
-        to avoid silently losing them from the income statement.
+        Returns dict with three buckets:
+        - operating: gastos operativos (rent, payroll, utilities, etc.)
+        - other: otros gastos no operativos (taxes, other)
+        - financial: gastos financieros (intereses, comisiones bancarias)
+
+        Excluded codes (EXCLUDED_EXPENSE_CODES) are silently dropped:
+        - Produccion (ya en COGS)
+        - Pagos de capital de deuda (no son gasto, reducen pasivo)
+        - Descuentos (ya restados del revenue)
+        - Retiros del propietario (van contra patrimonio)
+        - Categorias historicas personales (mercado, ocio, etc.) pendientes de
+          reclasificacion via migracion hibrida.
         """
         result = await self.db.execute(
             select(
@@ -481,16 +480,19 @@ class FinancialStatementsService:
 
         operating = {}
         other = {}
+        financial = {}
 
         for row in rows:
             cat_code = row.category.value if hasattr(row.category, 'value') else row.category
             amount = float(row.total or 0)
 
-            # Skip production categories (excluded from P&L to avoid double-counting with COGS)
+            # Skip excluded categories (production, capital, discounts, drawings)
             if cat_code in EXCLUDED_EXPENSE_CODES or cat_code.startswith("prod_"):
                 continue
 
-            if cat_code in OTHER_EXPENSE_CODES:
+            if cat_code in FINANCIAL_EXPENSE_CODES:
+                financial[cat_code] = amount
+            elif cat_code in OTHER_EXPENSE_CODES:
                 other[cat_code] = amount
             else:
                 # Known operating + custom categories -> operating
@@ -498,7 +500,8 @@ class FinancialStatementsService:
 
         return {
             "operating": operating,
-            "other": other
+            "other": other,
+            "financial": financial,
         }
 
     async def _calculate_discounts(
@@ -581,8 +584,9 @@ class FinancialStatementsService:
                 Expense.description,
                 Expense.amount,
                 Expense.expense_date,
-                Expense.vendor
+                Vendor.name.label("vendor_name"),
             )
+            .outerjoin(Vendor, Expense.vendor_id == Vendor.id)
             .where(
                 Expense.category == "other",
                 Expense.expense_date >= start_date,
@@ -599,7 +603,7 @@ class FinancialStatementsService:
                 "description": row.description or "",
                 "amount": float(row.amount),
                 "date": row.expense_date.isoformat(),
-                "vendor": row.vendor or ""
+                "vendor": row.vendor_name or ""
             }
             for row in rows
         ]
@@ -629,6 +633,7 @@ class FinancialStatementsService:
             .join(School, Sale.school_id == School.id)
             .where(
                 Sale.status == SaleStatus.COMPLETED,
+                Sale.is_historical.is_(False),
                 Sale.sale_date >= start_datetime,
                 Sale.sale_date <= end_datetime
             )
@@ -647,18 +652,20 @@ class FinancialStatementsService:
             for row in school_rows
         ]
 
-        # Global products revenue (SaleItems with global_product_id)
+        # Global products revenue (SaleItems whose product has school_id IS NULL)
         global_result = await self.db.execute(
             select(
                 func.coalesce(func.sum(SaleItem.subtotal), 0).label("total"),
                 func.count(SaleItem.id).label("count")
             )
             .join(Sale, SaleItem.sale_id == Sale.id)
+            .join(Product, SaleItem.product_id == Product.id)
             .where(
                 Sale.status == SaleStatus.COMPLETED,
+                Sale.is_historical.is_(False),
                 Sale.sale_date >= start_datetime,
                 Sale.sale_date <= end_datetime,
-                SaleItem.global_product_id.isnot(None)
+                Product.school_id.is_(None)
             )
         )
         global_row = global_result.one()
@@ -1099,8 +1106,8 @@ class FinancialStatementsService:
         items_with_cost = 0
         items_estimated = 0
 
-        # School products
-        school_result = await self.db.execute(
+        # All products (school + global, unified table)
+        all_result = await self.db.execute(
             select(Product, Inventory)
             .join(Inventory, Product.id == Inventory.product_id)
             .where(
@@ -1108,37 +1115,9 @@ class FinancialStatementsService:
                 Inventory.quantity > 0
             )
         )
-        school_rows = school_result.all()
+        all_rows = all_result.all()
 
-        for product, inventory in school_rows:
-            quantity = inventory.quantity
-            total_units += quantity
-
-            if product.cost is not None:
-                cost = Decimal(str(product.cost))
-                item_value = cost * quantity
-                from_actual_cost += item_value
-                items_with_cost += quantity
-            else:
-                cost = Decimal(str(product.price)) * DEFAULT_COST_MARGIN
-                item_value = cost * quantity
-                from_estimated_cost += item_value
-                items_estimated += quantity
-
-            total_value += item_value
-
-        # Global products
-        global_result = await self.db.execute(
-            select(GlobalProduct, GlobalInventory)
-            .join(GlobalInventory, GlobalProduct.id == GlobalInventory.product_id)
-            .where(
-                GlobalProduct.is_active == True,
-                GlobalInventory.quantity > 0
-            )
-        )
-        global_rows = global_result.all()
-
-        for product, inventory in global_rows:
+        for product, inventory in all_rows:
             quantity = inventory.quantity
             total_units += quantity
 
@@ -1324,10 +1303,15 @@ class FinancialStatementsService:
         last_year_start = date(today.year - 1, 1, 1)
         last_year_end = date(today.year - 1, 12, 31)
 
-        # Find earliest sale date
+        # Find earliest sale date (excluding migrated historical sales so the
+        # period presets start from when the business actually went live, not
+        # from the oldest backfilled record).
         result = await self.db.execute(
             select(func.min(Sale.sale_date))
-            .where(Sale.status == SaleStatus.COMPLETED)
+            .where(
+                Sale.status == SaleStatus.COMPLETED,
+                Sale.is_historical.is_(False),
+            )
         )
         earliest = result.scalar()
         earliest_date = earliest.date() if earliest else None

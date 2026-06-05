@@ -22,8 +22,8 @@ interface RoleConfig {
 const ROLE_CONFIG: Record<UserRole | 'superuser', RoleConfig> = {
   viewer: {
     label: 'Visualizador',
-    color: 'text-gray-700',
-    bgColor: 'bg-gray-100',
+    color: 'text-stone-700',
+    bgColor: 'bg-stone-100',
     icon: Eye,
   },
   seller: {
@@ -34,8 +34,8 @@ const ROLE_CONFIG: Record<UserRole | 'superuser', RoleConfig> = {
   },
   admin: {
     label: 'Administrador',
-    color: 'text-blue-700',
-    bgColor: 'bg-blue-100',
+    color: 'text-brand-700',
+    bgColor: 'bg-brand-100',
     icon: Briefcase,
   },
   owner: {

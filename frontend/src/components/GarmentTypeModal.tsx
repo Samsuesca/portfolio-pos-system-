@@ -4,10 +4,12 @@
  * Access: Admin (school) or Superuser (global)
  */
 import { useState, useEffect, useRef } from 'react';
-import { X, Loader2, Upload, Trash2, Star, Image as ImageIcon, AlertCircle } from 'lucide-react';
+import { X, Loader2, Upload, Trash2, Star, Image as ImageIcon, AlertCircle, Factory, ShoppingBag } from 'lucide-react';
 import { productService } from '../services/productService';
 import { extractErrorMessage, getImageUrlWithCacheBust, refreshImageCache } from '../utils/api-client';
-import type { GarmentType, GlobalGarmentType } from '../types/api';
+import DeleteConfirmModal from './DeleteConfirmModal';
+import { RequirePermission } from './RequirePermission';
+import type { GarmentType } from '../types/api';
 
 interface GarmentTypeImage {
   id: string;
@@ -23,9 +25,12 @@ interface GarmentTypeModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  garmentType?: GarmentType | GlobalGarmentType | null;
+  garmentType?: GarmentType | null;
   isGlobal: boolean;
   schoolId?: string;
+  /** Fired when the type's images changed (uploaded/deleted/reordered) but the
+   *  form itself wasn't submitted — lets the catalog refresh its thumbnails. */
+  onChanged?: () => void;
 }
 
 export default function GarmentTypeModal({
@@ -35,9 +40,14 @@ export default function GarmentTypeModal({
   garmentType,
   isGlobal,
   schoolId,
+  onChanged,
 }: GarmentTypeModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  // Tracks live image edits so the catalog can refresh on close even if the
+  // form wasn't submitted (uploads/deletes hit the API immediately).
+  const [imagesDirty, setImagesDirty] = useState(false);
 
   // Image gallery state
   const [images, setImages] = useState<GarmentTypeImage[]>([]);
@@ -54,6 +64,7 @@ export default function GarmentTypeModal({
     requires_embroidery: false,
     has_custom_measurements: false,
     is_active: true,
+    cost_type: 'manufactured' as 'manufactured' | 'purchased',
   });
 
   useEffect(() => {
@@ -67,11 +78,10 @@ export default function GarmentTypeModal({
           requires_embroidery: garmentType.requires_embroidery || false,
           has_custom_measurements: garmentType.has_custom_measurements || false,
           is_active: garmentType.is_active ?? true,
+          cost_type: (garmentType.cost_type ?? 'manufactured') as 'manufactured' | 'purchased',
         });
         // Load images for existing garment types (both school-specific and global)
-        if (garmentType) {
-          loadImages();
-        }
+        loadImages();
       } else {
         // Create mode - reset form
         setFormData({
@@ -81,13 +91,21 @@ export default function GarmentTypeModal({
           requires_embroidery: false,
           has_custom_measurements: false,
           is_active: true,
+          cost_type: 'manufactured',
         });
         setImages([]);
       }
       setError(null);
       setImageError(null);
+      setImagesDirty(false);
     }
   }, [isOpen, garmentType]);
+
+  // Notify the parent of pending image changes, then close.
+  const handleClose = () => {
+    if (imagesDirty) onChanged?.();
+    onClose();
+  };
 
   // Load images for garment type (supports both school-specific and global)
   const loadImages = async () => {
@@ -150,6 +168,7 @@ export default function GarmentTypeModal({
       }
       if (newImage) {
         setImages(prev => [...prev, newImage]);
+        setImagesDirty(true);
         // Force cache bust to ensure new image displays correctly (Windows WebView2 fix)
         setImageCacheBust(Date.now());
         refreshImageCache(); // Also refresh global cache for other components
@@ -179,6 +198,7 @@ export default function GarmentTypeModal({
         await productService.deleteGarmentTypeImage(schoolId, garmentType.id, imageId);
       }
       setImages(prev => prev.filter(img => img.id !== imageId));
+      setImagesDirty(true);
     } catch (err: any) {
       console.error('Error deleting image:', err);
       setImageError(err.message || 'Error al eliminar imagen');
@@ -202,6 +222,7 @@ export default function GarmentTypeModal({
         ...img,
         is_primary: img.id === imageId
       })));
+      setImagesDirty(true);
     } catch (err: any) {
       console.error('Error setting primary image:', err);
       setImageError(err.message || 'Error al establecer imagen principal');
@@ -219,15 +240,24 @@ export default function GarmentTypeModal({
     setError(null);
 
     try {
-      const data: any = {
+      const data: {
+        name: string;
+        description?: string;
+        category?: string;
+        requires_embroidery: boolean;
+        has_custom_measurements: boolean;
+        cost_type: 'manufactured' | 'purchased';
+        is_active?: boolean;
+      } = {
         name: formData.name.trim(),
+        requires_embroidery: formData.requires_embroidery,
+        has_custom_measurements: formData.has_custom_measurements,
+        cost_type: formData.cost_type,
       };
 
       // Optional fields
       if (formData.description.trim()) data.description = formData.description.trim();
       if (formData.category) data.category = formData.category;
-      data.requires_embroidery = formData.requires_embroidery;
-      data.has_custom_measurements = formData.has_custom_measurements;
       if (garmentType) data.is_active = formData.is_active;
 
       if (isGlobal) {
@@ -274,31 +304,32 @@ export default function GarmentTypeModal({
   if (!isOpen) return null;
 
   return (
+    <>
     <div className="fixed inset-0 z-50 overflow-y-auto">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
-        onClick={onClose}
+        onClick={handleClose}
       />
 
       {/* Modal */}
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full">
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between p-6 border-b border-stone-200">
             <div>
-              <h2 className="text-xl font-semibold text-gray-800">
+              <h2 className="text-xl font-semibold text-stone-800">
                 {garmentType ? 'Editar Tipo de Prenda' : 'Nuevo Tipo de Prenda'}
               </h2>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-stone-500 mt-1">
                 {isGlobal
                   ? 'Tipo compartido entre todos los colegios'
                   : 'Tipo específico del colegio'}
               </p>
             </div>
             <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition"
+              onClick={handleClose}
+              className="text-stone-400 hover:text-stone-600 transition"
             >
               <X className="w-6 h-6" />
             </button>
@@ -314,8 +345,8 @@ export default function GarmentTypeModal({
             )}
 
             {/* Scope indicator */}
-            <div className={`${isGlobal ? 'bg-purple-50 border-purple-200' : 'bg-blue-50 border-blue-200'} border rounded-lg p-3`}>
-              <p className={`text-sm ${isGlobal ? 'text-purple-700' : 'text-blue-700'}`}>
+            <div className={`${isGlobal ? 'bg-purple-50 border-purple-200' : 'bg-brand-50 border-brand-200'} border rounded-lg p-3`}>
+              <p className={`text-sm ${isGlobal ? 'text-purple-700' : 'text-brand-700'}`}>
                 <span className="font-medium">Alcance:</span>{' '}
                 {isGlobal ? 'Global (todos los colegios)' : 'Específico del colegio'}
               </p>
@@ -323,7 +354,7 @@ export default function GarmentTypeModal({
 
             {/* Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-stone-700 mb-1">
                 Nombre *
               </label>
               <input
@@ -335,16 +366,16 @@ export default function GarmentTypeModal({
                 minLength={3}
                 maxLength={100}
                 placeholder="Ej: Camisa, Pantalón, Zapatos"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-stone-500 mt-1">
                 Entre 3 y 100 caracteres
               </p>
             </div>
 
             {/* Description */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-stone-700 mb-1">
                 Descripción
               </label>
               <textarea
@@ -353,35 +384,78 @@ export default function GarmentTypeModal({
                 onChange={handleChange}
                 rows={3}
                 placeholder="Descripción opcional del tipo de prenda"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none resize-none"
               />
             </div>
 
             {/* Category */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-stone-700 mb-1">
                 Categoría
               </label>
               <select
                 name="category"
                 value={formData.category}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
               >
                 <option value="">Sin categoría</option>
                 <option value="uniforme_diario">Uniforme Diario</option>
                 <option value="uniforme_deportivo">Uniforme Deportivo</option>
                 <option value="accesorios">Accesorios</option>
               </select>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-stone-500 mt-1">
                 Opcional - Ayuda a organizar los productos
               </p>
+            </div>
+
+            {/* Cost Type — determina si la prenda se fabrica o se compra para reventa */}
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-2">
+                Origen de la prenda
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, cost_type: 'manufactured' })}
+                  className={`flex flex-col items-start gap-1 p-3 rounded-lg border-2 text-left transition ${
+                    formData.cost_type === 'manufactured'
+                      ? 'border-brand-500 bg-brand-50'
+                      : 'border-stone-200 bg-white hover:border-stone-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Factory className={`w-4 h-4 ${formData.cost_type === 'manufactured' ? 'text-brand-600' : 'text-stone-400'}`} />
+                    <span className="text-sm font-medium text-stone-900">Se fabrica</span>
+                  </div>
+                  <p className="text-xs text-stone-500">
+                    Se cose en taller. Costo por componentes (tela, confección, insumos).
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, cost_type: 'purchased' })}
+                  className={`flex flex-col items-start gap-1 p-3 rounded-lg border-2 text-left transition ${
+                    formData.cost_type === 'purchased'
+                      ? 'border-emerald-500 bg-emerald-50'
+                      : 'border-stone-200 bg-white hover:border-stone-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <ShoppingBag className={`w-4 h-4 ${formData.cost_type === 'purchased' ? 'text-emerald-600' : 'text-stone-400'}`} />
+                    <span className="text-sm font-medium text-stone-900">Se compra (reventa)</span>
+                  </div>
+                  <p className="text-xs text-stone-500">
+                    Compra directa al proveedor. Costo manual por producto, sin desglose.
+                  </p>
+                </button>
+              </div>
             </div>
 
             {/* Boolean Flags */}
             <div className="space-y-3">
               {/* Requires Embroidery */}
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-3 p-3 bg-stone-50 rounded-lg">
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
                     type="checkbox"
@@ -390,20 +464,20 @@ export default function GarmentTypeModal({
                     onChange={(e) => setFormData({ ...formData, requires_embroidery: e.target.checked })}
                     className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                  <div className="w-11 h-6 bg-stone-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-300/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-200 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
                 </label>
                 <div>
-                  <span className="text-sm font-medium text-gray-700">
+                  <span className="text-sm font-medium text-stone-700">
                     Requiere bordado
                   </span>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-stone-500">
                     Indica si los productos de este tipo necesitan personalización con bordado
                   </p>
                 </div>
               </div>
 
               {/* Has Custom Measurements */}
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-3 p-3 bg-stone-50 rounded-lg">
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
                     type="checkbox"
@@ -412,13 +486,13 @@ export default function GarmentTypeModal({
                     onChange={(e) => setFormData({ ...formData, has_custom_measurements: e.target.checked })}
                     className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                  <div className="w-11 h-6 bg-stone-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-300/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-200 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
                 </label>
                 <div>
-                  <span className="text-sm font-medium text-gray-700">
+                  <span className="text-sm font-medium text-stone-700">
                     Medidas personalizadas
                   </span>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-stone-500">
                     Indica si los productos requieren medidas específicas del cliente (ej: Yomber)
                   </p>
                 </div>
@@ -427,7 +501,7 @@ export default function GarmentTypeModal({
 
             {/* Active Status - Only show when editing */}
             {garmentType && (
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-3 p-3 bg-stone-50 rounded-lg">
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
                     type="checkbox"
@@ -436,13 +510,13 @@ export default function GarmentTypeModal({
                     onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
                     className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                  <div className="w-11 h-6 bg-stone-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-300/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-200 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
                 </label>
                 <div>
-                  <span className="text-sm font-medium text-gray-700">
+                  <span className="text-sm font-medium text-stone-700">
                     {formData.is_active ? 'Tipo Activo' : 'Tipo Inactivo'}
                   </span>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-stone-500">
                     {formData.is_active
                       ? 'El tipo está visible y disponible para crear productos'
                       : 'El tipo está oculto y no se puede usar para nuevos productos'}
@@ -453,18 +527,18 @@ export default function GarmentTypeModal({
 
             {/* Image Gallery - Show for both school-specific and global garment types in edit mode */}
             {garmentType && (isGlobal || schoolId) && (
-              <div className="border-t border-gray-200 pt-4 mt-4">
+              <div className="border-t border-stone-200 pt-4 mt-4">
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                    <h3 className="text-sm font-medium text-stone-700 flex items-center gap-2">
                       <ImageIcon className="w-4 h-4" />
                       Imágenes del Tipo de Prenda
                     </h3>
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-stone-500 mt-1">
                       Agrega fotos desde diferentes ángulos para mostrar en el catálogo web
                     </p>
                   </div>
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-stone-400">
                     {images.length}/10
                   </span>
                 </div>
@@ -486,9 +560,9 @@ export default function GarmentTypeModal({
 
                 {/* Images loading */}
                 {imagesLoading ? (
-                  <div className="flex items-center justify-center py-8 bg-gray-50 rounded-lg">
-                    <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-                    <span className="ml-2 text-sm text-gray-500">Cargando imágenes...</span>
+                  <div className="flex items-center justify-center py-8 bg-stone-50 rounded-lg">
+                    <Loader2 className="w-5 h-5 animate-spin text-stone-400" />
+                    <span className="ml-2 text-sm text-stone-500">Cargando imágenes...</span>
                   </div>
                 ) : (
                   <div className="grid grid-cols-4 gap-3">
@@ -497,7 +571,7 @@ export default function GarmentTypeModal({
                       <div
                         key={image.id}
                         className={`relative aspect-square rounded-lg overflow-hidden border-2 ${
-                          image.is_primary ? 'border-yellow-400' : 'border-gray-200'
+                          image.is_primary ? 'border-yellow-400' : 'border-stone-200'
                         } group`}
                       >
                         <img
@@ -544,14 +618,14 @@ export default function GarmentTypeModal({
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
                         disabled={uploadingImage}
-                        className="aspect-square rounded-lg border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 transition flex flex-col items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="aspect-square rounded-lg border-2 border-dashed border-stone-200 hover:border-brand-400 hover:bg-brand-50 transition flex flex-col items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {uploadingImage ? (
-                          <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                          <Loader2 className="w-6 h-6 animate-spin text-brand-500" />
                         ) : (
                           <>
-                            <Upload className="w-6 h-6 text-gray-400" />
-                            <span className="text-xs text-gray-500">Agregar</span>
+                            <Upload className="w-6 h-6 text-stone-400" />
+                            <span className="text-xs text-stone-500">Agregar</span>
                           </>
                         )}
                       </button>
@@ -569,7 +643,7 @@ export default function GarmentTypeModal({
                 />
 
                 {/* Help text */}
-                <p className="text-xs text-gray-400 mt-2">
+                <p className="text-xs text-stone-400 mt-2">
                   JPG, PNG o WebP • Máx 2MB • Click en ⭐ para marcar como principal
                 </p>
               </div>
@@ -577,18 +651,31 @@ export default function GarmentTypeModal({
 
             {/* Actions */}
             <div className="flex gap-3 pt-4">
+              {garmentType && (
+                <RequirePermission permission={isGlobal ? 'garment_types.manage_global' : 'settings.manage_garment_types'}>
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteConfirm(true)}
+                    disabled={loading}
+                    title="Eliminar tipo de prenda"
+                    className="px-3 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition disabled:opacity-50 flex items-center justify-center"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </RequirePermission>
+              )}
               <button
                 type="button"
-                onClick={onClose}
+                onClick={handleClose}
                 disabled={loading}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+                className="flex-1 px-4 py-2 border border-stone-200 text-stone-700 rounded-lg hover:bg-stone-50 transition disabled:opacity-50"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 flex items-center justify-center"
+                className="flex-1 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition disabled:opacity-50 flex items-center justify-center"
               >
                 {loading ? (
                   <>
@@ -604,5 +691,25 @@ export default function GarmentTypeModal({
         </div>
       </div>
     </div>
+
+    {/* Delete confirmation (soft-deletes if the garment type has products/history) */}
+    {garmentType && (
+      <DeleteConfirmModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        title="Eliminar tipo de prenda"
+        entityName={garmentType.name}
+        onConfirm={async () => {
+          const result = isGlobal
+            ? await productService.deleteGlobalGarmentType(garmentType.id)
+            : await productService.deleteGarmentType(garmentType.school_id || schoolId || '', garmentType.id);
+          setShowDeleteConfirm(false);
+          onSuccess();
+          onClose();
+          return result;
+        }}
+      />
+    )}
+    </>
   );
 }

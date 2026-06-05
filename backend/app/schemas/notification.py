@@ -45,10 +45,10 @@ class NotificationResponse(BaseModel):
     created_at: datetime
 
 
-class NotificationListResponse(BaseModel):
-    """Schema for paginated notification list"""
-    items: list[NotificationResponse]
-    total: int
+from app.schemas.base import PaginatedResponse
+
+
+class NotificationListResponse(PaginatedResponse[NotificationResponse]):
     unread_count: int
 
 

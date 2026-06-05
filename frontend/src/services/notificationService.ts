@@ -10,7 +10,7 @@ import type {
 export interface NotificationFilters {
   unread_only?: boolean;
   limit?: number;
-  offset?: number;
+  skip?: number;
 }
 
 export const notificationService = {
@@ -21,7 +21,7 @@ export const notificationService = {
     const params = new URLSearchParams();
     if (filters?.unread_only) params.append('unread_only', 'true');
     if (filters?.limit) params.append('limit', String(filters.limit));
-    if (filters?.offset) params.append('offset', String(filters.offset));
+    if (filters?.skip) params.append('skip', String(filters.skip));
 
     const queryString = params.toString();
     const url = queryString ? `/notifications?${queryString}` : '/notifications';

@@ -11,18 +11,55 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
 export { API_BASE_URL as SERVER_API_BASE_URL };
 
 import type { School, Product } from './api';
+import { unwrapPaginated } from './pagination';
+import { getBusinessInfo, type BusinessInfo } from './businessInfo';
 
-export interface PaymentAccount {
-  id: string;
-  method_type: string;
-  account_name: string;
-  account_number: string;
-  account_holder: string;
-  bank_name: string | null;
-  account_type: string | null;
-  qr_code_url: string | null;
-  instructions: string | null;
-  display_order: number;
+/**
+ * Server-side wrapper around getBusinessInfo() so v3 server components
+ * can import everything from a single module. Falls through to the cached
+ * implementation in businessInfo.ts (which returns DEFAULT_BUSINESS_INFO on error).
+ */
+export async function fetchBusinessInfo(): Promise<BusinessInfo | null> {
+  try {
+    return await getBusinessInfo();
+  } catch (error) {
+    console.error('[serverApi] fetchBusinessInfo failed:', error);
+    return null;
+  }
+}
+
+/**
+ * Resolve a representative image URL for each school by reading the first
+ * product in its catalog that exposes `garment_type_primary_image_url`.
+ * Returns absolute URLs (prefixed with API_BASE_URL) so the browser can fetch
+ * them directly — relative paths resolve against :3001 and 404.
+ *
+ * Called once on the v3-preview home (cached via revalidate). Falls back to
+ * `null` per-school when nothing matches; the picker draws a typography-only
+ * card in that case.
+ */
+export async function fetchSchoolPreviewImages(
+  schoolIds: string[],
+): Promise<Record<string, string | null>> {
+  const entries = await Promise.all(
+    schoolIds.map(async (id) => {
+      try {
+        const products = await fetchSchoolProducts(id);
+        const withImage = products.find(
+          (p) => p.garment_type_primary_image_url,
+        );
+        const raw = withImage?.garment_type_primary_image_url ?? null;
+        if (!raw) return [id, null] as const;
+        const absolute = raw.startsWith('http')
+          ? raw
+          : `${API_BASE_URL}${raw.startsWith('/') ? '' : '/'}${raw}`;
+        return [id, absolute] as const;
+      } catch {
+        return [id, null] as const;
+      }
+    }),
+  );
+  return Object.fromEntries(entries);
 }
 
 // ============================================
@@ -43,31 +80,10 @@ export async function fetchSchools(): Promise<School[]> {
       return [];
     }
 
-    return res.json();
+    const data = await res.json();
+    return unwrapPaginated<School>(data).items;
   } catch (error) {
     console.error('[serverApi] Error fetching schools:', error);
-    return [];
-  }
-}
-
-/**
- * Fetch payment accounts (public endpoint)
- */
-export async function fetchPaymentAccounts(): Promise<PaymentAccount[]> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/payment-accounts/public`, {
-      next: { revalidate: 300 }, // Cache for 5 minutes
-    });
-
-    if (!res.ok) {
-      console.error('[serverApi] Failed to fetch payment accounts:', res.status);
-      return [];
-    }
-
-    const data: PaymentAccount[] = await res.json();
-    return data.slice(0, 3); // Show max 3 inline
-  } catch (error) {
-    console.error('[serverApi] Error fetching payment accounts:', error);
     return [];
   }
 }
@@ -155,6 +171,10 @@ export async function fetchSchoolProducts(schoolId: string): Promise<Product[]> 
       school_id: schoolId,
       with_stock: 'true',
       with_images: 'true',
+      // Sin limit el backend pagina a 100; colegios con mas productos (Comfama=113)
+      // pierden los del final del orden por nombre (ej. la sudadera amarilla no salia).
+      // 500 es el tope del endpoint y cubre de sobra el colegio mas grande.
+      limit: '500',
     });
 
     let res = await fetch(`${API_BASE_URL}/api/v1/products?${params}`, {
@@ -187,7 +207,8 @@ export async function fetchSchoolProducts(schoolId: string): Promise<Product[]> 
       return [];
     }
 
-    return res.json();
+    const data = await res.json();
+    return unwrapPaginated<Product>(data).items;
   } catch (error) {
     console.error('[serverApi] Error fetching school products:', error);
     return [];
@@ -197,7 +218,7 @@ export async function fetchSchoolProducts(schoolId: string): Promise<Product[]> 
 /**
  * Fetch global products (requires auth)
  */
-export async function fetchGlobalProducts(): Promise<Product[]> {
+export async function fetchGlobalProducts(schoolId?: string): Promise<Product[]> {
   try {
     const token = await getServerToken();
     if (!token) {
@@ -209,6 +230,8 @@ export async function fetchGlobalProducts(): Promise<Product[]> {
       with_inventory: 'true',
       limit: '500',
     });
+    // Si viene schoolId, el backend excluye los globales ocultos para ese colegio.
+    if (schoolId) params.set('school_id', schoolId);
 
     let res = await fetch(`${API_BASE_URL}/api/v1/global/products?${params}`, {
       headers: {
@@ -240,9 +263,52 @@ export async function fetchGlobalProducts(): Promise<Product[]> {
       return [];
     }
 
-    return res.json();
+    const data = await res.json();
+    return unwrapPaginated<Product>(data).items;
   } catch (error) {
     console.error('[serverApi] Error fetching global products:', error);
+    return [];
+  }
+}
+
+export interface CatalogOrderEntry {
+  garment_type_id: string;
+  display_order: number;
+}
+
+/**
+ * Fetch the per-school catalog order (garment-type card order, issue #8).
+ * Returns [] on any failure so the catalog falls back to its default order.
+ */
+export async function fetchCatalogOrder(schoolId: string): Promise<CatalogOrderEntry[]> {
+  try {
+    const token = await getServerToken();
+    if (!token) return [];
+
+    const url = `${API_BASE_URL}/api/v1/schools/${schoolId}/catalog/garment-types/order`;
+    let res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      next: { revalidate: 30 },
+    });
+
+    if (res.status === 401) {
+      cachedToken = null;
+      const freshToken = await getServerToken();
+      if (!freshToken) return [];
+      res = await fetch(url, {
+        headers: { Authorization: `Bearer ${freshToken}`, 'Content-Type': 'application/json' },
+        next: { revalidate: 30 },
+      });
+    }
+
+    if (!res.ok) {
+      console.error('[serverApi] Failed to fetch catalog order:', res.status);
+      return [];
+    }
+
+    return (await res.json()) as CatalogOrderEntry[];
+  } catch (error) {
+    console.error('[serverApi] Error fetching catalog order:', error);
     return [];
   }
 }

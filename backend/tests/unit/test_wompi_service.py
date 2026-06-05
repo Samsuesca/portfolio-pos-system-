@@ -41,7 +41,7 @@ def _make_order(
     order_id: UUID | None = None,
     school_id: UUID | None = None,
     client_id: UUID | None = None,
-    code: str = "ENC-2026-0042",
+    code: str = "CARACAS-001-ENC-2026-0042",
     total: Decimal = Decimal("100000"),
     paid_amount: Decimal = Decimal("20000"),
 ) -> MagicMock:
@@ -80,7 +80,7 @@ def _make_receivable(
 
 
 def _make_payment_tx(
-    reference: str = "WP-ENC-2026-0042-1710345600",
+    reference: str = "WP-CARACAS-001-ENC-2026-0042-1710345600",
     order_id: UUID | None = None,
     receivable_id: UUID | None = None,
     school_id: UUID | None = None,
@@ -116,6 +116,9 @@ def _mock_scalar_result(value):
     """Create a mock execute result that returns value on scalar_one_or_none."""
     result = MagicMock()
     result.scalar_one_or_none.return_value = value
+    # Also support scalar_one() — used por queries que esperan exactamente
+    # una fila (e.g. SELECT FOR UPDATE de _apply_approved_payment).
+    result.scalar_one.return_value = value
     return result
 
 
@@ -140,7 +143,7 @@ class TestGenerateIntegritySignature:
         """Signature should be a deterministic SHA256 of reference+amount+currency+key."""
         mock_settings.WOMPI_INTEGRITY_KEY = "test_integrity_key_123"
 
-        reference = "WP-ENC-2026-0042-1710345600"
+        reference = "WP-CARACAS-001-ENC-2026-0042-1710345600"
         amount_in_cents = 8000000
         currency = "COP"
 
@@ -209,7 +212,7 @@ class TestValidateWebhookSignature:
                 "id": "12345-abc",
                 "status": "APPROVED",
                 "amount_in_cents": 8000000,
-                "reference": "WP-ENC-2026-0042-1710345600",
+                "reference": "WP-CARACAS-001-ENC-2026-0042-1710345600",
             }
         }
         timestamp = 1710345600
@@ -366,9 +369,9 @@ class TestCreatePaymentSession:
         assert result.amount_in_cents == 8000000  # 80000 * 100
         assert result.currency == "COP"
         assert result.public_key == "pub_test_key"
-        assert result.reference.startswith("WP-ENC-2026-0042-")
+        assert result.reference.startswith("WP-CARACAS-001-ENC-2026-0042-")
         assert len(result.integrity_signature) == 64
-        assert "Pago encargo ENC-2026-0042" in result.description
+        assert "Pago encargo CARACAS-001-ENC-2026-0042" in result.description
         db.add.assert_called_once()
         db.flush.assert_awaited_once()
 
@@ -501,7 +504,7 @@ class TestProcessWebhook:
     def _build_valid_webhook(
         self,
         events_key: str,
-        reference: str = "WP-ENC-2026-0042-1710345600",
+        reference: str = "WP-CARACAS-001-ENC-2026-0042-1710345600",
         wompi_status: str = "APPROVED",
         wompi_id: str = "txn-abc-123",
         payment_method_type: str = "CARD",
@@ -748,9 +751,11 @@ class TestApplyApprovedPayment:
         payment_tx.accounting_applied = False
 
         db = AsyncMock()
-        # First execute: find Order by order_id
-        # Second execute: find linked AccountsReceivable
+        # First execute: SELECT FOR UPDATE on PaymentTransaction (lock)
+        # Second execute: find Order by order_id
+        # Third execute: find linked AccountsReceivable
         db.execute = AsyncMock(side_effect=[
+            _mock_scalar_result(payment_tx),  # Lock acquire
             _mock_scalar_result(order),
             _mock_scalar_result(None),  # No linked receivable
         ])
@@ -791,6 +796,7 @@ class TestApplyApprovedPayment:
 
         db = AsyncMock()
         db.execute = AsyncMock(side_effect=[
+            _mock_scalar_result(payment_tx),  # Lock acquire
             _mock_scalar_result(order),
             _mock_scalar_result(None),
         ])
@@ -831,6 +837,7 @@ class TestApplyApprovedPayment:
 
         db = AsyncMock()
         db.execute = AsyncMock(side_effect=[
+            _mock_scalar_result(payment_tx),  # Lock acquire
             _mock_scalar_result(order),
             _mock_scalar_result(recv),  # Linked receivable found
         ])
@@ -866,7 +873,10 @@ class TestApplyApprovedPayment:
         payment_tx.accounting_applied = False
 
         db = AsyncMock()
-        db.execute = AsyncMock(return_value=_mock_scalar_result(recv))
+        db.execute = AsyncMock(side_effect=[
+            _mock_scalar_result(payment_tx),  # Lock acquire
+            _mock_scalar_result(recv),
+        ])
 
         service = WompiService(db)
         await service._apply_approved_payment(payment_tx)
@@ -876,15 +886,24 @@ class TestApplyApprovedPayment:
         assert payment_tx.accounting_applied is True
 
     async def test_idempotency_skips_if_already_applied(self):
-        """Should do nothing if accounting_applied is already True."""
+        """Should do nothing if accounting_applied is already True.
+
+        Tras agregar pessimistic lock, ahora se ejecuta UN SELECT FOR UPDATE
+        antes del check de idempotencia. Lo importante es que NO se hagan
+        escrituras (db.add) ni se procese la cadena contable downstream.
+        """
         payment_tx = _make_payment_tx(accounting_applied=True)
 
         db = AsyncMock()
+        # El SELECT FOR UPDATE devuelve el mismo payment_tx con accounting_applied=True
+        db.execute = AsyncMock(return_value=_mock_scalar_result(payment_tx))
         service = WompiService(db)
 
         await service._apply_approved_payment(payment_tx)
 
-        db.execute.assert_not_called()
+        # Solo se ejecuta el SELECT FOR UPDATE, ninguna otra query
+        assert db.execute.await_count == 1
+        # Y crucialmente, ningún side effect contable
         db.add.assert_not_called()
 
     @patch("app.services.balance_integration.BalanceIntegrationService")
@@ -917,6 +936,7 @@ class TestApplyApprovedPayment:
 
         db = AsyncMock()
         db.execute = AsyncMock(side_effect=[
+            _mock_scalar_result(payment_tx),  # Lock acquire
             _mock_scalar_result(order),
             _mock_scalar_result(None),
         ])
@@ -951,7 +971,11 @@ class TestApplyApprovedPayment:
         payment_tx.accounting_applied = False
 
         db = AsyncMock()
-        db.execute = AsyncMock(return_value=_mock_scalar_result(None))
+        # Lock acquire devuelve el payment_tx; orden no encontrado en segunda query
+        db.execute = AsyncMock(side_effect=[
+            _mock_scalar_result(payment_tx),  # Lock acquire
+            _mock_scalar_result(None),  # Order not found
+        ])
 
         service = WompiService(db)
         await service._apply_approved_payment(payment_tx)
@@ -1141,7 +1165,7 @@ class TestResolveReferenceFromWompi:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            "data": {"reference": "WP-ENC-2026-0042-1710345600"}
+            "data": {"reference": "WP-CARACAS-001-ENC-2026-0042-1710345600"}
         }
 
         mock_client_instance = AsyncMock()
@@ -1155,7 +1179,7 @@ class TestResolveReferenceFromWompi:
 
         result = await service.resolve_reference_from_wompi("wompi-tx-abc")
 
-        assert result == "WP-ENC-2026-0042-1710345600"
+        assert result == "WP-CARACAS-001-ENC-2026-0042-1710345600"
 
     @patch("app.services.wompi.settings")
     @patch("app.services.wompi.httpx.AsyncClient")

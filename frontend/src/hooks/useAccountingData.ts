@@ -146,28 +146,23 @@ export const useAccountingData = (): UseAccountingDataReturn => {
     setLoading(true);
     setError(null);
     try {
-      const [balancesRes, patrimonySummary, pendingExpensesRes, paidExpensesRes] = await Promise.all([
+      const [balancesRes, patrimonySummary, pendingExpensesRes, expenseStats] = await Promise.all([
         globalAccountingService.getCashBalances(),
         globalAccountingService.getPatrimonySummary(),
-        globalAccountingService.getGlobalExpenses({ isPaid: false, limit: 500 }),
-        globalAccountingService.getGlobalExpenses({ isPaid: true, limit: 500 })
+        globalAccountingService.getGlobalExpenses({ isPaid: false, limit: 20 }),
+        globalAccountingService.getGlobalExpensesStats()
       ]);
 
       setCashBalances(balancesRes);
       setPatrimony(patrimonySummary);
-      setPendingExpenses(pendingExpensesRes.slice(0, 20));
-
-      // Calculate dashboard summary from arrays
-      const pendingTotal = pendingExpensesRes.reduce((sum, e) => sum + Number(e.amount) - Number(e.amount_paid), 0);
-      const paidTotal = paidExpensesRes.reduce((sum, e) => sum + Number(e.amount), 0);
-      const allTotal = pendingExpensesRes.reduce((sum, e) => sum + Number(e.amount), 0) + paidTotal;
+      setPendingExpenses(pendingExpensesRes.items ?? []);
 
       setDashboard({
-        total_expenses: allTotal,
+        total_expenses: Number(expenseStats.total_amount),
         cash_balance: balancesRes.total_liquid || 0,
-        expenses_pending: pendingTotal,
-        expenses_paid: paidTotal,
-        transaction_count: pendingExpensesRes.length + paidExpensesRes.length
+        expenses_pending: Number(expenseStats.pending_amount),
+        expenses_paid: Number(expenseStats.paid_amount),
+        transaction_count: expenseStats.total_count
       });
 
       // Load periods for statements
@@ -198,14 +193,14 @@ export const useAccountingData = (): UseAccountingDataReturn => {
   // Load receivables and payables
   const loadReceivablesPayables = useCallback(async () => {
     try {
-      const [summary, receivables, payables] = await Promise.all([
+      const [summary, receivablesResult, payablesResult] = await Promise.all([
         globalAccountingService.getReceivablesPayables(),
         globalAccountingService.getReceivables({ isPaid: false, limit: 50 }),
         globalAccountingService.getPayables({ isPaid: false, limit: 50 })
       ]);
       setReceivablesSummary(summary);
-      setReceivablesList(receivables);
-      setPayablesList(payables);
+      setReceivablesList(receivablesResult.items);
+      setPayablesList(payablesResult.items);
     } catch (err) {
       console.error('Error loading receivables/payables:', err);
     }
@@ -215,11 +210,11 @@ export const useAccountingData = (): UseAccountingDataReturn => {
   const loadFixedExpenses = useCallback(async () => {
     try {
       const isActive = fixedExpensesFilter === 'active' ? true : fixedExpensesFilter === 'inactive' ? false : undefined;
-      const [expenses, pending] = await Promise.all([
+      const [expensesResult, pending] = await Promise.all([
         getFixedExpenses({ is_active: isActive, limit: 100 }),
         getPendingGeneration()
       ]);
-      setFixedExpensesList(expenses || []);
+      setFixedExpensesList(expensesResult.items || []);
       setPendingGeneration(pending);
     } catch (err) {
       console.error('Error loading fixed expenses:', err);
@@ -251,9 +246,8 @@ export const useAccountingData = (): UseAccountingDataReturn => {
   const loadBalanceAccounts = useCallback(async (type: BalanceAccountModalType) => {
     setLoadingAccounts(true);
     try {
-      const accounts = await globalAccountingService.getBalanceAccounts(type);
-      // Map to the expected type
-      const mappedAccounts: GlobalBalanceAccountResponse[] = accounts.map(acc => ({
+      const accountsResult = await globalAccountingService.getBalanceAccounts(type);
+      const mappedAccounts: GlobalBalanceAccountResponse[] = accountsResult.items.map(acc => ({
         id: acc.id,
         school_id: null,
         account_type: acc.account_type,

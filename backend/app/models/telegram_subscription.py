@@ -41,12 +41,29 @@ class TelegramAlertType(str, enum.Enum):
     # System
     system_health = "system_health"
     daily_digest = "daily_digest"
+    daily_digest_seller = "daily_digest_seller"
+
+
+# Alerts that contain global financial/management info.
+# At routing time, these are restricted to superusers + users with OWNER/ADMIN
+# role in any school, regardless of subscription state. Defense in depth.
+RESTRICTED_TO_ADMIN_ALERTS: frozenset[TelegramAlertType] = frozenset({
+    TelegramAlertType.expense_created,
+    TelegramAlertType.expense_paid,
+    TelegramAlertType.cash_drawer_access,
+    TelegramAlertType.reminder_pending_expenses,
+    TelegramAlertType.reminder_overdue_receivables,
+    TelegramAlertType.reminder_weekly_summary,
+    TelegramAlertType.daily_digest,
+    TelegramAlertType.system_health,
+    TelegramAlertType.attendance_alert,
+})
 
 
 # Default subscriptions by role
 DEFAULT_SUBSCRIPTIONS_BY_ROLE = {
-    "owner": list(TelegramAlertType),  # All 17 types
-    "superuser": list(TelegramAlertType),  # All 17 types
+    "owner": list(TelegramAlertType),  # All types
+    "superuser": list(TelegramAlertType),  # All types
     "admin": [
         TelegramAlertType.sale_created,
         TelegramAlertType.web_order_created,
@@ -70,10 +87,10 @@ DEFAULT_SUBSCRIPTIONS_BY_ROLE = {
         TelegramAlertType.order_status_changed,
         TelegramAlertType.low_stock,
         TelegramAlertType.reminder_orders_ready,
-        TelegramAlertType.daily_digest,
+        TelegramAlertType.daily_digest_seller,
     ],
     "viewer": [
-        TelegramAlertType.daily_digest,
+        TelegramAlertType.daily_digest_seller,
     ],
 }
 

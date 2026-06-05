@@ -256,7 +256,11 @@ def assert_pagination(
     assert "items" in data, "Missing 'items' in paginated response"
     assert "total" in data, "Missing 'total' in paginated response"
     assert "page" in data, "Missing 'page' in paginated response"
-    assert "size" in data or "page_size" in data, "Missing 'size' in paginated response"
+    # The standard ``PaginatedResponse`` (app/schemas/base.py) exposes ``limit``;
+    # ``size``/``page_size`` are kept for legacy callers that pre-date the migration.
+    assert "limit" in data or "size" in data or "page_size" in data, (
+        "Missing page-size key ('limit'/'size'/'page_size') in paginated response"
+    )
 
     if expected_total is not None:
         assert data["total"] == expected_total, (
@@ -268,7 +272,7 @@ def assert_pagination(
     )
 
     if expected_size is not None:
-        size = data.get("size") or data.get("page_size")
+        size = data.get("limit") or data.get("size") or data.get("page_size")
         assert size == expected_size, (
             f"Expected size {expected_size}, got {size}"
         )
@@ -340,25 +344,29 @@ def assert_has_id(data: dict[str, Any]) -> str:
 
 def assert_has_code(data: dict[str, Any], prefix: str | None = None) -> str:
     """
-    Assert entity has a code and optionally validate prefix.
+    Assert entity has a code and optionally validate the type segment.
+
+    Codes follow the pattern ``{SCHOOL}-{TYPE}-{YEAR}-{SEQ}`` (e.g.
+    ``CARACAS-001-VNT-2026-0042``). The ``prefix`` argument names the type
+    segment (``"VNT-"`` or ``"ENC-"``) and is matched anywhere in the code.
 
     Args:
         data: Entity data dictionary
-        prefix: Expected code prefix (e.g., "VNT-", "ENC-")
+        prefix: Type segment (e.g., "VNT-", "ENC-")
 
     Returns:
         Entity code string
 
     Raises:
-        AssertionError: If code is missing or prefix doesn't match
+        AssertionError: If code is missing or type segment doesn't appear
     """
     assert "code" in data, "Entity missing 'code' field"
     code = data["code"]
     assert code, "Entity 'code' is empty"
 
     if prefix:
-        assert code.startswith(prefix), (
-            f"Expected code to start with '{prefix}', got '{code}'"
+        assert prefix in code, (
+            f"Expected code to contain '{prefix}', got '{code}'"
         )
 
     return code

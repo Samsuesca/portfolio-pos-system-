@@ -1,6 +1,7 @@
 """
 Base CRUD Service with common operations
 """
+import asyncio
 from typing import TypeVar, Generic, Type, Any
 from uuid import UUID
 from sqlalchemy import select, update, delete, func
@@ -93,6 +94,19 @@ class BaseService(Generic[ModelType]):
 
         result = await self.db.execute(query)
         return list(result.scalars().all())
+
+    async def get_multi_paginated(
+        self,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+        filters: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        items, total = await asyncio.gather(
+            self.get_multi(skip=skip, limit=limit, filters=filters),
+            self.count(filters=filters),
+        )
+        return {"items": items, "total": total, "skip": skip, "limit": limit}
 
     async def update(self, id: UUID, obj_data: dict[str, Any]) -> ModelType | None:
         """
@@ -225,6 +239,20 @@ class SchoolIsolatedService(BaseService[ModelType]):
 
         result = await self.db.execute(query)
         return list(result.scalars().all())
+
+    async def get_multi_paginated(
+        self,
+        *,
+        school_id: UUID,
+        skip: int = 0,
+        limit: int = 100,
+        filters: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        items, total = await asyncio.gather(
+            self.get_multi(school_id=school_id, skip=skip, limit=limit, filters=filters),
+            self.count(school_id=school_id, filters=filters),
+        )
+        return {"items": items, "total": total, "skip": skip, "limit": limit}
 
     async def update(
         self,

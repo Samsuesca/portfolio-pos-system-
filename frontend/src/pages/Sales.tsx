@@ -2,17 +2,18 @@
  * Sales Page - List and manage sales (Multi-school view)
  */
 import { useEffect, useState, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout';
 import SaleModal from '../components/SaleModal';
 import { RequirePermission } from '../components/RequirePermission';
-import { ShoppingCart, Plus, Search, AlertCircle, Loader2, Eye, Calendar, User, DollarSign, Building2, History, ChevronDown } from 'lucide-react';
+import { ShoppingCart, Plus, Search, AlertCircle, Loader2, Eye, Calendar, User, DollarSign, Building2, History, ChevronDown, X } from 'lucide-react';
 import { formatDateTimeSpanish } from '../components/DatePicker';
 import DateFilter, { DateRange } from '../components/DateFilter';
 import { saleService } from '../services/saleService';
+import { clientService } from '../services/clientService';
 import { useSchoolStore } from '../stores/schoolStore';
 import { useDebounce } from '../hooks/useDebounce';
-import type { SaleListItem } from '../types/api';
+import type { SaleListItem, Client } from '../types/api';
 
 // Type for location state when navigating from DraftsBar or Quick Actions
 interface LocationState {
@@ -24,6 +25,7 @@ interface LocationState {
 export default function Sales() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const locationState = location.state as LocationState | null;
   const { currentSchool, availableSchools, loadSchools } = useSchoolStore();
   const [sales, setSales] = useState<SaleListItem[]>([]);
@@ -37,6 +39,28 @@ export default function Sales() {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange>({});
+
+  const clientIdFilter = searchParams.get('client');
+  const [filterClient, setFilterClient] = useState<Client | null>(null);
+
+  useEffect(() => {
+    if (!clientIdFilter) {
+      setFilterClient(null);
+      return;
+    }
+    let cancelled = false;
+    clientService
+      .getClient(clientIdFilter)
+      .then((c) => { if (!cancelled) setFilterClient(c); })
+      .catch(() => { if (!cancelled) setFilterClient(null); });
+    return () => { cancelled = true; };
+  }, [clientIdFilter]);
+
+  const clearClientFilter = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('client');
+    setSearchParams(next, { replace: true });
+  };
 
   // Debounce search term for backend search
   const debouncedSearch = useDebounce(searchTerm, 300);
@@ -78,7 +102,7 @@ export default function Sales() {
   // Reload when filters or debounced search changes
   useEffect(() => {
     loadSales();
-  }, [schoolFilter, statusFilter, debouncedSearch, dateRange]);
+  }, [schoolFilter, statusFilter, debouncedSearch, dateRange, clientIdFilter]);
 
   const loadSales = useCallback(async (append = false) => {
     try {
@@ -92,23 +116,25 @@ export default function Sales() {
       const skip = append ? sales.length : 0;
 
       // Load sales with backend search and pagination
-      const salesData = await saleService.getAllSales({
+      const salesResponse = await saleService.getAllSales({
         school_id: schoolFilter || undefined,
         status: statusFilter || undefined,
         search: debouncedSearch || undefined,
+        client_id: clientIdFilter || undefined,
         start_date: dateRange.start_date,
         end_date: dateRange.end_date,
         limit: LIMIT,
         skip: skip,
-        include_historical: false
+        include_historical: clientIdFilter ? true : false,
       });
+      const salesItems = salesResponse?.items ?? [];
 
       if (append) {
-        setSales(prev => [...prev, ...salesData]);
+        setSales(prev => [...prev, ...salesItems]);
       } else {
-        setSales(salesData);
+        setSales(salesItems);
       }
-      setHasMore(salesData.length === LIMIT);
+      setHasMore(salesItems.length === LIMIT);
     } catch (err: any) {
       console.error('Error loading sales:', err);
       setError(err.response?.data?.detail || 'Error al cargar ventas');
@@ -116,16 +142,16 @@ export default function Sales() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [schoolFilter, statusFilter, debouncedSearch, dateRange, sales.length]);
+  }, [schoolFilter, statusFilter, debouncedSearch, dateRange, sales.length, clientIdFilter]);
 
   const getSourceBadge = (source: string | null | undefined) => {
     if (!source) return null;
     const sourceConfig: Record<string, { label: string; color: string }> = {
-      desktop_app: { label: 'Desktop', color: 'bg-blue-100 text-blue-700' },
+      desktop_app: { label: 'Desktop', color: 'bg-brand-100 text-brand-700' },
       web_portal: { label: 'Web', color: 'bg-purple-100 text-purple-700' },
-      api: { label: 'API', color: 'bg-gray-100 text-gray-700' }
+      api: { label: 'API', color: 'bg-stone-100 text-stone-700' }
     };
-    const config = sourceConfig[source] || { label: source, color: 'bg-gray-100 text-gray-700' };
+    const config = sourceConfig[source] || { label: source, color: 'bg-stone-100 text-stone-700' };
     return (
       <span className={`ml-2 px-1.5 py-0.5 text-xs rounded ${config.color}`}>
         {config.label}
@@ -147,13 +173,13 @@ export default function Sales() {
     switch (status) {
       case 'paid':
       case 'completed':
-        return 'bg-green-100 text-green-800';
+        return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200';
       case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-amber-50 text-amber-700 ring-1 ring-amber-200';
       case 'cancelled':
-        return 'bg-red-100 text-red-800';
+        return 'bg-red-50 text-red-700 ring-1 ring-red-200';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-stone-100 text-stone-800';
     }
   };
 
@@ -202,11 +228,11 @@ export default function Sales() {
     <Layout>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Ventas</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-2xl font-bold text-stone-800">Ventas</h1>
+          <p className="text-stone-600 mt-1">
             {loading ? 'Cargando...' : `${sales.length} ventas encontradas`}
             {schoolFilter && availableSchools.length > 1 && (
-              <span className="ml-2 text-blue-600">
+              <span className="ml-2 text-brand-600">
                 • Filtrado por colegio
               </span>
             )}
@@ -215,7 +241,7 @@ export default function Sales() {
         <RequirePermission permission="sales.create">
           <button
             onClick={() => setIsModalOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center transition"
+            className="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg flex items-center transition"
           >
             <Plus className="w-5 h-5 mr-2" />
             Nueva Venta
@@ -223,17 +249,39 @@ export default function Sales() {
         </RequirePermission>
       </div>
 
+      {/* Active client filter banner */}
+      {clientIdFilter && (
+        <div className="mb-4 bg-brand-50 border border-brand-200 rounded-lg px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm text-brand-800">
+            <User className="w-4 h-4" />
+            <span>
+              Filtrado por cliente:{' '}
+              <strong>
+                {filterClient ? `${filterClient.name} (${filterClient.code})` : clientIdFilter}
+              </strong>
+            </span>
+          </div>
+          <button
+            onClick={clearClientFilter}
+            className="flex items-center gap-1 text-sm text-brand-700 hover:text-brand-900 font-medium"
+          >
+            Quitar filtro
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Search and Filters */}
       <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex-1 min-w-[200px] relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-stone-400" />
             <input
               type="text"
               placeholder="Buscar por código o cliente..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              className="w-full pl-10 pr-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
             />
           </div>
 
@@ -242,7 +290,7 @@ export default function Sales() {
             <select
               value={schoolFilter}
               onChange={(e) => setSchoolFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              className="px-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 outline-none"
             >
               <option value="">Todos los colegios</option>
               {availableSchools.map(school => (
@@ -256,7 +304,7 @@ export default function Sales() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            className="px-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 outline-none"
           >
             <option value="">Todos los estados</option>
             <option value="completed">Completadas</option>
@@ -265,7 +313,7 @@ export default function Sales() {
             <option value="cancelled">Canceladas</option>
           </select>
         </div>
-        <div className="mt-3 pt-3 border-t border-gray-100">
+        <div className="mt-3 pt-3 border-t border-stone-100">
           <DateFilter value={dateRange} onChange={setDateRange} />
         </div>
       </div>
@@ -273,8 +321,8 @@ export default function Sales() {
       {/* Loading State */}
       {loading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-          <span className="ml-3 text-gray-600">Cargando ventas...</span>
+          <Loader2 className="w-8 h-8 animate-spin text-brand-600" />
+          <span className="ml-3 text-stone-600">Cargando ventas...</span>
         </div>
       )}
 
@@ -300,82 +348,82 @@ export default function Sales() {
       {/* Sales Table */}
       {!loading && !error && sales.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-stone-100">
+            <thead className="bg-stone-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Código
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Fecha
                 </th>
                 {availableSchools.length > 1 && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                     Colegio
                   </th>
                 )}
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Cliente
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Vendedor
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Total
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Método Pago
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Estado
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Acciones
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white divide-y divide-stone-100">
               {sales.map((sale) => (
-                <tr key={sale.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                <tr key={sale.id} className="hover:bg-stone-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-stone-900">
                     <div className="flex items-center flex-wrap gap-1">
                       {sale.code}
                       {getSourceBadge(sale.source)}
                       {getHistoricalBadge(sale.is_historical)}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-900">
                     <div className="flex items-center">
-                      <Calendar className="w-4 h-4 mr-2 text-gray-400" />
+                      <Calendar className="w-4 h-4 mr-2 text-stone-400" />
                       {formatDate(sale.sale_date)}
                     </div>
                   </td>
                   {availableSchools.length > 1 && (
-                    <td className="px-6 py-4 text-sm text-gray-900">
+                    <td className="px-6 py-4 text-sm text-stone-900">
                       <div className="flex items-center">
-                        <Building2 className="w-4 h-4 mr-2 text-gray-400 flex-shrink-0" />
+                        <Building2 className="w-4 h-4 mr-2 text-stone-400 flex-shrink-0" />
                         <span className="truncate max-w-[250px]" title={sale.school_name || ''}>
                           {sale.school_name || 'Sin colegio'}
                         </span>
                       </div>
                     </td>
                   )}
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-900">
                     <div className="flex items-center">
-                      <User className="w-4 h-4 mr-2 text-gray-400" />
+                      <User className="w-4 h-4 mr-2 text-stone-400" />
                       {sale.client_name || 'Venta directa'}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-600">
                     {sale.user_name || '-'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-stone-900">
                     <div className="flex items-center">
-                      <DollarSign className="w-4 h-4 mr-1 text-gray-400" />
+                      <DollarSign className="w-4 h-4 mr-1 text-stone-400" />
                       ${Number(sale.total).toLocaleString()}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-900">
                     {getPaymentMethodText(sale.payment_method)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -383,10 +431,10 @@ export default function Sales() {
                       {getStatusText(sale.status)}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-500">
                     <button
                       onClick={() => navigate(`/sales/${sale.id}`)}
-                      className="text-blue-600 hover:text-blue-800 flex items-center transition"
+                      className="text-brand-600 hover:text-brand-700 flex items-center transition"
                     >
                       <Eye className="w-4 h-4 mr-1" />
                       Ver
@@ -399,11 +447,11 @@ export default function Sales() {
 
           {/* Load More Button */}
           {hasMore && sales.length > 0 && (
-            <div className="p-4 border-t border-gray-200 text-center">
+            <div className="p-4 border-t border-stone-200 text-center">
               <button
                 onClick={() => { loadSales(true); }}
                 disabled={loadingMore}
-                className="px-4 py-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg inline-flex items-center transition disabled:opacity-50"
+                className="px-4 py-2 text-brand-600 hover:text-brand-700 hover:bg-brand-50 rounded-lg inline-flex items-center transition disabled:opacity-50"
               >
                 {loadingMore ? (
                   <>
@@ -424,12 +472,12 @@ export default function Sales() {
 
       {/* Empty State */}
       {!loading && !error && sales.length === 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-12 text-center">
-          <ShoppingCart className="w-16 h-16 text-blue-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-blue-900 mb-2">
+        <div className="bg-brand-50 border border-brand-200 rounded-lg p-12 text-center">
+          <ShoppingCart className="w-16 h-16 text-brand-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-brand-700 mb-2">
             {debouncedSearch || statusFilter || schoolFilter || dateRange.start_date || dateRange.end_date ? 'No se encontraron ventas' : 'No hay ventas registradas'}
           </h3>
-          <p className="text-blue-700 mb-4">
+          <p className="text-brand-700 mb-4">
             {debouncedSearch || statusFilter || schoolFilter || dateRange.start_date || dateRange.end_date
               ? 'Intenta ajustar los filtros de busqueda o consulta el historico en Reportes'
               : 'Comienza creando tu primera venta'
@@ -439,7 +487,7 @@ export default function Sales() {
             <RequirePermission permission="sales.create">
               <button
                 onClick={() => setIsModalOpen(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg inline-flex items-center"
+                className="bg-brand-500 hover:bg-brand-600 text-white px-6 py-2 rounded-lg inline-flex items-center"
               >
                 <Plus className="w-5 h-5 mr-2" />
                 Nueva Venta

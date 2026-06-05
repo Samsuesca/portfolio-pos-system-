@@ -3,6 +3,7 @@ import { Pencil, Check, X } from 'lucide-react';
 import { RequirePermission } from '../../components/RequirePermission';
 import workforceService, {
   PerformanceSummaryItem,
+  PerformanceStats,
   EmployeePerformanceMetrics,
   PerformanceReview,
   REVIEW_PERIOD_LABELS,
@@ -14,6 +15,7 @@ import { getScoreColor, getScoreBadge, getScoreLabel, todayStr, daysAgoStr } fro
 export default function PerformanceTab({ employees: _employees }: { employees: EmployeeListItem[] }) {
   const [periodDays, setPeriodDays] = useState(30);
   const [summary, setSummary] = useState<PerformanceSummaryItem[]>([]);
+  const [stats, setStats] = useState<PerformanceStats | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [employeeMetrics, setEmployeeMetrics] = useState<EmployeePerformanceMetrics | null>(null);
@@ -30,11 +32,18 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
   const loadSummary = useCallback(async () => {
     setLoadingSummary(true);
     try {
-      const data = await workforceService.getPerformanceSummary({
-        period_start: periodStart,
-        period_end: periodEnd,
-      });
-      setSummary(data);
+      const [summaryResult, statsResult] = await Promise.all([
+        workforceService.getPerformanceSummary({
+          period_start: periodStart,
+          period_end: periodEnd,
+        }),
+        workforceService.getPerformanceStats({
+          period_start: periodStart,
+          period_end: periodEnd,
+        }),
+      ]);
+      setSummary(summaryResult.items);
+      setStats(statsResult);
     } catch (err) {
       console.error('Error loading performance summary:', err);
     } finally {
@@ -50,12 +59,12 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
     async (empId: string) => {
       setLoadingDetail(true);
       try {
-        const [metrics, reviews] = await Promise.all([
+        const [metrics, reviewsResult] = await Promise.all([
           workforceService.getEmployeeMetrics(empId, periodStart, periodEnd),
           workforceService.getPerformanceReviews({ employee_id: empId }),
         ]);
         setEmployeeMetrics(metrics);
-        setEmployeeReviews(reviews);
+        setEmployeeReviews(reviewsResult.items);
       } catch (err) {
         console.error('Error loading employee detail:', err);
       } finally {
@@ -120,21 +129,19 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
     setEditingNotes('');
   };
 
-  // Summary stats
-  const totalEmployees = summary.length;
-  const avgScore =
-    totalEmployees > 0
-      ? Math.round(summary.reduce((acc, s) => acc + s.overall_score, 0) / totalEmployees)
-      : 0;
-  const topPerformers = summary.filter((s) => s.overall_score >= 90).length;
-  const needsAttention = summary.filter((s) => s.overall_score < 50).length;
+  // Summary stats — server-aggregated so they reflect the full population,
+  // not just the currently paginated rows of /performance/summary.
+  const totalEmployees = stats?.total_employees ?? 0;
+  const avgScore = stats?.avg_score ?? 0;
+  const topPerformers = stats?.top_performers ?? 0;
+  const needsAttention = stats?.needs_attention ?? 0;
 
   return (
     <div className="space-y-4">
       {/* Period filter */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600">Periodo:</span>
+          <span className="text-sm text-stone-600">Periodo:</span>
           {[
             { val: 7, label: '7 dias' },
             { val: 30, label: '30 dias' },
@@ -145,7 +152,7 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
               className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
                 periodDays === p.val
                   ? 'bg-brand-600 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  : 'bg-stone-200 text-stone-700 hover:bg-stone-300'
               }`}
               onClick={() => setPeriodDays(p.val)}
             >
@@ -155,7 +162,7 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
         </div>
         <RequirePermission permission="workforce.manage_performance">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">Generar reporte:</span>
+            <span className="text-sm text-stone-500">Generar reporte:</span>
             <button
               className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs font-medium"
               onClick={() => handleGenerateReview('weekly')}
@@ -163,7 +170,7 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
               Semanal
             </button>
             <button
-              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-medium"
+              className="px-3 py-1.5 bg-brand-500 text-white rounded-lg hover:bg-brand-600 text-xs font-medium"
               onClick={() => handleGenerateReview('monthly')}
             >
               Mensual
@@ -180,62 +187,62 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
-          <p className="text-2xl font-bold text-gray-900">{totalEmployees}</p>
-          <p className="text-xs text-gray-500 mt-1">Total Empleados</p>
+        <div className="bg-white rounded-lg border border-stone-200 p-4 text-center">
+          <p className="text-2xl font-bold text-stone-900">{totalEmployees}</p>
+          <p className="text-xs text-stone-500 mt-1">Total Empleados</p>
         </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
+        <div className="bg-white rounded-lg border border-stone-200 p-4 text-center">
           <p className={`text-2xl font-bold ${getScoreColor(avgScore)}`}>{avgScore}%</p>
-          <p className="text-xs text-gray-500 mt-1">Score Promedio</p>
+          <p className="text-xs text-stone-500 mt-1">Score Promedio</p>
         </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
+        <div className="bg-white rounded-lg border border-stone-200 p-4 text-center">
           <p className="text-2xl font-bold text-green-600">{topPerformers}</p>
-          <p className="text-xs text-gray-500 mt-1">Top Performers (&gt;=90%)</p>
+          <p className="text-xs text-stone-500 mt-1">Top Performers (&gt;=90%)</p>
         </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
+        <div className="bg-white rounded-lg border border-stone-200 p-4 text-center">
           <p className="text-2xl font-bold text-red-600">{needsAttention}</p>
-          <p className="text-xs text-gray-500 mt-1">Requieren Atencion (&lt;50%)</p>
+          <p className="text-xs text-stone-500 mt-1">Requieren Atencion (&lt;50%)</p>
         </div>
       </div>
 
       {/* Ranking table */}
       {loadingSummary ? (
-        <div className="text-center py-8 text-gray-500">Cargando rendimiento...</div>
+        <div className="text-center py-8 text-stone-500">Cargando rendimiento...</div>
       ) : summary.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
+        <div className="text-center py-8 text-stone-500">
           No hay datos de rendimiento para este periodo.
         </div>
       ) : (
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-stone-50 border-b border-stone-200">
               <tr>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">#</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Empleado</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Cargo</th>
-                <th className="text-center px-4 py-3 font-medium text-gray-600">Asistencia</th>
-                <th className="text-center px-4 py-3 font-medium text-gray-600">Puntualidad</th>
-                <th className="text-center px-4 py-3 font-medium text-gray-600">Checklists</th>
-                <th className="text-center px-4 py-3 font-medium text-gray-600">Score</th>
-                <th className="text-center px-4 py-3 font-medium text-gray-600">Estado</th>
+                <th className="text-left px-4 py-3 font-medium text-stone-600">#</th>
+                <th className="text-left px-4 py-3 font-medium text-stone-600">Empleado</th>
+                <th className="text-left px-4 py-3 font-medium text-stone-600">Cargo</th>
+                <th className="text-center px-4 py-3 font-medium text-stone-600">Asistencia</th>
+                <th className="text-center px-4 py-3 font-medium text-stone-600">Puntualidad</th>
+                <th className="text-center px-4 py-3 font-medium text-stone-600">Checklists</th>
+                <th className="text-center px-4 py-3 font-medium text-stone-600">Score</th>
+                <th className="text-center px-4 py-3 font-medium text-stone-600">Estado</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-stone-100">
               {summary
                 .sort((a, b) => b.overall_score - a.overall_score)
                 .map((item, idx) => (
                   <React.Fragment key={item.employee_id}>
                     <tr
-                      className={`hover:bg-gray-50 cursor-pointer ${
+                      className={`hover:bg-stone-50 cursor-pointer ${
                         selectedEmployeeId === item.employee_id ? 'bg-brand-50' : ''
                       }`}
                       onClick={() => handleRowClick(item.employee_id)}
                     >
-                      <td className="px-4 py-3 text-gray-500 font-medium">{idx + 1}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900">
+                      <td className="px-4 py-3 text-stone-500 font-medium">{idx + 1}</td>
+                      <td className="px-4 py-3 font-medium text-stone-900">
                         {item.employee_name}
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{item.position || '-'}</td>
+                      <td className="px-4 py-3 text-stone-600">{item.position || '-'}</td>
                       <td className="px-4 py-3 text-center">
                         <span className={getScoreColor(item.attendance_rate)}>
                           {Math.round(item.attendance_rate)}%
@@ -269,9 +276,9 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
                     {/* Expanded detail */}
                     {selectedEmployeeId === item.employee_id && (
                       <tr>
-                        <td colSpan={8} className="px-4 py-4 bg-gray-50">
+                        <td colSpan={8} className="px-4 py-4 bg-stone-50">
                           {loadingDetail ? (
-                            <div className="text-center py-4 text-gray-500">
+                            <div className="text-center py-4 text-stone-500">
                               Cargando detalle...
                             </div>
                           ) : (
@@ -279,7 +286,7 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
                               {/* Metrics cards */}
                               {employeeMetrics && (
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                  <div className="bg-white rounded-lg border border-gray-200 p-3 text-center">
+                                  <div className="bg-white rounded-lg border border-stone-200 p-3 text-center">
                                     <div className="relative mx-auto w-16 h-16 mb-2">
                                       <svg className="w-16 h-16" viewBox="0 0 36 36">
                                         <path
@@ -313,9 +320,9 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
                                         {Math.round(employeeMetrics.overall_score)}
                                       </span>
                                     </div>
-                                    <p className="text-xs text-gray-500">Score General</p>
+                                    <p className="text-xs text-stone-500">Score General</p>
                                   </div>
-                                  <div className="bg-white rounded-lg border border-gray-200 p-3 text-center">
+                                  <div className="bg-white rounded-lg border border-stone-200 p-3 text-center">
                                     <p
                                       className={`text-xl font-bold ${getScoreColor(
                                         employeeMetrics.attendance_rate
@@ -323,9 +330,9 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
                                     >
                                       {Math.round(employeeMetrics.attendance_rate)}%
                                     </p>
-                                    <p className="text-xs text-gray-500 mt-1">Asistencia</p>
+                                    <p className="text-xs text-stone-500 mt-1">Asistencia</p>
                                   </div>
-                                  <div className="bg-white rounded-lg border border-gray-200 p-3 text-center">
+                                  <div className="bg-white rounded-lg border border-stone-200 p-3 text-center">
                                     <p
                                       className={`text-xl font-bold ${getScoreColor(
                                         employeeMetrics.punctuality_rate
@@ -333,9 +340,9 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
                                     >
                                       {Math.round(employeeMetrics.punctuality_rate)}%
                                     </p>
-                                    <p className="text-xs text-gray-500 mt-1">Puntualidad</p>
+                                    <p className="text-xs text-stone-500 mt-1">Puntualidad</p>
                                   </div>
-                                  <div className="bg-white rounded-lg border border-gray-200 p-3 text-center">
+                                  <div className="bg-white rounded-lg border border-stone-200 p-3 text-center">
                                     <p
                                       className={`text-xl font-bold ${getScoreColor(
                                         employeeMetrics.checklist_completion_rate
@@ -343,7 +350,7 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
                                     >
                                       {Math.round(employeeMetrics.checklist_completion_rate)}%
                                     </p>
-                                    <p className="text-xs text-gray-500 mt-1">Checklists</p>
+                                    <p className="text-xs text-stone-500 mt-1">Checklists</p>
                                   </div>
                                 </div>
                               )}
@@ -351,44 +358,44 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
                               {/* Review history */}
                               {employeeReviews.length > 0 && (
                                 <div>
-                                  <h5 className="text-sm font-semibold text-gray-700 mb-2">
+                                  <h5 className="text-sm font-semibold text-stone-700 mb-2">
                                     Historial de Evaluaciones
                                   </h5>
-                                  <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                                  <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
                                     <table className="w-full text-xs">
-                                      <thead className="bg-gray-50 border-b border-gray-200">
+                                      <thead className="bg-stone-50 border-b border-stone-200">
                                         <tr>
-                                          <th className="text-left px-3 py-2 font-medium text-gray-600">
+                                          <th className="text-left px-3 py-2 font-medium text-stone-600">
                                             Periodo
                                           </th>
-                                          <th className="text-left px-3 py-2 font-medium text-gray-600">
+                                          <th className="text-left px-3 py-2 font-medium text-stone-600">
                                             Rango
                                           </th>
-                                          <th className="text-center px-3 py-2 font-medium text-gray-600">
+                                          <th className="text-center px-3 py-2 font-medium text-stone-600">
                                             Asistencia
                                           </th>
-                                          <th className="text-center px-3 py-2 font-medium text-gray-600">
+                                          <th className="text-center px-3 py-2 font-medium text-stone-600">
                                             Puntualidad
                                           </th>
-                                          <th className="text-center px-3 py-2 font-medium text-gray-600">
+                                          <th className="text-center px-3 py-2 font-medium text-stone-600">
                                             Checklists
                                           </th>
-                                          <th className="text-center px-3 py-2 font-medium text-gray-600">
+                                          <th className="text-center px-3 py-2 font-medium text-stone-600">
                                             Score
                                           </th>
-                                          <th className="text-left px-3 py-2 font-medium text-gray-600">
+                                          <th className="text-left px-3 py-2 font-medium text-stone-600">
                                             Notas
                                           </th>
                                         </tr>
                                       </thead>
-                                      <tbody className="divide-y divide-gray-100">
+                                      <tbody className="divide-y divide-stone-100">
                                         {employeeReviews.map((rev) => (
-                                          <tr key={rev.id} className="hover:bg-gray-50">
-                                            <td className="px-3 py-2 text-gray-600">
+                                          <tr key={rev.id} className="hover:bg-stone-50">
+                                            <td className="px-3 py-2 text-stone-600">
                                               {REVIEW_PERIOD_LABELS[rev.review_period] ||
                                                 rev.review_period}
                                             </td>
-                                            <td className="px-3 py-2 text-gray-500">
+                                            <td className="px-3 py-2 text-stone-500">
                                               {rev.period_start} - {rev.period_end}
                                             </td>
                                             <td className="px-3 py-2 text-center">
@@ -432,7 +439,7 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
                                                     onChange={(e) =>
                                                       setEditingNotes(e.target.value)
                                                     }
-                                                    className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-brand-500"
+                                                    className="flex-1 px-2 py-1 border border-stone-200 rounded text-xs focus:ring-1 focus:ring-brand-500"
                                                     autoFocus
                                                     onKeyDown={(e) => {
                                                       if (e.key === 'Enter')
@@ -448,7 +455,7 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
                                                     <Check size={14} />
                                                   </button>
                                                   <button
-                                                    className="p-0.5 text-gray-400 hover:text-gray-600"
+                                                    className="p-0.5 text-stone-400 hover:text-stone-600"
                                                     onClick={handleCancelEditNotes}
                                                   >
                                                     <X size={14} />
@@ -456,12 +463,12 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
                                                 </div>
                                               ) : (
                                                 <div className="flex items-center gap-1">
-                                                  <span className="text-gray-500 truncate max-w-[150px]">
+                                                  <span className="text-stone-500 truncate max-w-[150px]">
                                                     {rev.reviewer_notes || '-'}
                                                   </span>
                                                   <RequirePermission permission="workforce.manage_performance">
                                                     <button
-                                                      className="p-0.5 text-gray-400 hover:text-brand-600"
+                                                      className="p-0.5 text-stone-400 hover:text-brand-600"
                                                       onClick={(e) => {
                                                         e.stopPropagation();
                                                         handleStartEditNotes(rev);
@@ -483,7 +490,7 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
                               )}
 
                               {employeeReviews.length === 0 && !loadingDetail && (
-                                <p className="text-sm text-gray-500 text-center py-2">
+                                <p className="text-sm text-stone-500 text-center py-2">
                                   No hay evaluaciones. Genera una usando los botones de arriba.
                                 </p>
                               )}

@@ -8,11 +8,13 @@ Two types of endpoints:
 from uuid import UUID
 from datetime import date, datetime
 from fastapi import APIRouter, HTTPException, status, Query, Depends
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, func
 from sqlalchemy.orm import selectinload, joinedload
 
-from app.api.dependencies import DatabaseSession, CurrentUser, require_school_access, UserSchoolIds
-from app.models.user import UserRole, User
+from app.api.dependencies import DatabaseSession, CurrentUser, require_permission, UserSchoolIds, get_user_school_ids_with_permission
+from app.api.error_responses import responses, AUTHENTICATED
+from app.schemas.base import PaginatedResponse, paginate
+from app.models.user import User
 from app.models.sale import Sale, SaleItem, SaleChange, SaleSource, SaleStatus, ChangeStatus, ChangeType
 from app.models.client import Client
 from app.models.school import School
@@ -38,25 +40,31 @@ router = APIRouter(tags=["Sales"])
 
 @router.get(
     "/sales",
-    response_model=list[SaleListResponse],
-    summary="List sales from all schools"
+    response_model=PaginatedResponse[SaleListResponse],
+    summary="List sales from all schools",
+    responses=AUTHENTICATED,
+    operation_id="listMultiSchoolSales"
 )
 async def list_all_sales(
     db: DatabaseSession,
     current_user: CurrentUser,
-    user_school_ids: UserSchoolIds,
+    user_school_ids: list[UUID] = Depends(get_user_school_ids_with_permission("sales.view")),
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(100, ge=1, le=100),
     school_id: UUID | None = Query(None, description="Filter by specific school"),
     status_filter: str | None = Query(None, alias="status", description="Filter by status"),
     source: SaleSource | None = Query(None, description="Filter by source"),
     search: str | None = Query(None, description="Search by code or client name"),
+    client_id: UUID | None = Query(None, description="Filter by client ID"),
     include_historical: bool = Query(False, description="Include historical/migrated sales"),
     start_date: date | None = Query(None, description="Filter from date (YYYY-MM-DD)"),
     end_date: date | None = Query(None, description="Filter until date (YYYY-MM-DD)")
 ):
     """
     List sales from ALL schools the user has access to.
+
+    **Auth:** Bearer JWT (staff)
+    **Tenant isolation:** Filters by authenticated user's assigned school_ids
 
     Supports filtering by:
     - school_id: Specific school (optional)
@@ -65,75 +73,76 @@ async def list_all_sales(
     - search: Search in sale code or client name
     """
     if not user_school_ids:
-        return []
+        return PaginatedResponse[SaleListResponse](items=[], total=0, skip=skip, limit=limit)
 
-    # Build query
-    query = (
-        select(Sale)
-        .options(
-            selectinload(Sale.items),
-            selectinload(Sale.payments),  # Include payments for fallback payment_method
-            joinedload(Sale.client),
-            joinedload(Sale.user),
-            joinedload(Sale.school)
-        )
-        .where(Sale.school_id.in_(user_school_ids))
-        .order_by(Sale.created_at.desc())
-    )
+    # Base filter conditions (reused for data query and count)
+    filters = [Sale.school_id.in_(user_school_ids)]
 
-    # Apply filters
     if school_id:
         if school_id not in user_school_ids:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="No access to this school"
             )
-        query = query.where(Sale.school_id == school_id)
+        filters.append(Sale.school_id == school_id)
 
     if status_filter:
-        query = query.where(Sale.status == status_filter)
+        filters.append(Sale.status == status_filter)
 
     if source:
-        query = query.where(Sale.source == source)
+        filters.append(Sale.source == source)
 
-    # Filter out historical sales by default (only include if explicitly requested)
+    if client_id:
+        filters.append(Sale.client_id == client_id)
+
     if not include_historical:
-        # Exclude sales where is_historical is True (only show non-historical)
-        query = query.where(Sale.is_historical.is_not(True))
+        filters.append(Sale.is_historical.is_not(True))
 
     if search:
         search_term = f"%{search}%"
-        query = query.where(
+        filters.append(
             or_(
                 Sale.code.ilike(search_term),
                 Sale.client.has(Client.name.ilike(search_term))
             )
         )
 
-    # Date range filter
     if start_date:
         start_datetime = datetime.combine(start_date, datetime.min.time())
-        query = query.where(Sale.sale_date >= start_datetime)
+        filters.append(Sale.sale_date >= start_datetime)
     if end_date:
         end_datetime = datetime.combine(end_date, datetime.max.time())
-        query = query.where(Sale.sale_date <= end_datetime)
+        filters.append(Sale.sale_date <= end_datetime)
 
-    # Pagination
-    query = query.offset(skip).limit(limit)
+    # Count total
+    total = (await db.execute(select(func.count(Sale.id)).where(*filters))).scalar_one()
+
+    # Data query
+    query = (
+        select(Sale)
+        .options(
+            selectinload(Sale.items),
+            selectinload(Sale.payments),
+            joinedload(Sale.client),
+            joinedload(Sale.user),
+            joinedload(Sale.school)
+        )
+        .where(*filters)
+        .order_by(Sale.created_at.desc())
+        .offset(skip).limit(limit)
+    )
 
     result = await db.execute(query)
     sales = result.unique().scalars().all()
 
-    # Helper to get payment method (from sale or first payment)
     def get_payment_method(sale: Sale) -> PaymentMethod | None:
         if sale.payment_method:
             return sale.payment_method
-        # Fallback: get from first payment if available
         if sale.payments and len(sale.payments) > 0:
             return sale.payments[0].payment_method
         return None
 
-    return [
+    items = [
         SaleListResponse(
             id=sale.id,
             code=sale.code,
@@ -155,17 +164,23 @@ async def list_all_sales(
         for sale in sales
     ]
 
+    return PaginatedResponse[SaleListResponse](
+        items=items, total=total, skip=skip, limit=limit
+    )
+
 
 @router.get(
     "/sales/{sale_id}",
     response_model=SaleResponse,
-    summary="Get sale by ID (from any accessible school)"
+    summary="Get sale by ID (from any accessible school)",
+    responses=responses(404),
+    operation_id="getMultiSchoolSale"
 )
 async def get_sale_global(
     sale_id: UUID,
     db: DatabaseSession,
     current_user: CurrentUser,
-    user_school_ids: UserSchoolIds
+    user_school_ids: list[UUID] = Depends(get_user_school_ids_with_permission("sales.view")),
 ):
     """Get a specific sale by ID from any school the user has access to."""
     result = await db.execute(
@@ -190,27 +205,26 @@ async def get_sale_global(
 @router.get(
     "/sales/{sale_id}/details",
     response_model=SaleWithItems,
-    summary="Get sale with full details (from any accessible school)"
+    summary="Get sale with full details (from any accessible school)",
+    responses=responses(404),
+    operation_id="getMultiSchoolSaleDetails"
 )
 async def get_sale_details_global(
     sale_id: UUID,
     db: DatabaseSession,
     current_user: CurrentUser,
-    user_school_ids: UserSchoolIds
+    user_school_ids: list[UUID] = Depends(get_user_school_ids_with_permission("sales.view")),
 ):
     """
     Get a specific sale with all items and details from any school the user has access to.
     Does not require school_id in URL - validates access based on the sale's school.
     """
     from app.schemas.sale import SaleItemWithProduct
-    from app.models.product import GlobalProduct
 
-    # First, get the sale to validate access
     result = await db.execute(
         select(Sale)
         .options(
             selectinload(Sale.items).selectinload(SaleItem.product),
-            selectinload(Sale.items).selectinload(SaleItem.global_product),
             selectinload(Sale.payments)
         )
         .where(
@@ -226,25 +240,12 @@ async def get_sale_details_global(
             detail="Venta no encontrada o sin acceso"
         )
 
-    # Build items with product information
     items_with_products = []
     for item in sale.items:
-        global_product_data = None
-        if item.is_global_product and item.global_product_id:
-            if item.global_product:
-                global_product_data = item.global_product
-            else:
-                gp_result = await db.execute(
-                    select(GlobalProduct).where(GlobalProduct.id == item.global_product_id)
-                )
-                global_product_data = gp_result.scalar_one_or_none()
-
         item_dict = {
             "id": item.id,
             "sale_id": item.sale_id,
             "product_id": item.product_id,
-            "global_product_id": item.global_product_id,
-            "is_global_product": item.is_global_product,
             "quantity": item.quantity,
             "unit_price": item.unit_price,
             "subtotal": item.subtotal,
@@ -252,10 +253,7 @@ async def get_sale_details_global(
             "product_name": item.product.name if item.product else None,
             "product_size": item.product.size if item.product else None,
             "product_color": item.product.color if item.product else None,
-            "global_product_code": global_product_data.code if global_product_data else None,
-            "global_product_name": global_product_data.name if global_product_data else None,
-            "global_product_size": global_product_data.size if global_product_data else None,
-            "global_product_color": global_product_data.color if global_product_data else None,
+            "is_global": item.product.school_id is None if item.product else False,
         }
         items_with_products.append(SaleItemWithProduct(**item_dict))
 
@@ -331,15 +329,17 @@ async def get_sale_details_global(
 
 @router.get(
     "/sale-changes",
-    response_model=list[SaleChangeListResponse],
-    summary="List all sale changes from all schools"
+    response_model=PaginatedResponse[SaleChangeListResponse],
+    summary="List all sale changes from all schools",
+    responses=AUTHENTICATED,
+    operation_id="listMultiSchoolSaleChanges"
 )
 async def list_all_sale_changes(
     db: DatabaseSession,
     current_user: CurrentUser,
-    user_school_ids: UserSchoolIds,
+    user_school_ids: list[UUID] = Depends(get_user_school_ids_with_permission("sales.view")),
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(100, ge=1, le=100),
     status_filter: ChangeStatus | None = Query(None, alias="status", description="Filter by status"),
     change_type: ChangeType | None = Query(None, description="Filter by change type"),
 ):
@@ -351,19 +351,15 @@ async def list_all_sale_changes(
 
     Includes full product details for both original and new products.
     """
-    from app.models.product import Product, GlobalProduct
     from app.models.order import Order
 
-    # Build query for changes with all related data
     query = (
         select(SaleChange)
         .join(Sale, SaleChange.sale_id == Sale.id)
         .options(
             selectinload(SaleChange.sale),
             selectinload(SaleChange.original_item).selectinload(SaleItem.product),
-            selectinload(SaleChange.original_item).selectinload(SaleItem.global_product),
             selectinload(SaleChange.new_product),
-            selectinload(SaleChange.new_global_product),
             selectinload(SaleChange.user),
             selectinload(SaleChange.order),
         )
@@ -377,7 +373,9 @@ async def list_all_sale_changes(
     if change_type:
         query = query.where(SaleChange.change_type == change_type)
 
-    # Pagination
+    count_query = select(func.count()).select_from(query.subquery())
+    total = (await db.execute(count_query)).scalar_one()
+
     query = query.offset(skip).limit(limit)
 
     result = await db.execute(query)
@@ -385,28 +383,9 @@ async def list_all_sale_changes(
 
     response_list = []
     for change in changes:
-        # Get original item and product info
         original_item = change.original_item
-        orig_product = None
-        original_is_global = False
-
-        if original_item:
-            if original_item.is_global_product and original_item.global_product:
-                orig_product = original_item.global_product
-                original_is_global = True
-            elif original_item.product:
-                orig_product = original_item.product
-                original_is_global = False
-
-        # Get new product info
-        new_product = None
-        new_is_global = False
-        if change.is_new_global_product and change.new_global_product:
-            new_product = change.new_global_product
-            new_is_global = True
-        elif change.new_product:
-            new_product = change.new_product
-            new_is_global = False
+        orig_product = original_item.product if original_item else None
+        new_product = change.new_product
 
         response_list.append(
             SaleChangeListResponse(
@@ -422,40 +401,39 @@ async def list_all_sale_changes(
                 reason=change.reason,
                 rejection_reason=change.rejection_reason,
                 created_at=change.created_at,
-                # Original product info
                 original_product_code=orig_product.code if orig_product else None,
                 original_product_name=orig_product.name if orig_product else None,
                 original_product_size=orig_product.size if orig_product else None,
                 original_product_color=orig_product.color if orig_product else None,
                 original_unit_price=original_item.unit_price if original_item else None,
-                original_is_global=original_is_global,
-                # New product info
+                original_is_global=orig_product.is_global if orig_product else False,
                 new_product_code=new_product.code if new_product else None,
                 new_product_name=new_product.name if new_product else None,
                 new_product_size=new_product.size if new_product else None,
                 new_product_color=new_product.color if new_product else None,
                 new_unit_price=change.new_unit_price,
-                new_is_global=new_is_global,
-                # User and order info
+                new_is_global=new_product.is_global if new_product else False,
                 user_username=change.user.username if change.user else None,
                 order_code=change.order.code if change.order else None,
                 order_id=change.order_id,
             )
         )
 
-    return response_list
+    return paginate(response_list, total, skip, limit)
 
 
 @router.get(
     "/sale-changes/{change_id}/details",
     response_model=SaleChangeDetailResponse,
-    summary="Get detailed information for a sale change"
+    summary="Get detailed information for a sale change",
+    responses=responses(404),
+    operation_id="getSaleChangeDetails"
 )
 async def get_sale_change_details(
     change_id: UUID,
     db: DatabaseSession,
     current_user: CurrentUser,
-    user_school_ids: UserSchoolIds
+    user_school_ids: list[UUID] = Depends(get_user_school_ids_with_permission("sales.view")),
 ):
     """
     Get complete details for a sale change including:
@@ -478,9 +456,7 @@ async def get_sale_change_details(
             selectinload(SaleChange.sale).selectinload(Sale.client),
             selectinload(SaleChange.sale).selectinload(Sale.school),
             selectinload(SaleChange.original_item).selectinload(SaleItem.product),
-            selectinload(SaleChange.original_item).selectinload(SaleItem.global_product),
             selectinload(SaleChange.new_product),
-            selectinload(SaleChange.new_global_product),
             selectinload(SaleChange.user),
             selectinload(SaleChange.order),
         )
@@ -497,28 +473,9 @@ async def get_sale_change_details(
             detail="Cambio no encontrado o sin acceso"
         )
 
-    # Get original item and product info
     original_item = change.original_item
-    orig_product = None
-    original_is_global = False
-
-    if original_item:
-        if original_item.is_global_product and original_item.global_product:
-            orig_product = original_item.global_product
-            original_is_global = True
-        elif original_item.product:
-            orig_product = original_item.product
-            original_is_global = False
-
-    # Get new product info
-    new_product = None
-    new_is_global = False
-    if change.is_new_global_product and change.new_global_product:
-        new_product = change.new_global_product
-        new_is_global = True
-    elif change.new_product:
-        new_product = change.new_product
-        new_is_global = False
+    orig_product = original_item.product if original_item else None
+    new_product = change.new_product
 
     # Get related transactions
     transactions_result = await db.execute(
@@ -543,13 +500,12 @@ async def get_sale_change_details(
     ]
 
     # Get related inventory movements (using sale_change_id FK)
-    from app.models.product import Inventory, GlobalInventory
+    from app.models.product import Inventory
 
     inventory_movements_result = await db.execute(
         select(InventoryLog)
         .options(
             selectinload(InventoryLog.inventory).selectinload(Inventory.product),
-            selectinload(InventoryLog.global_inventory).selectinload(GlobalInventory.product),
         )
         .where(InventoryLog.sale_change_id == change.id)
         .order_by(InventoryLog.created_at.desc())
@@ -558,15 +514,11 @@ async def get_sale_change_details(
 
     movement_summaries = []
     for m in movements:
-        # Get product info from inventory or global_inventory
         product_code = ""
         product_name = None
         if m.inventory and m.inventory.product:
             product_code = m.inventory.product.code
             product_name = m.inventory.product.name
-        elif m.global_inventory and m.global_inventory.product:
-            product_code = m.global_inventory.product.code
-            product_name = m.global_inventory.product.name
 
         movement_summaries.append(
             InventoryMovementSummary(
@@ -610,15 +562,13 @@ async def get_sale_change_details(
         original_product_size=orig_product.size if orig_product else None,
         original_product_color=orig_product.color if orig_product else None,
         original_unit_price=original_item.unit_price if original_item else None,
-        original_is_global=original_is_global,
-        # New product info
+        original_is_global=orig_product.is_global if orig_product else False,
         new_product_code=new_product.code if new_product else None,
         new_product_name=new_product.name if new_product else None,
         new_product_size=new_product.size if new_product else None,
         new_product_color=new_product.color if new_product else None,
         new_unit_price=change.new_unit_price,
-        new_is_global=new_is_global,
-        # User and order info
+        new_is_global=new_product.is_global if new_product else False,
         user_username=change.user.username if change.user else None,
         order_code=change.order.code if change.order else None,
         order_id=change.order_id,
@@ -644,7 +594,9 @@ school_router = APIRouter(prefix="/schools/{school_id}/sales", tags=["Sales"])
     "",
     response_model=SaleResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_school_access(UserRole.SELLER))]
+    dependencies=[Depends(require_permission("sales.create"))],
+    responses=responses(400),
+    operation_id="createSale"
 )
 async def create_sale(
     school_id: UUID,
@@ -653,10 +605,14 @@ async def create_sale(
     current_user: CurrentUser
 ):
     """
-    Create a new sale with items (requires SELLER role)
+    Create a new sale with items.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `sales.create`
+    **Tenant isolation:** Validates school_id belongs to authenticated user's schools
 
     Automatically:
-    - Generates sale code (VNT-YYYY-NNNN)
+    - Generates sale code ({SCHOOL}-VNT-YYYY-NNNN)
     - Validates product availability
     - Reserves inventory
     - Calculates totals (subtotal, tax, total)
@@ -686,8 +642,10 @@ async def create_sale(
 
 @school_router.get(
     "",
-    response_model=list[SaleListResponse],
-    dependencies=[Depends(require_school_access(UserRole.VIEWER))]
+    response_model=PaginatedResponse[SaleListResponse],
+    dependencies=[Depends(require_permission("sales.view"))],
+    responses=AUTHENTICATED,
+    operation_id="listSales"
 )
 async def list_sales(
     school_id: UUID,
@@ -695,8 +653,18 @@ async def list_sales(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100)
 ):
-    """List sales for school"""
-    # Get sales with items count
+    """
+    List sales for school.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `sales.view`
+    **Tenant isolation:** Validates school_id belongs to authenticated user's schools
+    """
+    count_result = await db.execute(
+        select(func.count(Sale.id)).where(Sale.school_id == school_id)
+    )
+    total = count_result.scalar_one()
+
     result = await db.execute(
         select(Sale)
         .options(
@@ -711,8 +679,7 @@ async def list_sales(
     )
     sales = result.unique().scalars().all()
 
-    # Convert to list response
-    return [
+    items = [
         SaleListResponse(
             id=sale.id,
             code=sale.code,
@@ -731,19 +698,28 @@ async def list_sales(
         )
         for sale in sales
     ]
+    return paginate(items, total, skip, limit)
 
 
 @school_router.get(
     "/{sale_id}",
     response_model=SaleResponse,
-    dependencies=[Depends(require_school_access(UserRole.VIEWER))]
+    dependencies=[Depends(require_permission("sales.view"))],
+    responses=responses(404),
+    operation_id="getSale"
 )
 async def get_sale(
     school_id: UUID,
     sale_id: UUID,
     db: DatabaseSession
 ):
-    """Get sale by ID with items loaded"""
+    """
+    Get sale by ID with items loaded.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `sales.view`
+    **Tenant isolation:** Validates school_id belongs to authenticated user's schools
+    """
     sale_service = SaleService(db)
     # Use get_sale_with_items to ensure items relationship is loaded for serialization
     sale = await sale_service.get_sale_with_items(sale_id, school_id)
@@ -760,7 +736,9 @@ async def get_sale(
 @school_router.patch(
     "/{sale_id}",
     response_model=SaleResponse,
-    dependencies=[Depends(require_school_access(UserRole.SELLER))]
+    dependencies=[Depends(require_permission("sales.edit"))],
+    responses=responses(400, 404),
+    operation_id="updateSale"
 )
 async def update_sale(
     school_id: UUID,
@@ -770,7 +748,11 @@ async def update_sale(
     current_user: CurrentUser
 ):
     """
-    Update a sale's editable fields (requires SELLER role)
+    Update a sale's editable fields.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `sales.edit`
+    **Tenant isolation:** Validates school_id belongs to authenticated user's schools
 
     Allowed updates:
     - client_id: Assign or change the client for this sale
@@ -820,7 +802,9 @@ async def update_sale(
 @school_router.get(
     "/{sale_id}/items",
     response_model=SaleWithItems,
-    dependencies=[Depends(require_school_access(UserRole.VIEWER))]
+    dependencies=[Depends(require_permission("sales.view"))],
+    responses=responses(404),
+    operation_id="getSaleItems"
 )
 async def get_sale_with_items(
     school_id: UUID,
@@ -829,9 +813,6 @@ async def get_sale_with_items(
 ):
     """Get sale with all items (including product details)"""
     from app.schemas.sale import SaleItemWithProduct
-    from app.models.product import GlobalProduct
-    import logging
-    logger = logging.getLogger(__name__)
 
     sale_service = SaleService(db)
     sale = await sale_service.get_sale_with_items(sale_id, school_id)
@@ -842,46 +823,20 @@ async def get_sale_with_items(
             detail="Venta no encontrada"
         )
 
-    # Build items with product information
     items_with_products = []
     for item in sale.items:
-        # Debug logging
-        logger.info(f"Item: product_id={item.product_id}, global_product_id={item.global_product_id}, is_global={item.is_global_product}")
-        logger.info(f"  product relation: {item.product}")
-        logger.info(f"  global_product relation: {item.global_product}")
-
-        # For global products, manually fetch if relationship not loaded
-        global_product_data = None
-        if item.is_global_product and item.global_product_id:
-            if item.global_product:
-                global_product_data = item.global_product
-            else:
-                # Manually fetch global product
-                gp_result = await db.execute(
-                    select(GlobalProduct).where(GlobalProduct.id == item.global_product_id)
-                )
-                global_product_data = gp_result.scalar_one_or_none()
-                logger.info(f"  Manually fetched global_product: {global_product_data}")
-
         item_dict = {
             "id": item.id,
             "sale_id": item.sale_id,
             "product_id": item.product_id,
-            "global_product_id": item.global_product_id,
-            "is_global_product": item.is_global_product,
             "quantity": item.quantity,
             "unit_price": item.unit_price,
             "subtotal": item.subtotal,
-            # School product info
             "product_code": item.product.code if item.product else None,
             "product_name": item.product.name if item.product else None,
             "product_size": item.product.size if item.product else None,
             "product_color": item.product.color if item.product else None,
-            # Global product info
-            "global_product_code": global_product_data.code if global_product_data else None,
-            "global_product_name": global_product_data.name if global_product_data else None,
-            "global_product_size": global_product_data.size if global_product_data else None,
-            "global_product_color": global_product_data.color if global_product_data else None,
+            "is_global": item.product.school_id is None if item.product else False,
         }
         items_with_products.append(SaleItemWithProduct(**item_dict))
 
@@ -954,8 +909,10 @@ async def get_sale_with_items(
 @school_router.get(
     "/{sale_id}/receipt",
     response_class=HTMLResponse,
-    dependencies=[Depends(require_school_access(UserRole.VIEWER))],
-    summary="Get sale receipt HTML for printing"
+    dependencies=[Depends(require_permission("sales.view"))],
+    summary="Get sale receipt HTML for printing",
+    responses=responses(404),
+    operation_id="getSaleReceipt"
 )
 async def get_sale_receipt(
     school_id: UUID,
@@ -981,8 +938,10 @@ async def get_sale_receipt(
 
 @school_router.post(
     "/{sale_id}/send-receipt",
-    dependencies=[Depends(require_school_access(UserRole.SELLER))],
-    summary="Send sale receipt by email"
+    dependencies=[Depends(require_permission("sales.create"))],
+    summary="Send sale receipt by email",
+    responses=responses(400, 404),
+    operation_id="sendSaleReceipt"
 )
 async def send_sale_receipt_email(
     school_id: UUID,
@@ -1041,8 +1000,10 @@ async def send_sale_receipt_email(
     "/{sale_id}/payments",
     response_model=SalePaymentResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))],
-    summary="Add payment to existing sale"
+    dependencies=[Depends(require_permission("sales.add_payment"))],
+    summary="Add payment to existing sale",
+    responses=responses(400, 404),
+    operation_id="createSalePayment"
 )
 async def add_payment_to_sale(
     school_id: UUID,
@@ -1052,7 +1013,11 @@ async def add_payment_to_sale(
     current_user: CurrentUser
 ):
     """
-    Add a payment to an existing sale (requires ADMIN role).
+    Add a payment to an existing sale.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `sales.add_payment`
+    **Tenant isolation:** Validates school_id belongs to authenticated user's schools
 
     Use this endpoint to:
     - Fix sales that were created without payment method
@@ -1097,7 +1062,9 @@ async def add_payment_to_sale(
     "/{sale_id}/changes",
     response_model=SaleChangeResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_school_access(UserRole.SELLER))]
+    dependencies=[Depends(require_permission("changes.create"))],
+    responses=responses(400, 404),
+    operation_id="createSaleChange"
 )
 async def create_sale_change(
     school_id: UUID,
@@ -1107,9 +1074,13 @@ async def create_sale_change(
     current_user: CurrentUser
 ):
     """
-    Create a sale change request (size change, product change, return, defect)
+    Create a sale change request (size change, product change, return, defect).
 
-    Requires SELLER role. The change will be created in PENDING status.
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `changes.create`
+    **Tenant isolation:** Validates school_id belongs to authenticated user's schools
+
+    The change will be created in PENDING status.
 
     Types of changes:
     - size_change: Change product size (e.g., T14 → T16)
@@ -1144,21 +1115,24 @@ async def create_sale_change(
 
 @school_router.get(
     "/{sale_id}/changes",
-    response_model=list[SaleChangeListResponse],
-    dependencies=[Depends(require_school_access(UserRole.VIEWER))]
+    response_model=PaginatedResponse[SaleChangeListResponse],
+    dependencies=[Depends(require_permission("sales.view"))],
+    responses=responses(404),
+    operation_id="listSaleChanges"
 )
 async def list_sale_changes(
     school_id: UUID,
     sale_id: UUID,
-    db: DatabaseSession
+    db: DatabaseSession,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
 ):
     """
     Get all change requests for a sale
 
-    Returns list of all changes (pending, approved, rejected) ordered by creation date.
+    Returns paginated list of all changes (pending, approved, rejected) ordered by creation date.
     Includes full product details for both original and new products.
     """
-    # Verify sale belongs to school
     sale_result = await db.execute(
         select(Sale).where(Sale.id == sale_id, Sale.school_id == school_id)
     )
@@ -1169,46 +1143,31 @@ async def list_sale_changes(
             detail="Venta no encontrada"
         )
 
-    # Get changes with all related data
+    count_result = await db.execute(
+        select(func.count(SaleChange.id)).where(SaleChange.sale_id == sale_id)
+    )
+    total = count_result.scalar_one()
+
     result = await db.execute(
         select(SaleChange)
         .options(
             selectinload(SaleChange.original_item).selectinload(SaleItem.product),
-            selectinload(SaleChange.original_item).selectinload(SaleItem.global_product),
             selectinload(SaleChange.new_product),
-            selectinload(SaleChange.new_global_product),
             selectinload(SaleChange.user),
             selectinload(SaleChange.order),
         )
         .where(SaleChange.sale_id == sale_id)
         .order_by(SaleChange.created_at.desc())
+        .offset(skip)
+        .limit(limit)
     )
     changes = result.scalars().all()
 
     response_list = []
     for change in changes:
-        # Get original item and product info
         original_item = change.original_item
-        orig_product = None
-        original_is_global = False
-
-        if original_item:
-            if original_item.is_global_product and original_item.global_product:
-                orig_product = original_item.global_product
-                original_is_global = True
-            elif original_item.product:
-                orig_product = original_item.product
-                original_is_global = False
-
-        # Get new product info
-        new_product = None
-        new_is_global = False
-        if change.is_new_global_product and change.new_global_product:
-            new_product = change.new_global_product
-            new_is_global = True
-        elif change.new_product:
-            new_product = change.new_product
-            new_is_global = False
+        orig_product = original_item.product if original_item else None
+        new_product = change.new_product
 
         response_list.append(
             SaleChangeListResponse(
@@ -1230,28 +1189,28 @@ async def list_sale_changes(
                 original_product_size=orig_product.size if orig_product else None,
                 original_product_color=orig_product.color if orig_product else None,
                 original_unit_price=original_item.unit_price if original_item else None,
-                original_is_global=original_is_global,
-                # New product info
+                original_is_global=orig_product.is_global if orig_product else False,
                 new_product_code=new_product.code if new_product else None,
                 new_product_name=new_product.name if new_product else None,
                 new_product_size=new_product.size if new_product else None,
                 new_product_color=new_product.color if new_product else None,
                 new_unit_price=change.new_unit_price,
-                new_is_global=new_is_global,
-                # User and order info
+                new_is_global=new_product.is_global if new_product else False,
                 user_username=change.user.username if change.user else None,
                 order_code=change.order.code if change.order else None,
                 order_id=change.order_id,
             )
         )
 
-    return response_list
+    return paginate(response_list, total, skip, limit)
 
 
 @school_router.patch(
     "/{sale_id}/changes/{change_id}/approve",
     response_model=SaleChangeResponse,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("changes.approve"))],
+    responses=responses(400, 404),
+    operation_id="approveSaleChange"
 )
 async def approve_sale_change(
     school_id: UUID,
@@ -1301,7 +1260,9 @@ async def approve_sale_change(
 @school_router.patch(
     "/{sale_id}/changes/{change_id}/reject",
     response_model=SaleChangeResponse,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("changes.reject"))],
+    responses=responses(404),
+    operation_id="rejectSaleChange"
 )
 async def reject_sale_change(
     school_id: UUID,
@@ -1338,7 +1299,9 @@ async def reject_sale_change(
 @school_router.patch(
     "/{sale_id}/changes/{change_id}/complete-from-order",
     response_model=SaleChangeResponse,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("changes.approve"))],
+    responses=responses(400, 404),
+    operation_id="completeSaleChangeFromOrder"
 )
 async def complete_change_from_order(
     school_id: UUID,
@@ -1387,7 +1350,9 @@ async def complete_change_from_order(
 @school_router.post(
     "/{sale_id}/cancel",
     response_model=SaleCancelResponse,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("sales.cancel"))],
+    responses=responses(400, 404),
+    operation_id="cancelSale"
 )
 async def cancel_sale(
     school_id: UUID,
@@ -1397,7 +1362,11 @@ async def cancel_sale(
     current_user: CurrentUser
 ):
     """
-    Cancel a sale with full rollback (requires ADMIN role)
+    Cancel a sale with full rollback.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `sales.cancel`
+    **Tenant isolation:** Validates school_id belongs to authenticated user's schools
 
     This endpoint:
     1. Validates the sale can be cancelled (not too old, no approved changes)

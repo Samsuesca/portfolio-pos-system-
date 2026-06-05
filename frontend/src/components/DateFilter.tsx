@@ -103,8 +103,8 @@ const DateFilter: React.FC<DateFilterProps> = ({ value, onChange, className = ''
             onClick={() => handlePreset(key)}
             className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
               activePreset === key
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                ? 'bg-brand-500 text-white'
+                : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
             }`}
           >
             {label}
@@ -112,22 +112,22 @@ const DateFilter: React.FC<DateFilterProps> = ({ value, onChange, className = ''
         ))}
       </div>
 
-      <div className="w-px h-6 bg-gray-300 mx-1 hidden sm:block" />
+      <div className="w-px h-6 bg-stone-300 mx-1 hidden sm:block" />
 
       <div className="flex items-center gap-2">
-        <label className="text-sm text-gray-500">Desde:</label>
+        <label className="text-sm text-stone-500">Desde:</label>
         <input
           type="date"
           value={value.start_date || ''}
           onChange={handleStartDate}
-          className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="px-2 py-1.5 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500"
         />
-        <label className="text-sm text-gray-500">Hasta:</label>
+        <label className="text-sm text-stone-500">Hasta:</label>
         <input
           type="date"
           value={value.end_date || ''}
           onChange={handleEndDate}
-          className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="px-2 py-1.5 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500"
         />
       </div>
     </div>

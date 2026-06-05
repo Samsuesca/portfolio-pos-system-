@@ -505,8 +505,24 @@ class BalanceIntegrationService:
             account = await self._get_global_account_for_update(account_config["code"])
 
             if account:
-                # Actualizar balance si ya existe
-                account.balance = initial_balance
+                # Cuenta existente: aplicar el cambio como delta y registrar entry compensatoria
+                # cuando el balance efectivamente cambia. Antes mutábamos `account.balance` directo
+                # sin entry, dejando saldos sin trazabilidad cuando alguien re-llamaba este método.
+                delta = initial_balance - account.balance
+                if delta != Decimal("0"):
+                    account.balance = initial_balance
+                    entry = BalanceEntry(
+                        account_id=account.id,
+                        school_id=None,
+                        entry_date=get_colombia_date(),
+                        amount=delta,
+                        balance_after=initial_balance,
+                        description="Ajuste de saldo inicial",
+                        reference="INICIAL",
+                        created_by=created_by,
+                    )
+                    self.db.add(entry)
+                await self.db.flush()
             else:
                 # Crear nueva cuenta global
                 account = BalanceAccount(
@@ -520,22 +536,22 @@ class BalanceIntegrationService:
                     is_active=True
                 )
                 self.db.add(account)
+                await self.db.flush()
 
-            await self.db.flush()
+                if initial_balance != Decimal("0"):
+                    entry = BalanceEntry(
+                        account_id=account.id,
+                        school_id=None,
+                        entry_date=get_colombia_date(),
+                        amount=initial_balance,
+                        balance_after=initial_balance,
+                        description="Saldo inicial",
+                        reference="INICIAL",
+                        created_by=created_by,
+                    )
+                    self.db.add(entry)
+
             accounts_map[account_key] = account.id
-
-            # Crear BalanceEntry inicial si hay balance
-            if initial_balance != Decimal("0"):
-                entry = BalanceEntry(
-                    account_id=account.id,
-                    school_id=None,  # Global entry
-                    entry_date=get_colombia_date(),
-                    amount=initial_balance,
-                    balance_after=initial_balance,
-                    description="Saldo inicial",
-                    created_by=created_by
-                )
-                self.db.add(entry)
 
         await self.db.flush()
 

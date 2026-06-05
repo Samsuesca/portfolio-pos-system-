@@ -136,8 +136,8 @@ const PayrollDetailModal: React.FC<PayrollDetailModalProps> = ({
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
         <div className="bg-white rounded-xl shadow-xl p-8">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto" />
-          <p className="mt-3 text-gray-600">Cargando liquidacion...</p>
+          <Loader2 className="w-8 h-8 animate-spin text-brand-600 mx-auto" />
+          <p className="mt-3 text-stone-600">Cargando liquidacion...</p>
         </div>
       </div>
     );
@@ -157,7 +157,7 @@ const PayrollDetailModal: React.FC<PayrollDetailModalProps> = ({
               {getPayrollStatusLabel(detail.status)}
             </span>
           </div>
-          <button onClick={handleClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={handleClose} className="text-stone-400 hover:text-stone-600">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -171,47 +171,47 @@ const PayrollDetailModal: React.FC<PayrollDetailModalProps> = ({
         <div className="p-6">
           {/* Summary */}
           <div className="grid grid-cols-4 gap-4 mb-6">
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="text-sm text-gray-500">Salario Base</p>
+            <div className="bg-stone-50 p-4 rounded-lg">
+              <p className="text-sm text-stone-500">Salario Base</p>
               <p className="text-lg font-semibold">{formatCurrency(detail.total_base_salary)}</p>
             </div>
             <div className="bg-green-50 p-4 rounded-lg">
-              <p className="text-sm text-gray-500">Bonificaciones</p>
+              <p className="text-sm text-stone-500">Bonificaciones</p>
               <p className="text-lg font-semibold text-green-600">+{formatCurrency(detail.total_bonuses)}</p>
             </div>
             <div className="bg-red-50 p-4 rounded-lg">
-              <p className="text-sm text-gray-500">Deducciones</p>
+              <p className="text-sm text-stone-500">Deducciones</p>
               <p className="text-lg font-semibold text-red-600">-{formatCurrency(detail.total_deductions)}</p>
             </div>
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <p className="text-sm text-gray-500">Total Neto</p>
-              <p className="text-lg font-semibold text-blue-600">{formatCurrency(detail.total_net)}</p>
+            <div className="bg-brand-50 p-4 rounded-lg">
+              <p className="text-sm text-stone-500">Total Neto</p>
+              <p className="text-lg font-semibold text-brand-600">{formatCurrency(detail.total_net)}</p>
             </div>
           </div>
 
           {/* Items Table */}
           <div className="bg-white border rounded-lg overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-stone-100">
+              <thead className="bg-stone-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Empleado</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Base</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Bonos</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Deducciones</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Neto</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Estado</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase">Empleado</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-stone-500 uppercase">Base</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-stone-500 uppercase">Bonos</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-stone-500 uppercase">Deducciones</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-stone-500 uppercase">Neto</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-stone-500 uppercase">Estado</th>
                   {detail.status === 'approved' && (
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Accion</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-stone-500 uppercase">Accion</th>
                   )}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-stone-100">
                 {detail.items.map((item) => (
                   <tr key={item.id}>
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                    <td className="px-4 py-3 text-sm font-medium text-stone-900">
                       <div>{item.employee_name}</div>
                       {item.worked_days !== null && item.daily_rate !== null && (
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-stone-500">
                           {item.worked_days} dias x {formatCurrency(item.daily_rate)}
                         </div>
                       )}
@@ -222,11 +222,11 @@ const PayrollDetailModal: React.FC<PayrollDetailModalProps> = ({
                     <td className="px-4 py-3 text-sm text-right font-medium">{formatCurrency(item.net_amount)}</td>
                     <td className="px-4 py-3 text-center">
                       {item.is_paid ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
                           <Check className="w-3 h-3 mr-1" /> Pagado
                         </span>
                       ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-yellow-100 text-yellow-800">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-700 ring-1 ring-amber-200">
                           Pendiente
                         </span>
                       )}
@@ -236,7 +236,7 @@ const PayrollDetailModal: React.FC<PayrollDetailModalProps> = ({
                         {!item.is_paid && (
                           <button
                             onClick={() => handlePayItem(item.id)}
-                            className="text-xs text-blue-600 hover:text-blue-800"
+                            className="text-xs text-brand-600 hover:text-brand-700"
                           >
                             Pagar
                           </button>
@@ -250,7 +250,7 @@ const PayrollDetailModal: React.FC<PayrollDetailModalProps> = ({
           </div>
         </div>
 
-        <div className="flex justify-between px-6 py-4 border-t bg-gray-50 sticky bottom-0">
+        <div className="flex justify-between px-6 py-4 border-t bg-stone-50 sticky bottom-0">
           <div>
             {detail.status === 'draft' && (
               <button
@@ -264,14 +264,14 @@ const PayrollDetailModal: React.FC<PayrollDetailModalProps> = ({
             )}
           </div>
           <div className="flex gap-3">
-            <button onClick={handleClose} className="px-4 py-2 text-gray-600 hover:text-gray-800">
+            <button onClick={handleClose} className="px-4 py-2 text-stone-600 hover:text-stone-800">
               Cerrar
             </button>
             {detail.status === 'draft' && (
               <button
                 onClick={handleApprove}
                 disabled={submitting}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 flex items-center gap-2"
+                className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg disabled:opacity-50 flex items-center gap-2"
               >
                 {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
                 <Check className="w-4 h-4" />

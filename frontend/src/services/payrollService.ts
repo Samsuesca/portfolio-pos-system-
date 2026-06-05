@@ -2,6 +2,8 @@
  * Payroll Service - API calls for payroll management
  */
 import apiClient from '../utils/api-client';
+import type { PaginatedResponse } from '../types/api';
+import { unwrapPaginated } from '../utils/pagination';
 
 const BASE_URL = '/global/payroll';
 
@@ -120,9 +122,9 @@ export const getPayrollRuns = async (params?: {
   skip?: number;
   limit?: number;
   status?: PayrollStatus;
-}): Promise<PayrollRunListItem[]> => {
-  const response = await apiClient.get<PayrollRunListItem[]>(BASE_URL, { params });
-  return response.data;
+}): Promise<PaginatedResponse<PayrollRunListItem>> => {
+  const response = await apiClient.get<PaginatedResponse<PayrollRunListItem> | PayrollRunListItem[]>(BASE_URL, { params });
+  return unwrapPaginated(response.data);
 };
 
 /**
@@ -213,12 +215,12 @@ export const getPayrollStatusLabel = (status: PayrollStatus): string => {
  */
 export const getPayrollStatusColor = (status: PayrollStatus): string => {
   const colors: Record<PayrollStatus, string> = {
-    draft: 'bg-gray-100 text-gray-800',
-    approved: 'bg-blue-100 text-blue-800',
-    paid: 'bg-green-100 text-green-800',
-    cancelled: 'bg-red-100 text-red-800'
+    draft: 'bg-stone-100 text-stone-800',
+    approved: 'bg-brand-100 text-brand-700',
+    paid: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+    cancelled: 'bg-red-50 text-red-700 ring-1 ring-red-200'
   };
-  return colors[status] || 'bg-gray-100 text-gray-800';
+  return colors[status] || 'bg-stone-100 text-stone-800';
 };
 
 /**

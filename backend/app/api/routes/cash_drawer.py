@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, func
 
 from app.api.dependencies import DatabaseSession, CurrentUser
+from app.api.error_responses import responses, AUTHENTICATED
 from app.models.cash_drawer import DrawerAccessCode
 from app.models.user import User
 from app.services.email import send_drawer_access_code
@@ -28,7 +29,7 @@ class ValidateAccessRequest(BaseModel):
     code: str
 
 
-@router.get("/can-open")
+@router.get("/can-open", responses=AUTHENTICATED, operation_id="canOpenDrawer")
 async def can_open_drawer(
     current_user: CurrentUser,
     db: DatabaseSession
@@ -60,7 +61,7 @@ async def can_open_drawer(
     return {"can_open_directly": False, "reason": "no_permission"}
 
 
-@router.post("/request-access")
+@router.post("/request-access", responses=AUTHENTICATED, operation_id="requestDrawerAccess")
 async def request_drawer_access(
     current_user: CurrentUser,
     db: DatabaseSession
@@ -132,7 +133,7 @@ async def request_drawer_access(
     }
 
 
-@router.post("/validate-access")
+@router.post("/validate-access", responses=responses(400), operation_id="validateDrawerAccess")
 async def validate_drawer_access(
     access_data: ValidateAccessRequest,
     current_user: CurrentUser,
@@ -182,7 +183,7 @@ async def validate_drawer_access(
     }
 
 
-@router.post("/open")
+@router.post("/open", responses=AUTHENTICATED, operation_id="openDrawerDirect")
 async def open_drawer_direct(
     current_user: CurrentUser,
     db: DatabaseSession

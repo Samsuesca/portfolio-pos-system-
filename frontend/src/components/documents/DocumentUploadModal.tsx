@@ -141,12 +141,12 @@ export default function DocumentUploadModal({
       <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b">
-          <h3 className="text-lg font-semibold text-gray-900">Subir documento</h3>
+          <h3 className="text-lg font-semibold text-stone-900">Subir documento</h3>
           <button
-            className="p-1 hover:bg-gray-100 rounded"
+            className="p-1 hover:bg-stone-100 rounded"
             onClick={handleClose}
           >
-            <X className="w-5 h-5 text-gray-500" />
+            <X className="w-5 h-5 text-stone-500" />
           </button>
         </div>
 
@@ -163,7 +163,7 @@ export default function DocumentUploadModal({
           <div
             className={`
               relative border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer
-              ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'}
+              ${isDragging ? 'border-brand-500 bg-brand-50' : 'border-stone-200 hover:border-stone-400'}
               ${file ? 'bg-green-50 border-green-300' : ''}
             `}
             onDragOver={handleDragOver}
@@ -182,11 +182,11 @@ export default function DocumentUploadModal({
             {file ? (
               <div className="flex flex-col items-center">
                 <FileText className="w-12 h-12 text-green-500 mb-2" />
-                <p className="font-medium text-gray-900">{file.name}</p>
-                <p className="text-sm text-gray-500">{formatFileSize(file.size)}</p>
+                <p className="font-medium text-stone-900">{file.name}</p>
+                <p className="text-sm text-stone-500">{formatFileSize(file.size)}</p>
                 <button
                   type="button"
-                  className="mt-2 text-sm text-blue-600 hover:underline"
+                  className="mt-2 text-sm text-brand-600 hover:underline"
                   onClick={(e) => {
                     e.stopPropagation();
                     setFile(null);
@@ -197,11 +197,11 @@ export default function DocumentUploadModal({
               </div>
             ) : (
               <div className="flex flex-col items-center">
-                <UploadCloud className="w-12 h-12 text-gray-400 mb-2" />
-                <p className="font-medium text-gray-700">
+                <UploadCloud className="w-12 h-12 text-stone-400 mb-2" />
+                <p className="font-medium text-stone-700">
                   Arrastra un archivo aqui o haz clic para seleccionar
                 </p>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-stone-500 mt-1">
                   PDF, PNG, JPG, XLSX, XLS, DOCX, DOC (max {formatFileSize(maxSizeBytes)})
                 </p>
               </div>
@@ -210,14 +210,14 @@ export default function DocumentUploadModal({
 
           {/* Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-stone-700 mb-1">
               Nombre *
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500"
               placeholder="Nombre del documento"
               maxLength={255}
             />
@@ -225,13 +225,13 @@ export default function DocumentUploadModal({
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-stone-700 mb-1">
               Descripcion
             </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500"
               placeholder="Descripcion opcional"
               rows={2}
               maxLength={1000}
@@ -243,14 +243,14 @@ export default function DocumentUploadModal({
             <button
               type="button"
               onClick={handleClose}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+              className="px-4 py-2 text-stone-700 bg-stone-100 rounded-md hover:bg-stone-200"
               disabled={isLoading}
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+              className="px-4 py-2 text-white bg-brand-500 rounded-md hover:bg-brand-600 disabled:opacity-50"
               disabled={isLoading || !file}
             >
               {isLoading ? 'Subiendo...' : 'Subir'}

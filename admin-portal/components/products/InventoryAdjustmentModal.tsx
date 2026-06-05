@@ -50,10 +50,17 @@ export default function InventoryAdjustmentModal({
   const [quantity, setQuantity] = useState('');
   const [reason, setReason] = useState('');
 
-  // Get current stock
+  // Get current stock totals
   const currentStock = isGlobal
     ? (product as GlobalProduct).inventory_quantity ?? 0
     : (product as Product).stock ?? (product as Product).inventory_quantity ?? 0;
+
+  // Stock disponible para ventas directas (= total - reservado).
+  // Cualquier remove supera este limite si toca stock comprometido a Orders pendientes.
+  const reserved = isGlobal
+    ? (product as GlobalProduct).inventory_reserved ?? 0
+    : (product as Product).inventory_reserved ?? (product as Product).reserved ?? 0;
+  const availableForRemove = Math.max(0, currentStock - reserved);
 
   useEffect(() => {
     if (isOpen) {
@@ -93,9 +100,16 @@ export default function InventoryAdjustmentModal({
       return;
     }
 
-    // Validate remove doesn't go negative
-    if (adjustmentType === 'remove' && qty > currentStock) {
-      setError(`No puedes remover mas de ${currentStock} unidades`);
+    // Validate remove no consume stock reservado a Orders pendientes
+    if (adjustmentType === 'remove' && qty > availableForRemove) {
+      const reservedNote = reserved > 0
+        ? ` (${reserved} estan reservadas a pedidos pendientes)`
+        : '';
+      setError(`No puedes remover mas de ${availableForRemove} unidades${reservedNote}`);
+      return;
+    }
+    if (adjustmentType === 'set' && qty < reserved) {
+      setError(`No puedes fijar el stock en ${qty}: ${reserved} unidades estan reservadas a pedidos pendientes`);
       return;
     }
 

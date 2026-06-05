@@ -15,6 +15,7 @@ export interface Expense {
   expense_date: string;
   due_date?: string;
   vendor?: string;
+  vendor_name?: string | null;
   receipt_number?: string;
   is_recurring: boolean;
   recurring_period?: string;
@@ -147,8 +148,8 @@ const accountingService = {
     skip?: number;
     limit?: number;
   }): Promise<Expense[]> {
-    const response = await apiClient.get('/global/accounting/expenses', { params });
-    return response.data;
+    const response = await apiClient.get<{ items: Expense[] }>('/global/accounting/expenses', { params });
+    return response.data.items;
   },
 
   async getPendingExpenses(): Promise<Expense[]> {

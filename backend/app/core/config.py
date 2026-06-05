@@ -9,16 +9,19 @@ from pathlib import Path
 def _load_version_from_file() -> str:
     """Load version from version.json in project root."""
     try:
-        # Navigate from backend/app/core/config.py to project root
         project_root = Path(__file__).parent.parent.parent.parent
-        version_file = project_root / "version.json"
-        if version_file.exists():
-            with open(version_file, "r") as f:
-                data = json.load(f)
-                return data.get("apps", {}).get("backend", data.get("system", "2.5.0"))
+        candidates = [
+            project_root / "version.json",
+            Path("/app") / "version.json",
+        ]
+        for version_file in candidates:
+            if version_file.exists():
+                with open(version_file, "r") as f:
+                    data = json.load(f)
+                    return data.get("apps", {}).get("backend", data.get("system", "2.9.0"))
     except Exception:
         pass
-    return "2.5.0"  # Fallback version
+    return "2.9.0"
 
 
 class Settings(BaseSettings):
@@ -31,6 +34,11 @@ class Settings(BaseSettings):
     ENV: str = "development"
     DEBUG: bool = False
     TESTING: bool = False  # Set to True during pytest runs to disable rate limiting
+
+    # Logging
+    LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "auto"  # "json" | "console" | "auto" (json in prod, console in dev)
+    LOG_FILTER_SCANNERS: bool = True
 
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://uniformes_user:dev_password@localhost:5432/uniformes_db"
@@ -85,11 +93,42 @@ class Settings(BaseSettings):
             return "https://production.wompi.co/v1"
         return "https://sandbox.wompi.co/v1"
 
+    # Alegra - Facturacion Electronica DIAN
+    ALEGRA_ENABLED: bool = False
+    ALEGRA_ENVIRONMENT: str = "production"  # Alegra solo expone un host; flag para gating logico
+    ALEGRA_EMAIL: Optional[str] = None
+    ALEGRA_TOKEN: Optional[str] = None
+    # Numeracion (resolucion DIAN) a usar al emitir. Se obtiene con --list-templates.
+    ALEGRA_NUMBER_TEMPLATE_ID: Optional[int] = None
+    # Numeracion de notas credito (anulaciones). Opcional: si falta, Alegra usa la default.
+    ALEGRA_CREDIT_NOTE_TEMPLATE_ID: Optional[int] = None
+    ALEGRA_ISSUER_NIT: Optional[str] = None
+
+    @property
+    def alegra_base_url(self) -> str:
+        return "https://api.alegra.com/api/v1"
+
     # Telegram Monitoring Alerts
     TELEGRAM_BOT_TOKEN: Optional[str] = None
     TELEGRAM_CHAT_ID: Optional[str] = None
     DISK_ALERT_THRESHOLD_PCT: float = 80.0
     HEALTH_SAMPLE_INTERVAL: int = 60  # seconds
+
+    # Google OAuth
+    GOOGLE_CLIENT_ID: Optional[str] = None
+    GOOGLE_IOS_CLIENT_ID: Optional[str] = None
+    GOOGLE_ANDROID_CLIENT_ID: Optional[str] = None
+
+    @property
+    def google_client_ids(self) -> List[str]:
+        ids = []
+        if self.GOOGLE_CLIENT_ID:
+            ids.append(self.GOOGLE_CLIENT_ID)
+        if self.GOOGLE_IOS_CLIENT_ID:
+            ids.append(self.GOOGLE_IOS_CLIENT_ID)
+        if self.GOOGLE_ANDROID_CLIENT_ID:
+            ids.append(self.GOOGLE_ANDROID_CLIENT_ID)
+        return ids
 
     # WhatsApp Business API (Meta Cloud API)
     WHATSAPP_ENABLED: bool = False
@@ -126,6 +165,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"
 
 
 settings = Settings()

@@ -51,7 +51,8 @@ class AuditService:
         ip_address = None
         user_agent = None
         if request:
-            ip_address = request.client.host if request.client else None
+            from app.middleware.request_context import get_client_ip
+            ip_address = get_client_ip() or (request.client.host if request.client else None)
             user_agent = request.headers.get("user-agent", "")[:500]
 
         entry = AuditLog(

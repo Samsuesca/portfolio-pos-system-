@@ -4,7 +4,7 @@ Sale and SaleItem Schemas
 from uuid import UUID
 from decimal import Decimal
 from datetime import datetime
-from pydantic import Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 from app.schemas.base import BaseSchema, IDModelSchema, TimestampSchema, SchoolIsolatedSchema
 from app.models.sale import SaleStatus, PaymentMethod, ChangeStatus, ChangeType, SaleSource
 
@@ -15,22 +15,23 @@ from app.models.sale import SaleStatus, PaymentMethod, ChangeStatus, ChangeType,
 
 class SalePaymentCreate(BaseSchema):
     """Schema for creating a payment line"""
-    amount: Decimal = Field(..., gt=0)
-    payment_method: PaymentMethod
-    notes: str | None = None
+    amount: Decimal = Field(..., gt=0, example=45000.00)
+    payment_method: PaymentMethod = Field(..., example="cash")
+    notes: str | None = Field(None, example="Pago parcial en efectivo")
     # Cash change tracking (only for cash payments)
     amount_received: Decimal | None = Field(
         None,
         gt=0,
-        description="Physical amount received from customer (only for cash)"
+        description="Physical amount received from customer (only for cash)",
+        example=50000.00
     )
 
 
 class AddPaymentToSale(BaseSchema):
     """Schema for adding a payment to an existing sale"""
-    amount: Decimal = Field(..., gt=0)
-    payment_method: PaymentMethod
-    notes: str | None = None
+    amount: Decimal = Field(..., gt=0, example=75000.00)
+    payment_method: PaymentMethod = Field(..., example="nequi")
+    notes: str | None = Field(None, example="Abono a venta pendiente")
     apply_accounting: bool = Field(
         default=True,
         description="Si True, crea transaccion contable y actualiza balances"
@@ -39,7 +40,8 @@ class AddPaymentToSale(BaseSchema):
     amount_received: Decimal | None = Field(
         None,
         gt=0,
-        description="Physical amount received from customer (only for cash)"
+        description="Physical amount received from customer (only for cash)",
+        example=80000.00
     )
 
 
@@ -56,7 +58,22 @@ class SalePaymentResponse(BaseSchema):
     change_given: Decimal | None = None
     created_at: datetime
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": "aa0e8400-e29b-41d4-a716-446655440010",
+                "sale_id": "bb0e8400-e29b-41d4-a716-446655440020",
+                "amount": 45000.00,
+                "payment_method": "cash",
+                "notes": None,
+                "transaction_id": None,
+                "amount_received": 50000.00,
+                "change_given": 5000.00,
+                "created_at": "2026-04-12T10:30:00",
+            }
+        },
+    )
 
 
 # ============================================
@@ -65,20 +82,17 @@ class SalePaymentResponse(BaseSchema):
 
 class SaleItemBase(BaseSchema):
     """Base sale item schema"""
-    product_id: UUID | None = None
-    global_product_id: UUID | None = None
-    is_global_product: bool = False
+    product_id: UUID
     quantity: int = Field(..., gt=0)
     unit_price: Decimal = Field(..., ge=0)
+    unit_cost: Decimal | None = None
     subtotal: Decimal = Field(..., ge=0)
 
 
 class SaleItemCreate(BaseSchema):
     """Schema for creating sale item (simplified input)"""
-    product_id: UUID
-    quantity: int = Field(..., gt=0)
-    is_global: bool = False  # True if product is from global inventory
-    # unit_price and subtotal will be calculated from product
+    product_id: UUID = Field(..., example="550e8400-e29b-41d4-a716-446655440000")
+    quantity: int = Field(..., gt=0, example=2)
 
 
 class SaleItemInDB(SaleItemBase, IDModelSchema):
@@ -88,8 +102,23 @@ class SaleItemInDB(SaleItemBase, IDModelSchema):
 
 class SaleItemResponse(SaleItemInDB):
     """SaleItem for API responses"""
+    is_global: bool = False
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": "cc0e8400-e29b-41d4-a716-446655440030",
+                "sale_id": "bb0e8400-e29b-41d4-a716-446655440020",
+                "product_id": "dd0e8400-e29b-41d4-a716-446655440040",
+                "quantity": 2,
+                "unit_price": 45000.00,
+                "unit_cost": 22000.00,
+                "subtotal": 90000.00,
+                "is_global": False,
+            }
+        },
+    )
 
 
 class SaleItemWithProduct(SaleItemResponse):
@@ -98,11 +127,6 @@ class SaleItemWithProduct(SaleItemResponse):
     product_name: str | None = None
     product_size: str | None = None
     product_color: str | None = None
-    # Global product info (if applicable)
-    global_product_code: str | None = None
-    global_product_name: str | None = None
-    global_product_size: str | None = None
-    global_product_color: str | None = None
 
 
 # ============================================
@@ -111,20 +135,20 @@ class SaleItemWithProduct(SaleItemResponse):
 
 class SaleBase(BaseSchema):
     """Base sale schema"""
-    client_id: UUID | None = None
-    payment_method: PaymentMethod | None = None
-    notes: str | None = None
+    client_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440000")
+    payment_method: PaymentMethod | None = Field(None, example="cash")
+    notes: str | None = Field(None, example="Venta de uniformes temporada escolar")
 
 
 class SaleCreate(SaleBase):
     """Schema for creating sale"""
     # school_id is optional here because it's injected from URL path
-    school_id: UUID | None = None
+    school_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440000")
     items: list[SaleItemCreate] = Field(..., min_length=1)
-    source: SaleSource = SaleSource.DESKTOP_APP  # Default to desktop app
+    source: SaleSource = Field(default=SaleSource.DESKTOP_APP, example="desktop_app")
     # Historical sales (migration) - don't affect inventory
     is_historical: bool = False
-    sale_date: datetime | None = None  # Optional: set custom date for historical sales
+    sale_date: datetime | None = Field(None, example="2026-04-12T10:30:00")
     # Multiple payments support (replaces single payment_method)
     payments: list[SalePaymentCreate] | None = None
     # code, status, totals will be auto-generated
@@ -141,11 +165,14 @@ class SaleCreate(SaleBase):
 
 
 class SaleUpdate(BaseSchema):
-    """Schema for updating sale (limited fields)"""
-    client_id: UUID | None = None
-    status: SaleStatus | None = None
-    payment_method: PaymentMethod | None = None
-    notes: str | None = None
+    """Schema for updating sale metadata.
+
+    Only client assignment and notes are editable.
+    Status transitions use dedicated endpoints (cancel, complete).
+    Payment method is set at creation and cannot be changed.
+    """
+    client_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440000")
+    notes: str | None = Field(None, example="Cliente pagó saldo pendiente")
 
 
 class SaleInDB(SaleBase, SchoolIsolatedSchema, IDModelSchema, TimestampSchema):
@@ -165,7 +192,30 @@ class SaleResponse(SaleInDB):
     items: list[SaleItemResponse] = []
     payments: list[SalePaymentResponse] = []
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": "bb0e8400-e29b-41d4-a716-446655440020",
+                "code": "VTA-0085",
+                "school_id": "770e8400-e29b-41d4-a716-446655440002",
+                "user_id": "ee0e8400-e29b-41d4-a716-446655440050",
+                "client_id": "550e8400-e29b-41d4-a716-446655440000",
+                "status": "completed",
+                "source": "desktop_app",
+                "payment_method": "cash",
+                "is_historical": False,
+                "total": 135000.00,
+                "paid_amount": 135000.00,
+                "sale_date": "2026-04-12T10:30:00",
+                "notes": None,
+                "items": [],
+                "payments": [],
+                "created_at": "2026-04-12T10:30:00",
+                "updated_at": "2026-04-12T10:30:00",
+            }
+        },
+    )
 
 
 class SaleWithItems(SaleResponse):
@@ -198,6 +248,31 @@ class SaleListResponse(BaseSchema):
     # Multi-school support
     school_id: UUID | None = None
     school_name: str | None = None
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": "bb0e8400-e29b-41d4-a716-446655440020",
+                "code": "VTA-0085",
+                "status": "completed",
+                "source": "desktop_app",
+                "is_historical": False,
+                "payment_method": "cash",
+                "total": 135000.00,
+                "paid_amount": 135000.00,
+                "client_id": "550e8400-e29b-41d4-a716-446655440000",
+                "client_name": "María García López",
+                "sale_date": "2026-04-12T10:30:00",
+                "created_at": "2026-04-12T10:30:00",
+                "items_count": 3,
+                "user_id": "ee0e8400-e29b-41d4-a716-446655440050",
+                "user_name": "Carlos Vendedor",
+                "school_id": "770e8400-e29b-41d4-a716-446655440002",
+                "school_name": "Colegio San José",
+            }
+        },
+    )
 
 
 # ============================================
@@ -249,23 +324,20 @@ class DailySalesSummary(BaseSchema):
 
 class SaleChangeBase(BaseSchema):
     """Base sale change schema"""
-    change_type: ChangeType
-    returned_quantity: int = Field(..., gt=0)
-    # For school products
-    new_product_id: UUID | None = None
-    # For global products (shared inventory)
-    is_new_global_product: bool = False
-    new_quantity: int = Field(0, ge=0)
-    reason: str = Field(..., min_length=3, max_length=500)
+    change_type: ChangeType = Field(..., example="size_change")
+    returned_quantity: int = Field(..., gt=0, example=1)
+    new_product_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440000")
+    new_quantity: int = Field(0, ge=0, example=1)
+    reason: str = Field(..., min_length=3, max_length=500, example="Talla incorrecta, cliente solicita cambio a M")
 
 
 class SaleChangeCreate(SaleChangeBase):
     """Schema for creating sale change request"""
-    original_item_id: UUID
+    original_item_id: UUID = Field(..., example="550e8400-e29b-41d4-a716-446655440000")
     # When stock is not available, create an order for the new product
     create_order_if_no_stock: bool = False
     # Payment method for price adjustment (when creating order with no stock)
-    payment_method: PaymentMethod | None = None
+    payment_method: PaymentMethod | None = Field(None, example="cash")
 
     @model_validator(mode='after')
     def validate_change_type_fields(self):
@@ -293,8 +365,8 @@ class SaleChangeCreate(SaleChangeBase):
 
 class SaleChangeUpdate(BaseSchema):
     """Schema for updating sale change (approve/reject)"""
-    status: ChangeStatus
-    rejection_reason: str | None = Field(None, max_length=500)
+    status: ChangeStatus = Field(..., example="approved")
+    rejection_reason: str | None = Field(None, max_length=500, example="Producto no disponible en inventario")
 
     @field_validator('rejection_reason')
     def validate_rejection_reason(cls, v, info):
@@ -307,14 +379,15 @@ class SaleChangeUpdate(BaseSchema):
 
 class SaleChangeReject(BaseSchema):
     """Schema for rejecting a sale change - dedicated endpoint"""
-    rejection_reason: str = Field(..., min_length=3, max_length=500)
+    rejection_reason: str = Field(..., min_length=3, max_length=500, example="Producto fuera de garantía, no aplica cambio")
 
 
 class SaleChangeApprove(BaseSchema):
     """Schema for approving sale change with payment method for price adjustments"""
     payment_method: PaymentMethod = Field(
         default=PaymentMethod.CASH,
-        description="Payment method for price adjustment (refund or additional payment)"
+        description="Payment method for price adjustment (refund or additional payment)",
+        example="cash"
     )
 
 
@@ -325,7 +398,6 @@ class SaleChangeInDB(SaleChangeBase, IDModelSchema, TimestampSchema):
     user_id: UUID
     change_date: datetime
     new_unit_price: Decimal | None
-    new_global_product_id: UUID | None = None
     price_adjustment: Decimal
     status: ChangeStatus
     rejection_reason: str | None
@@ -448,10 +520,11 @@ class SaleChangeDetailResponse(SaleChangeListResponse):
 
 class SaleCancelRequest(BaseSchema):
     """Schema for cancelling a sale with full rollback"""
-    reason: str = Field(..., min_length=5, max_length=500)
+    reason: str = Field(..., min_length=5, max_length=500, example="Cliente desiste de la compra, solicita anulación completa")
     refund_method: PaymentMethod | None = Field(
         default=None,
-        description="Payment method for refund. If not provided, uses original payment method"
+        description="Payment method for refund. If not provided, uses original payment method",
+        example="cash"
     )
 
 

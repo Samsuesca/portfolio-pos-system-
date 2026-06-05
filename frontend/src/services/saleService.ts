@@ -6,13 +6,12 @@
  * - School-specific: /schools/{school_id}/sales - Original endpoints
  */
 import apiClient from '../utils/api-client';
-import type { Sale, SaleWithItems, SaleListItem, SalePayment } from '../types/api';
+import type { Sale, SaleWithItems, SaleListItem, SalePayment, PaginatedResponse } from '../types/api';
 
 export interface SaleItemCreate {
   product_id: string;
   quantity: number;
   unit_price: number;
-  is_global?: boolean;  // True if product is from global inventory
 }
 
 export type PaymentMethod = 'cash' | 'nequi' | 'credit' | 'transfer' | 'card';
@@ -45,6 +44,7 @@ export interface SaleFilters {
   status?: string;
   source?: 'desktop_app' | 'web_portal' | 'api';
   search?: string;
+  client_id?: string;
   skip?: number;
   limit?: number;
   include_historical?: boolean;
@@ -77,12 +77,13 @@ export const saleService = {
   /**
    * Get all sales from ALL schools user has access to (multi-school)
    */
-  async getAllSales(filters?: SaleFilters): Promise<SaleListItem[]> {
+  async getAllSales(filters?: SaleFilters): Promise<PaginatedResponse<SaleListItem>> {
     const params = new URLSearchParams();
     if (filters?.school_id) params.append('school_id', filters.school_id);
     if (filters?.status) params.append('status', filters.status);
     if (filters?.source) params.append('source', filters.source);
     if (filters?.search) params.append('search', filters.search);
+    if (filters?.client_id) params.append('client_id', filters.client_id);
     if (filters?.skip) params.append('skip', String(filters.skip));
     if (filters?.limit) params.append('limit', String(filters.limit));
     if (filters?.include_historical !== undefined) {
@@ -93,7 +94,7 @@ export const saleService = {
 
     const queryString = params.toString();
     const url = queryString ? `/sales?${queryString}` : '/sales';
-    const response = await apiClient.get<SaleListItem[]>(url);
+    const response = await apiClient.get<PaginatedResponse<SaleListItem>>(url);
     return response.data;
   },
 
@@ -101,7 +102,7 @@ export const saleService = {
    * Get all sales for a specific school (backwards compatible)
    * Uses multi-school endpoint with school filter
    */
-  async getSales(schoolId?: string): Promise<SaleListItem[]> {
+  async getSales(schoolId?: string): Promise<PaginatedResponse<SaleListItem>> {
     if (schoolId) {
       return this.getAllSales({ school_id: schoolId });
     }

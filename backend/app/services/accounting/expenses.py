@@ -38,7 +38,7 @@ class ExpenseService(SchoolIsolatedService[Expense]):
             amount=data.amount,
             expense_date=data.expense_date,
             due_date=data.due_date,
-            vendor=data.vendor,
+            vendor_id=data.vendor_id,
             receipt_number=data.receipt_number,
             notes=data.notes,
             is_recurring=data.is_recurring,

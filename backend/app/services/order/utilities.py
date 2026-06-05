@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.order import Order, OrderItem, OrderStatus, OrderItemStatus
 from app.models.client import Client
+from app.models.school import School
 from app.utils.timezone import get_colombia_date
 
 logger = logging.getLogger(__name__)
@@ -26,55 +27,59 @@ class OrderUtilityMixin:
     db: AsyncSession  # Type hint for IDE support
 
     async def _generate_order_code(self, school_id: UUID) -> str:
-        """
-        Generate unique order code: ENC-YYYY-NNNN
+        """Generate unique order code: ``{SCHOOL}-ENC-YYYY-NNNN``.
 
-        Uses MAX() + 1 strategy with retry logic to handle race conditions.
-        If duplicate is detected, retries with incremented sequence.
+        Uses ``ORDER BY code DESC LIMIT 1 FOR UPDATE`` to lock the highest
+        code row, preventing duplicate codes when two concurrent requests
+        create orders for the same school.
         """
-        year = get_colombia_date().year
-        prefix = f"ENC-{year}-"
-
-        # Get highest existing sequence number for this year
-        max_code_result = await self.db.execute(
-            select(func.max(Order.code)).where(
-                Order.school_id == school_id,
-                Order.code.like(f"{prefix}%")
-            )
+        school_code_result = await self.db.execute(
+            select(School.code).where(School.id == school_id)
         )
-        max_code = max_code_result.scalar_one_or_none()
+        school_code = school_code_result.scalar_one()
+
+        year = get_colombia_date().year
+        prefix = f"{school_code}-ENC-{year}-"
+
+        result = await self.db.execute(
+            select(Order.code)
+            .where(
+                Order.school_id == school_id,
+                Order.code.like(f"{prefix}%"),
+            )
+            .order_by(Order.code.desc())
+            .limit(1)
+            .with_for_update()
+        )
+        max_code = result.scalar_one_or_none()
 
         if max_code:
-            # Extract sequence number from code (e.g., "ENC-2025-0003" -> 3)
             try:
-                sequence = int(max_code.split('-')[-1]) + 1
+                sequence = int(max_code.split("-")[-1]) + 1
             except (ValueError, IndexError):
                 sequence = 1
         else:
             sequence = 1
 
-        # Try up to 10 times to find an unused code
-        for attempt in range(10):
-            code = f"{prefix}{sequence:04d}"
+        return f"{prefix}{sequence:04d}"
 
-            # Check if this code already exists
-            existing = await self.db.execute(
-                select(func.count(Order.id)).where(
-                    Order.school_id == school_id,
-                    Order.code == code
-                )
-            )
+    @staticmethod
+    def normalize_code_for_lookup(code: str) -> tuple[str, bool]:
+        """Build a lookup token tolerant to legacy code format.
 
-            if existing.scalar_one() == 0:
-                return code
+        Pre-V3 tickets show the bare ``ENC-YYYY-NNNN`` format. The new format
+        prepends the school code. When a user searches by legacy code, we
+        expand to a ``LIKE`` pattern matching any school's row ending in that
+        legacy suffix.
 
-            # Code exists, try next sequence number
-            sequence += 1
-
-        # Fallback: use timestamp-based suffix if all retries fail
-        from time import time
-        timestamp_suffix = int(time() * 1000) % 10000
-        return f"{prefix}{timestamp_suffix:04d}"
+        Returns:
+            (token, is_pattern). If is_pattern is True, callers should use
+            ``Order.code.like(token)``; otherwise an exact match.
+        """
+        stripped = (code or "").strip()
+        if stripped.startswith(("VNT-", "ENC-")) and stripped.count("-") == 2:
+            return f"%-{stripped}", True
+        return stripped, False
 
     async def _send_order_ready_notification(self, order: Order) -> bool:
         """
@@ -199,8 +204,6 @@ class OrderUtilityMixin:
             garment_name = "Producto"
             if item.garment_type:
                 garment_name = item.garment_type.name
-            elif item.global_garment_type_id:
-                garment_name = "Producto global"
 
             items_summary.append({
                 "garment_name": garment_name,

@@ -1,0 +1,72 @@
+name: "Feedback de UX"
+description: "Algo confuso, feo, lento, o que no se siente bien"
+labels: ["ux"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Feedback de experiencia de usuario
+        Si algo se siente raro, confuso, o poco profesional, reportalo aqui.
+        Tu perspectiva como usuario es muy valiosa.
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: "Donde lo notaste?"
+      options:
+        - App escritorio vendedoras (Tauri - Windows)
+        - App escritorio vendedoras (Tauri - Mac)
+        - Portal admin (web)
+        - Portal padres (web - computador)
+        - Portal padres (web - celular)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: "Tipo de feedback"
+      options:
+        - "Confuso: no entendi que hacer o que significaba algo"
+        - "Lento: tardo mucho en cargar o responder"
+        - "Feo: algo visual que se ve mal o poco profesional"
+        - "Frustrante: muchos pasos o muy complicado"
+        - "Texto: error de ortografia, mensaje confuso, mal redactado"
+        - "Inconsistente: en una pantalla se ve/funciona distinto que en otra"
+        - "Comparacion: otra app/sistema lo hace mejor (describir cual)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: where
+    attributes:
+      label: "Donde exactamente?"
+      description: "Describe la pantalla o flujo paso a paso."
+      placeholder: "Ej: En la pantalla de crear venta, el selector de cliente. Cuando hay muchos clientes con el mismo nombre no se cual elegir."
+    validations:
+      required: true
+
+  - type: textarea
+    id: feedback
+    attributes:
+      label: "Que sentiste o pensaste?"
+      description: "Se honesto. No hay respuestas malas."
+      placeholder: "Ej: Tuve que cancelar la venta y empezar de cero porque seleccione el cliente equivocado y no pude cambiarlo despues. Senti que el sistema no me dejaba corregir un error normal."
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: "Como lo mejorarias?"
+      placeholder: "Ej: Mostrar el telefono del cliente al lado del nombre en el selector. Y dejar cambiar el cliente de una venta antes de confirmarla."
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: "Screenshot o grabacion"
+      description: "Arrastra imagenes o videos. Senalar con flechas ayuda mucho."
+    validations:
+      required: false

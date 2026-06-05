@@ -85,10 +85,10 @@ export default function YomberMeasurementsForm({
                 className={`w-full px-3 py-2 border rounded-lg text-sm pr-10 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none ${
                   errors[field.key]
                     ? 'border-red-300 bg-red-50'
-                    : 'border-gray-300'
-                } ${disabled ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                    : 'border-stone-200'
+                } ${disabled ? 'bg-stone-100 cursor-not-allowed' : ''}`}
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 text-xs">
                 cm
               </span>
             </div>
@@ -119,7 +119,7 @@ export default function YomberMeasurementsForm({
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-3 pt-3 border-t border-purple-200">
           {OPTIONAL_FIELDS.map((field) => (
             <div key={field.key}>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
+              <label className="block text-xs font-medium text-stone-600 mb-1">
                 {field.label}
               </label>
               <div className="relative">
@@ -131,11 +131,11 @@ export default function YomberMeasurementsForm({
                   onChange={(e) => handleChange(field.key, e.target.value)}
                   placeholder={field.placeholder}
                   disabled={disabled}
-                  className={`w-full px-3 py-1.5 border border-gray-300 rounded text-sm pr-8 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none ${
-                    disabled ? 'bg-gray-100 cursor-not-allowed' : ''
+                  className={`w-full px-3 py-1.5 border border-stone-200 rounded text-sm pr-8 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none ${
+                    disabled ? 'bg-stone-100 cursor-not-allowed' : ''
                   }`}
                 />
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 text-xs">
                   cm
                 </span>
               </div>

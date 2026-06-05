@@ -6,6 +6,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 
 from app.api.dependencies import DatabaseSession, CurrentUser, require_global_permission
+from app.api.error_responses import responses, AUTHENTICATED
 from app.services.workforce.attendance import attendance_service
 from app.models.workforce import AttendanceStatus, AbsenceType
 from app.schemas.workforce import (
@@ -17,6 +18,7 @@ from app.schemas.workforce import (
     AbsenceUpdate,
     AbsenceResponse,
 )
+from app.schemas.base import PaginatedResponse, paginate
 
 router = APIRouter(prefix="/global/workforce", tags=["Workforce - Attendance"])
 
@@ -27,8 +29,10 @@ router = APIRouter(prefix="/global/workforce", tags=["Workforce - Attendance"])
 
 @router.get(
     "/attendance",
-    response_model=list[AttendanceResponse],
+    response_model=PaginatedResponse[AttendanceResponse],
     dependencies=[Depends(require_global_permission("workforce.view_attendance"))],
+    responses=AUTHENTICATED,
+    operation_id="listAttendance",
 )
 async def list_attendance(
     db: DatabaseSession,
@@ -38,8 +42,15 @@ async def list_attendance(
     attendance_status: AttendanceStatus | None = Query(None, alias="status"),
     date_from: date | None = Query(None),
     date_to: date | None = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
 ):
-    """List attendance records with filters"""
+    """
+    List attendance records with date, employee, and status filters.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.view_attendance` (global)
+    """
     records = await attendance_service.get_attendance_records(
         db,
         record_date=record_date,
@@ -48,7 +59,9 @@ async def list_attendance(
         date_from=date_from,
         date_to=date_to,
     )
-    return [_attendance_to_response(r) for r in records]
+    total = len(records)
+    items = [_attendance_to_response(r) for r in records[skip:skip + limit]]
+    return PaginatedResponse[AttendanceResponse](**paginate(items, total, skip, limit))
 
 
 @router.post(
@@ -56,13 +69,20 @@ async def list_attendance(
     response_model=AttendanceResponse,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_global_permission("workforce.manage_attendance"))],
+    responses=responses(400),
+    operation_id="logAttendance",
 )
 async def log_attendance(
     data: AttendanceCreate,
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Log attendance for an employee"""
+    """
+    Log attendance for an employee (check-in/check-out).
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.manage_attendance` (global)
+    """
     try:
         record = await attendance_service.log_attendance(
             db, data, recorded_by=current_user.id
@@ -76,6 +96,8 @@ async def log_attendance(
     "/attendance/{record_id}",
     response_model=AttendanceResponse,
     dependencies=[Depends(require_global_permission("workforce.manage_attendance"))],
+    responses=responses(404),
+    operation_id="updateAttendance",
 )
 async def update_attendance(
     record_id: UUID,
@@ -83,7 +105,12 @@ async def update_attendance(
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Update an attendance record"""
+    """
+    Update an attendance record.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.manage_attendance` (global)
+    """
     try:
         record = await attendance_service.update_attendance(db, record_id, data)
         return _attendance_to_response(record)
@@ -95,13 +122,20 @@ async def update_attendance(
     "/attendance/daily",
     response_model=DailyAttendanceSummary,
     dependencies=[Depends(require_global_permission("workforce.view_attendance"))],
+    responses=AUTHENTICATED,
+    operation_id="getDailyAttendanceSummary",
 )
 async def get_daily_summary(
     db: DatabaseSession,
     current_user: CurrentUser,
     target_date: date | None = Query(None),
 ):
-    """Get attendance summary for a specific date (defaults to today)"""
+    """
+    Get attendance summary for a specific date (defaults to today).
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.view_attendance` (global)
+    """
     return await attendance_service.get_daily_summary(db, target_date)
 
 
@@ -111,8 +145,10 @@ async def get_daily_summary(
 
 @router.get(
     "/absences",
-    response_model=list[AbsenceResponse],
+    response_model=PaginatedResponse[AbsenceResponse],
     dependencies=[Depends(require_global_permission("workforce.view_absences"))],
+    responses=AUTHENTICATED,
+    operation_id="listAbsences",
 )
 async def list_absences(
     db: DatabaseSession,
@@ -122,8 +158,15 @@ async def list_absences(
     date_from: date | None = Query(None),
     date_to: date | None = Query(None),
     is_deductible: bool | None = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
 ):
-    """List absence records with filters"""
+    """
+    List absence records with employee, type, date, and deductibility filters.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.view_absences` (global)
+    """
     absences = await attendance_service.get_absences(
         db,
         employee_id=employee_id,
@@ -132,7 +175,9 @@ async def list_absences(
         date_to=date_to,
         is_deductible=is_deductible,
     )
-    return [_absence_to_response(a) for a in absences]
+    total = len(absences)
+    items = [_absence_to_response(a) for a in absences[skip:skip + limit]]
+    return PaginatedResponse[AbsenceResponse](**paginate(items, total, skip, limit))
 
 
 @router.post(
@@ -140,13 +185,20 @@ async def list_absences(
     response_model=AbsenceResponse,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_global_permission("workforce.manage_absences"))],
+    responses=AUTHENTICATED,
+    operation_id="createAbsence",
 )
 async def create_absence(
     data: AbsenceCreate,
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Record an absence"""
+    """
+    Record an absence for an employee.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.manage_absences` (global)
+    """
     absence = await attendance_service.create_absence(
         db, data, created_by=current_user.id
     )
@@ -157,6 +209,8 @@ async def create_absence(
     "/absences/{absence_id}",
     response_model=AbsenceResponse,
     dependencies=[Depends(require_global_permission("workforce.manage_absences"))],
+    responses=responses(404),
+    operation_id="updateAbsence",
 )
 async def update_absence(
     absence_id: UUID,
@@ -164,7 +218,12 @@ async def update_absence(
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Update an absence record"""
+    """
+    Update an absence record.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.manage_absences` (global)
+    """
     try:
         absence = await attendance_service.update_absence(db, absence_id, data)
         return _absence_to_response(absence)
@@ -176,13 +235,20 @@ async def update_absence(
     "/absences/{absence_id}/approve",
     response_model=AbsenceResponse,
     dependencies=[Depends(require_global_permission("workforce.manage_absences"))],
+    responses=responses(404),
+    operation_id="approveAbsence",
 )
 async def approve_absence(
     absence_id: UUID,
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Approve/justify an absence"""
+    """
+    Approve or justify an absence.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.manage_absences` (global)
+    """
     try:
         absence = await attendance_service.approve_absence(
             db, absence_id, approved_by=current_user.id
@@ -194,8 +260,10 @@ async def approve_absence(
 
 @router.get(
     "/absences/deductions",
-    response_model=list[AbsenceResponse],
+    response_model=PaginatedResponse[AbsenceResponse],
     dependencies=[Depends(require_global_permission("workforce.view_deductions"))],
+    responses=AUTHENTICATED,
+    operation_id="getDeductibleAbsences",
 )
 async def get_deductible_absences(
     db: DatabaseSession,
@@ -203,15 +271,24 @@ async def get_deductible_absences(
     period_start: date = Query(...),
     period_end: date = Query(...),
     employee_id: UUID | None = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
 ):
-    """Get deductible absences for a payroll period"""
+    """
+    Get deductible absences for a payroll period.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.view_deductions` (global)
+    """
     absences = await attendance_service.get_deductible_absences(
         db,
         period_start=period_start,
         period_end=period_end,
         employee_id=employee_id,
     )
-    return [_absence_to_response(a) for a in absences]
+    total = len(absences)
+    items = [_absence_to_response(a) for a in absences[skip:skip + limit]]
+    return PaginatedResponse[AbsenceResponse](**paginate(items, total, skip, limit))
 
 
 # ============================================

@@ -10,6 +10,7 @@ from httpx import AsyncClient
 from datetime import date, timedelta
 from uuid import uuid4
 from decimal import Decimal
+from tests.fixtures.assertions import assert_list_response
 
 
 # Base URL for payroll endpoints (GLOBAL module)
@@ -46,7 +47,7 @@ async def test_list_payroll_runs(
     )
 
     assert response.status_code == 200
-    data = response.json()
+    data = assert_list_response(response)
     # Returns a list directly
     assert isinstance(data, list)
 
@@ -65,7 +66,7 @@ async def test_list_payroll_runs_by_status(
 
     assert response.status_code == 200
     data = response.json()
-    for item in data:
+    for item in data["items"]:
         assert item["status"] == "draft"
 
 
@@ -81,7 +82,7 @@ async def test_list_payroll_with_pagination(
     )
 
     assert response.status_code == 200
-    data = response.json()
+    data = assert_list_response(response)
     assert isinstance(data, list)
     assert len(data) <= 10
 

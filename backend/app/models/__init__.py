@@ -13,16 +13,20 @@ from app.models.school import School
 from app.models.permission import Permission, CustomRole, RolePermission
 from app.models.product import (
     GarmentType, GarmentTypeImage, Product, Inventory,
-    GlobalGarmentType, GlobalGarmentTypeImage, GlobalProduct, GlobalInventory
+    CostComponentTemplate, ProductCostComponent
 )
 from app.models.inventory_log import InventoryLog, InventoryMovementType
+from app.models.cost_change_log import CostChangeLog, CostChangeType
 from app.models.email_log import EmailLog, EmailType, EmailStatus
-from app.models.client import Client, ClientStudent, ClientType, NotificationPreference
+from app.models.client import Client, ClientStudent, ClientType, NotificationPreference, IdentificationType
 from app.models.sale import Sale, SaleItem, SalePayment, PaymentMethod, SaleStatus, SaleChange, ChangeType, ChangeStatus, SaleSource
-from app.models.order import Order, OrderItem, OrderStatus, DeliveryType, PaymentProofStatus
+from app.models.order import Order, OrderItem, OrderStatus, DeliveryType
+from app.models.order_audit_override import OrderAuditOverride, OrderAuditDisposition
+from app.models.electronic_invoice import (
+    ElectronicInvoice, InvoiceDocumentType, ElectronicInvoiceStatus
+)
 from app.models.delivery_zone import DeliveryZone
 from app.models.contact import Contact, ContactType, ContactStatus
-from app.models.payment_account import PaymentAccount, PaymentMethodType
 from app.models.accounting import (
     Transaction, TransactionType,
     Expense, ExpenseCategory,
@@ -65,6 +69,7 @@ from app.models.business_settings import BusinessSettings, DEFAULT_BUSINESS_SETT
 from app.models.print_queue import PrintQueueItem, PrintQueueStatus
 from app.models.payment_transaction import PaymentTransaction, WompiTransactionStatus
 from app.models.telegram_subscription import TelegramAlertSubscription, TelegramAlertType
+from app.models.vendor import Vendor, VendorType
 from app.models.workforce import (
     ShiftType, ShiftTemplate, EmployeeSchedule,
     AttendanceStatus, AttendanceRecord,
@@ -95,14 +100,14 @@ __all__ = [
     "GarmentTypeImage",
     "Product",
     "Inventory",
-    # Global product models
-    "GlobalGarmentType",
-    "GlobalGarmentTypeImage",
-    "GlobalProduct",
-    "GlobalInventory",
+    "CostComponentTemplate",
+    "ProductCostComponent",
     # Inventory Log models
     "InventoryLog",
     "InventoryMovementType",
+    # Cost Change Log models
+    "CostChangeLog",
+    "CostChangeType",
     # Email Log models
     "EmailLog",
     "EmailType",
@@ -112,6 +117,7 @@ __all__ = [
     "ClientStudent",
     "ClientType",
     "NotificationPreference",
+    "IdentificationType",
     # Sale models
     "Sale",
     "SaleItem",
@@ -127,16 +133,18 @@ __all__ = [
     "OrderItem",
     "OrderStatus",
     "DeliveryType",
-    "PaymentProofStatus",
+    "OrderAuditOverride",
+    "OrderAuditDisposition",
+    # Electronic Invoice models
+    "ElectronicInvoice",
+    "InvoiceDocumentType",
+    "ElectronicInvoiceStatus",
     # Delivery Zone models
     "DeliveryZone",
     # Contact models
     "Contact",
     "ContactType",
     "ContactStatus",
-    # Payment Account models
-    "PaymentAccount",
-    "PaymentMethodType",
     # Accounting models
     "Transaction",
     "TransactionType",
@@ -210,4 +218,7 @@ __all__ = [
     # Telegram Alert Subscription models
     "TelegramAlertSubscription",
     "TelegramAlertType",
+    # Vendor models
+    "Vendor",
+    "VendorType",
 ]

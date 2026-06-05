@@ -6,6 +6,7 @@ This is a GLOBAL module (school_id = NULL) - operates business-wide like account
 from datetime import datetime, date
 from decimal import Decimal
 from sqlalchemy import String, Boolean, DateTime, Date, Numeric, Text, ForeignKey, Enum as SQLEnum, CheckConstraint
+from sqlalchemy.inspection import inspect as sa_inspect
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
@@ -42,16 +43,12 @@ class Alteration(Base):
     Alteration/Repair record for outsourced tailoring services.
 
     GLOBAL module (school_id = NULL) - operates business-wide like accounting.
-    Allows either registered clients OR external clients (name+phone).
+    Requires a registered client (no external/anonymous clients allowed in v3+).
     """
     __tablename__ = "alterations"
     __table_args__ = (
         CheckConstraint('cost > 0', name='chk_alteration_cost_positive'),
         CheckConstraint('amount_paid >= 0', name='chk_alteration_paid_positive'),
-        CheckConstraint(
-            'client_id IS NOT NULL OR external_client_name IS NOT NULL',
-            name='chk_alteration_has_client'
-        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -68,15 +65,12 @@ class Alteration(Base):
         index=True
     )
 
-    # Client options (registered OR external - one is required)
-    client_id: Mapped[uuid.UUID | None] = mapped_column(
+    client_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("clients.id", ondelete="SET NULL"),
-        nullable=True,
+        ForeignKey("clients.id", ondelete="RESTRICT"),
+        nullable=False,
         index=True
     )
-    external_client_name: Mapped[str | None] = mapped_column(String(255))
-    external_client_phone: Mapped[str | None] = mapped_column(String(20))
 
     # Alteration details
     alteration_type: Mapped[AlterationType] = mapped_column(
@@ -117,6 +111,11 @@ class Alteration(Base):
     estimated_delivery_date: Mapped[date | None] = mapped_column(Date)
     delivered_date: Mapped[date | None] = mapped_column(Date)
 
+    # Set automatically when status transitions to READY. Lets reports compute
+    # response time (received -> ready) independent of pickup. NULL for
+    # alterations marked ready before this column existed.
+    ready_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+
     # Notes
     notes: Mapped[str | None] = mapped_column(Text)
 
@@ -139,7 +138,7 @@ class Alteration(Base):
     )
 
     # Relationships
-    client: Mapped["Client | None"] = relationship()
+    client: Mapped["Client"] = relationship()
     created_by_user: Mapped["User | None"] = relationship(foreign_keys=[created_by])
     payments: Mapped[list["AlterationPayment"]] = relationship(
         back_populates="alteration",
@@ -159,10 +158,17 @@ class Alteration(Base):
 
     @property
     def client_display_name(self) -> str:
-        """Get client name (registered or external)"""
-        if self.client:
-            return self.client.name
-        return self.external_client_name or "Cliente Externo"
+        """Get client name from the registered client relationship.
+
+        Defensive against unloaded relationships: if `client` was not
+        eager-loaded, return an empty string instead of triggering a lazy
+        load (which would crash outside the async greenlet context).
+        Callers that need the name must `selectinload(Alteration.client)`.
+        """
+        state = sa_inspect(self)
+        if "client" in state.unloaded:
+            return ""
+        return self.client.name if self.client else ""
 
     def __repr__(self) -> str:
         return f"<Alteration({self.code}: {self.alteration_type.value} - ${self.cost})>"

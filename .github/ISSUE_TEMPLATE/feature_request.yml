@@ -1,0 +1,106 @@
+name: "Feature Request"
+description: "Algo que falta o podria mejorar"
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Proponer una mejora o feature
+        No necesitas saber como implementarlo. Solo describe que necesitas y por que.
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: "Para que plataforma?"
+      options:
+        - App escritorio vendedoras (Tauri)
+        - Portal admin (web)
+        - Portal padres (web)
+        - Las tres
+        - No estoy seguro
+    validations:
+      required: true
+
+  - type: dropdown
+    id: section
+    attributes:
+      label: "Seccion relacionada"
+      options:
+        - Ventas
+        - Cambios y devoluciones
+        - Pedidos / Encargos
+        - Pedidos web (de padres)
+        - Clientes
+        - Productos / Catalogo
+        - Inventario
+        - Arreglos (alteraciones)
+        - Contabilidad / Caja
+        - Cuentas por cobrar / pagar
+        - Reportes
+        - CFO Dashboard
+        - Alertas Telegram
+        - Notificaciones / Email
+        - Documentos
+        - Nomina / Personal
+        - Pasarela de pago Wompi
+        - Catalogo padres / Portal web
+        - Impresion termica
+        - Sistema de permisos
+        - Auditorias / logs
+        - Multi-tenant (colegios)
+        - Mobile (app vendedoras)
+        - Nueva seccion completa
+        - General
+    validations:
+      required: true
+
+  - type: dropdown
+    id: who_asks
+    attributes:
+      label: "Quien lo pide?"
+      options:
+        - Vendedora / cajera
+        - Administrador / dueno
+        - Padre de familia
+        - Contador / contabilidad
+        - Yo mismo (mejora interna)
+        - Varios usuarios distintos
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: "Que problema resuelve?"
+      description: "Describe la situacion o necesidad. Antes de pensar en la solucion, explica el dolor."
+      placeholder: "Ej: Cuando un padre pide un pedido a medida (encargo), no hay forma de avisarle por WhatsApp cuando ya esta listo, y nos toca llamarlos uno por uno."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: "Como te lo imaginas?"
+      description: "Describe como se veria o funcionaria. Puedes adjuntar bocetos, screenshots de otras apps, etc."
+      placeholder: "Ej: Que cuando la vendedora marque el encargo como 'listo', se mande un mensaje automatico al padre por WhatsApp con el monto a pagar y un link al portal para pagar con Wompi."
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: "Que tan importante es?"
+      options:
+        - "Critico: bloquea operacion o varios usuarios lo piden"
+        - "Importante: ahorraria mucho tiempo o mejoraria mucho la experiencia"
+        - "Nice to have: estaria bien pero no es urgente"
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: "Contexto adicional"
+      description: "Algo mas que nos ayude a entender (cuantas veces a la semana pasa, links, screenshots de otras apps de uniformes, etc.)."
+    validations:
+      required: false

@@ -12,6 +12,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@react-oauth/google": "0.13.5",
     "axios": "^1.13.2",
     "lucide-react": "^0.562.0",
     "next": "16.2.2",
@@ -35,5 +36,9 @@
     "tailwindcss": "^4",
     "typescript": "5.9.3",
     "vitest": "^1.6.1"
+  },
+  "packageManager": "pnpm@11.1.2",
+  "engines": {
+    "node": ">=22"
   }
 }

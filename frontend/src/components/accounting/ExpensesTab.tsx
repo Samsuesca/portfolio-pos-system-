@@ -110,9 +110,12 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
     }
   }, [filters.vendor]);
 
-  // Check for payroll expenses (manual payroll entries instead of using Payroll module)
-  const payrollExpenses = filteredExpenses.filter(e => e.category === 'payroll');
-  const hasManualPayrollExpenses = payrollExpenses.length > 0 && !hidePayrollAlert;
+  // Manual payroll alert — use server-side category summary so the count
+  // reflects all expenses, not just the paginated rows in `filteredExpenses`.
+  const payrollCategorySummary = stats.byCategory.find(c => c.category === 'payroll');
+  const payrollExpensesCount = payrollCategorySummary?.count ?? 0;
+  const payrollExpensesAmount = payrollCategorySummary?.amount ?? 0;
+  const hasManualPayrollExpenses = payrollExpensesCount > 0 && !hidePayrollAlert;
 
   // Handle delete expense
   const handleDeleteExpense = async () => {
@@ -186,13 +189,13 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Gestion de Gastos</h2>
-          <p className="text-gray-500 mt-1">Administra y analiza todos los gastos del negocio</p>
+          <h2 className="text-2xl font-bold text-stone-900">Gestion de Gastos</h2>
+          <p className="text-stone-500 mt-1">Administra y analiza todos los gastos del negocio</p>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowCategoryManager(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium"
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-stone-200 text-stone-700 rounded-lg hover:bg-stone-50 transition font-medium"
           >
             <Tags className="w-5 h-5" />
             <span className="hidden sm:inline">Categorias</span>
@@ -200,7 +203,7 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
           <button
             onClick={exportCSV}
             disabled={filteredExpenses.length === 0}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-stone-200 text-stone-700 rounded-lg hover:bg-stone-50 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Download className="w-5 h-5" />
             <span className="hidden sm:inline">Exportar CSV</span>
@@ -219,18 +222,18 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
 
       {/* Search Bar - Always visible */}
       <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
         <input
           type="text"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Buscar por proveedor, descripcion, categoria..."
-          className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-brand-400 text-base shadow-sm"
+          className="w-full pl-12 pr-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500 text-base shadow-sm"
         />
         {searchTerm && (
           <button
             onClick={() => setSearchTerm('')}
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
           >
             <X className="w-5 h-5" />
           </button>
@@ -252,14 +255,14 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
               <Users className="w-5 h-5 text-brand-600 mt-0.5" />
             </div>
             <div className="flex-1">
-              <h4 className="font-medium text-brand-800">
+              <h4 className="font-medium text-brand-700">
                 Gastos de nomina detectados
               </h4>
               <p className="text-sm text-brand-700 mt-1">
-                Se encontraron <span className="font-semibold">{payrollExpenses.length}</span> gasto(s)
+                Se encontraron <span className="font-semibold">{payrollExpensesCount}</span> gasto(s)
                 de nomina registrados manualmente por un total de{' '}
                 <span className="font-semibold">
-                  {formatCurrency(payrollExpenses.reduce((sum, e) => sum + Number(e.amount), 0))}
+                  {formatCurrency(payrollExpensesAmount)}
                 </span>.
               </p>
               <p className="text-sm text-brand-600 mt-2">
@@ -270,7 +273,7 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
               <div className="flex items-center gap-3 mt-3">
                 <a
                   href="/payroll"
-                  className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-800 underline"
+                  className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-700 underline"
                 >
                   Ir al modulo de Nomina
                   <ArrowRight className="w-4 h-4" />
@@ -346,17 +349,17 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
               </h3>
               <button
                 onClick={() => { setDeleteExpense(null); setModalError(null); }}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-stone-400 hover:text-stone-600"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-6 space-y-4">
-              <p className="text-gray-600">¿Estas seguro de eliminar este gasto?</p>
+              <p className="text-stone-600">¿Estas seguro de eliminar este gasto?</p>
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="font-medium text-gray-900">{deleteExpense.description}</p>
+                <p className="font-medium text-stone-900">{deleteExpense.description}</p>
                 <p className="text-lg font-bold text-red-600 mt-1">{formatCurrency(deleteExpense.amount)}</p>
-                <p className="text-sm text-gray-500 mt-1">{formatDateSpanish(deleteExpense.expense_date)}</p>
+                <p className="text-sm text-stone-500 mt-1">{formatDateSpanish(deleteExpense.expense_date)}</p>
               </div>
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                 <p className="text-sm text-yellow-800 flex items-center gap-2">
@@ -370,10 +373,10 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
                 </div>
               )}
             </div>
-            <div className="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50 rounded-b-xl">
+            <div className="flex justify-end gap-3 px-6 py-4 border-t bg-stone-50 rounded-b-xl">
               <button
                 onClick={() => { setDeleteExpense(null); setModalError(null); }}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                className="px-4 py-2 text-stone-600 hover:text-stone-800"
               >
                 Cancelar
               </button>
@@ -401,18 +404,18 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
               </h3>
               <button
                 onClick={() => { setEditCategoryExpense(null); setModalError(null); }}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-stone-400 hover:text-stone-600"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-6 space-y-4">
-              <div className="bg-gray-50 rounded-lg p-4">
-                <p className="font-medium text-gray-900">{editCategoryExpense.description}</p>
-                <p className="text-lg font-bold text-gray-700 mt-1">{formatCurrency(editCategoryExpense.amount)}</p>
+              <div className="bg-stone-50 rounded-lg p-4">
+                <p className="font-medium text-stone-900">{editCategoryExpense.description}</p>
+                <p className="text-lg font-bold text-stone-700 mt-1">{formatCurrency(editCategoryExpense.amount)}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Categoria Actual</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1">Categoria Actual</label>
                 <span
                   className="px-3 py-1.5 text-sm font-medium rounded inline-block text-white"
                   style={{ backgroundColor: getCategoryColor(editCategoryExpense.category) }}
@@ -421,11 +424,11 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
                 </span>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nueva Categoria</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1">Nueva Categoria</label>
                 <select
                   value={newCategory}
                   onChange={(e) => setNewCategory(e.target.value as ExpenseCategory)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-purple-500"
                 >
                   {activeCategories.map(cat => (
                     <option key={cat.id} value={cat.code}>{cat.name}</option>
@@ -438,10 +441,10 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
                 </div>
               )}
             </div>
-            <div className="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50 rounded-b-xl">
+            <div className="flex justify-end gap-3 px-6 py-4 border-t bg-stone-50 rounded-b-xl">
               <button
                 onClick={() => { setEditCategoryExpense(null); setModalError(null); }}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                className="px-4 py-2 text-stone-600 hover:text-stone-800"
               >
                 Cancelar
               </button>
@@ -474,32 +477,32 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
                   setPaymentAmount(0);
                   setModalError(null);
                 }}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-stone-400 hover:text-stone-600"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-6 space-y-4">
-              <div className="bg-gray-50 rounded-lg p-4">
-                <p className="font-medium text-gray-900">{payExpense.description}</p>
+              <div className="bg-stone-50 rounded-lg p-4">
+                <p className="font-medium text-stone-900">{payExpense.description}</p>
                 <div className="flex justify-between items-center mt-2">
-                  <span className="text-gray-600">Monto total:</span>
-                  <span className="font-bold text-gray-900">{formatCurrency(payExpense.amount)}</span>
+                  <span className="text-stone-600">Monto total:</span>
+                  <span className="font-bold text-stone-900">{formatCurrency(payExpense.amount)}</span>
                 </div>
                 {Number(payExpense.amount_paid) > 0 && (
                   <div className="flex justify-between items-center mt-1">
-                    <span className="text-gray-600">Ya pagado:</span>
+                    <span className="text-stone-600">Ya pagado:</span>
                     <span className="font-medium text-green-600">{formatCurrency(payExpense.amount_paid)}</span>
                   </div>
                 )}
                 <div className="flex justify-between items-center mt-1 pt-2 border-t">
-                  <span className="text-gray-700 font-medium">Pendiente:</span>
+                  <span className="text-stone-700 font-medium">Pendiente:</span>
                   <span className="font-bold text-red-600 text-lg">{formatCurrency(payExpense.balance)}</span>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Monto a Pagar</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1">Monto a Pagar</label>
                 <CurrencyInput
                   value={paymentAmount}
                   onChange={setPaymentAmount}
@@ -508,7 +511,7 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Metodo de Pago *</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1">Metodo de Pago *</label>
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     { value: 'cash', label: 'Efectivo', icon: Wallet },
@@ -523,7 +526,7 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
                       className={`flex items-center gap-2 px-3 py-2 border-2 rounded-lg transition ${
                         paymentMethod === value
                           ? 'border-green-600 bg-green-50 text-green-700'
-                          : 'border-gray-200 hover:border-gray-300'
+                          : 'border-stone-200 hover:border-stone-200'
                       }`}
                     >
                       <Icon className="w-4 h-4" />
@@ -539,7 +542,7 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
                 </div>
               )}
             </div>
-            <div className="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50 rounded-b-xl">
+            <div className="flex justify-end gap-3 px-6 py-4 border-t bg-stone-50 rounded-b-xl">
               <button
                 onClick={() => {
                   setPayExpense(null);
@@ -547,7 +550,7 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({
                   setPaymentAmount(0);
                   setModalError(null);
                 }}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                className="px-4 py-2 text-stone-600 hover:text-stone-800"
               >
                 Cancelar
               </button>

@@ -17,6 +17,9 @@ export default defineConfig({
   server: {
     port: 5171,
     strictPort: true,
+    headers: {
+      'Cache-Control': 'no-store',
+    },
   },
   envPrefix: ['VITE_', 'TAURI_'],
   build: {
@@ -44,5 +47,15 @@ export default defineConfig({
   resolve: {
     // Priorizar .tsx/.ts sobre .js cuando existan ambos archivos
     extensions: ['.tsx', '.ts', '.jsx', '.js', '.json'],
+  },
+  optimizeDeps: {
+    include: [
+      'react-hot-toast',
+      '@tauri-apps/api',
+      '@tauri-apps/plugin-dialog',
+      '@tauri-apps/plugin-fs',
+      '@tauri-apps/plugin-http',
+      '@tauri-apps/plugin-shell',
+    ],
   },
 })

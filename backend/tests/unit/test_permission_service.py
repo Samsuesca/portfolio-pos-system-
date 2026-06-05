@@ -62,6 +62,15 @@ class TestSystemRolePermissions:
         assert "accounting.view_cash" in admin_perms
         assert "changes.approve" in admin_perms
 
+    def test_admin_has_full_global_product_lifecycle(self):
+        """Admin manages global products end-to-end, not just creation (parity gap fix)."""
+        admin_perms = SYSTEM_ROLE_PERMISSIONS[UserRole.ADMIN]
+
+        assert "products.create_global" in admin_perms
+        assert "products.edit_global" in admin_perms
+        assert "products.delete_global" in admin_perms
+        assert "garment_types.manage_global" in admin_perms
+
     def test_owner_has_none_permissions(self):
         """Owner has None - indicating all permissions."""
         assert SYSTEM_ROLE_PERMISSIONS[UserRole.OWNER] is None
@@ -439,28 +448,33 @@ class TestPermissionServiceMaxDiscount:
 
 
 class TestPermissionServiceCacheClear:
-    """Tests for PermissionService.clear_cache()."""
+    """Tests for PermissionService.clear_cache() using shared permission_cache."""
 
     def test_clear_specific_user_school(self, mock_db_session):
         """Should clear cache for specific user/school."""
+        from app.services import permission_cache
+
         service = PermissionService(mock_db_session)
 
         user_id = uuid4()
         school_id = uuid4()
-        cache_key = f"{user_id}:{school_id}"
+        other_user = uuid4()
+        other_school = uuid4()
 
-        # Populate cache
-        service._permission_cache[cache_key] = {"sales.view"}
-        service._permission_cache["other:key"] = {"products.view"}
+        permission_cache.set_permissions(user_id, school_id, {"sales.view"})
+        permission_cache.set_permissions(other_user, other_school, {"products.view"})
 
-        # Clear specific
         service.clear_cache(user_id, school_id)
 
-        assert cache_key not in service._permission_cache
-        assert "other:key" in service._permission_cache
+        assert permission_cache.get_permissions(user_id, school_id) is None
+        assert permission_cache.get_permissions(other_user, other_school) is not None
+
+        permission_cache.invalidate()
 
     def test_clear_all_for_user(self, mock_db_session):
         """Should clear all cache entries for a user."""
+        from app.services import permission_cache
+
         service = PermissionService(mock_db_session)
 
         user_id = uuid4()
@@ -468,30 +482,36 @@ class TestPermissionServiceCacheClear:
         school2 = uuid4()
         other_user = uuid4()
 
-        # Populate cache
-        service._permission_cache[f"{user_id}:{school1}"] = {"a"}
-        service._permission_cache[f"{user_id}:{school2}"] = {"b"}
-        service._permission_cache[f"{other_user}:{school1}"] = {"c"}
+        permission_cache.set_permissions(user_id, school1, {"a"})
+        permission_cache.set_permissions(user_id, school2, {"b"})
+        permission_cache.set_permissions(other_user, school1, {"c"})
 
-        # Clear for user
         service.clear_cache(user_id=user_id)
 
-        assert f"{user_id}:{school1}" not in service._permission_cache
-        assert f"{user_id}:{school2}" not in service._permission_cache
-        assert f"{other_user}:{school1}" in service._permission_cache
+        assert permission_cache.get_permissions(user_id, school1) is None
+        assert permission_cache.get_permissions(user_id, school2) is None
+        assert permission_cache.get_permissions(other_user, school1) is not None
+
+        permission_cache.invalidate()
 
     def test_clear_all(self, mock_db_session):
         """Should clear entire cache."""
+        from app.services import permission_cache
+
         service = PermissionService(mock_db_session)
 
-        # Populate cache
-        service._permission_cache["a:b"] = {"x"}
-        service._permission_cache["c:d"] = {"y"}
+        user_id1 = uuid4()
+        user_id2 = uuid4()
+        school1 = uuid4()
+        school2 = uuid4()
 
-        # Clear all
+        permission_cache.set_permissions(user_id1, school1, {"x"})
+        permission_cache.set_permissions(user_id2, school2, {"y"})
+
         service.clear_cache()
 
-        assert len(service._permission_cache) == 0
+        assert permission_cache.get_permissions(user_id1, school1) is None
+        assert permission_cache.get_permissions(user_id2, school2) is None
 
 
 class TestHelperFunctions:

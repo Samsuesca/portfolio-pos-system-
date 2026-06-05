@@ -61,13 +61,13 @@ export default function InventoryHistoryModal({
     setLoading(true);
     setError(null);
     try {
-      let data: InventoryLog[];
       if (isGlobalProduct) {
-        data = await inventoryLogService.getGlobalProductLogs(productId, 50);
+        const result = await inventoryLogService.getGlobalProductLogs(productId, 50);
+        setLogs(result.items);
       } else {
-        data = await inventoryLogService.getProductLogs(schoolId, productId, 50);
+        const result = await inventoryLogService.getProductLogs(schoolId, productId, 50);
+        setLogs(result.items);
       }
-      setLogs(data);
     } catch (err: any) {
       console.error('Error loading inventory logs:', err);
       setError(err.response?.data?.detail || 'Error al cargar historial');
@@ -102,29 +102,29 @@ export default function InventoryHistoryModal({
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="relative bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[85vh] flex flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-stone-200">
             <div className="flex items-center">
-              <History className="w-5 h-5 text-blue-600 mr-2" />
-              <h2 className="text-lg font-semibold text-gray-900">Historial de Movimientos</h2>
+              <History className="w-5 h-5 text-brand-600 mr-2" />
+              <h2 className="text-lg font-semibold text-stone-900">Historial de Movimientos</h2>
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition"
+              className="text-stone-400 hover:text-stone-600 transition"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Product Info */}
-          <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+          <div className="px-6 py-4 bg-stone-50 border-b border-stone-200">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Producto</p>
-                <p className="font-medium text-gray-900">{productName}</p>
+                <p className="text-sm text-stone-500">Producto</p>
+                <p className="font-medium text-stone-900">{productName}</p>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs font-mono text-gray-500">{productCode}</span>
+                  <span className="text-xs font-mono text-stone-500">{productCode}</span>
                   {productSize && (
-                    <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded">
+                    <span className="text-xs bg-stone-200 text-stone-700 px-2 py-0.5 rounded">
                       Talla: {productSize}
                     </span>
                   )}
@@ -137,8 +137,8 @@ export default function InventoryHistoryModal({
               </div>
               {currentStock !== undefined && (
                 <div className="text-right">
-                  <p className="text-sm text-gray-500">Stock Actual</p>
-                  <p className="text-2xl font-bold text-gray-900">{currentStock}</p>
+                  <p className="text-sm text-stone-500">Stock Actual</p>
+                  <p className="text-2xl font-bold text-stone-900">{currentStock}</p>
                 </div>
               )}
             </div>
@@ -148,8 +148,8 @@ export default function InventoryHistoryModal({
           <div className="flex-1 overflow-y-auto px-6 py-4">
             {loading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-                <span className="ml-2 text-gray-600">Cargando historial...</span>
+                <Loader2 className="w-8 h-8 animate-spin text-brand-600" />
+                <span className="ml-2 text-stone-600">Cargando historial...</span>
               </div>
             ) : error ? (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
@@ -162,43 +162,43 @@ export default function InventoryHistoryModal({
                 </button>
               </div>
             ) : logs.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+              <div className="flex flex-col items-center justify-center py-12 text-stone-500">
                 <Package className="w-12 h-12 mb-2" />
                 <p>No hay movimientos registrados</p>
               </div>
             ) : (
               <table className="w-full">
-                <thead className="bg-gray-50 sticky top-0">
+                <thead className="bg-stone-50 sticky top-0">
                   <tr>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-3 py-2 text-left text-xs font-medium text-stone-500 uppercase">
                       Fecha
                     </th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-3 py-2 text-left text-xs font-medium text-stone-500 uppercase">
                       Tipo
                     </th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-3 py-2 text-right text-xs font-medium text-stone-500 uppercase">
                       Cantidad
                     </th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-3 py-2 text-right text-xs font-medium text-stone-500 uppercase">
                       Stock
                     </th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-3 py-2 text-left text-xs font-medium text-stone-500 uppercase">
                       Referencia
                     </th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-3 py-2 text-left text-xs font-medium text-stone-500 uppercase">
                       Usuario
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-stone-100">
                   {logs.map((log) => {
                     const typeInfo = getMovementTypeInfo(log.movement_type);
                     const stockIn = isStockIn(log.movement_type);
                     const isManualAdjustment = log.movement_type === 'adjustment_in' || log.movement_type === 'adjustment_out';
 
                     return (
-                      <tr key={log.id} className="hover:bg-gray-50">
-                        <td className="px-3 py-2 text-sm text-gray-600 whitespace-nowrap">
+                      <tr key={log.id} className="hover:bg-stone-50">
+                        <td className="px-3 py-2 text-sm text-stone-600 whitespace-nowrap">
                           {formatDate(log.created_at)}
                         </td>
                         <td className="px-3 py-2">
@@ -223,14 +223,14 @@ export default function InventoryHistoryModal({
                             {log.quantity_delta}
                           </span>
                         </td>
-                        <td className="px-3 py-2 text-right text-sm font-medium text-gray-900">
+                        <td className="px-3 py-2 text-right text-sm font-medium text-stone-900">
                           {log.quantity_after}
                         </td>
-                        <td className="px-3 py-2 text-sm text-gray-500">
+                        <td className="px-3 py-2 text-sm text-stone-500">
                           {log.sale_id ? (
                             <button
                               onClick={() => handleNavigateToSale(log.sale_id!)}
-                              className="inline-flex items-center text-blue-600 hover:text-blue-800 hover:underline font-mono text-xs"
+                              className="inline-flex items-center text-brand-600 hover:text-brand-700 hover:underline font-mono text-xs"
                               title="Ver detalle de venta"
                             >
                               {log.reference || 'Ver venta'}
@@ -257,17 +257,17 @@ export default function InventoryHistoryModal({
                           ) : log.reference ? (
                             <span className="font-mono text-xs">{log.reference}</span>
                           ) : (
-                            <span className="text-gray-400">-</span>
+                            <span className="text-stone-400">-</span>
                           )}
                         </td>
                         <td className="px-3 py-2 text-sm">
                           {log.created_by_name ? (
-                            <span className={`inline-flex items-center ${isManualAdjustment ? 'text-amber-700 font-medium' : 'text-gray-600'}`}>
+                            <span className={`inline-flex items-center ${isManualAdjustment ? 'text-amber-700 font-medium' : 'text-stone-600'}`}>
                               <User className="w-3 h-3 mr-1" />
                               {log.created_by_name}
                             </span>
                           ) : (
-                            <span className="text-gray-400">Sistema</span>
+                            <span className="text-stone-400">Sistema</span>
                           )}
                         </td>
                       </tr>
@@ -279,14 +279,14 @@ export default function InventoryHistoryModal({
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+          <div className="px-6 py-4 border-t border-stone-200 bg-stone-50">
             <div className="flex justify-between items-center">
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-stone-500">
                 {logs.length > 0 ? `Mostrando últimos ${logs.length} movimientos` : ''}
               </p>
               <button
                 onClick={onClose}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
+                className="px-4 py-2 bg-stone-200 text-stone-700 rounded-lg hover:bg-stone-300 transition"
               >
                 Cerrar
               </button>

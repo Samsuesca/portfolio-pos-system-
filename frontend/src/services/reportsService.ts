@@ -169,6 +169,179 @@ export interface MonthlySalesData {
   by_payment: Record<string, { count: number; total: number }>;
 }
 
+// ============================================
+// Orders (Encargos) — Fase 1 del plan Reports Coverage
+// ============================================
+
+export interface OrdersStatusCounts {
+  pending: number;
+  in_production: number;
+  ready: number;
+  delivered: number;
+  cancelled: number;
+}
+
+export interface OrdersSummary {
+  period_start: string | null;
+  period_end: string | null;
+  school_id: string | null;
+  total_count: number;
+  revenue_delivered: number;
+  revenue_paid: number;
+  balance_pending: number;
+  avg_ticket: number | null;
+  by_status: OrdersStatusCounts;
+  delivered_count: number;
+  cancelled_count: number;
+}
+
+export interface OrdersFunnelStep {
+  status: string;
+  label: string;
+  count: number;
+}
+
+export interface OrdersStatusFunnel {
+  period_start: string | null;
+  period_end: string | null;
+  school_id: string | null;
+  steps: OrdersFunnelStep[];
+}
+
+export interface OrdersOnTimeDelivery {
+  period_start: string | null;
+  period_end: string | null;
+  school_id: string | null;
+  delivered_count: number;
+  on_time_count: number;
+  late_count: number;
+  on_time_pct: number | null;
+  avg_lead_time_days: number | null;
+  oldest_pending_days: number;
+}
+
+export interface OrdersCumplimientoRow {
+  school_id: string;
+  school_name: string;
+  overdue_count: number;
+  avg_days_late: number;
+  oldest_overdue_days: number;
+}
+
+export interface OrdersProfitabilityRow {
+  school_id: string;
+  school_name: string;
+  revenue: number;
+  /** Null when caller lacks `reports.cost_visibility` permission. */
+  cogs: number | null;
+  gross_profit: number | null;
+  gross_margin: number | null;
+  units_with_cost: number;
+  units_estimated: number;
+  cost_coverage_percent: number;
+}
+
+export interface OrdersProfitabilityResponse {
+  period_start: string | null;
+  period_end: string | null;
+  schools: OrdersProfitabilityRow[];
+  totals: {
+    revenue: number;
+    cogs: number | null;
+    gross_profit: number | null;
+    gross_margin: number | null;
+  };
+}
+
+export interface OrdersTopProduct {
+  product_id: string | null;
+  product_code: string | null;
+  product_name: string;
+  product_size: string | null;
+  school_name: string | null;
+  units_ordered: number;
+  total_revenue: number;
+}
+
+export interface OrdersTopClient {
+  client_id: string;
+  client_code: string;
+  client_name: string;
+  client_phone: string | null;
+  school_name: string | null;
+  total_orders: number;
+  total_spent: number;
+  total_pending: number;
+}
+
+// ============================================
+// Unified Revenue Streams — Fase 3 del plan Reports Coverage
+// ============================================
+
+export type RevenueStreamId =
+  | 'sales'
+  | 'orders'
+  | 'alterations'
+  | 'b2b_contracts'
+  | 'saas';
+
+export type RevenueBasis = 'cash' | 'accrual';
+
+export interface StreamBreakdown {
+  revenue: number;
+  /** Null when caller lacks `reports.cost_visibility`. */
+  cogs: number | null;
+  gross_profit: number | null;
+  gross_margin_pct: number | null;
+  count: number;
+  /** Optional free-form note (e.g. 'not_yet_implemented' for B2B stub). */
+  note: string | null;
+}
+
+export interface StreamSummary {
+  period_start: string | null;
+  period_end: string | null;
+  school_id: string | null;
+  branch_id: string | null;
+  basis: RevenueBasis;
+  streams: Partial<Record<RevenueStreamId, StreamBreakdown>>;
+  totals: StreamBreakdown;
+}
+
+export interface StreamMonthlyPoint {
+  period: string;        // YYYY-MM
+  period_label: string;  // "Enero 2026"
+  streams: Partial<Record<RevenueStreamId, StreamBreakdown>>;
+}
+
+export interface StreamMonthlyReport {
+  period_start: string | null;
+  period_end: string | null;
+  school_id: string | null;
+  branch_id: string | null;
+  basis: RevenueBasis;
+  months: StreamMonthlyPoint[];
+  totals: Partial<Record<RevenueStreamId, StreamBreakdown>>;
+  grand_total: StreamBreakdown;
+}
+
+export interface StreamsSchoolBreakdownRow {
+  school_id: string;
+  school_name: string;
+  sales_revenue: number;
+  orders_revenue: number;
+  alterations_revenue: number;
+  total_revenue: number;
+}
+
+export interface StreamsBreakdownBySchool {
+  period_start: string | null;
+  period_end: string | null;
+  basis: RevenueBasis;
+  rows: StreamsSchoolBreakdownRow[];
+  totals: StreamsSchoolBreakdownRow;
+}
+
 export interface MonthlySalesReport {
   months: MonthlySalesData[];
   totals: {
@@ -323,6 +496,128 @@ export const reportsService = {
     if (filters?.startDate) params.start_date = filters.startDate;
     if (filters?.endDate) params.end_date = filters.endDate;
     const response = await apiClient.get<ProfitabilityBySchoolResponse>('/global/reports/profitability/by-school', { params });
+    return response.data;
+  },
+
+  // ============================================
+  // Orders (Encargos) — Fase 1 del plan Reports Coverage
+  // Endpoints under /global/reports/orders/*
+  // ============================================
+
+  async getOrdersSummary(filters?: GlobalReportFilters): Promise<OrdersSummary> {
+    const params: Record<string, string> = {};
+    if (filters?.startDate) params.start_date = filters.startDate;
+    if (filters?.endDate) params.end_date = filters.endDate;
+    if (filters?.schoolId) params.school_id = filters.schoolId;
+    const response = await apiClient.get<OrdersSummary>('/global/reports/orders/summary', { params });
+    return response.data;
+  },
+
+  async getOrdersStatusFunnel(filters?: GlobalReportFilters): Promise<OrdersStatusFunnel> {
+    const params: Record<string, string> = {};
+    if (filters?.startDate) params.start_date = filters.startDate;
+    if (filters?.endDate) params.end_date = filters.endDate;
+    if (filters?.schoolId) params.school_id = filters.schoolId;
+    const response = await apiClient.get<OrdersStatusFunnel>('/global/reports/orders/status-funnel', { params });
+    return response.data;
+  },
+
+  async getOrdersOnTimeDelivery(filters?: GlobalReportFilters): Promise<OrdersOnTimeDelivery> {
+    const params: Record<string, string> = {};
+    if (filters?.startDate) params.start_date = filters.startDate;
+    if (filters?.endDate) params.end_date = filters.endDate;
+    if (filters?.schoolId) params.school_id = filters.schoolId;
+    const response = await apiClient.get<OrdersOnTimeDelivery>('/global/reports/orders/on-time-delivery', { params });
+    return response.data;
+  },
+
+  /**
+   * Overdue orders by school. No date filters — always "as of today".
+   * @param overdueThresholdDays tolerance (0 = anything past delivery_date counts).
+   */
+  async getOrdersCumplimiento(
+    schoolId?: string,
+    overdueThresholdDays: number = 0
+  ): Promise<OrdersCumplimientoRow[]> {
+    const params: Record<string, string | number> = { overdue_threshold_days: overdueThresholdDays };
+    if (schoolId) params.school_id = schoolId;
+    const response = await apiClient.get<OrdersCumplimientoRow[]>('/global/reports/orders/cumplimiento', { params });
+    return response.data;
+  },
+
+  async getOrdersTopProducts(limit = 5, filters?: GlobalReportFilters): Promise<OrdersTopProduct[]> {
+    const params: Record<string, string | number> = { limit };
+    if (filters?.startDate) params.start_date = filters.startDate;
+    if (filters?.endDate) params.end_date = filters.endDate;
+    if (filters?.schoolId) params.school_id = filters.schoolId;
+    const response = await apiClient.get<OrdersTopProduct[]>('/global/reports/orders/top-products', { params });
+    return response.data;
+  },
+
+  async getOrdersTopClients(limit = 5, filters?: GlobalReportFilters): Promise<OrdersTopClient[]> {
+    const params: Record<string, string | number> = { limit };
+    if (filters?.startDate) params.start_date = filters.startDate;
+    if (filters?.endDate) params.end_date = filters.endDate;
+    if (filters?.schoolId) params.school_id = filters.schoolId;
+    const response = await apiClient.get<OrdersTopClient[]>('/global/reports/orders/top-clients', { params });
+    return response.data;
+  },
+
+  /**
+   * Orders profitability by school.
+   * COGS/margin fields will be null if the caller lacks `reports.cost_visibility`.
+   */
+  async getOrdersProfitabilityBySchool(filters?: GlobalReportFilters): Promise<OrdersProfitabilityResponse> {
+    const params: Record<string, string> = {};
+    if (filters?.startDate) params.start_date = filters.startDate;
+    if (filters?.endDate) params.end_date = filters.endDate;
+    const response = await apiClient.get<OrdersProfitabilityResponse>('/global/reports/orders/profitability/by-school', { params });
+    return response.data;
+  },
+
+  // ============================================
+  // Unified Revenue Streams — Fase 3 del plan Reports Coverage
+  // Endpoints under /global/reports/revenue/*
+  // ============================================
+
+  async getStreamsSummary(
+    filters?: GlobalReportFilters,
+    basis: RevenueBasis = 'accrual',
+    streams?: RevenueStreamId[],
+  ): Promise<StreamSummary> {
+    const params: Record<string, string | string[]> = { basis };
+    if (filters?.startDate) params.start_date = filters.startDate;
+    if (filters?.endDate) params.end_date = filters.endDate;
+    if (filters?.schoolId) params.school_id = filters.schoolId;
+    if (streams && streams.length > 0) params.streams = streams;
+    const response = await apiClient.get<StreamSummary>('/global/reports/revenue/streams-summary', { params });
+    return response.data;
+  },
+
+  async getStreamsMonthly(
+    startDate: string,
+    endDate: string,
+    options?: { basis?: RevenueBasis; schoolId?: string; streams?: RevenueStreamId[] },
+  ): Promise<StreamMonthlyReport> {
+    const params: Record<string, string | string[]> = {
+      start_date: startDate,
+      end_date: endDate,
+      basis: options?.basis ?? 'accrual',
+    };
+    if (options?.schoolId) params.school_id = options.schoolId;
+    if (options?.streams && options.streams.length > 0) params.streams = options.streams;
+    const response = await apiClient.get<StreamMonthlyReport>('/global/reports/revenue/streams-monthly', { params });
+    return response.data;
+  },
+
+  async getStreamsBreakdownBySchool(
+    filters?: GlobalReportFilters,
+    basis: RevenueBasis = 'accrual',
+  ): Promise<StreamsBreakdownBySchool> {
+    const params: Record<string, string> = { basis };
+    if (filters?.startDate) params.start_date = filters.startDate;
+    if (filters?.endDate) params.end_date = filters.endDate;
+    const response = await apiClient.get<StreamsBreakdownBySchool>('/global/reports/revenue/streams-by-school', { params });
     return response.data;
   },
 };

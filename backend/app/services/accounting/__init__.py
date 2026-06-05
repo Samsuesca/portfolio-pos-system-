@@ -22,6 +22,7 @@ from app.services.accounting.balance_general import BalanceGeneralService
 from app.services.accounting.expense_categories import ExpenseCategoryService
 from app.services.accounting.fixed_expenses import FixedExpenseService
 from app.services.accounting.expense_adjustments import ExpenseAdjustmentService
+from app.services.accounting.vendors import VendorService
 
 __all__ = [
     # Core transaction services
@@ -42,4 +43,5 @@ __all__ = [
     'ExpenseCategoryService',
     'FixedExpenseService',
     'ExpenseAdjustmentService',
+    'VendorService',
 ]

@@ -3,12 +3,22 @@ Financial Model Routes - Global accounting financial analysis
 
 All endpoints under /global/accounting/financial-model/
 """
+from typing import Literal
 from uuid import UUID
 from datetime import date
 from decimal import Decimal
 from fastapi import APIRouter, HTTPException, status, Query, Depends
 
-from app.api.dependencies import DatabaseSession, CurrentUser, require_any_school_admin
+
+# Validation literals reused across endpoints. Antes los query params
+# aceptaban strings arbitrarios (period=invalid, period=2026-13) y el
+# servicio silenciosamente caía a default. Ahora 422 con mensaje claro.
+KPIPeriod = Literal["daily", "weekly", "monthly"]
+TrendPeriod = Literal["daily", "weekly", "monthly"]
+BudgetPeriod = Literal["weekly", "monthly", "quarterly", "yearly"]
+
+from app.api.dependencies import DatabaseSession, CurrentUser, require_global_permission
+from app.api.error_responses import responses, AUTHENTICATED
 from app.schemas.financial_model import (
     KPIDashboardResponse,
     ProfitabilityResponse,
@@ -29,7 +39,7 @@ from app.services.accounting.financial_model.executive_summary import ExecutiveS
 router = APIRouter(
     prefix="/global/accounting/financial-model",
     tags=["Financial Model"],
-    dependencies=[Depends(require_any_school_admin)],
+    dependencies=[Depends(require_global_permission("reports.financial"))],
 )
 
 
@@ -37,14 +47,19 @@ router = APIRouter(
 # Module 1: KPI Dashboard
 # ============================================
 
-@router.get("/kpis", response_model=KPIDashboardResponse)
+@router.get("/kpis", response_model=KPIDashboardResponse, responses=AUTHENTICATED, operation_id="getFinancialKpis")
 async def get_kpis(
     db: DatabaseSession,
-    period: str = Query("monthly", description="Period type"),
+    period: KPIPeriod = Query("monthly", description="Período de agregación"),
     months: int = Query(6, ge=1, le=24, description="Number of months to analyze"),
     school_id: UUID | None = Query(None, description="Optional school filter"),
 ):
-    """Get financial KPIs dashboard"""
+    """
+    Get financial KPIs dashboard.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.financial` (inherited from router)
+    """
     service = KPIService(db)
     return await service.compute_kpis(months=months, school_id=school_id)
 
@@ -53,14 +68,26 @@ async def get_kpis(
 # Module 2: Profitability by School
 # ============================================
 
-@router.get("/profitability/by-school", response_model=ProfitabilityResponse)
+@router.get("/profitability/by-school", response_model=ProfitabilityResponse, responses=responses(400), operation_id="getProfitabilityBySchool")
 async def get_profitability_by_school(
     db: DatabaseSession,
     start_date: date | None = Query(None),
     end_date: date | None = Query(None),
     school_ids: str | None = Query(None, description="Comma-separated school UUIDs"),
 ):
-    """Get profitability analysis broken down by school"""
+    """
+    Get profitability analysis broken down by school.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.financial` (inherited from router)
+    """
+    # Rango de fechas invertido: antes retornaba 200 con totales=0, ahora
+    # falla rápido con un mensaje claro (QA P2-03).
+    if start_date and end_date and end_date < start_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="end_date debe ser mayor o igual a start_date",
+        )
     parsed_ids = None
     if school_ids:
         try:
@@ -68,7 +95,7 @@ async def get_profitability_by_school(
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="school_ids must be comma-separated valid UUIDs"
+                detail="school_ids debe ser una lista de UUIDs separados por coma",
             )
     service = ProfitabilityService(db)
     return await service.get_profitability_by_school(
@@ -80,15 +107,25 @@ async def get_profitability_by_school(
 # Module 3: Trend Analysis
 # ============================================
 
-@router.get("/trends", response_model=TrendAnalysisResponse)
+@router.get("/trends", response_model=TrendAnalysisResponse, responses=AUTHENTICATED, operation_id="getFinancialTrends")
 async def get_trends(
     db: DatabaseSession,
     metrics: str = Query("revenue,expenses,profit", description="Comma-separated metrics"),
-    period: str = Query("monthly"),
+    period: TrendPeriod = Query("monthly"),
     start_date: date | None = Query(None),
     end_date: date | None = Query(None),
 ):
-    """Get historical trend analysis"""
+    """
+    Get historical trend analysis.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.financial` (inherited from router)
+    """
+    if start_date and end_date and end_date < start_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="end_date debe ser mayor o igual a start_date",
+        )
     metric_list = [m.strip() for m in metrics.split(",")]
     service = TrendAnalysisService(db)
     return await service.get_trends(
@@ -101,37 +138,52 @@ async def get_trends(
 # Module 4: Budget vs Actual
 # ============================================
 
-@router.get("/budgets", response_model=list[BudgetResponse])
+@router.get("/budgets", response_model=list[BudgetResponse], responses=AUTHENTICATED, operation_id="listBudgets")
 async def get_budgets(
     db: DatabaseSession,
     period_type: str | None = Query(None),
     period_start: date | None = Query(None),
 ):
-    """List budgets"""
+    """
+    List budgets.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.financial` (inherited from router)
+    """
     service = BudgetService(db)
     return await service.get_budgets(period_type=period_type, period_start=period_start)
 
 
-@router.post("/budgets", response_model=BudgetResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/budgets", response_model=BudgetResponse, status_code=status.HTTP_201_CREATED, responses=AUTHENTICATED, operation_id="createBudget")
 async def create_budget(
     data: BudgetCreate,
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Create a budget entry"""
+    """
+    Create a budget entry.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.financial` (inherited from router)
+    """
     service = BudgetService(db)
     result = await service.create_budget(data.model_dump(), created_by=current_user.id)
     await db.commit()
     return result
 
 
-@router.delete("/budgets/{budget_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/budgets/{budget_id}", status_code=status.HTTP_204_NO_CONTENT, responses=responses(404), operation_id="deleteBudget")
 async def delete_budget(
     budget_id: UUID,
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Delete a budget entry"""
+    """
+    Delete a budget entry.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.financial` (inherited from router)
+    """
     service = BudgetService(db)
     deleted = await service.delete_budget(budget_id, requesting_user=current_user)
     if not deleted:
@@ -142,13 +194,18 @@ async def delete_budget(
     await db.commit()
 
 
-@router.get("/budget-vs-actual", response_model=BudgetVsActualResponse)
+@router.get("/budget-vs-actual", response_model=BudgetVsActualResponse, responses=AUTHENTICATED, operation_id="getBudgetVsActual")
 async def get_budget_vs_actual(
     db: DatabaseSession,
     period_type: str = Query(..., description="monthly, quarterly, or annual"),
     period_start: date = Query(..., description="Start date of the period"),
 ):
-    """Get budget vs actual comparison"""
+    """
+    Get budget vs actual comparison.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.financial` (inherited from router)
+    """
     service = BudgetService(db)
     return await service.get_budget_vs_actual(
         period_type=period_type, period_start=period_start
@@ -159,14 +216,19 @@ async def get_budget_vs_actual(
 # Module 5: Cash Flow Forecast
 # ============================================
 
-@router.get("/cash-forecast", response_model=CashForecastResponse)
+@router.get("/cash-forecast", response_model=CashForecastResponse, responses=AUTHENTICATED, operation_id="getCashForecast")
 async def get_cash_forecast(
     db: DatabaseSession,
     weeks: int = Query(4, ge=0, le=12),
     months: int = Query(6, ge=1, le=24),
     min_threshold: Decimal = Query(Decimal("500000")),
 ):
-    """Get advanced cash flow forecast with 3 scenarios"""
+    """
+    Get advanced cash flow forecast with 3 scenarios.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.financial` (inherited from router)
+    """
     service = CashForecastService(db)
     return await service.get_forecast(
         weeks=weeks, months=months, min_threshold=min_threshold
@@ -177,11 +239,16 @@ async def get_cash_forecast(
 # Module 6: Health Alerts
 # ============================================
 
-@router.get("/health-alerts", response_model=HealthAlertsResponse)
+@router.get("/health-alerts", response_model=HealthAlertsResponse, responses=AUTHENTICATED, operation_id="getFinancialHealthAlerts")
 async def get_health_alerts(
     db: DatabaseSession,
 ):
-    """Get financial health alerts"""
+    """
+    Get financial health alerts.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.financial` (inherited from router)
+    """
     service = HealthAlertService(db)
     return await service.get_alerts()
 
@@ -190,12 +257,17 @@ async def get_health_alerts(
 # Module 7: Executive Summary
 # ============================================
 
-@router.get("/executive-summary", response_model=ExecutiveSummaryResponse)
+@router.get("/executive-summary", response_model=ExecutiveSummaryResponse, responses=responses(400), operation_id="getExecutiveSummary")
 async def get_executive_summary(
     db: DatabaseSession,
     period: str | None = Query(None, description="Period as YYYY-MM"),
 ):
-    """Get executive financial summary"""
+    """
+    Get executive financial summary.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.financial` (inherited from router)
+    """
     service = ExecutiveSummaryService(db)
     try:
         return await service.get_summary(period=period)

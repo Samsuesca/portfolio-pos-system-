@@ -3,21 +3,33 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.session import get_db
+from app.api.dependencies import require_superuser
 from app.services.monitoring import collect_health_sample, metrics
 from app.utils.timezone import get_colombia_now_naive
 
 router = APIRouter()
 
 
-@router.get("/ping")
+@router.get("/ping", operation_id="ping")
 async def ping():
-    """Lightweight liveness probe."""
+    """Lightweight liveness probe. Public, returns only status."""
     return {"status": "ok"}
 
 
-@router.get("/health")
+@router.get(
+    "/health",
+    operation_id="healthCheck",
+    dependencies=[Depends(require_superuser)],
+)
 async def health_check(db: AsyncSession = Depends(get_db)):
-    """Comprehensive health check with DB, disk, and memory status."""
+    """
+    Comprehensive health check with DB, disk, and memory status.
+
+    **Auth:** Bearer JWT (superuser only)
+
+    Exposes infrastructure metrics: database latency, disk/memory usage,
+    uptime, and 5xx error count. Restricted to prevent reconnaissance.
+    """
     sample = await collect_health_sample(db)
 
     return {

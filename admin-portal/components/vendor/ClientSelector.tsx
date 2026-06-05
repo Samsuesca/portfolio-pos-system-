@@ -276,9 +276,9 @@ export default function ClientSelector({
     try {
       setLoading(true);
       // Clients are global in this system, no schoolId needed
-      const data = await clientService.getClients({ limit: 500 });
-      setClients(data);
-      setFilteredClients(data.slice(0, 50));
+      const response = await clientService.getClients({ limit: 500 });
+      setClients(response.items);
+      setFilteredClients(response.items.slice(0, 50));
     } catch (err) {
       console.error('Error loading clients:', err);
     } finally {

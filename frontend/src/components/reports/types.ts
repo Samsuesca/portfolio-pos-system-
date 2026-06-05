@@ -14,13 +14,33 @@ import type {
   GlobalTopClient,
   MonthlySalesReport,
   SchoolProfitability,
-  ProfitabilityBySchoolResponse
+  ProfitabilityBySchoolResponse,
+  // Orders (Encargos) coverage — Fase 1 del plan Reports Coverage
+  OrdersSummary,
+  OrdersStatusCounts,
+  OrdersFunnelStep,
+  OrdersStatusFunnel,
+  OrdersOnTimeDelivery,
+  OrdersCumplimientoRow,
+  OrdersProfitabilityRow,
+  OrdersProfitabilityResponse,
+  OrdersTopProduct,
+  OrdersTopClient,
 } from '../../services/reportsService';
 import type { AlterationsSummary, AlterationListItem } from '../../types/api';
 import type { InventoryLog } from '../../services/inventoryLogService';
 
 // Tab type
-export type ReportTab = 'sales' | 'financial' | 'movements' | 'alterations' | 'inventory' | 'analysis' | 'profitability';
+export type ReportTab =
+  | 'overview'      // Resumen 360 — Fase 3 del plan Reports Coverage
+  | 'sales'
+  | 'orders'        // Encargos — Fase 1 del plan Reports Coverage
+  | 'financial'
+  | 'movements'
+  | 'alterations'
+  | 'inventory'
+  | 'analysis'
+  | 'profitability';
 
 // Preset date ranges
 export type DatePreset = 'today' | 'week' | 'month' | 'year' | 'custom' | 'all';
@@ -217,6 +237,17 @@ export type {
   MonthlySalesReport,
   SchoolProfitability,
   ProfitabilityBySchoolResponse,
+  // Orders (Encargos) — Fase 1 del plan Reports Coverage
+  OrdersSummary,
+  OrdersStatusCounts,
+  OrdersFunnelStep,
+  OrdersStatusFunnel,
+  OrdersOnTimeDelivery,
+  OrdersCumplimientoRow,
+  OrdersProfitabilityRow,
+  OrdersProfitabilityResponse,
+  OrdersTopProduct,
+  OrdersTopClient,
   AlterationsSummary,
   AlterationListItem,
   InventoryLog

@@ -2,6 +2,8 @@
  * School Service - API calls for schools
  */
 import apiClient from '../utils/api-client';
+import type { PaginatedResponse } from '../types/api';
+import { unwrapPaginated } from '../utils/pagination';
 
 export interface SchoolSettings {
   currency: string;
@@ -63,11 +65,11 @@ export const schoolService = {
   /**
    * Get all active schools
    */
-  async getSchools(activeOnly = true): Promise<School[]> {
-    const response = await apiClient.get<School[]>('/schools', {
+  async getSchools(activeOnly = true): Promise<PaginatedResponse<School>> {
+    const response = await apiClient.get<PaginatedResponse<School> | School[]>('/schools', {
       params: { active_only: activeOnly }
     });
-    return response.data;
+    return unwrapPaginated(response.data);
   },
 
   /**
@@ -89,11 +91,11 @@ export const schoolService = {
   /**
    * Search schools by name
    */
-  async searchSchools(name: string, limit = 10): Promise<School[]> {
-    const response = await apiClient.get<School[]>('/schools/search/by-name', {
+  async searchSchools(name: string, limit = 10): Promise<PaginatedResponse<School>> {
+    const response = await apiClient.get<PaginatedResponse<School> | School[]>('/schools/search/by-name', {
       params: { name, limit }
     });
-    return response.data;
+    return unwrapPaginated(response.data);
   },
 
   // ==========================================

@@ -52,19 +52,18 @@ class HealthAlertService:
                     "Implemente un proceso de cobranza más agresivo para las cuentas vencidas."
                 ))
 
-        # 3. Cash runway corto
-        avg_monthly_income = await self._avg_monthly_income(3)
-        avg_monthly_expenses = await self._avg_monthly_expenses(3)
-        monthly_burn = avg_monthly_expenses - avg_monthly_income
-        if monthly_burn > ZERO:
-            runway = current_assets / monthly_burn
-            if runway < 2:
-                alerts.append(self._alert(
-                    "short_runway", "Cash runway corto",
-                    f"Al ritmo actual, el efectivo durará aproximadamente {runway:.1f} meses.",
-                    "critical", f"{runway:.1f} meses", "< 2 meses",
-                    "Urgente: busque formas de reducir gastos o aumentar ingresos."
-                ))
+        # 3. Cash runway corto. Usa el helper compartido para garantizar
+        # consistencia con Proyección caja y Resumen Ejecutivo.
+        from app.services.accounting.financial_model._runway import compute_runway
+        runway_data = await compute_runway(self.db)
+        runway = runway_data["runway_months"]
+        if runway is not None and runway < 2:
+            alerts.append(self._alert(
+                "short_runway", "Cash runway corto",
+                f"Al ritmo actual, el efectivo durará aproximadamente {runway:.1f} meses.",
+                "critical", f"{runway:.1f} meses", "< 2 meses",
+                "Urgente: busque formas de reducir gastos o aumentar ingresos."
+            ))
 
         # 4. Margen deteriorándose
         this_month_start = today.replace(day=1)

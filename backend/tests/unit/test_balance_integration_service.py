@@ -89,7 +89,7 @@ def mock_income_transaction(mock_caja_menor_account):
     transaction.amount = Decimal("150000")
     transaction.payment_method = AccPaymentMethod.CASH
     transaction.description = "Venta de prueba"
-    transaction.reference_code = "VNT-001"
+    transaction.reference_code = "CARACAS-001-VNT-2025-0001"
     transaction.transaction_date = date.today()
     transaction.balance_account_id = None
     return transaction
@@ -602,6 +602,98 @@ class TestInitializeGlobalAccounts:
 
         # Should update existing caja_menor account balance
         assert accounts["1101"].balance == new_balance
+
+    async def test_existing_account_balance_change_emits_compensating_entry(
+        self,
+        balance_service,
+        mock_db
+    ):
+        """
+        Bug fix regression: changing the balance of an existing account
+        via initialize_global_accounts must emit a BalanceEntry with
+        amount = (new_balance - old_balance), so the audit trail records
+        the adjustment that previously was silent.
+        """
+        # caja_menor exists with balance 500_000; everything else returns None (will be created)
+        existing_caja_menor = MagicMock()
+        existing_caja_menor.id = uuid4()
+        existing_caja_menor.school_id = None
+        existing_caja_menor.code = DEFAULT_ACCOUNTS["caja_menor"]["code"]
+        existing_caja_menor.balance = Decimal("500000")
+        existing_caja_menor.is_active = True
+
+        async def mock_execute(query):
+            mock_result = MagicMock()
+            # First call is for caja_menor — return existing; subsequent return None.
+            if not getattr(mock_execute, "_first_done", False):
+                mock_execute._first_done = True
+                mock_result.scalar_one_or_none.return_value = existing_caja_menor
+            else:
+                mock_result.scalar_one_or_none.return_value = None
+            return mock_result
+
+        mock_db.execute = mock_execute
+
+        new_balance = Decimal("750000")
+        expected_delta = new_balance - Decimal("500000")  # 250_000
+
+        await balance_service.initialize_global_accounts(
+            caja_menor_initial_balance=new_balance,
+        )
+
+        # Inspect what was added to the session and find the compensating BalanceEntry
+        added_entries = [
+            call.args[0]
+            for call in mock_db.add.call_args_list
+            if isinstance(call.args[0], BalanceEntry)
+            and call.args[0].account_id == existing_caja_menor.id
+        ]
+        assert len(added_entries) == 1, "Exactly one entry should be emitted for the delta"
+        entry = added_entries[0]
+        assert entry.amount == expected_delta
+        assert entry.balance_after == new_balance
+        assert entry.reference == "INICIAL"
+        assert existing_caja_menor.balance == new_balance
+
+    async def test_existing_account_no_change_emits_no_entry(
+        self,
+        balance_service,
+        mock_db
+    ):
+        """
+        When the requested initial_balance equals the current balance,
+        no BalanceEntry should be added (no-op).
+        """
+        existing = MagicMock()
+        existing.id = uuid4()
+        existing.school_id = None
+        existing.code = DEFAULT_ACCOUNTS["caja_menor"]["code"]
+        existing.balance = Decimal("500000")
+        existing.is_active = True
+
+        async def mock_execute(query):
+            mock_result = MagicMock()
+            if not getattr(mock_execute, "_first_done", False):
+                mock_execute._first_done = True
+                mock_result.scalar_one_or_none.return_value = existing
+            else:
+                mock_result.scalar_one_or_none.return_value = None
+            return mock_result
+
+        mock_db.execute = mock_execute
+
+        await balance_service.initialize_global_accounts(
+            caja_menor_initial_balance=Decimal("500000"),  # same as current
+        )
+
+        entries_for_existing = [
+            call.args[0]
+            for call in mock_db.add.call_args_list
+            if isinstance(call.args[0], BalanceEntry)
+            and call.args[0].account_id == existing.id
+        ]
+        assert entries_for_existing == [], "No-op should not emit any entry"
+        assert existing.balance == Decimal("500000")
 
 
 # ============================================================================

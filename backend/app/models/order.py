@@ -32,24 +32,29 @@ class OrderItemStatus(str, enum.Enum):
     CANCELLED = "cancelled"
 
 
+class OriginalItemDisposal(str, enum.Enum):
+    """What happens to the physical item when an order change is approved.
+
+    Required when the original item was NOT reserved from stock (i.e. was
+    being produced or already finished as made-to-order). Items reserved
+    from stock follow the existing release_stock flow and do not need this.
+    """
+    CANCEL_PRODUCTION = "cancel_production"   # Item en producción; se cancela sin contabilizar trabajo
+    RETURN_TO_INVENTORY = "return_to_inventory"  # Prenda terminada no personalizada; vuelve a Inventory
+    REGISTER_LOSS = "register_loss"           # Prenda terminada personalizada; pérdida explícita
+
+
 class DeliveryType(str, enum.Enum):
     """Tipo de entrega del pedido"""
     PICKUP = "pickup"      # Retiro en tienda
     DELIVERY = "delivery"  # Domicilio
 
 
-class PaymentProofStatus(str, enum.Enum):
-    """Estado del comprobante de pago"""
-    PENDING = "pending"      # Pendiente de revisión
-    APPROVED = "approved"    # Aprobado/Verificado
-    REJECTED = "rejected"    # Rechazado
-
-
 class Order(Base):
     """Custom orders with personalized measurements"""
     __tablename__ = "orders"
     __table_args__ = (
-        UniqueConstraint('school_id', 'code', name='uq_school_order_code'),
+        UniqueConstraint('code', name='uq_order_code_global'),
         CheckConstraint('total > 0', name='chk_order_total_positive'),
         CheckConstraint('paid_amount >= 0', name='chk_order_paid_positive'),
     )
@@ -66,7 +71,7 @@ class Order(Base):
         index=True
     )
 
-    code: Mapped[str] = mapped_column(String(30), nullable=False)  # Auto-generated: ENC-2024-0001
+    code: Mapped[str] = mapped_column(String(40), nullable=False)  # Auto-generated: {SCHOOL}-ENC-YYYY-NNNN
     client_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("clients.id", ondelete="RESTRICT"),
@@ -81,6 +86,12 @@ class Order(Base):
     order_date: Mapped[datetime] = mapped_column(DateTime, default=get_colombia_now_naive, nullable=False)
     delivery_date: Mapped[date | None] = mapped_column(Date)
     expected_delivery_days: Mapped[int] = mapped_column(Integer, default=7, nullable=False)
+
+    # Set automatically when status transitions to DELIVERED. Separate from
+    # `updated_at` so reports can compute reliable lead time and on-time
+    # delivery without being affected by unrelated edits (notes, balance
+    # recalculations, etc.). NULL for orders delivered before this column existed.
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
 
     subtotal: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     tax: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0, nullable=False)
@@ -128,14 +139,6 @@ class Order(Base):
     # }
 
     notes: Mapped[str | None] = mapped_column(Text)
-
-    # Payment proof for web orders (manual verification)
-    payment_proof_url: Mapped[str | None] = mapped_column(String(500))
-    payment_proof_status: Mapped[PaymentProofStatus | None] = mapped_column(
-        SQLEnum(PaymentProofStatus, name="payment_proof_status_enum", values_callable=lambda x: [e.value for e in x]),
-        nullable=True  # NULL si no hay comprobante subido
-    )
-    payment_notes: Mapped[str | None] = mapped_column(Text)  # Client notes about payment
 
     # Delivery information
     delivery_type: Mapped[DeliveryType] = mapped_column(
@@ -212,38 +215,22 @@ class OrderItem(Base):
         nullable=False,
         index=True
     )
-    # For school products - garment_type_id references garment_types
     garment_type_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("garment_types.id", ondelete="RESTRICT"),
-        nullable=True,  # Nullable because global products use global_garment_type_id
-        index=True
-    )
-    # For global products - global_garment_type_id references global_garment_types
-    global_garment_type_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("global_garment_types.id", ondelete="RESTRICT"),
         nullable=True,
         index=True
     )
-    # product_id is optional - only set when order is fulfilled from inventory
     product_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("products.id", ondelete="SET NULL"),
         nullable=True,
         index=True
     )
-    # For global products (shared inventory)
-    global_product_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("global_products.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True
-    )
-    is_global_product: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     quantity: Mapped[int] = mapped_column(nullable=False)
     unit_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    unit_cost: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))  # Cost snapshot at time of order
     subtotal: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
 
     # Custom order specifications
@@ -270,13 +257,21 @@ class OrderItem(Base):
     # Relationships
     order: Mapped["Order"] = relationship(back_populates="items")
     garment_type: Mapped["GarmentType | None"] = relationship()
-    global_garment_type: Mapped["GlobalGarmentType | None"] = relationship()
     product: Mapped["Product | None"] = relationship(back_populates="order_items")
-    global_product: Mapped["GlobalProduct | None"] = relationship()
     changes_as_original: Mapped[list["OrderChange"]] = relationship(
         back_populates="original_item",
         foreign_keys="OrderChange.original_item_id"
     )
+
+    @property
+    def is_global(self) -> bool:
+        from sqlalchemy import inspect
+        state = inspect(self)
+        if 'garment_type' not in state.unloaded and self.garment_type:
+            return self.garment_type.school_id is None
+        if 'product' not in state.unloaded and self.product:
+            return self.product.school_id is None
+        return False
 
     def __repr__(self) -> str:
         return f"<OrderItem(order_id='{self.order_id}', product_id='{self.product_id}', quantity={self.quantity})>"
@@ -328,11 +323,6 @@ class OrderChange(Base):
         UUID(as_uuid=True),
         ForeignKey("products.id", ondelete="RESTRICT")
     )
-    new_global_product_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("global_products.id", ondelete="RESTRICT")
-    )
-    is_new_global_product: Mapped[bool] = mapped_column(default=False, nullable=False)
 
     new_quantity: Mapped[int] = mapped_column(default=0, nullable=False)
     new_unit_price: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
@@ -359,6 +349,18 @@ class OrderChange(Base):
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     rejection_reason: Mapped[str | None] = mapped_column(Text)
 
+    # Required when original item was NOT reserved from stock; tracks what
+    # happened to the physical garment.
+    original_item_disposal: Mapped[OriginalItemDisposal | None] = mapped_column(
+        SQLEnum(
+            OriginalItemDisposal,
+            name="original_item_disposal_enum",
+            create_type=False,
+            values_callable=lambda x: [e.value for e in x],
+        ),
+        nullable=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=get_colombia_now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
@@ -374,7 +376,6 @@ class OrderChange(Base):
         foreign_keys=[original_item_id]
     )
     new_product: Mapped["Product | None"] = relationship()
-    new_global_product: Mapped["GlobalProduct | None"] = relationship()
     user: Mapped["User"] = relationship()
 
     def __repr__(self) -> str:

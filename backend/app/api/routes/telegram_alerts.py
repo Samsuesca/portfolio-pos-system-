@@ -9,7 +9,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user, get_db, require_superuser
-from app.models.telegram_subscription import TelegramAlertType
+from app.api.error_responses import responses, AUTHENTICATED
+from app.models.telegram_subscription import (
+    RESTRICTED_TO_ADMIN_ALERTS,
+    TelegramAlertType,
+)
 from app.models.user import User
 from app.schemas.telegram_alert import (
     ALERT_TYPE_DESCRIPTIONS,
@@ -33,11 +37,19 @@ router = APIRouter(
 # ── Public: alert type info ───────────────────────────────────────
 
 
-@router.get("/alert-types", response_model=list[AlertTypeInfo])
+@router.get("/alert-types", response_model=list[AlertTypeInfo], responses=AUTHENTICATED, operation_id="listAlertTypes")
 async def list_alert_types(
-    _current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """List all available alert types with descriptions."""
+    """List the alert types the current user can subscribe to.
+
+    Admin-only alerts (``RESTRICTED_TO_ADMIN_ALERTS``) are omitted for users
+    who are not admin-level, so the subscription UI never offers an alert the
+    user would be rejected from on save (and would never receive anyway).
+    """
+    svc = TelegramSubscriptionService(db)
+    is_admin = await svc.is_admin_level(current_user)
     return [
         AlertTypeInfo(
             alert_type=at,
@@ -45,13 +57,14 @@ async def list_alert_types(
             category=get_alert_category(at),
         )
         for at in TelegramAlertType
+        if is_admin or at not in RESTRICTED_TO_ADMIN_ALERTS
     ]
 
 
 # ── Self-service ──────────────────────────────────────────────────
 
 
-@router.get("/my-subscriptions", response_model=MySubscriptionsResponse)
+@router.get("/my-subscriptions", response_model=MySubscriptionsResponse, responses=AUTHENTICATED, operation_id="getMySubscriptions")
 async def get_my_subscriptions(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -77,7 +90,7 @@ async def get_my_subscriptions(
     )
 
 
-@router.put("/my-subscriptions", response_model=MySubscriptionsResponse)
+@router.put("/my-subscriptions", response_model=MySubscriptionsResponse, responses=responses(400), operation_id="updateMySubscriptions")
 async def update_my_subscriptions(
     body: TelegramUpdateSubscriptions,
     current_user: User = Depends(get_current_user),
@@ -91,6 +104,23 @@ async def update_my_subscriptions(
         )
 
     svc = TelegramSubscriptionService(db)
+
+    # Las alertas administrativas (gastos, caja, resumenes financieros) solo
+    # las reciben superusuarios y roles OWNER/ADMIN. El routing ya filtra la
+    # entrega, pero rechazamos aqui para que el estado guardado coincida con lo
+    # que el usuario realmente recibira (evita suscripciones muertas).
+    requested_restricted = [
+        at for at in body.alert_types if at in RESTRICTED_TO_ADMIN_ALERTS
+    ]
+    if requested_restricted and not await svc.is_admin_level(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "No tienes permiso para suscribirte a alertas administrativas "
+                "(gastos, caja, resumenes financieros)."
+            ),
+        )
+
     subs = await svc.update_subscriptions(current_user.id, body.alert_types)
 
     sub_map = {s.alert_type: s for s in subs}
@@ -110,7 +140,7 @@ async def update_my_subscriptions(
     )
 
 
-@router.post("/link", response_model=MySubscriptionsResponse)
+@router.post("/link", response_model=MySubscriptionsResponse, responses=AUTHENTICATED, operation_id="linkTelegram")
 async def link_telegram(
     body: TelegramLinkRequest,
     current_user: User = Depends(get_current_user),
@@ -138,7 +168,7 @@ async def link_telegram(
     )
 
 
-@router.delete("/unlink", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/unlink", status_code=status.HTTP_204_NO_CONTENT, responses=AUTHENTICATED, operation_id="unlinkTelegram")
 async def unlink_telegram(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -155,6 +185,8 @@ async def unlink_telegram(
     "/users",
     response_model=list[UserTelegramInfo],
     dependencies=[Depends(require_superuser)],
+    responses=AUTHENTICATED,
+    operation_id="listUsersTelegram",
 )
 async def list_users_telegram(
     db: AsyncSession = Depends(get_db),
@@ -191,6 +223,8 @@ async def list_users_telegram(
     "/users/{user_id}/subscriptions",
     response_model=UserTelegramInfo,
     dependencies=[Depends(require_superuser)],
+    responses=responses(404),
+    operation_id="adminUpdateSubscriptions",
 )
 async def admin_update_subscriptions(
     user_id: UUID,
@@ -230,6 +264,8 @@ async def admin_update_subscriptions(
     "/users/{user_id}/link",
     response_model=UserTelegramInfo,
     dependencies=[Depends(require_superuser)],
+    responses=responses(404),
+    operation_id="adminLinkTelegram",
 )
 async def admin_link_telegram(
     user_id: UUID,
@@ -269,6 +305,8 @@ async def admin_link_telegram(
     "/users/{user_id}/unlink",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(require_superuser)],
+    responses=responses(404),
+    operation_id="adminUnlinkTelegram",
 )
 async def admin_unlink_telegram(
     user_id: UUID,

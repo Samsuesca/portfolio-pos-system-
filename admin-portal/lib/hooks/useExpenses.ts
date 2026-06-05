@@ -167,7 +167,7 @@ export function useExpenses(options: UseExpensesOptions = {}) {
       const searchTerm = filters.vendor.toLowerCase();
       filtered = filtered.filter(e => {
         // Search in vendor
-        if (e.vendor?.toLowerCase().includes(searchTerm)) return true;
+        if (e.vendor_name?.toLowerCase().includes(searchTerm)) return true;
         // Search in description
         if (e.description.toLowerCase().includes(searchTerm)) return true;
         // Search in category code
@@ -261,7 +261,7 @@ export function useExpenses(options: UseExpensesOptions = {}) {
       e.expense_date,
       getCategoryLabel(e.category),
       `"${e.description.replace(/"/g, '""')}"`,
-      e.vendor || '',
+      e.vendor_name || '',
       Number(e.amount),
       Number(e.amount_paid),
       Number(e.balance),

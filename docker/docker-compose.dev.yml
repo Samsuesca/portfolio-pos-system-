@@ -76,6 +76,7 @@ services:
       - WOMPI_REDIRECT_URL=${WOMPI_REDIRECT_URL:-http://localhost:3001/pago/resultado}
     volumes:
       - ../backend:/app
+      - ../version.json:/app/version.json:ro
     depends_on:
       postgres:
         condition: service_healthy

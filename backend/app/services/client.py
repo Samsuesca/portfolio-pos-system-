@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from passlib.context import CryptContext
-from jose import jwt
+import bcrypt
+import jwt
 
 from app.utils.timezone import get_colombia_now_naive
 from app.core.config import settings
@@ -36,8 +36,12 @@ from app.schemas.client import (
 from app.services.base import BaseService
 
 
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+def _hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def _verify_password(plain: str, hashed: str) -> bool:
+    return bcrypt.checkpw(plain.encode(), hashed.encode())
 
 
 class ClientService(BaseService[Client]):
@@ -201,7 +205,7 @@ class ClientService(BaseService[Client]):
         token_expires = get_colombia_now_naive() + timedelta(hours=24)
 
         # Hash password
-        password_hash = pwd_context.hash(registration_data.password)
+        password_hash = _hash_password(registration_data.password)
 
         # Create client
         client = Client(
@@ -280,7 +284,7 @@ class ClientService(BaseService[Client]):
         # Allow both WEB and REGULAR clients with password_hash to login
         if not client.password_hash:
             return None
-        if not pwd_context.verify(password, client.password_hash):
+        if not _verify_password(password, client.password_hash):
             return None
 
         # Update last login
@@ -370,6 +374,33 @@ class ClientService(BaseService[Client]):
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
+    async def count_all_clients(
+        self,
+        search: str | None = None,
+        client_type: ClientType | None = None,
+        is_active: bool | None = True
+    ) -> int:
+        query = select(func.count(Client.id))
+
+        if is_active is not None:
+            query = query.where(Client.is_active == is_active)
+        if client_type is not None:
+            query = query.where(Client.client_type == client_type)
+        if search:
+            search_term = f"%{search}%"
+            query = query.where(
+                or_(
+                    Client.code.ilike(search_term),
+                    Client.name.ilike(search_term),
+                    Client.email.ilike(search_term),
+                    Client.phone.ilike(search_term),
+                    Client.student_name.ilike(search_term)
+                )
+            )
+
+        result = await self.db.execute(query)
+        return result.scalar_one()
+
     async def search_clients(
         self,
         search_term: str,
@@ -416,6 +447,44 @@ class ClientService(BaseService[Client]):
             select(Client).where(func.lower(Client.email) == email.lower())
         )
         return result.scalar_one_or_none()
+
+    async def get_by_google_id(self, google_id: str) -> Client | None:
+        result = await self.db.execute(
+            select(Client).where(Client.google_id == google_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def link_google_account(self, client_id: UUID, google_id: str) -> None:
+        client = await self.get(client_id)
+        if client:
+            client.google_id = google_id
+            client.auth_provider = "both"
+            await self.db.flush()
+
+    async def unlink_google_account(self, client_id: UUID) -> None:
+        client = await self.get(client_id)
+        if client:
+            client.google_id = None
+            client.auth_provider = "local"
+            await self.db.flush()
+
+    async def create_from_google(self, google_id: str, email: str, name: str) -> Client:
+        code = await self._generate_client_code()
+        client = Client(
+            code=code,
+            name=name,
+            email=email,
+            google_id=google_id,
+            auth_provider="google",
+            client_type=ClientType.WEB,
+            is_verified=True,
+            is_active=True,
+            last_login=get_colombia_now_naive(),
+        )
+        self.db.add(client)
+        await self.db.flush()
+        await self.db.refresh(client)
+        return client
 
     async def get_by_phone(self, phone: str) -> Client | None:
         """Get client by phone number."""
@@ -708,7 +777,7 @@ class ClientService(BaseService[Client]):
         if not client:
             return False
 
-        client.password_hash = pwd_context.hash(new_password)
+        client.password_hash = _hash_password(new_password)
         client.verification_token = None
         client.verification_token_expires = None
         await self.db.flush()
@@ -736,10 +805,10 @@ class ClientService(BaseService[Client]):
         if not client or not client.password_hash:
             return False
 
-        if not pwd_context.verify(current_password, client.password_hash):
+        if not _verify_password(current_password, client.password_hash):
             return False
 
-        client.password_hash = pwd_context.hash(new_password)
+        client.password_hash = _hash_password(new_password)
         await self.db.flush()
 
         return True
@@ -819,8 +888,8 @@ class ClientService(BaseService[Client]):
         Returns:
             JWT access token string
         """
-        expires_delta = timedelta(days=7)  # Longer expiration for clients
-        # JWT exp MUST use UTC - python-jose validates against UTC timestamps
+        expires_delta = timedelta(hours=24)
+        # JWT exp MUST use UTC — PyJWT validates against UTC timestamps
         expire = datetime.utcnow() + expires_delta
 
         to_encode = {

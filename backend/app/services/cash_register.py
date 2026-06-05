@@ -351,10 +351,10 @@ class CashRegisterService:
         """
         Calcula el breakdown por categoría basado en el reference de cada entry.
 
-        Patrones de reference:
-        - VNT-* : Ventas (sales)
-        - ENC-* : Encargos (orders)
-        - ARR-* : Arreglos (alterations)
+        Patrones de reference (acepta legacy y V3 con prefijo de colegio):
+        - *VNT-* : Ventas (sales) — ej. CARACAS-001-VNT-2026-0042
+        - *ENC-* : Encargos (orders) — ej. CARACAS-001-ENC-2026-0042
+        - *ARR-* : Arreglos (alterations)
         - CHG-* : Cambios de venta (sale_changes)
         - XFER-*, LIQ-*, Transferencia* : Transferencias (transfers)
         - EXP-*, Pago gasto* : Gastos (expenses)
@@ -374,14 +374,17 @@ class CashRegisterService:
             ref = (entry.reference or "").upper()
             desc = (entry.description or "").lower()
 
-            # Determinar categoría basado en reference y description
-            if ref.startswith("VNT-") or "venta" in desc:
+            # Determinar categoría basado en reference y description.
+            # Acepta formato legacy (VNT-...) y formato V3 con prefijo de
+            # colegio ({SCHOOL}-VNT-...) buscando el segmento de tipo en
+            # cualquier posición.
+            if "VNT-" in ref or "venta" in desc:
                 category = "sales"
-            elif ref.startswith("ENC-") or "encargo" in desc or "pedido" in desc or "abono" in desc:
+            elif "ENC-" in ref or "encargo" in desc or "pedido" in desc or "abono" in desc:
                 category = "orders"
-            elif ref.startswith("ARR-") or "arreglo" in desc or "alteration" in desc:
+            elif "ARR-" in ref or "arreglo" in desc or "alteration" in desc:
                 category = "alterations"
-            elif ref.startswith("CHG-") or "cambio" in desc:
+            elif ref.startswith("CHG-") or "-CHG-" in ref or "cambio" in desc:
                 category = "sale_changes"
             elif ref.startswith("XFER-") or ref.startswith("LIQ-") or "transferencia" in desc:
                 category = "transfers"

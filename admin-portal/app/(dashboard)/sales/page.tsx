@@ -137,8 +137,8 @@ export default function SalesPage() {
       if (selectedSchool) params.school_id = selectedSchool;
       if (selectedStatus) params.status = selectedStatus;
       if (searchTerm) params.search = searchTerm;
-      const data = await salesService.list(params);
-      setSales(data);
+      const response = await salesService.list(params);
+      setSales(response.items);
     } catch (err: any) {
       setError(getErrorMessage(err, 'Error al cargar ventas'));
     } finally {

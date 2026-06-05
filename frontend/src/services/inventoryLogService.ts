@@ -3,11 +3,12 @@
  * Client for inventory log endpoints - audit trail for stock movements
  */
 import apiClient from '../utils/api-client';
+import type { PaginatedResponse } from '../types/api';
+import { unwrapPaginated } from '../utils/pagination';
 
 export interface InventoryLog {
   id: string;
   inventory_id: string | null;
-  global_inventory_id: string | null;
   school_id: string | null;
   movement_type: string;
   movement_date: string;
@@ -20,11 +21,9 @@ export interface InventoryLog {
   sale_change_id: string | null;
   created_by: string | null;
   created_at: string;
-  // Enriched fields from backend
   product_code?: string | null;
   product_name?: string | null;
   product_size?: string | null;
-  is_global_product?: boolean;
   created_by_name?: string | null;
 }
 
@@ -49,18 +48,18 @@ export const MOVEMENT_TYPE_LABELS: Record<string, { label: string; color: string
   sale_cancel: { label: 'Cancelación Venta', color: 'text-green-700', bgColor: 'bg-green-100' },
   order_reserve: { label: 'Reserva Encargo', color: 'text-orange-700', bgColor: 'bg-orange-100' },
   order_cancel: { label: 'Cancelación Encargo', color: 'text-green-700', bgColor: 'bg-green-100' },
-  order_deliver: { label: 'Entrega Encargo', color: 'text-blue-700', bgColor: 'bg-blue-100' },
+  order_deliver: { label: 'Entrega Encargo', color: 'text-brand-700', bgColor: 'bg-brand-100' },
   change_return: { label: 'Devolución Cambio', color: 'text-green-700', bgColor: 'bg-green-100' },
   change_out: { label: 'Salida Cambio', color: 'text-red-700', bgColor: 'bg-red-100' },
   adjustment_in: { label: 'Ajuste Entrada', color: 'text-green-700', bgColor: 'bg-green-100' },
   adjustment_out: { label: 'Ajuste Salida', color: 'text-red-700', bgColor: 'bg-red-100' },
   purchase: { label: 'Compra', color: 'text-green-700', bgColor: 'bg-green-100' },
-  initial: { label: 'Stock Inicial', color: 'text-gray-700', bgColor: 'bg-gray-100' },
+  initial: { label: 'Stock Inicial', color: 'text-stone-700', bgColor: 'bg-stone-100' },
 };
 
 // Helper to get label info for a movement type
 export function getMovementTypeInfo(type: string): { label: string; color: string; bgColor: string } {
-  return MOVEMENT_TYPE_LABELS[type] || { label: type, color: 'text-gray-700', bgColor: 'bg-gray-100' };
+  return MOVEMENT_TYPE_LABELS[type] || { label: type, color: 'text-stone-700', bgColor: 'bg-stone-100' };
 }
 
 // Check if movement is stock in (positive)
@@ -90,21 +89,21 @@ export const inventoryLogService = {
   /**
    * Get inventory logs for a specific school product
    */
-  async getProductLogs(schoolId: string, productId: string, limit = 50): Promise<InventoryLog[]> {
-    const response = await apiClient.get<InventoryLog[]>(
+  async getProductLogs(schoolId: string, productId: string, limit = 50): Promise<PaginatedResponse<InventoryLog>> {
+    const response = await apiClient.get<PaginatedResponse<InventoryLog> | InventoryLog[]>(
       `/schools/${schoolId}/inventory/${productId}/logs?limit=${limit}`
     );
-    return response.data;
+    return unwrapPaginated(response.data);
   },
 
   /**
    * Get inventory logs for a global product
    */
-  async getGlobalProductLogs(productId: string, limit = 50): Promise<InventoryLog[]> {
-    const response = await apiClient.get<InventoryLog[]>(
+  async getGlobalProductLogs(productId: string, limit = 50): Promise<PaginatedResponse<InventoryLog>> {
+    const response = await apiClient.get<PaginatedResponse<InventoryLog> | InventoryLog[]>(
       `/global/inventory/${productId}/logs?limit=${limit}`
     );
-    return response.data;
+    return unwrapPaginated(response.data);
   },
 };
 

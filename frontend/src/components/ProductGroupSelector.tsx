@@ -5,17 +5,19 @@
  * Similar to the web portal's product selection experience
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { X, Search, Loader2, Package, Filter, Building2, Globe, CheckCircle } from 'lucide-react';
+import Fuse from 'fuse.js';
 import { productService } from '../services/productService';
-import type { Product, GarmentType, GlobalProduct, GlobalGarmentType } from '../types/api';
+import type { Product, GarmentType } from '../types/api';
 import { groupProductsByGarmentType, groupGlobalProductsByGarmentType, type ProductVariant, type ProductGroup } from '../utils/productGrouping';
 import ProductGroupCard from './ProductGroupCard';
+import { expandQueryWithSynonyms } from '../utils/productSynonyms';
 
 interface ProductGroupSelectorProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelect: (product: Product | GlobalProduct, quantity: number, isGlobal?: boolean) => void;
+  onSelect: (product: Product, quantity: number, isGlobal?: boolean) => void;
   schoolId: string;
 
   // Filtering options
@@ -54,8 +56,8 @@ export default function ProductGroupSelector({
   // Data state
   const [products, setProducts] = useState<Product[]>([]);
   const [garmentTypes, setGarmentTypes] = useState<GarmentType[]>([]);
-  const [globalProducts, setGlobalProducts] = useState<GlobalProduct[]>([]);
-  const [globalGarmentTypes, setGlobalGarmentTypes] = useState<GlobalGarmentType[]>([]);
+  const [globalProducts, setGlobalProducts] = useState<Product[]>([]);
+  const [globalGarmentTypes, setGlobalGarmentTypes] = useState<GarmentType[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,12 +69,15 @@ export default function ProductGroupSelector({
   // Multi-select tracking state
   const [addedProducts, setAddedProducts] = useState<Map<string, number>>(new Map());
 
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
       setProductSource(initialProductSource);
       setCategoryFilter(''); // Reset category when source changes
       setAddedProducts(new Map()); // Reset added products counter
+      setTimeout(() => searchInputRef.current?.focus(), 100);
     }
   }, [isOpen, initialProductSource]);
 
@@ -106,8 +111,10 @@ export default function ProductGroupSelector({
       setGarmentTypes(results[1] || []);
 
       if (allowGlobalProducts) {
-        setGlobalProducts(results[2] || []);
-        setGlobalGarmentTypes(results[3] || []);
+        const gp = results[2];
+        const ggt = results[3];
+        setGlobalProducts(Array.isArray(gp) ? gp : gp?.items || []);
+        setGlobalGarmentTypes(Array.isArray(ggt) ? ggt : ggt?.items || []);
       }
     } catch (err: any) {
       console.error('Error loading products:', err);
@@ -166,18 +173,42 @@ export default function ProductGroupSelector({
     return groupProductsByGarmentType(filteredProducts, filteredGarmentTypes);
   }, [productSource, products, garmentTypes, globalProducts, globalGarmentTypes, excludeGarmentTypeIds, includeGarmentTypeIds]);
 
+  // Fuse.js index for fuzzy search
+  const fuseIndex = useMemo(() => {
+    const flatItems = productGroups.map(group => ({
+      garmentTypeName: group.garmentTypeName,
+      garmentTypeId: group.garmentTypeId,
+      variantText: group.variants.map(v => [v.productCode, v.color].filter(Boolean).join(' ')).join(' '),
+    }));
+    return new Fuse(flatItems, {
+      keys: ['garmentTypeName', 'variantText'],
+      threshold: 0.4,
+      ignoreLocation: true,
+    });
+  }, [productGroups]);
+
   // Apply search and category filters
   const filteredGroups = useMemo(() => {
     let filtered = productGroups;
 
-    // Search filter
+    // Fuzzy search with synonym expansion
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+      const expandedTerms = expandQueryWithSynonyms(searchQuery);
+      const matchedIds = new Set<string>();
+
+      for (const term of expandedTerms) {
+        const results = fuseIndex.search(term);
+        results.forEach(r => matchedIds.add(r.item.garmentTypeId));
+      }
+
+      // Also keep exact substring matches as fallback (product codes, etc.)
+      const lowerQuery = searchQuery.toLowerCase();
       filtered = filtered.filter(group =>
-        group.garmentTypeName.toLowerCase().includes(query) ||
+        matchedIds.has(group.garmentTypeId) ||
+        group.garmentTypeName.toLowerCase().includes(lowerQuery) ||
         group.variants.some(v =>
-          v.productCode.toLowerCase().includes(query) ||
-          (v.color && v.color.toLowerCase().includes(query))
+          v.productCode.toLowerCase().includes(lowerQuery) ||
+          (v.color && v.color.toLowerCase().includes(lowerQuery))
         )
       );
     }
@@ -199,7 +230,7 @@ export default function ProductGroupSelector({
     }
 
     return filtered;
-  }, [productGroups, searchQuery, categoryFilter, filterByStock, excludeProductIds]);
+  }, [productGroups, searchQuery, categoryFilter, filterByStock, excludeProductIds, fuseIndex]);
 
   // Handle variant selection
   const handleVariantSelect = (variant: ProductVariant, quantity: number) => {
@@ -263,14 +294,14 @@ export default function ProductGroupSelector({
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between p-5 border-b border-gray-200 flex-shrink-0">
-            <h2 className="text-xl font-bold text-gray-800 flex items-center">
-              <Package className="w-6 h-6 mr-2 text-blue-600" />
+          <div className="flex items-center justify-between p-5 border-b border-stone-200 flex-shrink-0">
+            <h2 className="text-xl font-bold text-stone-800 flex items-center">
+              <Package className="w-6 h-6 mr-2 text-brand-600" />
               {title}
             </h2>
             <button
               onClick={handleClose}
-              className="text-gray-400 hover:text-gray-600 transition p-1 hover:bg-gray-100 rounded-lg"
+              className="text-stone-400 hover:text-stone-600 transition p-1 hover:bg-stone-100 rounded-lg"
             >
               <X className="w-6 h-6" />
             </button>
@@ -278,7 +309,7 @@ export default function ProductGroupSelector({
 
           {/* Product Source Tabs (only if global products enabled) */}
           {allowGlobalProducts && (
-            <div className="flex border-b border-gray-200 flex-shrink-0">
+            <div className="flex border-b border-stone-200 flex-shrink-0">
               <button
                 onClick={() => {
                   setProductSource('school');
@@ -286,8 +317,8 @@ export default function ProductGroupSelector({
                 }}
                 className={`flex-1 py-3 px-4 text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
                   productSource === 'school'
-                    ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                    ? 'text-brand-600 border-b-2 border-brand-500 bg-brand-50'
+                    : 'text-stone-500 hover:text-stone-700 hover:bg-stone-50'
                 }`}
               >
                 <Building2 className="w-4 h-4" />
@@ -301,7 +332,7 @@ export default function ProductGroupSelector({
                 className={`flex-1 py-3 px-4 text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
                   productSource === 'global'
                     ? 'text-purple-600 border-b-2 border-purple-600 bg-purple-50'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                    : 'text-stone-500 hover:text-stone-700 hover:bg-stone-50'
                 }`}
               >
                 <Globe className="w-4 h-4" />
@@ -311,27 +342,28 @@ export default function ProductGroupSelector({
           )}
 
           {/* Search & Filters */}
-          <div className="p-4 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+          <div className="p-4 border-b border-stone-200 bg-stone-50 flex-shrink-0">
             <div className="flex gap-3">
               {/* Search */}
               <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
                 <input
+                  ref={searchInputRef}
                   type="text"
                   placeholder="Buscar por nombre, codigo, color..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  className="w-full pl-10 pr-4 py-2.5 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
                 />
               </div>
 
               {/* Category Filter */}
               <div className="relative">
-                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
                 <select
                   value={categoryFilter}
                   onChange={e => setCategoryFilter(e.target.value)}
-                  className="pl-9 pr-8 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none appearance-none bg-white min-w-[180px]"
+                  className="pl-9 pr-8 py-2.5 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 outline-none appearance-none bg-white min-w-[180px]"
                 >
                   <option value="">Todas las categorias</option>
                   {currentGarmentTypes.map(gt => (
@@ -348,12 +380,12 @@ export default function ProductGroupSelector({
           <div className="flex-1 overflow-y-auto p-4">
             {loading ? (
               <div className="flex flex-col items-center justify-center py-16">
-                <Loader2 className="w-10 h-10 animate-spin text-blue-600 mb-4" />
-                <p className="text-gray-600">Cargando productos...</p>
+                <Loader2 className="w-10 h-10 animate-spin text-brand-600 mb-4" />
+                <p className="text-stone-600">Cargando productos...</p>
               </div>
             ) : error ? (
               <div className="flex flex-col items-center justify-center py-16">
-                <div className="bg-red-100 text-red-700 px-6 py-4 rounded-lg">
+                <div className="bg-red-50 text-red-700 ring-1 ring-red-200 px-6 py-4 rounded-lg">
                   <p className="font-medium">{error}</p>
                   <button
                     onClick={loadData}
@@ -365,15 +397,15 @@ export default function ProductGroupSelector({
               </div>
             ) : filteredGroups.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16">
-                <Package className="w-16 h-16 text-gray-300 mb-4" />
-                <p className="text-gray-600 font-medium text-lg">{emptyMessage}</p>
+                <Package className="w-16 h-16 text-stone-300 mb-4" />
+                <p className="text-stone-600 font-medium text-lg">{emptyMessage}</p>
                 {(searchQuery || categoryFilter) && (
                   <button
                     onClick={() => {
                       setSearchQuery('');
                       setCategoryFilter('');
                     }}
-                    className="mt-4 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                    className="mt-4 px-4 py-2 text-brand-600 hover:bg-brand-50 rounded-lg transition"
                   >
                     Limpiar filtros
                   </button>
@@ -397,7 +429,7 @@ export default function ProductGroupSelector({
           </div>
 
           {/* Footer with counter and "Listo" button */}
-          <div className="p-4 border-t border-gray-200 bg-white flex-shrink-0">
+          <div className="p-4 border-t border-stone-200 bg-white flex-shrink-0">
             <div className="flex items-center justify-between">
               <div className="text-sm">
                 {totalAddedCount > 0 ? (
@@ -406,7 +438,7 @@ export default function ProductGroupSelector({
                     {totalAddedCount} producto{totalAddedCount !== 1 && 's'} agregado{totalAddedCount !== 1 && 's'}
                   </span>
                 ) : (
-                  <span className="text-gray-500">
+                  <span className="text-stone-500">
                     {filteredGroups.length} tipo{filteredGroups.length !== 1 && 's'} de producto
                     {searchQuery || categoryFilter ? ' (filtrado)' : ''}
                   </span>
@@ -416,8 +448,8 @@ export default function ProductGroupSelector({
                 onClick={handleClose}
                 className={`px-5 py-2 rounded-lg font-medium transition-colors ${
                   totalAddedCount > 0
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                    ? 'bg-brand-500 text-white hover:bg-brand-600'
+                    : 'bg-stone-200 text-stone-600 hover:bg-stone-300'
                 }`}
               >
                 {totalAddedCount > 0 ? 'Listo' : 'Cerrar'}

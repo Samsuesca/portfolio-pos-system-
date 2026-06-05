@@ -52,25 +52,25 @@ export default function InviteUserModal({
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
         <div className="flex items-center justify-between p-4 border-b">
           <h3 className="text-lg font-semibold">Agregar Usuario al Colegio</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600">
             <X className="w-5 h-5" />
           </button>
         </div>
         <div className="p-4 space-y-4">
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded">
-            <p className="text-sm text-blue-700">
+          <div className="p-3 bg-brand-50 border border-brand-200 rounded">
+            <p className="text-sm text-brand-700">
               <strong>Colegio:</strong> {selectedSchool?.name}
             </p>
           </div>
 
           {/* User Selection Dropdown */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-stone-700 mb-1">
               Seleccionar Usuario
             </label>
             <div className="relative">
               {selectedUserForInvite ? (
-                <div className="flex items-center justify-between p-3 border border-gray-300 rounded-lg bg-gray-50">
+                <div className="flex items-center justify-between p-3 border border-stone-200 rounded-lg bg-stone-50">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
                       <span className="text-indigo-600 font-medium text-sm">
@@ -79,10 +79,10 @@ export default function InviteUserModal({
                       </span>
                     </div>
                     <div>
-                      <div className="text-sm font-medium text-gray-900">
+                      <div className="text-sm font-medium text-stone-900">
                         {selectedUserForInvite.full_name || selectedUserForInvite.username}
                       </div>
-                      <div className="text-xs text-gray-500">{selectedUserForInvite.email}</div>
+                      <div className="text-xs text-stone-500">{selectedUserForInvite.email}</div>
                     </div>
                   </div>
                   <button
@@ -90,7 +90,7 @@ export default function InviteUserModal({
                       setSelectedUserForInvite(null);
                       setUserSearchQuery('');
                     }}
-                    className="text-gray-400 hover:text-gray-600"
+                    className="text-stone-400 hover:text-stone-600"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -98,7 +98,7 @@ export default function InviteUserModal({
               ) : (
                 <>
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-stone-400" />
                     <input
                       type="text"
                       value={userSearchQuery}
@@ -114,20 +114,20 @@ export default function InviteUserModal({
                       }}
                       onFocus={() => setShowUserDropdown(true)}
                       placeholder="Buscar por nombre, usuario o email (min 2 caracteres)..."
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                      className="w-full pl-10 pr-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30"
                     />
                   </div>
 
                   {/* Dropdown list */}
                   {showUserDropdown && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-stone-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                       {availableUsersLoading ? (
-                        <div className="p-4 text-center text-gray-500">
+                        <div className="p-4 text-center text-stone-500">
                           <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
                           Cargando usuarios...
                         </div>
                       ) : availableUsers.length === 0 ? (
-                        <div className="p-4 text-center text-gray-500">
+                        <div className="p-4 text-center text-stone-500">
                           {userSearchQuery && userSearchQuery.length >= 2
                             ? 'No se encontraron usuarios'
                             : userSearchQuery.length > 0 && userSearchQuery.length < 2
@@ -144,19 +144,19 @@ export default function InviteUserModal({
                               setShowUserDropdown(false);
                               setUserSearchQuery('');
                             }}
-                            className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 text-left border-b last:border-b-0"
+                            className="w-full px-4 py-3 flex items-center gap-3 hover:bg-stone-50 text-left border-b last:border-b-0"
                           >
-                            <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
-                              <span className="text-gray-600 font-medium text-sm">
+                            <div className="w-8 h-8 bg-stone-200 rounded-full flex items-center justify-center flex-shrink-0">
+                              <span className="text-stone-600 font-medium text-sm">
                                 {availUser.full_name?.[0]?.toUpperCase() ||
                                   availUser.username[0].toUpperCase()}
                               </span>
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="text-sm font-medium text-gray-900 truncate">
+                              <div className="text-sm font-medium text-stone-900 truncate">
                                 {availUser.full_name || availUser.username}
                               </div>
-                              <div className="text-xs text-gray-500 truncate">
+                              <div className="text-xs text-stone-500 truncate">
                                 @{availUser.username} - {availUser.email}
                               </div>
                             </div>
@@ -177,7 +177,7 @@ export default function InviteUserModal({
 
           {/* Role Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-stone-700 mb-1">
               Rol en el Colegio
             </label>
             <select
@@ -185,7 +185,7 @@ export default function InviteUserModal({
               onChange={(e) =>
                 setInviteForm({ ...inviteForm, role: e.target.value as UserRole })
               }
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30"
             >
               <option value="viewer">Visualizador - Solo puede ver informacion</option>
               <option value="seller">Vendedor - Puede crear ventas y pedidos</option>
@@ -199,7 +199,7 @@ export default function InviteUserModal({
           {/* Custom Role Selection (if available) */}
           {customRoles.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-stone-700 mb-1">
                 Rol Personalizado (opcional)
               </label>
               <select
@@ -210,7 +210,7 @@ export default function InviteUserModal({
                     custom_role_id: e.target.value || undefined,
                   })
                 }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30"
               >
                 <option value="">Sin rol personalizado</option>
                 {customRoles.map((role) => (
@@ -231,13 +231,13 @@ export default function InviteUserModal({
               onChange={(e) => setInviteForm({ ...inviteForm, is_primary: e.target.checked })}
               className="h-4 w-4 text-indigo-600 rounded"
             />
-            <label htmlFor="invite_is_primary" className="ml-2 text-sm text-gray-700">
+            <label htmlFor="invite_is_primary" className="ml-2 text-sm text-stone-700">
               Establecer como colegio principal del usuario
             </label>
           </div>
         </div>
         <div className="flex justify-end gap-2 p-4 border-t">
-          <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:text-gray-800">
+          <button onClick={onClose} className="px-4 py-2 text-stone-600 hover:text-stone-800">
             Cancelar
           </button>
           <button

@@ -5,6 +5,8 @@
  * Provides access to email logs and statistics for monitoring.
  */
 import apiClient from '../utils/api-client';
+import type { PaginatedResponse } from '../types/api';
+import { unwrapPaginated } from '../utils/pagination';
 
 const BASE_URL = '/global/email-logs';
 
@@ -130,11 +132,11 @@ export const EMAIL_STATUS_LABELS: Record<EmailStatus, string> = {
 export const EMAIL_STATUS_COLORS: Record<EmailStatus, { text: string; bg: string; border: string }> = {
   success: { text: 'text-green-700', bg: 'bg-green-100', border: 'border-green-200' },
   failed: { text: 'text-red-700', bg: 'bg-red-100', border: 'border-red-200' },
-  dev_skipped: { text: 'text-gray-700', bg: 'bg-gray-100', border: 'border-gray-200' },
+  dev_skipped: { text: 'text-stone-700', bg: 'bg-stone-100', border: 'border-stone-200' },
 };
 
 export const EMAIL_TYPE_COLORS: Record<EmailType, { text: string; bg: string }> = {
-  verification: { text: 'text-blue-700', bg: 'bg-blue-100' },
+  verification: { text: 'text-brand-700', bg: 'bg-brand-100' },
   welcome: { text: 'text-purple-700', bg: 'bg-purple-100' },
   password_reset: { text: 'text-orange-700', bg: 'bg-orange-100' },
   order_confirmation: { text: 'text-indigo-700', bg: 'bg-indigo-100' },
@@ -184,11 +186,11 @@ export const getEmailStatistics = async (
 
 export const getRecentFailures = async (
   limit: number = 10
-): Promise<EmailLog[]> => {
-  const response = await apiClient.get<EmailLog[]>(`${BASE_URL}/failures`, {
+): Promise<PaginatedResponse<EmailLog>> => {
+  const response = await apiClient.get<PaginatedResponse<EmailLog> | EmailLog[]>(`${BASE_URL}/failures`, {
     params: { limit },
   });
-  return response.data;
+  return unwrapPaginated(response.data);
 };
 
 export const getQueueStatus = async (): Promise<QueueStatus> => {

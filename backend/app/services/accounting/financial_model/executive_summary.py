@@ -16,6 +16,10 @@ from app.utils.timezone import get_colombia_date, get_colombia_now_naive
 from app.services.accounting.financial_model.kpis import KPIService
 from app.services.accounting.financial_model.alerts import HealthAlertService
 from app.services.accounting.financial_model.forecast import CashForecastService
+from app.services.accounting.financial_model._math import (
+    days_elapsed_in_month,
+    is_partial_month,
+)
 
 ZERO = Decimal("0")
 HUNDRED = Decimal("100")
@@ -136,12 +140,14 @@ class ExecutiveSummaryService:
         alerts_data = await alert_service.get_alerts()
         active_alerts = alerts_data["alerts"]
 
-        # Forecast summary
+        # Forecast summary. Consume el mismo cálculo de runway que
+        # forecast.py y alerts.py vía el helper centralizado.
         forecast_service = CashForecastService(self.db)
         try:
             forecast = await forecast_service.get_forecast(weeks=0, months=3)
             runway = forecast["runway_months"]
-            if runway >= 999:
+            is_profitable = forecast.get("is_profitable", False)
+            if is_profitable or runway is None:
                 forecast_summary = "El negocio es rentable. Flujo de caja positivo."
             elif runway >= 6:
                 forecast_summary = f"Runway estimado: {runway:.0f} meses. Posición estable."
@@ -152,9 +158,21 @@ class ExecutiveSummaryService:
         except Exception:
             forecast_summary = "No se pudo calcular la proyección."
 
+        # Aviso de mes parcial: las cifras del mes en curso no son
+        # comparables al mes completo y producen "-92.7%" alarmista cuando
+        # solo van 4 días del mes (QA P2 2026-05-04).
+        period_warning: str | None = None
+        if is_partial_month(period_end, today):
+            elapsed, total = days_elapsed_in_month(today)
+            period_warning = (
+                f"Mes parcial: solo {elapsed} de {total} días transcurridos. "
+                "Las cifras y comparaciones se completarán al cierre del mes."
+            )
+
         return {
             "period": period_start.strftime("%Y-%m"),
             "period_label": period_label,
+            "period_warning": period_warning,
             "generated_at": get_colombia_now_naive(),
             "revenue": revenue,
             "expenses": expenses,

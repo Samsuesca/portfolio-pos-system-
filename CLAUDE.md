@@ -964,6 +964,31 @@ POST   /telegram-alerts/link                      // Vincular cuenta con Telegra
 
 ---
 
+## Stats Pattern (Pagination Anti-Pattern Prevention)
+
+**Regla:** Si necesitas `count`, `sum`, `avg` o filtros agregados sobre datos de un endpoint paginado, **NO** uses `.reduce`/`.filter`/`.length` sobre `result.items`. Esos arrays estan limitados al `limit` de la pagina y los contadores quedan truncados cuando el dataset crece.
+
+**Solucion:**
+
+1. Buscar endpoint `/stats` o `/summary` existente:
+   - `/api/v1/global/accounting/expenses/stats`
+   - `/api/v1/global/accounting/expenses/summary-by-category`
+   - `/api/v1/orders/stats`
+   - `/api/v1/contacts/stats/summary`
+   - `/api/v1/global/workforce/performance/stats`
+   - `/api/v1/global/products/stats`
+2. Si no existe, **crearlo** siguiendo el patron de `backend/app/api/routes/global_accounting.py::get_expenses_stats`. Una sola query con `func.count`, `func.sum`, `case when` para condicionales — **no cargues filas individuales**.
+3. Usar `.items.length` esta bien solo cuando confias en que `total <= limit` (dropdowns con cap conocido).
+
+**Convencion de naming:**
+- `xResult: PaginatedResponse<T>` — el wrapper con metadata.
+- `xItems: T[]` — array desempaquetado (`xResult.items`).
+- `xList`, `xs` para arrays directos no paginados.
+
+**Code review cue:** buscar `.items.reduce(`, `.items.filter(`, `.items.length` en archivos `.tsx`/`.ts`. Casi siempre es bug.
+
+---
+
 ## Seguridad
 
 ### NO Hacer
@@ -1004,4 +1029,25 @@ POST   /telegram-alerts/link                      // Vincular cuenta con Telegra
 
 ---
 
-*Ultima actualizacion: 2026-04-09 | Version: v2.9.0*
+## Audit Tracking
+
+Sistema de tracking de auditorias de calidad en `docs/audits/`. Evaluaciones iterativas por inspectores externos sobre API, frontend, seguridad, etc.
+
+```bash
+# Ver estado de todas las areas
+./docs/audits/scripts/audit-tracker.sh status
+
+# Registrar nueva evaluacion
+./docs/audits/scripts/audit-tracker.sh add
+
+# Vista ejecutiva
+./docs/audits/scripts/audit-tracker.sh dashboard
+```
+
+- Scores: `docs/audits/scores.csv`
+- Reportes completos: `docs/audits/history/`
+- 13 areas de auditoria, 10 categorias c/u, target individual por area
+
+---
+
+*Ultima actualizacion: 2026-04-12 | Version: v2.9.0*

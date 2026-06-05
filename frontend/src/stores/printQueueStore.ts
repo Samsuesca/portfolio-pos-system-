@@ -134,8 +134,8 @@ export const usePrintQueueStore = create<PrintQueueState>()(
       // API actions
       fetchPendingItems: async () => {
         try {
-          const items = await printQueueService.getPendingItems();
-          set({ pendingItems: items, error: null });
+          const result = await printQueueService.getPendingItems();
+          set({ pendingItems: result.items, error: null });
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Error loading queue';
           set({ error: message });

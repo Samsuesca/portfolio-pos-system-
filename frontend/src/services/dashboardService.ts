@@ -26,10 +26,12 @@ export interface AggregatedDashboardStats {
 // ============= New Global Dashboard Types =============
 
 export interface GlobalDashboardTotals {
-  total_sales: number;         // Count of sales (no $ sign)
-  sales_amount_month: number;  // Amount in currency
-  total_orders: number;        // Count of orders
-  pending_orders: number;      // Pending + in_production
+  total_sales: number;          // All-time count (exclude cancelled)
+  sales_amount_total?: number;  // All-time revenue (exclude cancelled)
+  sales_count_month?: number;   // Monthly count (added in v2.10)
+  sales_amount_month: number;   // Monthly revenue
+  total_orders: number;
+  pending_orders: number;
   total_clients: number;
   total_products: number;
 }

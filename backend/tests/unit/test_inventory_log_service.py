@@ -25,7 +25,6 @@ def inventory_log_factory():
     def _create(
         id: str = None,
         inventory_id: str = None,
-        global_inventory_id: str = None,
         school_id: str = None,
         movement_type: InventoryMovementType = InventoryMovementType.SALE,
         movement_date: date = None,
@@ -39,15 +38,14 @@ def inventory_log_factory():
     ) -> InventoryLog:
         return InventoryLog(
             id=id or str(uuid4()),
-            inventory_id=inventory_id,
-            global_inventory_id=global_inventory_id,
+            inventory_id=inventory_id or str(uuid4()),
             school_id=school_id or str(uuid4()),
             movement_type=movement_type,
             movement_date=movement_date or date.today(),
             quantity_delta=quantity_delta,
             quantity_after=quantity_after,
             description=description,
-            reference=reference or f"VNT-2025-{uuid4().hex[:4].upper()}",
+            reference=reference or f"CARACAS-001-VNT-2025-{uuid4().hex[:4].upper()}",
             sale_id=sale_id,
             order_id=order_id,
             **kwargs
@@ -84,7 +82,7 @@ class TestCreateLog:
             quantity_delta=-5,
             quantity_after=45,
             description="Sale: 5 units",
-            reference="VNT-2025-0001",
+            reference="CARACAS-001-VNT-2025-0001",
             sale_id=sale_id
         )
 
@@ -118,7 +116,7 @@ class TestCreateLog:
             quantity_delta=-3,
             quantity_after=47,
             description="Reserved for order",
-            reference="ENC-2025-0001",
+            reference="CARACAS-001-ENC-2025-0001",
             order_id=order_id
         )
 
@@ -165,7 +163,7 @@ class TestCreateLog:
             quantity_delta=5,  # Positive - stock returned
             quantity_after=55,
             description="Sale cancelled - stock restored",
-            reference="VNT-2025-0001",
+            reference="CARACAS-001-VNT-2025-0001",
             sale_id=sale_id
         )
 
@@ -175,27 +173,26 @@ class TestCreateLog:
 
     @pytest.mark.asyncio
     async def test_create_log_for_global_inventory(self, mock_db_session):
-        """Should create log entry for global inventory"""
+        """Should create log entry for global product inventory (school_id=None)"""
         mock_db_session.add = MagicMock()
         mock_db_session.flush = AsyncMock()
         mock_db_session.refresh = AsyncMock()
 
         service = InventoryLogService(mock_db_session)
 
-        global_inventory_id = str(uuid4())
-        school_id = str(uuid4())
+        inventory_id = str(uuid4())
 
         result = await service.create_log(
-            global_inventory_id=global_inventory_id,  # Global inventory
-            school_id=school_id,
+            inventory_id=inventory_id,
+            school_id=None,
             movement_type=InventoryMovementType.SALE,
             quantity_delta=-2,
             quantity_after=98,
             description="Global product sale"
         )
 
-        assert result.global_inventory_id == global_inventory_id
-        assert result.inventory_id is None
+        assert result.inventory_id == inventory_id
+        assert result.school_id is None
 
 
 # ============================================================================
@@ -514,10 +511,10 @@ class TestAuditTrailIntegrity:
             quantity_delta=-2,
             quantity_after=48,
             description="Sale",
-            reference="VNT-2025-0042"
+            reference="CARACAS-001-VNT-2025-0042"
         )
 
-        assert result.reference == "VNT-2025-0042"
+        assert result.reference == "CARACAS-001-VNT-2025-0042"
 
     @pytest.mark.asyncio
     async def test_log_includes_movement_date(self, mock_db_session):

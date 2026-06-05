@@ -3,15 +3,18 @@
  */
 import { ReactNode, useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { motion } from 'motion/react';
 import { useAuthStore } from '../stores/authStore';
 import { useSchoolStore } from '../stores/schoolStore';
 import { useUserRole, getRoleDisplayName } from '../hooks/useUserRole';
 import { usePermissions } from '../hooks/usePermissions';
+import { usePermissionsRefresh } from '../hooks/usePermissionsRefresh';
 import { DevelopmentBanner } from './EnvironmentIndicator';
 import { DraftsBar } from './DraftsBar';
 import { useDraftStore } from '../stores/draftStore';
 import { NotificationBell } from './NotificationBell';
 import { NotificationPanel } from './NotificationPanel';
+import { FeedbackButton } from './FeedbackButton';
 import { PrintQueuePanel } from './PrintQueuePanel';
 import { usePrintQueueStore, usePrintQueuePendingCount } from '../stores/printQueueStore';
 import { usePrinterStore } from '../stores/printerStore';
@@ -46,10 +49,12 @@ import {
   Gauge,
   HardHat,
   UserCircle,
+  Moon,
+  Sun,
 } from 'lucide-react';
 import { useConfigStore } from '../stores/configStore';
 import { useBusinessInfoStore } from '../stores/businessInfoStore';
-import { SYSTEM_VERSION, APP_VERSION } from '../config/version';
+import { SYSTEM_VERSION } from '../config/version';
 
 interface LayoutProps {
   children: ReactNode;
@@ -59,7 +64,6 @@ interface NavItem {
   name: string;
   path: string;
   icon: typeof LayoutDashboard;
-  requiresAccounting?: boolean; // Only visible if user can access accounting
   requiresSuperuser?: boolean; // Only visible if user is superuser
   requiresOwner?: boolean; // Only visible if user is owner/superuser
   permission?: string; // Granular permission required (e.g., "sales.view")
@@ -80,11 +84,11 @@ const navigation: NavItem[] = [
   { name: 'Cambios/Devoluciones', path: '/sale-changes', icon: RefreshCw, permission: 'changes.view', category: 'operations' },
   { name: 'Arreglos', path: '/alterations', icon: Scissors, anyPermission: ['alterations.view', 'accounting.view_cash'], category: 'operations' },
   // Finanzas
-  { name: 'Panel CFO', path: '/cfo', icon: Gauge, requiresAccounting: true, category: 'finance' },
-  { name: 'Contabilidad', path: '/accounting', icon: Calculator, anyPermission: ['accounting.view_cash', 'accounting.view_bank'], category: 'finance' },
-  { name: 'Reportes', path: '/reports', icon: BarChart3, permission: 'reports.dashboard', category: 'finance' },
+  { name: 'Panel CFO', path: '/cfo', icon: Gauge, permission: 'accounting.view_cash', category: 'finance' },
+  { name: 'Contabilidad', path: '/accounting', icon: Calculator, permission: 'accounting.view_cash', category: 'finance' },
+  { name: 'Reportes', path: '/reports', icon: BarChart3, anyPermission: ['reports.sales', 'reports.orders', 'reports.financial', 'reports.alterations', 'reports.inventory'], category: 'finance' },
   // RRHH - Recursos Humanos
-  { name: 'Nomina', path: '/payroll', icon: Banknote, requiresAccounting: true, category: 'hr' },
+  { name: 'Nomina', path: '/payroll', icon: Banknote, permission: 'payroll.manage', category: 'hr' },
   { name: 'Gestion Laboral', path: '/workforce', icon: HardHat, anyPermission: ['workforce.view_shifts', 'workforce.view_attendance'], category: 'hr' },
 ];
 
@@ -94,6 +98,11 @@ const adminNavigation: NavItem[] = [
   { name: 'Documentos', path: '/documents', icon: FolderOpen },
   { name: 'Log de Emails', path: '/email-logs', icon: Mail },
 ];
+
+// Routes where new records are tied to a school — the top-bar school chip
+// is only the default-for-create here, so it's hidden everywhere else to
+// avoid implying a view scope that doesn't exist (global pages show all).
+const SCHOOL_CONTEXT_PATHS = ['/products', '/clients', '/sales', '/orders', '/alterations'];
 
 // Print Queue Button Component
 function PrintQueueButton() {
@@ -129,7 +138,7 @@ function PrintQueueButton() {
         {/* Connection indicator */}
         <span
           className={`absolute bottom-0 right-0 w-2 h-2 rounded-full border border-white ${
-            isConnected ? 'bg-green-500' : 'bg-gray-400'
+            isConnected ? 'bg-green-500' : 'bg-stone-400'
           }`}
         />
       </button>
@@ -145,11 +154,12 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const { user, logout } = useAuthStore();
   const { currentSchool, availableSchools, loadSchools, selectSchool } = useSchoolStore();
-  const { isOnline, sidebarCollapsed, toggleSidebar } = useConfigStore();
+  const { isOnline, sidebarCollapsed, toggleSidebar, isDarkMode, toggleDarkMode } = useConfigStore();
   const { info: businessInfo, fetchInfo: fetchBusinessInfo } = useBusinessInfoStore();
-  const { role, isSuperuser, canAccessAccounting } = useUserRole();
+  const { role, customRoleName, isSuperuser } = useUserRole();
   const { hasPermission, hasAnyPermission } = usePermissions();
   const { hasDrafts } = useDraftStore();
+  usePermissionsRefresh();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [schoolDropdownOpen, setSchoolDropdownOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
@@ -167,6 +177,11 @@ export default function Layout({ children }: LayoutProps) {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [hasDrafts]);
+
+  // Apply dark mode class on mount (from persisted state)
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDarkMode);
+  }, [isDarkMode]);
 
   // Load schools and business info on mount
   useEffect(() => {
@@ -249,15 +264,15 @@ export default function Layout({ children }: LayoutProps) {
 
             {/* Quick Actions Dropdown */}
             {quickActionsOpen && (
-              <div className={`absolute ${sidebarCollapsed ? 'left-full ml-2' : 'left-0 right-0'} top-full mt-2 bg-white rounded-xl shadow-xl border border-gray-200 py-2 z-50 min-w-[200px]`}>
-                <p className="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase">Acciones rápidas</p>
+              <div className={`absolute ${sidebarCollapsed ? 'left-full ml-2' : 'left-0 right-0'} top-full mt-2 bg-white rounded-xl shadow-xl border border-stone-200 py-2 z-50 min-w-[200px]`}>
+                <p className="px-3 py-1.5 text-xs font-semibold text-stone-400 uppercase">Acciones rápidas</p>
                 {hasPermission('sales.create') && (
                   <button
                     onClick={() => {
                       navigate('/sales', { state: { openNew: true } });
                       setQuickActionsOpen(false);
                     }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-brand-50 hover:text-brand-700 transition-colors"
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-stone-700 hover:bg-brand-50 hover:text-brand-700 transition-colors"
                   >
                     <ShoppingCart className="w-4 h-4" />
                     <span>Nueva Venta</span>
@@ -269,7 +284,7 @@ export default function Layout({ children }: LayoutProps) {
                       navigate('/orders', { state: { openNew: true } });
                       setQuickActionsOpen(false);
                     }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-brand-50 hover:text-brand-700 transition-colors"
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-stone-700 hover:bg-brand-50 hover:text-brand-700 transition-colors"
                   >
                     <FileText className="w-4 h-4" />
                     <span>Nuevo Encargo</span>
@@ -281,7 +296,7 @@ export default function Layout({ children }: LayoutProps) {
                       navigate('/alterations', { state: { openNew: true } });
                       setQuickActionsOpen(false);
                     }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-brand-50 hover:text-brand-700 transition-colors"
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-stone-700 hover:bg-brand-50 hover:text-brand-700 transition-colors"
                   >
                     <Scissors className="w-4 h-4" />
                     <span>Nuevo Arreglo</span>
@@ -293,7 +308,7 @@ export default function Layout({ children }: LayoutProps) {
                       navigate('/clients', { state: { openNew: true } });
                       setQuickActionsOpen(false);
                     }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-brand-50 hover:text-brand-700 transition-colors"
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-stone-700 hover:bg-brand-50 hover:text-brand-700 transition-colors"
                   >
                     <UserPlus className="w-4 h-4" />
                     <span>Nuevo Cliente</span>
@@ -317,7 +332,6 @@ export default function Layout({ children }: LayoutProps) {
 
               // Legacy permission checks
               if (item.requiresSuperuser && !isSuperuser) return false;
-              if (item.requiresAccounting && !canAccessAccounting) return false;
               if (item.requiresOwner && !isOwner) return false;
 
               // Granular permission checks
@@ -337,18 +351,26 @@ export default function Layout({ children }: LayoutProps) {
               const Icon = item.icon;
               const isActive = location.pathname === item.path;
               return (
-                <button
-                  key={item.path}
-                  onClick={() => navigate(item.path)}
-                  title={sidebarCollapsed ? item.name : undefined}
-                  className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'px-3'} py-2.5 rounded-lg transition-all duration-200 group ${isActive
-                      ? 'border-l-2 border-brand-400 bg-white/8 text-white'
-                      : 'text-stone-400 hover:bg-white/5 hover:text-white border-l-2 border-transparent'
-                    }`}
-                >
-                  <Icon className={`w-4 h-4 ${sidebarCollapsed ? '' : 'mr-2.5'} flex-shrink-0 ${isActive ? 'text-brand-400' : 'text-stone-500 group-hover:text-white'}`} />
-                  {!sidebarCollapsed && <span className="text-sm font-medium truncate">{item.name}</span>}
-                </button>
+                <div key={item.path} className="relative">
+                  {isActive && (
+                    <motion.div
+                      layoutId="sidebar-active"
+                      className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full bg-brand-400"
+                      transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                    />
+                  )}
+                  <button
+                    onClick={() => navigate(item.path)}
+                    title={sidebarCollapsed ? item.name : undefined}
+                    className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'px-3'} py-2.5 rounded-lg transition-all duration-200 group ${isActive
+                        ? 'bg-white/8 text-white'
+                        : 'text-stone-400 hover:bg-white/5 hover:text-white'
+                      }`}
+                  >
+                    <Icon className={`w-4 h-4 ${sidebarCollapsed ? '' : 'mr-2.5'} flex-shrink-0 ${isActive ? 'text-brand-400' : 'text-stone-500 group-hover:text-white'}`} />
+                    {!sidebarCollapsed && <span className="text-sm font-medium truncate">{item.name}</span>}
+                  </button>
+                </div>
               );
             };
 
@@ -478,7 +500,7 @@ export default function Layout({ children }: LayoutProps) {
                 </div>
 
                 {/* Role Badge */}
-                {(role || isSuperuser) && (
+                {(role || customRoleName || isSuperuser) && (
                   <div className="mb-3 flex items-center justify-center">
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${
                       isSuperuser
@@ -486,11 +508,11 @@ export default function Layout({ children }: LayoutProps) {
                         : role === 'seller'
                           ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
                           : role === 'admin'
-                            ? 'bg-blue-500/20 text-blue-300 border border-blue-400/30'
+                            ? 'bg-brand-500/20 text-brand-300 border border-brand-400/30'
                             : 'bg-stone-500/20 text-stone-300 border border-stone-400/30'
                     }`}>
                       <Shield className="w-3 h-3" />
-                      {isSuperuser ? 'Superusuario' : role ? getRoleDisplayName(role) : ''}
+                      {isSuperuser ? 'Superusuario' : role ? getRoleDisplayName(role) : customRoleName || ''}
                     </span>
                   </div>
                 )}
@@ -523,11 +545,18 @@ export default function Layout({ children }: LayoutProps) {
                   Cerrar Sesion
                 </button>
 
-                {/* Version */}
-                <div className="mt-2 text-center">
+                {/* Dark Mode Toggle + Version */}
+                <div className="mt-2 flex items-center justify-between px-1">
                   <span className="text-[10px] text-stone-600">
-                    v{SYSTEM_VERSION} | App v{APP_VERSION}
+                    v{SYSTEM_VERSION}
                   </span>
+                  <button
+                    onClick={toggleDarkMode}
+                    className="p-1 rounded-md text-stone-500 hover:text-brand-400 hover:bg-white/5 transition-colors"
+                    title={isDarkMode ? 'Modo claro' : 'Modo oscuro'}
+                  >
+                    {isDarkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+                  </button>
                 </div>
               </>
             )}
@@ -569,7 +598,6 @@ export default function Layout({ children }: LayoutProps) {
                 {navigation.find((item) => item.path === location.pathname)?.name ||
                  adminNavigation.find((item) => item.path === location.pathname)?.name ||
                  (location.pathname === '/settings' ? 'Configuración' : null) ||
-                 (location.pathname === '/payment-accounts' ? 'Cuentas de Pago' : null) ||
                  'Dashboard'}
               </h2>
             </div>
@@ -592,18 +620,25 @@ export default function Layout({ children }: LayoutProps) {
               <NotificationPanel />
             </div>
 
-            {/* School Selector - Now labeled as "Vista de colegio" */}
+            {/* Feedback / Reportar */}
+            <FeedbackButton />
+
+            {/* School chip: the default school for NEW records. Shown only on
+                create-relevant pages and only when there's more than one school
+                to choose from — elsewhere it's noise that implies a false scope. */}
+            {SCHOOL_CONTEXT_PATHS.includes(location.pathname) && availableSchools.length > 1 && (
             <div className="relative">
               <button
                 onClick={() => setSchoolDropdownOpen(!schoolDropdownOpen)}
                 className="flex items-center gap-2 px-3 py-2 bg-surface-100 hover:bg-surface-200 rounded-lg transition-colors"
-                title="Colegio para crear nuevos registros"
+                title="Colegio por defecto al crear nuevos registros"
               >
                 <Building2 className="w-4 h-4 text-brand-600" />
-                <span className="text-sm font-medium text-gray-700 max-w-[120px] md:max-w-[180px] truncate">
+                <span className="text-xs font-medium text-stone-400 hidden md:inline">Crear en:</span>
+                <span className="text-sm font-medium text-stone-700 max-w-[120px] md:max-w-[180px] truncate">
                   {currentSchool?.name || 'Sin colegio'}
                 </span>
-                <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${schoolDropdownOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-4 h-4 text-stone-500 transition-transform ${schoolDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
 
               {/* Dropdown */}
@@ -613,13 +648,13 @@ export default function Layout({ children }: LayoutProps) {
                     className="fixed inset-0 z-10"
                     onClick={() => setSchoolDropdownOpen(false)}
                   />
-                  <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                  <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-lg border border-stone-200 py-1 z-20">
                     {/* Header explaining the dropdown */}
-                    <div className="px-4 py-2 border-b border-gray-100 bg-gray-50">
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                    <div className="px-4 py-2 border-b border-stone-100 bg-stone-50">
+                      <p className="text-xs font-medium text-stone-500 uppercase tracking-wide">
                         Colegio predeterminado
                       </p>
-                      <p className="text-xs text-gray-400 mt-0.5">
+                      <p className="text-xs text-stone-400 mt-0.5">
                         Para crear ventas, encargos y productos nuevos
                       </p>
                     </div>
@@ -631,13 +666,13 @@ export default function Layout({ children }: LayoutProps) {
                           setSchoolDropdownOpen(false);
                         }}
                         className={`w-full text-left px-4 py-2.5 text-sm hover:bg-surface-100 transition-colors ${
-                          currentSchool?.id === school.id ? 'bg-brand-50 text-brand-700 font-medium' : 'text-gray-700'
+                          currentSchool?.id === school.id ? 'bg-brand-50 text-brand-700 font-medium' : 'text-stone-700'
                         }`}
                       >
                         <div className="flex items-center justify-between">
                           <div>
                             <div className="font-medium">{school.name}</div>
-                            <div className="text-xs text-gray-500">{school.code}</div>
+                            <div className="text-xs text-stone-500">{school.code}</div>
                           </div>
                           {currentSchool?.id === school.id && (
                             <span className="text-brand-600 text-xs">✓ Activo</span>
@@ -646,8 +681,8 @@ export default function Layout({ children }: LayoutProps) {
                       </button>
                     ))}
                     {availableSchools.length > 1 && (
-                      <div className="px-4 py-2 border-t border-gray-100 bg-blue-50">
-                        <p className="text-xs text-blue-600">
+                      <div className="px-4 py-2 border-t border-stone-100 bg-brand-50">
+                        <p className="text-xs text-brand-600">
                           💡 Tip: En cada página puedes filtrar para ver datos de todos los colegios
                         </p>
                       </div>
@@ -656,6 +691,7 @@ export default function Layout({ children }: LayoutProps) {
                 </>
               )}
             </div>
+            )}
           </div>
         </div>
 

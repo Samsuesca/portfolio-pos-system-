@@ -1,4 +1,16 @@
 import type { GarmentTypeImage, School, Product } from './api';
+import { API_BASE_URL } from './api';
+
+/**
+ * Backend devuelve `image_url` como path relativo (`/uploads/...`). El portal
+ * lo necesita absoluto contra el backend (port 8001 en dev, dominio API en prod);
+ * si lo dejas relativo el browser lo resuelve contra `localhost:3001` y 404.
+ */
+function absolutizeImageUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+}
 
 /**
  * Representa una variante de producto (una talla específica)
@@ -26,6 +38,8 @@ export interface ProductGroup {
   school: School;
   isYomber: boolean;
   isGlobal: boolean;         // true = producto global, false = producto de colegio
+  genders: string[];         // generos normalizados presentes: 'male' | 'female' | 'unisex'
+  note: string | null;       // nota del producto para el padre (ej. "a preferencia del padre")
 }
 
 /**
@@ -76,6 +90,21 @@ export function getBaseName(name: string): string {
 }
 
 /**
+ * Normaliza el campo `gender` (texto libre en DB, max 10) a un valor canonico.
+ * Devuelve '' para valores desconocidos o vacios para que el filtro los ignore
+ * en vez de inventar una categoria.
+ */
+export function normalizeGender(
+  raw: string | null | undefined,
+): 'male' | 'female' | 'unisex' | '' {
+  const v = (raw ?? '').trim().toLowerCase();
+  if (['male', 'niño', 'nino', 'masculino', 'hombre', 'm'].includes(v)) return 'male';
+  if (['female', 'niña', 'nina', 'femenino', 'mujer', 'f'].includes(v)) return 'female';
+  if (['unisex', 'u'].includes(v)) return 'unisex';
+  return '';
+}
+
+/**
  * Agrupa productos por tipo de prenda
  */
 export function groupProductsByGarmentType(
@@ -93,34 +122,50 @@ export function groupProductsByGarmentType(
       // de lo contrario derivar del nombre del producto
       const groupName = product.garment_type_name || getBaseName(product.name);
 
+      const rawImages = product.garment_type_images || [];
       groups.set(key, {
         garmentTypeId: key,
         name: groupName,
         basePrice: product.price,
         maxPrice: product.price,
-        images: product.garment_type_images || [],
-        primaryImageUrl: product.garment_type_primary_image_url || null,
+        images: rawImages.map((img) => ({
+          ...img,
+          image_url: absolutizeImageUrl(img.image_url) || img.image_url,
+        })),
+        primaryImageUrl: absolutizeImageUrl(product.garment_type_primary_image_url),
         variants: [],
         school,
-        isYomber: groupName.toLowerCase().includes('yomber'),
-        isGlobal
+        isYomber: groupName.toLowerCase().includes('yomber') || groupName.toLowerCase().includes('jumper'),
+        isGlobal,
+        genders: [],
+        note: product.description?.trim() || null
       });
     }
 
     const group = groups.get(key)!;
-    const stock = product.stock ?? product.inventory_quantity ?? 0;
+    // Primera descripcion no vacia del grupo sirve de nota (ej. "a preferencia del padre").
+    if (!group.note && product.description?.trim()) group.note = product.description.trim();
+    // En el portal de padres "stock" significa "puedo comprarlo ahora sin
+    // encargo". Por eso usamos available (= total - reservado a otros pedidos
+    // pendientes) y no quantity bruto.
+    const totalStock = product.stock ?? product.inventory_quantity ?? 0;
+    const reserved = product.reserved ?? product.inventory_reserved ?? 0;
+    const available = product.available ?? product.inventory_available ?? Math.max(0, totalStock - reserved);
 
     group.variants.push({
       id: product.id,
       size: product.size || 'Única',
       price: product.price,
-      stock,
-      isOrder: stock === 0
+      stock: available,
+      isOrder: available === 0
     });
 
     // Actualizar rango de precios
     group.basePrice = Math.min(group.basePrice, product.price);
     group.maxPrice = Math.max(group.maxPrice, product.price);
+
+    const g = normalizeGender(product.gender);
+    if (g && !group.genders.includes(g)) group.genders.push(g);
   });
 
   // Ordenar variantes por talla dentro de cada grupo

@@ -64,12 +64,12 @@ export default function PhoneInput({
 
   return (
     <div className={className}>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
+      <label className="block text-sm font-medium text-stone-700 mb-1">
         {label} {required && <span className="text-red-500">*</span>}
       </label>
       <div className="relative">
         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <Phone className={`w-4 h-4 ${showError ? 'text-red-400' : 'text-gray-400'}`} />
+          <Phone className={`w-4 h-4 ${showError ? 'text-red-400' : 'text-stone-400'}`} />
         </div>
         <input
           type="tel"
@@ -84,8 +84,8 @@ export default function PhoneInput({
           className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent outline-none transition ${
             showError
               ? 'border-red-300 focus:ring-red-500'
-              : 'border-gray-300 focus:ring-blue-500'
-          } ${disabled ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+              : 'border-stone-200 focus:ring-brand-400/30'
+          } ${disabled ? 'bg-stone-100 cursor-not-allowed' : ''}`}
         />
       </div>
       {errorMessage && (

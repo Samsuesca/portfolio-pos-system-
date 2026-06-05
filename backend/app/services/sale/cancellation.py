@@ -22,11 +22,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.utils.timezone import get_colombia_date, get_colombia_now_naive
-from app.models.sale import Sale, SaleStatus, SaleChange, ChangeStatus, PaymentMethod
+from app.models.sale import Sale, SaleItem, SaleStatus, SaleChange, ChangeStatus, PaymentMethod
+from app.models.product import Product
 from app.models.accounting import Transaction, TransactionType, AccountsReceivable
 from app.utils.payment_methods import to_acc_payment_method
 from app.models.inventory_log import InventoryMovementType
-from app.services.global_product import GlobalInventoryService
 
 logger = logging.getLogger(__name__)
 
@@ -45,49 +45,17 @@ class SaleCancellationMixin:
         refund_method: PaymentMethod | None = None,
         max_days_to_cancel: int = 30
     ) -> dict:
-        """Cancel a sale and reverse all its effects.
-
-        Args:
-            sale_id: Sale UUID to cancel.
-            school_id: School UUID for tenant isolation.
-            reason: Free-text reason (stored in sale notes and reverse
-                transaction descriptions).
-            cancelled_by: User performing the cancellation.
-            refund_method: Override payment method for the refund. If None,
-                uses the original payment method from each transaction.
-            max_days_to_cancel: Business rule — sales older than this
-                cannot be cancelled. Default 30 days.
-
-        Returns:
-            Dict with cancellation summary::
-
-                {
-                    "id": UUID,
-                    "code": str,
-                    "status": SaleStatus.CANCELLED,
-                    "cancelled_at": datetime,
-                    "inventory_restored": bool,
-                    "transactions_reversed": bool,
-                    "receivables_cancelled": bool,
-                    "message": str,
-                }
-
-        Raises:
-            ValueError: Sale not found, already cancelled, too old,
-                has approved changes, or inventory/accounting reversal fails.
-        """
         from app.services.inventory import InventoryService
         from app.services.accounting.transactions import TransactionService
 
         inv_service = InventoryService(self.db)
-        global_inv_service = GlobalInventoryService(self.db)
         txn_service = TransactionService(self.db)
 
         # ── Step 1: Load and validate ───────────────────────────────
         result = await self.db.execute(
             select(Sale)
             .options(
-                selectinload(Sale.items),
+                selectinload(Sale.items).selectinload(SaleItem.product),
                 selectinload(Sale.payments)
             )
             .where(
@@ -126,28 +94,20 @@ class SaleCancellationMixin:
         if not sale.is_historical:
             for item in sale.items:
                 try:
-                    if item.is_global_product and item.global_product_id:
-                        await global_inv_service.release_stock(
-                            product_id=item.global_product_id,
-                            quantity=item.quantity,
-                            movement_type=InventoryMovementType.SALE_CANCEL,
-                            reference=sale.code,
-                            sale_id=sale.id,
-                            school_id=school_id,
-                            created_by=cancelled_by,
-                        )
-                        logger.info(f"Restored {item.quantity} units of global product {item.global_product_id} for cancelled sale {sale.code}")
-                    elif item.product_id:
-                        await inv_service.release_stock(
-                            product_id=item.product_id,
-                            school_id=school_id,
-                            quantity=item.quantity,
-                            movement_type=InventoryMovementType.SALE_CANCEL,
-                            reference=sale.code,
-                            sale_id=sale.id,
-                            created_by=cancelled_by,
-                        )
-                        logger.info(f"Restored {item.quantity} units of product {item.product_id} for cancelled sale {sale.code}")
+                    product = item.product
+                    # Sales decrementaron quantity directamente (modelo nuevo).
+                    # Cancelacion devuelve el stock al inventario total via
+                    # add_stock (no release_stock, que opera sobre reserved).
+                    await inv_service.add_stock(
+                        product_id=item.product_id,
+                        school_id=product.school_id if product else school_id,
+                        quantity=item.quantity,
+                        movement_type=InventoryMovementType.SALE_CANCEL,
+                        reference=sale.code,
+                        sale_id=sale.id,
+                        created_by=cancelled_by,
+                    )
+                    logger.info(f"Restored {item.quantity} units of product {item.product_id} for cancelled sale {sale.code}")
                 except Exception as e:
                     logger.error(f"Error restoring inventory for item {item.id}: {e}")
                     raise ValueError(f"Error al restaurar inventario: {str(e)}")

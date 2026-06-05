@@ -11,6 +11,7 @@ from httpx import AsyncClient
 from datetime import date, timedelta
 from uuid import uuid4
 from decimal import Decimal
+from tests.fixtures.assertions import assert_list_response
 
 
 NEEDS_ISOLATION_FIX = pytest.mark.skip(reason="DB isolation issue")
@@ -33,7 +34,7 @@ async def test_list_fixed_expenses(
     )
 
     assert response.status_code == 200
-    data = response.json()
+    data = assert_list_response(response)
     # Returns a list directly
     assert isinstance(data, list)
 
@@ -52,7 +53,7 @@ async def test_list_fixed_expenses_by_category(
 
     assert response.status_code == 200
     data = response.json()
-    for item in data:
+    for item in data["items"]:
         assert item["category"] == "rent"
 
 
@@ -70,7 +71,7 @@ async def test_list_fixed_expenses_active_only(
 
     assert response.status_code == 200
     data = response.json()
-    for item in data:
+    for item in data["items"]:
         assert item["is_active"] is True
 
 
@@ -290,7 +291,7 @@ async def test_get_expense_history(
     )
 
     assert response.status_code == 200
-    data = response.json()
+    data = assert_list_response(response)
     assert isinstance(data, list)
 
 
@@ -307,7 +308,7 @@ async def test_get_expense_history_with_limit(
     )
 
     assert response.status_code == 200
-    data = response.json()
+    data = assert_list_response(response)
     assert isinstance(data, list)
     assert len(data) <= 5
 
@@ -331,6 +332,6 @@ async def test_list_fixed_expenses_pagination(
     )
 
     assert response.status_code == 200
-    data = response.json()
+    data = assert_list_response(response)
     assert isinstance(data, list)
     assert len(data) <= 10

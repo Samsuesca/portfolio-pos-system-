@@ -134,22 +134,28 @@ class TestUserServiceCreate:
             await service.create_user(duplicate_data)
 
     async def test_create_superuser(self, db_session):
-        """Test creating a superuser."""
+        """Superuser status is intentionally excluded from ``UserCreate`` and must
+        be promoted out-of-band — create the user, then set ``is_superuser`` on
+        the persisted model. This pins the actual contract (see
+        ``app/schemas/user.py:30-35``)."""
         from app.services.user import UserService
         from app.schemas.user import UserCreate
 
         service = UserService(db_session)
 
-        user_data = UserCreate(
-            username="superadmin",
-            email="super@example.com",
-            password="AdminPassword1",
-            is_superuser=True
+        user = await service.create_user(
+            UserCreate(
+                username="superadmin",
+                email="super@example.com",
+                password="AdminPassword1",
+            )
         )
+        assert user.is_superuser is False  # Cannot be set via UserCreate.
 
-        user = await service.create_user(user_data)
-
-        assert user.is_superuser == True
+        user.is_superuser = True
+        await db_session.flush()
+        await db_session.refresh(user)
+        assert user.is_superuser is True
 
 
 class TestUserServiceLookup:
@@ -479,7 +485,7 @@ class TestUserServicePasswordChange:
             new_password="NewPassword1"
         )
 
-        with pytest.raises(ValueError, match="Old password is incorrect"):
+        with pytest.raises(ValueError, match="contraseña actual es incorrecta"):
             await service.change_password(user.id, password_change)
 
     async def test_change_password_nonexistent_user(self, db_session):

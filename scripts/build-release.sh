@@ -63,12 +63,12 @@ sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" "$TAURI_CONF"
 echo ""
 echo "=== Instalando dependencias ==="
 cd "$FRONTEND_DIR"
-npm install --silent
+pnpm install --frozen-lockfile
 
 # Build de produccion
 echo ""
 echo "=== Construyendo aplicacion (esto puede tomar varios minutos) ==="
-npm run tauri build
+pnpm run tauri build
 
 # Buscar el DMG generado
 DMG_SOURCE=$(find "$FRONTEND_DIR/src-tauri/target/release/bundle/dmg" -name "*.dmg" 2>/dev/null | head -1)

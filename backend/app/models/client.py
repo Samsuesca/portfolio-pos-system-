@@ -21,6 +21,19 @@ class ClientType(str, enum.Enum):
     WEB = "web"  # Self-registered via web portal, requires auth
 
 
+class IdentificationType(str, enum.Enum):
+    """
+    DIAN identification document type for electronic invoicing.
+
+    Mirrors the values accepted by Alegra's identificationObject.type.
+    """
+    CC = "CC"    # Cedula de ciudadania
+    NIT = "NIT"  # Numero de identificacion tributaria
+    CE = "CE"    # Cedula de extranjeria
+    TI = "TI"    # Tarjeta de identidad
+    PA = "PA"    # Pasaporte
+
+
 class NotificationPreference(str, enum.Enum):
     """
     Client notification channel preference.
@@ -74,6 +87,18 @@ class Client(Base):
     email: Mapped[str | None] = mapped_column(String(255), index=True)
     address: Mapped[str | None] = mapped_column(Text)
 
+    # DIAN identification for electronic invoicing (optional — falls back to
+    # "Consumidor Final" when absent).
+    identification_type: Mapped[IdentificationType | None] = mapped_column(
+        SQLEnum(
+            IdentificationType,
+            name="identification_type_enum",
+            values_callable=lambda obj: [e.value for e in obj]
+        ),
+        nullable=True
+    )
+    identification_number: Mapped[str | None] = mapped_column(String(30), index=True)
+
     # Legacy student information (kept for backwards compatibility)
     # New student info goes to client_students table
     student_name: Mapped[str | None] = mapped_column(String(255))
@@ -93,6 +118,10 @@ class Client(Base):
     # Web authentication fields (only used when client_type='web')
     password_hash: Mapped[str | None] = mapped_column(String(255))
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # Google OAuth
+    google_id: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, nullable=True)
+    auth_provider: Mapped[str | None] = mapped_column(String(20), default="local", nullable=True)
     verification_token: Mapped[str | None] = mapped_column(String(255))
     verification_token_expires: Mapped[datetime | None] = mapped_column(DateTime)
     last_login: Mapped[datetime | None] = mapped_column(DateTime)
@@ -144,7 +173,9 @@ class Client(Base):
 
     @property
     def can_login(self) -> bool:
-        """Check if client can login to web portal (WEB or REGULAR with password)"""
+        """Check if client can login to web portal (password or Google)"""
+        if self.google_id and self.is_active:
+            return True
         return self.is_verified and self.password_hash is not None
 
 

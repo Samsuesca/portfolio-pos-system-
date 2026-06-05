@@ -23,6 +23,7 @@ from .utilities import OrderUtilityMixin
 from .reporting import OrderReportingMixin
 from .cancellation import OrderCancellationMixin
 from .changes import OrderChangeMixin
+from .analytics import OrderAnalyticsMixin
 
 
 class OrderService(
@@ -35,7 +36,8 @@ class OrderService(
     OrderUtilityMixin,
     OrderReportingMixin,
     OrderCancellationMixin,
-    OrderChangeMixin
+    OrderChangeMixin,
+    OrderAnalyticsMixin,
 ):
     """
     Service for Order (Encargos) operations.
@@ -50,6 +52,10 @@ class OrderService(
     - OrderReportingMixin: get_product_demand
     - OrderCancellationMixin: cancel_order
     - OrderChangeMixin: create_order_change, approve_order_change, reject_order_change, get_order_changes
+    - OrderAnalyticsMixin: get_orders_summary, get_orders_status_funnel,
+      get_orders_on_time_delivery, get_orders_cumplimiento,
+      get_orders_profitability_by_school, get_orders_top_products,
+      get_orders_top_clients (powers the Encargos tab in the Reports module)
     """
 
     def __init__(self, db: AsyncSession):

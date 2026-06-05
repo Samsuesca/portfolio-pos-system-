@@ -15,10 +15,8 @@ import {
   CheckCircle,
   Clock,
   DollarSign,
-  Phone,
   Edit,
   Banknote,
-  MessageCircle,
   X,
   Wrench,
 } from 'lucide-react';
@@ -195,17 +193,6 @@ export default function AlterationDetailPage() {
     } finally {
       setSavingPayment(false);
     }
-  };
-
-  const openWhatsApp = (phone: string, message?: string) => {
-    const cleanPhone = phone.replace(/\D/g, '');
-    const formattedPhone = cleanPhone.startsWith('57')
-      ? cleanPhone
-      : `57${cleanPhone}`;
-    const url = message
-      ? `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`
-      : `https://wa.me/${formattedPhone}`;
-    window.open(url, '_blank');
   };
 
   // Get next valid status transitions
@@ -412,31 +399,7 @@ export default function AlterationDetailPage() {
                   {alteration.client_display_name}
                 </span>
               </div>
-              {alteration.external_client_phone && (
-                <div className="flex items-center gap-3">
-                  <Phone className="w-5 h-5 text-slate-400" />
-                  <span className="text-slate-700">
-                    {alteration.external_client_phone}
-                  </span>
-                  <button
-                    onClick={() =>
-                      openWhatsApp(
-                        alteration.external_client_phone!,
-                        `Hola ${alteration.client_display_name}, me comunico de Uniformes Consuelo respecto a su arreglo ${alteration.code}.`
-                      )
-                    }
-                    className="p-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition"
-                    title="Abrir WhatsApp"
-                  >
-                    <MessageCircle className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-              {alteration.client_id ? (
-                <p className="text-xs text-slate-400">Cliente registrado</p>
-              ) : (
-                <p className="text-xs text-slate-400">Cliente externo</p>
-              )}
+              <p className="text-xs text-slate-400">Cliente registrado</p>
             </div>
           </div>
 

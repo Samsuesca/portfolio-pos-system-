@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from tests.fixtures.assertions import (
     assert_success_response,
+    assert_list_response,
     assert_created_response,
     assert_no_content_response,
     assert_unauthorized,
@@ -38,7 +39,7 @@ class TestSchoolListing:
     async def test_list_schools_no_auth_required(self, api_client):
         """Listing schools should work without auth."""
         response = await api_client.get("/api/v1/schools")
-        data = assert_success_response(response)
+        data = assert_list_response(response)
         assert isinstance(data, list)
 
     async def test_list_schools_with_pagination(self, api_client):
@@ -46,14 +47,14 @@ class TestSchoolListing:
         response = await api_client.get(
             "/api/v1/schools?skip=0&limit=10"
         )
-        data = assert_success_response(response)
+        data = assert_list_response(response)
         assert isinstance(data, list)
         assert len(data) <= 10
 
     async def test_list_schools_active_only_default(self, api_client):
         """By default only active schools are returned."""
         response = await api_client.get("/api/v1/schools?active_only=true")
-        data = assert_success_response(response)
+        data = assert_list_response(response)
         assert isinstance(data, list)
 
 
@@ -109,17 +110,19 @@ class TestSchoolBySlug:
 class TestSchoolSummary:
     """Tests for GET /api/v1/schools/{id}/summary"""
 
-    async def test_summary_not_found(self, api_client):
+    async def test_summary_not_found(self, api_client, auth_headers):
         """Non-existent school returns 404."""
         response = await api_client.get(
-            f"/api/v1/schools/{uuid4()}/summary"
+            f"/api/v1/schools/{uuid4()}/summary",
+            headers=auth_headers,
         )
         assert_not_found(response)
 
-    async def test_summary_success(self, api_client, test_school):
+    async def test_summary_success(self, api_client, auth_headers, test_school):
         """Should return school summary."""
         response = await api_client.get(
-            f"/api/v1/schools/{test_school.id}/summary"
+            f"/api/v1/schools/{test_school.id}/summary",
+            headers=auth_headers,
         )
         data = assert_success_response(response)
         assert isinstance(data, dict)
@@ -145,7 +148,7 @@ class TestSchoolSearch:
         response = await api_client.get(
             f"/api/v1/schools/search/by-name?name={term}"
         )
-        data = assert_success_response(response)
+        data = assert_list_response(response)
         assert isinstance(data, list)
 
 

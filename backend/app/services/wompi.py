@@ -298,7 +298,9 @@ class WompiService:
                     amount=amount_cop,
                     reference=payment_tx.reference,
                 )
-                fire_and_forget_routed_alert("wompi_payment", msg)
+                fire_and_forget_routed_alert(
+                    "wompi_payment", msg, school_id=payment_tx.school_id
+                )
         except Exception:
             pass
 
@@ -352,7 +354,29 @@ class WompiService:
         1. Update order.paid_amount or receivable.amount_paid
         2. Create Transaction (INCOME)
         3. Apply to balance via BalanceIntegrationService
+
+        Concurrency
+        -----------
+        Acquires a row-level lock (``SELECT ... FOR UPDATE``) sobre la
+        ``PaymentTransaction`` antes de chequear ``accounting_applied``.
+        Esto serializa las invocaciones concurrentes que pueden ocurrir
+        cuando el webhook de Wompi y ``sync-pending`` corren en paralelo
+        para el mismo pago: el segundo en obtener el lock encuentra
+        ``accounting_applied=True`` y retorna sin duplicar asientos.
+        El lock se libera cuando la transacción de la sesión hace
+        ``commit()`` o ``rollback()``.
         """
+        # Pessimistic lock: blocks competing transactions on this row.
+        # SQLAlchemy identity map devuelve el mismo objeto in-memory,
+        # preservando cualquier modificación pendiente del caller (status,
+        # wompi_transaction_id, etc.) — el FOR UPDATE solo agrega el lock.
+        locked_result = await self.db.execute(
+            select(PaymentTransaction)
+            .where(PaymentTransaction.id == payment_tx.id)
+            .with_for_update()
+        )
+        payment_tx = locked_result.scalar_one()
+
         if payment_tx.accounting_applied:
             return
 
@@ -535,7 +559,9 @@ class WompiService:
                 school_name=school_name,
                 delivery_type=order.delivery_type.value if order.delivery_type else None,
             )
-            fire_and_forget_routed_alert("web_order_created", msg)
+            fire_and_forget_routed_alert(
+                "web_order_created", msg, school_id=order.school_id
+            )
         except Exception as e:
             logger.error(f"Telegram alert failed for web order {order.code}: {e}")
 

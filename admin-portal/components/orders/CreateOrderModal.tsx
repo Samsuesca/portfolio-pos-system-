@@ -326,7 +326,11 @@ export default function CreateOrderModal({
 
   const handleCatalogProductSelect = (product: Product | GlobalProduct, quantity: number, isGlobal?: boolean) => {
     const garmentType = garmentTypes.find(gt => gt.id === product.garment_type_id);
-    const stockAvailable = product.inventory_quantity ?? 0;
+    const stockAvailable =
+      (product as Product).inventory_available ??
+      (product as Product).available ??
+      ((product.inventory_quantity ?? 0) -
+        ((product as Product).inventory_reserved ?? (product as Product).reserved ?? 0));
 
     const item: OrderItemForm = {
       tempId: Date.now().toString(),

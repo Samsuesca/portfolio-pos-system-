@@ -5,13 +5,18 @@ from uuid import UUID
 from datetime import date
 from fastapi import APIRouter, HTTPException, status, Query, Depends
 
+from sqlalchemy import select, func
+
 from app.api.dependencies import (
-    DatabaseSession, CurrentUser, require_school_access,
+    DatabaseSession, CurrentUser,
     require_permission, require_permission_with_constraints
 )
-from app.models.user import UserRole
-from app.models.accounting import TransactionType, ExpenseCategory
-from app.models.accounting import AccountType
+from app.api.error_responses import responses, AUTHENTICATED
+from app.schemas.base import PaginatedResponse, paginate
+from app.models.accounting import (
+    TransactionType, ExpenseCategory, AccountType,
+    Transaction, Expense, BalanceEntry, AccountsReceivable, AccountsPayable,
+)
 from app.schemas.accounting import (
     TransactionCreate, TransactionResponse, TransactionListResponse,
     ExpenseCreate, ExpenseUpdate, ExpenseResponse, ExpenseListResponse, ExpensePayment,
@@ -44,20 +49,33 @@ router = APIRouter(prefix="/schools/{school_id}/accounting", tags=["Accounting"]
 @router.get(
     "/dashboard",
     response_model=AccountingDashboard,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=AUTHENTICATED,
+    operation_id="getAccountingDashboard",
 )
 async def get_accounting_dashboard(
     school_id: UUID,
     db: DatabaseSession
 ):
-    """
-    Get accounting dashboard overview (requires ADMIN role)
+    """Devuelve el resumen contable del colegio para el dia y el mes en curso.
 
-    Shows:
-    - Today's income/expenses/net
-    - Month's income/expenses/net
-    - Pending expenses count and amount
-    - Recent transactions
+    Agrega ingresos y gastos del dia, totales acumulados del mes (desde el dia 1
+    hasta hoy en zona horaria Colombia), gastos pendientes de pago, y las ultimas
+    10 transacciones del mes. Solo lectura — no escribe en BD.
+
+    Args:
+        school_id: Filtra todas las metricas por colegio. Aunque la contabilidad
+            es global a nivel de cuentas, las transacciones llevan `school_id`
+            como dimension de reporte.
+
+    Returns:
+        AccountingDashboard con today_income, today_expenses, today_net,
+        month_income, month_expenses, month_net, pending_expenses (count),
+        pending_expenses_amount y recent_transactions[].
+
+    Raises:
+        HTTPException 401: Si el usuario no esta autenticado.
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
     """
     service = AccountingService(db)
     return await service.get_dashboard(school_id)
@@ -66,7 +84,9 @@ async def get_accounting_dashboard(
 @router.get(
     "/cash-flow",
     response_model=CashFlowSummary,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=responses(400),
+    operation_id="getCashFlowSummary",
 )
 async def get_cash_flow_summary(
     school_id: UUID,
@@ -76,6 +96,24 @@ async def get_cash_flow_summary(
 ):
     """
     Get cash flow summary for a date range (requires ADMIN role)
+    """
+    """Calcula el flujo de caja del colegio en un rango de fechas.
+
+    Suma ingresos agrupados por metodo de pago (cash, nequi, transfer, card,
+    credit) y gastos agrupados por categoria, retornando totales y el flujo
+    neto (ingresos - gastos). Solo lectura.
+
+    Args:
+        start_date: Inicio del rango (inclusivo).
+        end_date: Fin del rango (inclusivo).
+
+    Returns:
+        CashFlowSummary con period_start, period_end, total_income,
+        total_expenses, net_flow, income_by_method y expenses_by_category.
+
+    Raises:
+        HTTPException 400: Si `start_date > end_date`.
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
     """
     if start_date > end_date:
         raise HTTPException(
@@ -90,7 +128,9 @@ async def get_cash_flow_summary(
 @router.get(
     "/monthly-report/{year}/{month}",
     response_model=MonthlyFinancialReport,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=responses(400),
+    operation_id="getMonthlyReport",
 )
 async def get_monthly_report(
     school_id: UUID,
@@ -98,8 +138,22 @@ async def get_monthly_report(
     month: int,
     db: DatabaseSession
 ):
-    """
-    Get monthly financial report (requires ADMIN role)
+    """Genera el reporte financiero mensual con desglose diario.
+
+    Combina el cash flow del mes (ingresos por metodo, gastos por categoria)
+    con un breakdown dia a dia de ventas, encargos y gastos. Calcula
+    `net_income` por dia. Solo lectura.
+
+    Args:
+        year: Año del reporte (sin validacion explicita — Python date lo valida).
+        month: Mes del reporte (1-12).
+
+    Returns:
+        MonthlyFinancialReport con totales del mes y `daily_summaries[]`.
+
+    Raises:
+        HTTPException 400: Si `month` no esta en el rango 1-12.
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
     """
     if month < 1 or month > 12:
         raise HTTPException(
@@ -119,7 +173,9 @@ async def get_monthly_report(
     "/transactions",
     response_model=TransactionResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_transactions"))],
+    responses=responses(400),
+    operation_id="createTransaction",
 )
 async def create_transaction(
     school_id: UUID,
@@ -127,11 +183,35 @@ async def create_transaction(
     db: DatabaseSession,
     current_user: CurrentUser
 ):
-    """
-    Create a manual transaction (requires ADMIN role)
+    """Registra una transaccion manual (income o expense) con integracion de balances.
 
-    Note: Sales and order payments automatically create transactions.
-    Use this for manual income/expense entries.
+    Pensado para entradas/salidas que NO provienen de ventas, encargos o pagos
+    de gastos (esos flujos crean su transaccion automaticamente). El servicio
+    delega en `TransactionService.record`, que ademas afecta la cuenta de balance
+    correspondiente al `payment_method`: `cash` -> Caja Menor, `nequi` -> Nequi,
+    `transfer`/`card` -> Banco, `credit` -> Cuentas por Cobrar.
+
+    Side effects:
+        - Inserta fila en `transactions`.
+        - Inserta fila en `balance_entries` y actualiza `current_balance` de la
+          cuenta destino, salvo que el caller haya solicitado `skip_balance_update`
+          (no expuesto en este endpoint).
+        - El commit es atomico: si la integracion de balance falla por saldo
+          insuficiente (`chk_balance_account_sign`), todo se revierte.
+
+    Args:
+        transaction_data: Payload con type, amount, payment_method, description,
+            category, reference_code, transaction_date y FKs opcionales
+            (sale_id, order_id, expense_id). El `school_id` del path sobrescribe
+            el del payload.
+
+    Returns:
+        TransactionResponse con la transaccion creada.
+
+    Raises:
+        HTTPException 400: Si la operacion dejaria saldo negativo en la cuenta
+            destino, o cualquier `ValueError` levantado por el servicio.
+        HTTPException 403: Si carece del permiso `accounting.view_transactions`.
     """
     transaction_data.school_id = school_id
 
@@ -154,8 +234,10 @@ async def create_transaction(
 
 @router.get(
     "/transactions",
-    response_model=list[TransactionListResponse],
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    response_model=PaginatedResponse[TransactionListResponse],
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=AUTHENTICATED,
+    operation_id="listTransactions",
 )
 async def list_transactions(
     school_id: UUID,
@@ -164,44 +246,77 @@ async def list_transactions(
     end_date: date = Query(None, description="Filter by end date"),
     transaction_type: TransactionType = Query(None, description="Filter by type"),
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500)
+    limit: int = Query(100, ge=1, le=100)
 ):
-    """
-    List transactions with optional filters (requires ADMIN role)
+    """Lista transacciones del colegio paginadas, con filtros opcionales.
+
+    Si se proveen ambas fechas se ordenan por `transaction_date` descendente;
+    en otro caso se usa el orden por defecto del servicio. El conteo total se
+    calcula con los mismos filtros antes de paginar. Solo lectura.
+
+    Args:
+        start_date: Inicio del rango (inclusivo). Debe combinarse con `end_date`.
+        end_date: Fin del rango (inclusivo).
+        transaction_type: Filtra por `INCOME` o `EXPENSE`.
+        skip: Offset de paginacion.
+        limit: Pagina maxima 100.
+
+    Returns:
+        PaginatedResponse[TransactionListResponse] con items, total, page,
+        total_pages y has_more.
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
     """
     service = TransactionService(db)
+
+    count_filters = [Transaction.school_id == school_id]
+    if start_date and end_date:
+        count_filters.extend([Transaction.transaction_date >= start_date, Transaction.transaction_date <= end_date])
+    if transaction_type:
+        count_filters.append(Transaction.type == transaction_type)
+
+    total = (await db.execute(select(func.count(Transaction.id)).where(*count_filters))).scalar_one()
 
     if start_date and end_date:
         transactions = await service.get_transactions_by_date_range(
             school_id, start_date, end_date, transaction_type
         )
-        # Apply pagination manually
         transactions = transactions[skip:skip + limit]
     else:
         filters = {}
         if transaction_type:
             filters["type"] = transaction_type
         transactions = await service.get_multi(
-            school_id=school_id,
-            skip=skip,
-            limit=limit,
+            school_id=school_id, skip=skip, limit=limit,
             filters=filters if filters else None
         )
 
-    return [TransactionListResponse.model_validate(t) for t in transactions]
+    items = [TransactionListResponse.model_validate(t) for t in transactions]
+    return PaginatedResponse[TransactionListResponse](**paginate(items, total, skip, limit))
 
 
 @router.get(
     "/transactions/{transaction_id}",
     response_model=TransactionResponse,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=responses(404),
+    operation_id="getTransaction",
 )
 async def get_transaction(
     school_id: UUID,
     transaction_id: UUID,
     db: DatabaseSession
 ):
-    """Get transaction by ID (requires ADMIN role)"""
+    """Recupera el detalle de una transaccion del colegio.
+
+    Returns:
+        TransactionResponse con todos los campos del modelo.
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
+        HTTPException 404: Si la transaccion no existe o no pertenece al colegio.
+    """
     service = TransactionService(db)
     transaction = await service.get(transaction_id, school_id)
 
@@ -222,7 +337,9 @@ async def get_transaction(
     "/expenses",
     response_model=ExpenseResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.create_expense"))],
+    responses=responses(400),
+    operation_id="createExpense",
 )
 async def create_expense(
     school_id: UUID,
@@ -230,8 +347,30 @@ async def create_expense(
     db: DatabaseSession,
     current_user: CurrentUser
 ):
-    """
-    Create a new expense record (requires ADMIN role)
+    """Crea el registro de un gasto. NO afecta cuentas de balance hasta que se pague.
+
+    El gasto queda en estado `is_paid=False, amount_paid=0`. La afectacion contable
+    (debito en Caja/Banco/etc.) ocurre cuando se invoca `POST /expenses/{id}/pay`.
+    Esto permite registrar facturas a credito y pagarlas posteriormente.
+
+    Side effects:
+        - Inserta fila en `expenses`.
+        - Dispara alerta Telegram `expense_created` (fire-and-forget; cualquier
+          fallo se silencia y no afecta la transaccion).
+
+    Args:
+        expense_data: Payload con category, description, amount, expense_date,
+            due_date opcional, vendor_id opcional, receipt_number, notes,
+            is_recurring y recurring_period. El `school_id` del path sobrescribe
+            el del payload.
+
+    Returns:
+        ExpenseResponse con el gasto creado.
+
+    Raises:
+        HTTPException 400: Si el servicio levanta `ValueError` (validaciones de
+            negocio sobre el payload).
+        HTTPException 403: Si carece del permiso `accounting.create_expense`.
     """
     expense_data.school_id = school_id
 
@@ -254,8 +393,10 @@ async def create_expense(
 
 @router.get(
     "/expenses",
-    response_model=list[ExpenseListResponse],
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    response_model=PaginatedResponse[ExpenseListResponse],
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=AUTHENTICATED,
+    operation_id="listExpenses",
 )
 async def list_expenses(
     school_id: UUID,
@@ -263,10 +404,25 @@ async def list_expenses(
     category: ExpenseCategory = Query(None, description="Filter by category"),
     is_paid: bool = Query(None, description="Filter by payment status"),
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500)
+    limit: int = Query(100, ge=1, le=100)
 ):
-    """
-    List expenses with optional filters (requires ADMIN role)
+    """Lista gastos activos del colegio paginados, con filtros opcionales.
+
+    Solo retorna gastos con `is_active=True` (excluye soft-deleted). Cada item
+    incluye nombre del proveedor (si aplica) y el `balance` calculado
+    (`amount - amount_paid`).
+
+    Args:
+        category: Filtra por categoria (`ExpenseCategory` enum).
+        is_paid: Filtra por estado de pago.
+        skip: Offset de paginacion.
+        limit: Pagina maxima 100.
+
+    Returns:
+        PaginatedResponse[ExpenseListResponse].
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
     """
     service = ExpenseService(db)
 
@@ -276,68 +432,78 @@ async def list_expenses(
     if is_paid is not None:
         filters["is_paid"] = is_paid
 
+    total = await service.count(school_id=school_id, filters=filters)
     expenses = await service.get_multi(
-        school_id=school_id,
-        skip=skip,
-        limit=limit,
-        filters=filters
+        school_id=school_id, skip=skip, limit=limit, filters=filters
     )
 
-    return [
+    items = [
         ExpenseListResponse(
-            id=e.id,
-            category=e.category,
-            description=e.description,
-            amount=e.amount,
-            amount_paid=e.amount_paid,
-            is_paid=e.is_paid,
-            expense_date=e.expense_date,
-            due_date=e.due_date,
-            vendor=e.vendor,
-            is_recurring=e.is_recurring,
-            balance=e.balance
+            id=e.id, category=e.category, description=e.description,
+            amount=e.amount, amount_paid=e.amount_paid, is_paid=e.is_paid,
+            expense_date=e.expense_date, due_date=e.due_date,
+            vendor_id=e.vendor_id, vendor_name=e.vendor.name if e.vendor else None,
+            is_recurring=e.is_recurring, balance=e.balance
         )
         for e in expenses
     ]
+    return PaginatedResponse[ExpenseListResponse](**paginate(items, total, skip, limit))
 
 
 @router.get(
     "/expenses/pending",
-    response_model=list[ExpenseListResponse],
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    response_model=PaginatedResponse[ExpenseListResponse],
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=AUTHENTICATED,
+    operation_id="getPendingExpenses",
 )
 async def get_pending_expenses(
     school_id: UUID,
-    db: DatabaseSession
+    db: DatabaseSession,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100)
 ):
-    """
-    Get all pending (unpaid) expenses (requires ADMIN role)
-    """
-    service = ExpenseService(db)
-    expenses = await service.get_pending_expenses(school_id)
+    """Lista gastos pendientes de pago (`is_paid=False`) ordenados por vencimiento.
 
-    return [
+    Equivale a `GET /expenses?is_paid=false` pero ordena por `due_date` asc
+    (gastos sin fecha al final). Util para vista de cuentas por pagar internas.
+
+    Args:
+        skip: Offset de paginacion (aplicado en memoria sobre el resultado).
+        limit: Pagina maxima 100.
+
+    Returns:
+        PaginatedResponse[ExpenseListResponse] con gastos vencidos primero.
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
+    """
+    pending_filters = [Expense.school_id == school_id, Expense.is_paid == False, Expense.is_active == True]
+    total = (await db.execute(select(func.count(Expense.id)).where(*pending_filters))).scalar_one()
+
+    service = ExpenseService(db)
+    all_pending = await service.get_pending_expenses(school_id)
+    expenses = all_pending[skip:skip + limit]
+
+    items = [
         ExpenseListResponse(
-            id=e.id,
-            category=e.category,
-            description=e.description,
-            amount=e.amount,
-            amount_paid=e.amount_paid,
-            is_paid=e.is_paid,
-            expense_date=e.expense_date,
-            due_date=e.due_date,
-            vendor=e.vendor,
-            is_recurring=e.is_recurring,
-            balance=e.balance
+            id=e.id, category=e.category, description=e.description,
+            amount=e.amount, amount_paid=e.amount_paid, is_paid=e.is_paid,
+            expense_date=e.expense_date, due_date=e.due_date,
+            vendor_id=e.vendor_id, vendor_name=e.vendor.name if e.vendor else None,
+            is_recurring=e.is_recurring, balance=e.balance
         )
         for e in expenses
     ]
+    return PaginatedResponse[ExpenseListResponse](**paginate(items, total, skip, limit))
 
 
 @router.get(
     "/expenses/by-category",
     response_model=list[ExpensesByCategory],
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=AUTHENTICATED,
+    operation_id="getExpensesByCategory",
 )
 async def get_expenses_by_category(
     school_id: UUID,
@@ -345,8 +511,21 @@ async def get_expenses_by_category(
     start_date: date = Query(..., description="Start date"),
     end_date: date = Query(..., description="End date")
 ):
-    """
-    Get expenses grouped by category for a date range (requires ADMIN role)
+    """Agrupa los gastos del rango por categoria, con totales y porcentajes.
+
+    Excluye gastos inactivos (soft-deleted). El porcentaje se calcula sobre la
+    suma total del rango; si la suma es 0, todos los porcentajes son 0.
+
+    Args:
+        start_date: Inicio del rango (inclusivo).
+        end_date: Fin del rango (inclusivo).
+
+    Returns:
+        list[ExpensesByCategory] con category, total_amount, count, percentage.
+
+    Raises:
+        HTTPException 400: Si `start_date > end_date`.
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
     """
     if start_date > end_date:
         raise HTTPException(
@@ -361,14 +540,24 @@ async def get_expenses_by_category(
 @router.get(
     "/expenses/{expense_id}",
     response_model=ExpenseResponse,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=responses(404),
+    operation_id="getExpense",
 )
 async def get_expense(
     school_id: UUID,
     expense_id: UUID,
     db: DatabaseSession
 ):
-    """Get expense by ID (requires ADMIN role)"""
+    """Recupera el detalle de un gasto del colegio.
+
+    Returns:
+        ExpenseResponse con todos los campos del gasto.
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
+        HTTPException 404: Si el gasto no existe o no pertenece al colegio.
+    """
     service = ExpenseService(db)
     expense = await service.get(expense_id, school_id)
 
@@ -384,7 +573,9 @@ async def get_expense(
 @router.patch(
     "/expenses/{expense_id}",
     response_model=ExpenseResponse,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.create_expense"))],
+    responses=responses(400, 404),
+    operation_id="updateExpense",
 )
 async def update_expense(
     school_id: UUID,
@@ -392,7 +583,23 @@ async def update_expense(
     expense_data: ExpenseUpdate,
     db: DatabaseSession
 ):
-    """Update an expense (requires ADMIN role)"""
+    """Actualiza campos editables de un gasto (parcialmente, exclude_unset).
+
+    No reabre balances ni revierte pagos asociados; solo actualiza metadata
+    del gasto (descripcion, monto, categoria, fechas, etc.). Si necesita revertir
+    un pago, hagalo a nivel de transacciones.
+
+    Args:
+        expense_data: Campos a modificar; los no provistos se preservan.
+
+    Returns:
+        ExpenseResponse con el gasto actualizado.
+
+    Raises:
+        HTTPException 400: Si el servicio rechaza el cambio (`ValueError`).
+        HTTPException 403: Si carece del permiso `accounting.create_expense`.
+        HTTPException 404: Si el gasto no existe o no pertenece al colegio.
+    """
     service = ExpenseService(db)
 
     try:
@@ -417,7 +624,9 @@ async def update_expense(
 @router.post(
     "/expenses/{expense_id}/pay",
     response_model=ExpenseResponse,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.pay_expense"))],
+    responses=responses(400, 404),
+    operation_id="payExpense",
 )
 async def pay_expense(
     school_id: UUID,
@@ -426,10 +635,32 @@ async def pay_expense(
     db: DatabaseSession,
     current_user: CurrentUser
 ):
-    """
-    Record a payment for an expense (requires ADMIN role)
+    """Registra un pago (parcial o total) sobre un gasto y aplica el debito contable.
 
-    Creates an expense transaction automatically.
+    Acumula `amount_paid` y marca `is_paid=True` cuando alcanza `amount`. La
+    transaccion contable se crea via `TransactionService.record` con
+    `type=EXPENSE` y `category=<expense.category>`, lo que afecta la cuenta de
+    balance correspondiente al `payment_method` elegido (cash -> Caja Menor,
+    nequi -> Nequi, transfer/card -> Banco). Operacion atomica: si el debito
+    excede el saldo de la cuenta, todo se revierte.
+
+    Side effects:
+        - Actualiza `amount_paid`, `is_paid` en `expenses`.
+        - Inserta fila en `transactions` (type=EXPENSE).
+        - Inserta fila en `balance_entries` y actualiza el balance de la cuenta.
+        - Dispara alerta Telegram `expense_paid` (fire-and-forget).
+
+    Args:
+        payment: Payload con amount y payment_method.
+
+    Returns:
+        ExpenseResponse con `amount_paid` actualizado.
+
+    Raises:
+        HTTPException 400: Si el pago excede el monto pendiente, o si la cuenta
+            destino quedaria con saldo negativo (`Fondos insuficientes`).
+        HTTPException 403: Si carece del permiso `accounting.pay_expense`.
+        HTTPException 404: Si el gasto no existe o no pertenece al colegio.
     """
     service = ExpenseService(db)
 
@@ -460,14 +691,31 @@ async def pay_expense(
 @router.delete(
     "/expenses/{expense_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_school_access(UserRole.OWNER))]
+    dependencies=[Depends(require_permission("accounting.pay_expense"))],
+    responses=responses(404),
+    operation_id="deleteExpense",
 )
 async def delete_expense(
     school_id: UUID,
     expense_id: UUID,
     db: DatabaseSession
 ):
-    """Soft delete an expense (requires OWNER role)"""
+    """Elimina logicamente un gasto (`is_active=False`).
+
+    No revierte pagos ni transacciones contables ya aplicadas — el gasto deja
+    de aparecer en listados pero su rastro contable persiste en `transactions`
+    y `balance_entries` para preservar la auditoria.
+
+    Side effects:
+        - Marca `expenses.is_active=False`.
+
+    Returns:
+        204 No Content (sin cuerpo).
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.pay_expense`.
+        HTTPException 404: Si el gasto no existe o no pertenece al colegio.
+    """
     service = ExpenseService(db)
 
     expense = await service.soft_delete(expense_id, school_id)
@@ -489,15 +737,34 @@ async def delete_expense(
     "/cash-register",
     response_model=DailyCashRegisterResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_permission("accounting.open_register"))]
+    dependencies=[Depends(require_permission("accounting.open_register"))],
+    responses=responses(400),
+    operation_id="openCashRegister",
 )
 async def open_cash_register(
     school_id: UUID,
     register_data: DailyCashRegisterCreate,
     db: DatabaseSession
 ):
-    """
-    Open a new daily cash register (requires accounting.open_register permission)
+    """Abre la caja diaria de un colegio para una fecha especifica.
+
+    Una sola caja por (school_id, register_date). El servicio rechaza si ya
+    existe una para esa fecha. La caja queda en estado abierto hasta invocar
+    `POST /cash-register/{id}/close`.
+
+    Side effects:
+        - Inserta fila en `daily_cash_registers` con `is_closed=False`.
+
+    Args:
+        register_data: Payload con register_date y opening_balance. El
+            `school_id` del path sobrescribe el del payload.
+
+    Returns:
+        DailyCashRegisterResponse con la caja recien abierta.
+
+    Raises:
+        HTTPException 400: Si ya existe una caja para esa fecha.
+        HTTPException 403: Si carece del permiso `accounting.open_register`.
     """
     register_data.school_id = school_id
 
@@ -518,14 +785,27 @@ async def open_cash_register(
 @router.get(
     "/cash-register/today",
     response_model=DailyCashRegisterResponse,
-    dependencies=[Depends(require_permission("accounting.view_caja_menor"))]
+    dependencies=[Depends(require_permission("accounting.view_caja_menor"))],
+    responses=AUTHENTICATED,
+    operation_id="getTodayCashRegister",
 )
 async def get_today_register(
     school_id: UUID,
     db: DatabaseSession
 ):
-    """
-    Get or create today's cash register (requires accounting.view_caja_menor permission)
+    """Obtiene o crea la caja diaria del colegio para hoy (Colombia timezone).
+
+    Si no existe caja para hoy, la crea con `opening_balance=0`. La operacion
+    hace commit (no requiere accion adicional del cliente para persistir la caja).
+
+    Side effects:
+        - Posible insercion en `daily_cash_registers` si no existe la del dia.
+
+    Returns:
+        DailyCashRegisterResponse de la caja del dia.
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_caja_menor`.
     """
     service = DailyCashRegisterService(db)
     register = await service.get_or_create_today(school_id)
@@ -536,15 +816,25 @@ async def get_today_register(
 @router.get(
     "/cash-register/{register_date}",
     response_model=DailyCashRegisterResponse,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=responses(404),
+    operation_id="getCashRegisterByDate",
 )
 async def get_register_by_date(
     school_id: UUID,
     register_date: date,
     db: DatabaseSession
 ):
-    """
-    Get cash register for a specific date (requires ADMIN role)
+    """Recupera la caja diaria del colegio para una fecha exacta.
+
+    A diferencia de `/cash-register/today`, NO crea la caja si no existe.
+
+    Returns:
+        DailyCashRegisterResponse de la caja en esa fecha.
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
+        HTTPException 404: Si no hay caja para esa fecha.
     """
     service = DailyCashRegisterService(db)
     register = await service.get_register_by_date(school_id, register_date)
@@ -561,7 +851,9 @@ async def get_register_by_date(
 @router.post(
     "/cash-register/{register_id}/close",
     response_model=DailyCashRegisterResponse,
-    dependencies=[Depends(require_permission("accounting.close_register"))]
+    dependencies=[Depends(require_permission("accounting.close_register"))],
+    responses=responses(400, 404),
+    operation_id="closeCashRegister",
 )
 async def close_cash_register(
     school_id: UUID,
@@ -570,13 +862,28 @@ async def close_cash_register(
     db: DatabaseSession,
     current_user: CurrentUser
 ):
-    """
-    Close a cash register (requires accounting.close_register permission)
+    """Cierra una caja diaria abierta y consolida totales del dia.
 
-    Automatically calculates:
-    - Total income by payment method
-    - Total expenses
-    - Net cash flow
+    Calcula totales agregando `transactions` cuya `transaction_date` coincide
+    con `register_date`: income total, expense total, y desglose por metodo
+    de pago (cash_income, transfer_income, card_income, credit_sales). Marca
+    la caja como cerrada con timestamp y `closed_by`.
+
+    Side effects:
+        - Actualiza la fila en `daily_cash_registers`: closing_balance,
+          totales calculados, `is_closed=True`, `closed_at`, `closed_by`, `notes`.
+
+    Args:
+        close_data: Payload con `closing_balance` (conteo fisico al cerrar) y
+            `notes` opcionales.
+
+    Returns:
+        DailyCashRegisterResponse con la caja cerrada.
+
+    Raises:
+        HTTPException 400: Si la caja ya esta cerrada (`La caja ya esta cerrada`).
+        HTTPException 403: Si carece del permiso `accounting.close_register`.
+        HTTPException 404: Si la caja no existe o no pertenece al colegio.
     """
     service = DailyCashRegisterService(db)
 
@@ -611,19 +918,26 @@ async def close_cash_register(
 @router.get(
     "/balance-general/summary",
     response_model=BalanceGeneralSummary,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=AUTHENTICATED,
+    operation_id="getBalanceGeneralSummary",
 )
 async def get_balance_general_summary(
     school_id: UUID,
     db: DatabaseSession
 ):
-    """
-    Get balance general (balance sheet) summary (requires ADMIN role)
+    """Devuelve el balance general resumido del colegio (totales por categoria).
 
-    Shows totals for:
-    - Assets (current, fixed, other)
-    - Liabilities (current, long-term, other)
-    - Equity
+    Suma `net_value` de todas las cuentas activas agrupadas por `account_type`:
+    activos (current, fixed, intangible, other), pasivos (current, long, other)
+    y patrimonio. Calcula `is_balanced` con tolerancia de 0.01 para redondeos
+    (assets ~= liabilities + equity).
+
+    Returns:
+        BalanceGeneralSummary con totales y bandera `is_balanced`.
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
     """
     service = BalanceGeneralService(db)
     return await service.get_balance_general_summary(school_id)
@@ -632,14 +946,25 @@ async def get_balance_general_summary(
 @router.get(
     "/balance-general/detailed",
     response_model=BalanceGeneralDetailed,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=AUTHENTICATED,
+    operation_id="getBalanceGeneralDetailed",
 )
 async def get_balance_general_detailed(
     school_id: UUID,
     db: DatabaseSession
 ):
-    """
-    Get detailed balance general with account breakdown (requires ADMIN role)
+    """Devuelve el balance general con desglose cuenta por cuenta.
+
+    A diferencia del summary, retorna la lista completa de cuentas dentro de
+    cada grupo (current_assets, fixed_assets, ..., equity[]) con id, name, code
+    y `net_value`. Util para reportes contables o vistas de auditoria.
+
+    Returns:
+        BalanceGeneralDetailed con grupos de cuentas, totales y `is_balanced`.
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
     """
     service = BalanceGeneralService(db)
     return await service.get_balance_general_detailed(school_id)
@@ -648,19 +973,30 @@ async def get_balance_general_detailed(
 @router.get(
     "/receivables-payables/summary",
     response_model=ReceivablesPayablesSummary,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=AUTHENTICATED,
+    operation_id="getReceivablesPayablesSummary",
 )
 async def get_receivables_payables_summary(
     school_id: UUID,
     db: DatabaseSession
 ):
-    """
-    Get summary of accounts receivable and payable (requires ADMIN role)
+    """Resumen de cuentas por cobrar y por pagar del colegio.
 
-    Shows:
-    - Receivables: total, collected, pending, overdue
-    - Payables: total, paid, pending, overdue
-    - Net position
+    Antes de agregar, recalcula y persiste `is_overdue=True` en CxC y CxP cuyo
+    `due_date` ya venció (consulta `current_date` en zona Colombia). Por eso este
+    endpoint TIENE side effects de escritura aunque sea un GET.
+
+    Side effects:
+        - Actualiza `is_overdue` en filas de `accounts_receivable` y
+          `accounts_payable` cuya fecha de vencimiento ya paso.
+
+    Returns:
+        ReceivablesPayablesSummary con total/collected/pending/overdue para
+        ambos lados y `net_position` (CxC pendientes - CxP pendientes).
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
     """
     service = BalanceGeneralService(db)
     return await service.get_receivables_payables_summary(school_id)
@@ -674,7 +1010,9 @@ async def get_receivables_payables_summary(
     "/balance-accounts",
     response_model=BalanceAccountResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=responses(400),
+    operation_id="createBalanceAccount",
 )
 async def create_balance_account(
     school_id: UUID,
@@ -682,13 +1020,29 @@ async def create_balance_account(
     db: DatabaseSession,
     current_user: CurrentUser
 ):
-    """
-    Create a new balance account (requires ADMIN role)
+    """Crea una cuenta del plan contable (activo, pasivo o patrimonio).
 
-    Use this to add manual entries like:
-    - Assets: equipment, furniture, inventory value
-    - Liabilities: loans, debts
-    - Equity: capital, retained earnings
+    Para entradas manuales del balance: equipos, prestamos, capital, etc.
+    El `balance` inicial NO genera un `BalanceEntry` automatico — si necesita
+    rastro auditable use el endpoint `POST /balance-accounts/{id}/entries`
+    o el flujo de `set-initial-balance` para Caja/Banco.
+
+    Side effects:
+        - Inserta fila en `balance_accounts`.
+
+    Args:
+        account_data: Payload con account_type (en minusculas), name, code,
+            balance inicial, y campos opcionales de activos fijos
+            (original_value, accumulated_depreciation, useful_life_years) o
+            pasivos (creditor, interest_rate, due_date). El `school_id` del
+            path sobrescribe el del payload.
+
+    Returns:
+        BalanceAccountResponse con la cuenta creada.
+
+    Raises:
+        HTTPException 400: Si el servicio rechaza el payload (`ValueError`).
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
     """
     account_data.school_id = school_id
 
@@ -712,7 +1066,9 @@ async def create_balance_account(
 @router.get(
     "/balance-accounts",
     response_model=list[BalanceAccountListResponse],
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=AUTHENTICATED,
+    operation_id="listBalanceAccounts",
 )
 async def list_balance_accounts(
     school_id: UUID,
@@ -720,8 +1076,22 @@ async def list_balance_accounts(
     account_type: AccountType = Query(None, description="Filter by account type"),
     is_active: bool = Query(True, description="Filter by active status")
 ):
-    """
-    List balance accounts (requires ADMIN role)
+    """Lista las cuentas contables del colegio (no paginado).
+
+    Por defecto retorna solo cuentas activas. Si se pasa `account_type` se
+    filtran por tipo (`asset_current`, `asset_fixed`, `liability_current`,
+    `liability_long`, `equity`, `income`, `expense`, etc., todos en minusculas).
+
+    Args:
+        account_type: Filtra por tipo de cuenta (enum `AccountType`).
+        is_active: True por defecto. Si es False, retorna inactivas.
+
+    Returns:
+        list[BalanceAccountListResponse] con id, account_type, name, code,
+        balance, net_value e is_active.
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
     """
     service = BalanceAccountService(db)
 
@@ -754,14 +1124,24 @@ async def list_balance_accounts(
 @router.get(
     "/balance-accounts/{account_id}",
     response_model=BalanceAccountResponse,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=responses(404),
+    operation_id="getBalanceAccount",
 )
 async def get_balance_account(
     school_id: UUID,
     account_id: UUID,
     db: DatabaseSession
 ):
-    """Get balance account by ID (requires ADMIN role)"""
+    """Recupera una cuenta contable por ID.
+
+    Returns:
+        BalanceAccountResponse con todos los campos de la cuenta.
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
+        HTTPException 404: Si la cuenta no existe o no pertenece al colegio.
+    """
     service = BalanceAccountService(db)
     account = await service.get(account_id, school_id)
 
@@ -777,7 +1157,9 @@ async def get_balance_account(
 @router.patch(
     "/balance-accounts/{account_id}",
     response_model=BalanceAccountResponse,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=responses(404),
+    operation_id="updateBalanceAccount",
 )
 async def update_balance_account(
     school_id: UUID,
@@ -785,7 +1167,23 @@ async def update_balance_account(
     account_data: BalanceAccountUpdate,
     db: DatabaseSession
 ):
-    """Update a balance account (requires ADMIN role)"""
+    """Actualiza metadata de una cuenta contable (parcial, exclude_unset).
+
+    Modificar `balance` por aqui NO genera `BalanceEntry` ni rastro auditable —
+    usese con cuidado. Para movimientos rastreables, prefiera el endpoint de
+    creacion de entries.
+
+    Args:
+        account_data: Campos a modificar; los no provistos se preservan.
+
+    Returns:
+        BalanceAccountResponse con la cuenta actualizada.
+
+    Raises:
+        HTTPException 400: Si el servicio rechaza el cambio (`ValueError`).
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
+        HTTPException 404: Si la cuenta no existe o no pertenece al colegio.
+    """
     service = BalanceAccountService(db)
 
     try:
@@ -811,7 +1209,9 @@ async def update_balance_account(
     "/balance-accounts/{account_id}/entries",
     response_model=BalanceEntryResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=responses(400, 404),
+    operation_id="createBalanceEntry",
 )
 async def create_balance_entry(
     school_id: UUID,
@@ -820,11 +1220,32 @@ async def create_balance_entry(
     db: DatabaseSession,
     current_user: CurrentUser
 ):
-    """
-    Create a balance entry (journal entry) for an account (requires ADMIN role)
+    """Crea un asiento contable manual sobre una cuenta y actualiza su balance.
 
-    Automatically updates the account balance.
-    Use positive amounts for increases, negative for decreases.
+    El nuevo `balance` de la cuenta queda como `balance_actual + entry.amount`,
+    y se guarda `balance_after` en el entry para rastro de auditoria. Usar
+    montos positivos para incrementos, negativos para decrementos. NO valida
+    saldo negativo a nivel de servicio (a diferencia del flujo via
+    `TransactionService` que aplica `chk_balance_account_sign`).
+
+    Side effects:
+        - Inserta fila en `balance_entries`.
+        - Actualiza `balance` en `balance_accounts`.
+
+    Args:
+        entry_data: Payload con entry_date, amount (positivo o negativo),
+            description, reference opcional. El `school_id` y `account_id` del
+            path sobrescriben los del payload.
+
+    Returns:
+        BalanceEntryResponse con el asiento creado y `balance_after`.
+
+    Raises:
+        HTTPException 400: Si el servicio rechaza el asiento (`ValueError`,
+            p.ej. cuenta inexistente).
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
+        HTTPException 404: Aplicable si la cuenta no existe (vendra como 400
+            por el `ValueError` del servicio — ver inconsistencia).
     """
     entry_data.school_id = school_id
     entry_data.account_id = account_id
@@ -848,22 +1269,42 @@ async def create_balance_entry(
 
 @router.get(
     "/balance-accounts/{account_id}/entries",
-    response_model=list[BalanceEntryResponse],
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    response_model=PaginatedResponse[BalanceEntryResponse],
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=responses(404),
+    operation_id="listBalanceEntries",
 )
 async def list_balance_entries(
     school_id: UUID,
     account_id: UUID,
     db: DatabaseSession,
+    skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200)
 ):
-    """
-    List recent entries for a balance account (requires ADMIN role)
-    """
-    service = BalanceEntryService(db)
-    entries = await service.get_entries_for_account(account_id, school_id, limit)
+    """Lista los asientos contables de una cuenta especifica, paginados.
 
-    return [BalanceEntryResponse.model_validate(e) for e in entries]
+    Ordenados por `entry_date` desc + `created_at` desc. Util para construir
+    extractos contables de la cuenta. NOTA: el limit por defecto es 50, maximo 200.
+
+    Args:
+        skip: Offset de paginacion (aplicado en memoria).
+        limit: Pagina maxima 200.
+
+    Returns:
+        PaginatedResponse[BalanceEntryResponse].
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
+    """
+    entry_filters = [BalanceEntry.account_id == account_id, BalanceEntry.school_id == school_id]
+    total = (await db.execute(select(func.count(BalanceEntry.id)).where(*entry_filters))).scalar_one()
+
+    service = BalanceEntryService(db)
+    entries = await service.get_entries_for_account(account_id, school_id, limit + skip)
+    entries = entries[skip:skip + limit]
+
+    items = [BalanceEntryResponse.model_validate(e) for e in entries]
+    return PaginatedResponse[BalanceEntryResponse](**paginate(items, total, skip, limit))
 
 
 # ============================================
@@ -913,7 +1354,9 @@ def _build_receivable_list_response(r) -> AccountsReceivableListResponse:
     "/receivables",
     response_model=AccountsReceivableResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.manage_receivables"))],
+    responses=responses(400),
+    operation_id="createReceivable",
 )
 async def create_receivable(
     school_id: UUID,
@@ -921,10 +1364,27 @@ async def create_receivable(
     db: DatabaseSession,
     current_user: CurrentUser
 ):
-    """
-    Create a new accounts receivable (requires ADMIN role)
+    """Crea una cuenta por cobrar manual (origen distinto a venta o encargo).
 
-    For tracking money owed TO the business by clients.
+    Para registrar deudas de clientes que no provienen del flujo automatico
+    de ventas a credito. Las CxC originadas en ventas/encargos se crean por
+    sus respectivos servicios (no por aqui).
+
+    Side effects:
+        - Inserta fila en `accounts_receivable` con `amount_paid=0,
+          is_paid=False`.
+
+    Args:
+        receivable_data: Payload con client_id, amount, description,
+            invoice_date, due_date, notes y opcionalmente sale_id u order_id si
+            se vincula a un movimiento existente.
+
+    Returns:
+        AccountsReceivableResponse con la CxC creada.
+
+    Raises:
+        HTTPException 400: Si el servicio rechaza el payload (`ValueError`).
+        HTTPException 403: Si carece del permiso `accounting.manage_receivables`.
     """
     receivable_data.school_id = school_id
 
@@ -947,8 +1407,10 @@ async def create_receivable(
 
 @router.get(
     "/receivables",
-    response_model=list[AccountsReceivableListResponse],
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    response_model=PaginatedResponse[AccountsReceivableListResponse],
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=AUTHENTICATED,
+    operation_id="listReceivables",
 )
 async def list_receivables(
     school_id: UUID,
@@ -956,10 +1418,26 @@ async def list_receivables(
     is_paid: bool = Query(None, description="Filter by payment status"),
     is_overdue: bool = Query(None, description="Filter by overdue status"),
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500)
+    limit: int = Query(100, ge=1, le=100)
 ):
-    """
-    List accounts receivable (requires ADMIN role)
+    """Lista CxC del colegio paginadas con detalles de cliente, venta y encargo.
+
+    Carga eagerly las relaciones (`client`, `sale`, `order`, `school`). Cada item
+    incluye `origin_type` derivado: `sale` si tiene sale_id, `order` si tiene
+    order_id, sino `manual`.
+
+    Args:
+        is_paid: Filtra por estado de pago.
+        is_overdue: Filtra por estado de vencimiento (no recalcula; usa el flag
+            actual — invocar `/receivables-payables/summary` para refrescar).
+        skip: Offset de paginacion.
+        limit: Pagina maxima 100.
+
+    Returns:
+        PaginatedResponse[AccountsReceivableListResponse].
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
     """
     service = AccountsReceivableService(db)
 
@@ -969,46 +1447,79 @@ async def list_receivables(
     if is_overdue is not None:
         filters["is_overdue"] = is_overdue
 
-    # Use get_multi_with_client to avoid lazy loading issues
+    total = await service.count(school_id=school_id, filters=filters if filters else None)
     receivables = await service.get_multi_with_client(
-        school_id=school_id,
-        skip=skip,
-        limit=limit,
+        school_id=school_id, skip=skip, limit=limit,
         filters=filters if filters else None
     )
 
-    return [_build_receivable_list_response(r) for r in receivables]
+    items = [_build_receivable_list_response(r) for r in receivables]
+    return PaginatedResponse[AccountsReceivableListResponse](**paginate(items, total, skip, limit))
 
 
 @router.get(
     "/receivables/pending",
-    response_model=list[AccountsReceivableListResponse],
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    response_model=PaginatedResponse[AccountsReceivableListResponse],
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=AUTHENTICATED,
+    operation_id="getPendingReceivables",
 )
 async def get_pending_receivables(
     school_id: UUID,
-    db: DatabaseSession
+    db: DatabaseSession,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100)
 ):
-    """
-    Get all pending (unpaid) receivables (requires ADMIN role)
-    """
-    service = AccountsReceivableService(db)
-    receivables = await service.get_pending_receivables(school_id)
+    """Lista CxC pendientes de cobro (`is_paid=False`) ordenadas por vencimiento.
 
-    return [_build_receivable_list_response(r) for r in receivables]
+    Equivale a `GET /receivables?is_paid=false` pero ordena por `due_date` asc
+    (CxC sin fecha al final). Eager load de cliente, venta, encargo y colegio.
+
+    Args:
+        skip: Offset de paginacion (aplicado en memoria).
+        limit: Pagina maxima 100.
+
+    Returns:
+        PaginatedResponse[AccountsReceivableListResponse] con vencidas primero.
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
+    """
+    total = (await db.execute(
+        select(func.count(AccountsReceivable.id)).where(
+            AccountsReceivable.school_id == school_id, AccountsReceivable.is_paid == False
+        )
+    )).scalar_one()
+
+    service = AccountsReceivableService(db)
+    all_pending = await service.get_pending_receivables(school_id)
+    receivables = all_pending[skip:skip + limit]
+
+    items = [_build_receivable_list_response(r) for r in receivables]
+    return PaginatedResponse[AccountsReceivableListResponse](**paginate(items, total, skip, limit))
 
 
 @router.get(
     "/receivables/{receivable_id}",
     response_model=AccountsReceivableResponse,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=responses(404),
+    operation_id="getReceivable",
 )
 async def get_receivable(
     school_id: UUID,
     receivable_id: UUID,
     db: DatabaseSession
 ):
-    """Get receivable by ID (requires ADMIN role)"""
+    """Recupera el detalle de una cuenta por cobrar.
+
+    Returns:
+        AccountsReceivableResponse con todos los campos de la CxC.
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
+        HTTPException 404: Si la CxC no existe o no pertenece al colegio.
+    """
     service = AccountsReceivableService(db)
     receivable = await service.get(receivable_id, school_id)
 
@@ -1024,7 +1535,9 @@ async def get_receivable(
 @router.post(
     "/receivables/{receivable_id}/pay",
     response_model=AccountsReceivableResponse,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.manage_receivables"))],
+    responses=responses(400, 404),
+    operation_id="payReceivable",
 )
 async def pay_receivable(
     school_id: UUID,
@@ -1033,10 +1546,29 @@ async def pay_receivable(
     db: DatabaseSession,
     current_user: CurrentUser
 ):
-    """
-    Record a payment on accounts receivable (requires ADMIN role)
+    """Registra el cobro (parcial o total) de una CxC y aplica el credito contable.
 
-    Creates an income transaction automatically.
+    Acumula `amount_paid` y marca `is_paid=True` cuando alcanza `amount`. Crea
+    una transaccion `INCOME` con `category='receivables'` que afecta la cuenta
+    correspondiente al `payment_method` del pago: cash -> Caja Menor,
+    nequi -> Nequi, transfer/card -> Banco.
+
+    Side effects:
+        - Actualiza `amount_paid`, `is_paid` en `accounts_receivable`.
+        - Inserta fila en `transactions` (type=INCOME, category='receivables').
+        - Inserta fila en `balance_entries` y aumenta el balance de la cuenta.
+
+    Args:
+        payment: Payload con amount y payment_method.
+
+    Returns:
+        AccountsReceivableResponse con `amount_paid` actualizado.
+
+    Raises:
+        HTTPException 400: Si el pago excede el saldo pendiente
+            (`El pago excede el monto pendiente`).
+        HTTPException 403: Si carece del permiso `accounting.manage_receivables`.
+        HTTPException 404: Si la CxC no existe o no pertenece al colegio.
     """
     service = AccountsReceivableService(db)
 
@@ -1072,7 +1604,9 @@ async def pay_receivable(
     "/payables",
     response_model=AccountsPayableResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.manage_payables"))],
+    responses=responses(400),
+    operation_id="createPayable",
 )
 async def create_payable(
     school_id: UUID,
@@ -1080,10 +1614,21 @@ async def create_payable(
     db: DatabaseSession,
     current_user: CurrentUser
 ):
-    """
-    Create a new accounts payable (requires ADMIN role)
+    """Crea una cuenta por pagar (deuda con proveedor).
 
-    For tracking money owed BY the business to suppliers.
+    Side effects:
+        - Inserta fila en `accounts_payable` con `amount_paid=0, is_paid=False`.
+
+    Args:
+        payable_data: Payload con vendor_id, amount, description, category,
+            invoice_number, invoice_date, due_date, notes.
+
+    Returns:
+        AccountsPayableResponse con la CxP creada.
+
+    Raises:
+        HTTPException 400: Si el servicio rechaza el payload (`ValueError`).
+        HTTPException 403: Si carece del permiso `accounting.manage_payables`.
     """
     payable_data.school_id = school_id
 
@@ -1106,8 +1651,10 @@ async def create_payable(
 
 @router.get(
     "/payables",
-    response_model=list[AccountsPayableListResponse],
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    response_model=PaginatedResponse[AccountsPayableListResponse],
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=AUTHENTICATED,
+    operation_id="listPayables",
 )
 async def list_payables(
     school_id: UUID,
@@ -1115,10 +1662,24 @@ async def list_payables(
     is_paid: bool = Query(None, description="Filter by payment status"),
     is_overdue: bool = Query(None, description="Filter by overdue status"),
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500)
+    limit: int = Query(100, ge=1, le=100)
 ):
-    """
-    List accounts payable (requires ADMIN role)
+    """Lista cuentas por pagar del colegio paginadas.
+
+    Cada item incluye el `vendor_name` cuando hay proveedor asociado, y el
+    `balance` calculado (`amount - amount_paid`).
+
+    Args:
+        is_paid: Filtra por estado de pago.
+        is_overdue: Filtra por flag de vencimiento (no recalcula).
+        skip: Offset de paginacion.
+        limit: Pagina maxima 100.
+
+    Returns:
+        PaginatedResponse[AccountsPayableListResponse].
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
     """
     service = AccountsPayableService(db)
 
@@ -1128,77 +1689,96 @@ async def list_payables(
     if is_overdue is not None:
         filters["is_overdue"] = is_overdue
 
+    total = await service.count(school_id=school_id, filters=filters if filters else None)
     payables = await service.get_multi(
-        school_id=school_id,
-        skip=skip,
-        limit=limit,
+        school_id=school_id, skip=skip, limit=limit,
         filters=filters if filters else None
     )
 
-    return [
+    items = [
         AccountsPayableListResponse(
-            id=p.id,
-            vendor=p.vendor,
-            amount=p.amount,
-            amount_paid=p.amount_paid,
-            balance=p.balance,
-            description=p.description,
-            category=p.category,
-            invoice_number=p.invoice_number,
-            invoice_date=p.invoice_date,
-            due_date=p.due_date,
-            is_paid=p.is_paid,
-            is_overdue=p.is_overdue
+            id=p.id, vendor_id=p.vendor_id, vendor_name=p.vendor.name if p.vendor else "",
+            amount=p.amount, amount_paid=p.amount_paid,
+            balance=p.balance, description=p.description, category=p.category,
+            invoice_number=p.invoice_number, invoice_date=p.invoice_date,
+            due_date=p.due_date, is_paid=p.is_paid, is_overdue=p.is_overdue
         )
         for p in payables
     ]
+    return PaginatedResponse[AccountsPayableListResponse](**paginate(items, total, skip, limit))
 
 
 @router.get(
     "/payables/pending",
-    response_model=list[AccountsPayableListResponse],
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    response_model=PaginatedResponse[AccountsPayableListResponse],
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=AUTHENTICATED,
+    operation_id="getPendingPayables",
 )
 async def get_pending_payables(
     school_id: UUID,
-    db: DatabaseSession
+    db: DatabaseSession,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100)
 ):
-    """
-    Get all pending (unpaid) payables (requires ADMIN role)
-    """
-    service = AccountsPayableService(db)
-    payables = await service.get_pending_payables(school_id)
+    """Lista CxP pendientes de pago ordenadas por vencimiento.
 
-    return [
+    Equivale a `GET /payables?is_paid=false` pero ordena por `due_date` asc.
+
+    Args:
+        skip: Offset de paginacion (aplicado en memoria).
+        limit: Pagina maxima 100.
+
+    Returns:
+        PaginatedResponse[AccountsPayableListResponse] con vencidas primero.
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
+    """
+    total = (await db.execute(
+        select(func.count(AccountsPayable.id)).where(
+            AccountsPayable.school_id == school_id, AccountsPayable.is_paid == False
+        )
+    )).scalar_one()
+
+    service = AccountsPayableService(db)
+    all_pending = await service.get_pending_payables(school_id)
+    payables = all_pending[skip:skip + limit]
+
+    items = [
         AccountsPayableListResponse(
-            id=p.id,
-            vendor=p.vendor,
-            amount=p.amount,
-            amount_paid=p.amount_paid,
-            balance=p.balance,
-            description=p.description,
-            category=p.category,
-            invoice_number=p.invoice_number,
-            invoice_date=p.invoice_date,
-            due_date=p.due_date,
-            is_paid=p.is_paid,
-            is_overdue=p.is_overdue
+            id=p.id, vendor_id=p.vendor_id, vendor_name=p.vendor.name if p.vendor else "",
+            amount=p.amount, amount_paid=p.amount_paid,
+            balance=p.balance, description=p.description, category=p.category,
+            invoice_number=p.invoice_number, invoice_date=p.invoice_date,
+            due_date=p.due_date, is_paid=p.is_paid, is_overdue=p.is_overdue
         )
         for p in payables
     ]
+    return PaginatedResponse[AccountsPayableListResponse](**paginate(items, total, skip, limit))
 
 
 @router.get(
     "/payables/{payable_id}",
     response_model=AccountsPayableResponse,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=responses(404),
+    operation_id="getPayable",
 )
 async def get_payable(
     school_id: UUID,
     payable_id: UUID,
     db: DatabaseSession
 ):
-    """Get payable by ID (requires ADMIN role)"""
+    """Recupera el detalle de una cuenta por pagar.
+
+    Returns:
+        AccountsPayableResponse con todos los campos de la CxP.
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
+        HTTPException 404: Si la CxP no existe o no pertenece al colegio.
+    """
     service = AccountsPayableService(db)
     payable = await service.get(payable_id, school_id)
 
@@ -1214,7 +1794,9 @@ async def get_payable(
 @router.post(
     "/payables/{payable_id}/pay",
     response_model=AccountsPayableResponse,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.manage_payables"))],
+    responses=responses(400, 404),
+    operation_id="payPayable",
 )
 async def pay_payable(
     school_id: UUID,
@@ -1223,10 +1805,29 @@ async def pay_payable(
     db: DatabaseSession,
     current_user: CurrentUser
 ):
-    """
-    Record a payment on accounts payable (requires ADMIN role)
+    """Registra el pago (parcial o total) de una CxP y aplica el debito contable.
 
-    Creates an expense transaction automatically.
+    Acumula `amount_paid` y marca `is_paid=True` cuando alcanza `amount`. Crea
+    una transaccion `EXPENSE` con `category='payables'` que descuenta de la
+    cuenta correspondiente al `payment_method`: cash -> Caja Menor,
+    nequi -> Nequi, transfer/card -> Banco.
+
+    Side effects:
+        - Actualiza `amount_paid`, `is_paid` en `accounts_payable`.
+        - Inserta fila en `transactions` (type=EXPENSE, category='payables').
+        - Inserta fila en `balance_entries` y descuenta de la cuenta destino.
+
+    Args:
+        payment: Payload con amount y payment_method.
+
+    Returns:
+        AccountsPayableResponse con `amount_paid` actualizado.
+
+    Raises:
+        HTTPException 400: Si el pago excede el saldo pendiente, o si la cuenta
+            origen quedaria con saldo negativo (`Fondos insuficientes`).
+        HTTPException 403: Si carece del permiso `accounting.manage_payables`.
+        HTTPException 404: Si la CxP no existe o no pertenece al colegio.
     """
     service = AccountsPayableService(db)
 
@@ -1260,22 +1861,33 @@ async def pay_payable(
 
 @router.get(
     "/cash-balances",
-    dependencies=[Depends(require_permission("accounting.view_global_balances"))]
+    dependencies=[Depends(require_permission("accounting.view_global_balances"))],
+    responses=AUTHENTICATED,
+    operation_id="getCashBalances",
 )
 async def get_cash_balances(
     school_id: UUID,
     db: DatabaseSession
 ):
-    """
-    Get current cash and bank balances (requires accounting.view_global_balances permission)
+    """Devuelve los saldos actuales de las cuentas de efectivo y banco GLOBALES.
+
+    A pesar de estar montado bajo `/schools/{school_id}/accounting/`, este
+    endpoint retorna saldos GLOBALES — `BalanceIntegrationService.get_cash_balances`
+    ignora el `school_id` y delega en `get_global_cash_balances`. Las cuentas
+    Caja Menor (1101), Caja Mayor (1102), Nequi y Banco son unicas para todo
+    el negocio.
+
+    Args:
+        school_id: Ignorado por el servicio. Se mantiene en la URL por
+            compatibilidad con el patron multi-tenant del resto de endpoints.
 
     Returns:
-        - caja_menor: Current cash balance (operational)
-        - caja_mayor: Consolidated cash balance
-        - nequi: Nequi balance
-        - banco: Current bank account balance
-        - total_liquid: Sum of all
-        - total_cash: Sum of caja_menor + caja_mayor
+        Dict con `caja_menor`, `caja_mayor`, `nequi`, `banco`, `total_liquid`
+        y `total_cash` (caja_menor + caja_mayor).
+
+    Raises:
+        HTTPException 403: Si carece del permiso
+            `accounting.view_global_balances`.
     """
     from app.services.balance_integration import BalanceIntegrationService
 
@@ -1291,21 +1903,31 @@ async def get_cash_balances(
 
 @router.get(
     "/caja-menor/balance",
-    dependencies=[Depends(require_permission("accounting.view_caja_menor"))]
+    dependencies=[Depends(require_permission("accounting.view_caja_menor"))],
+    responses=AUTHENTICATED,
+    operation_id="getCajaMenorBalance",
 )
 async def get_caja_menor_balance(
     school_id: UUID,
     db: DatabaseSession
 ):
-    """
-    Get current Caja Menor balance (requires accounting.view_caja_menor permission)
+    """Devuelve el saldo actual de la Caja Menor (cuenta global, codigo 1101).
+
+    Si la cuenta no existe la crea via `get_or_create_global_accounts` y la
+    retorna con saldo 0. La Caja Menor es UNICA y global; `school_id` se
+    ignora.
+
+    Side effects:
+        - Posible creacion de la cuenta `1101` si no existia.
+
+    Args:
+        school_id: Ignorado por el servicio (cuenta es global).
 
     Returns:
-        - id: Account ID
-        - name: Account name
-        - code: Account code (1101)
-        - balance: Current balance
-        - last_updated: Last update timestamp
+        Dict con id, name, code (1101), balance y last_updated.
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_caja_menor`.
     """
     from app.services.cash_register import CashRegisterService
 
@@ -1315,21 +1937,29 @@ async def get_caja_menor_balance(
 
 @router.get(
     "/caja-menor/summary",
-    dependencies=[Depends(require_permission("accounting.view_caja_menor"))]
+    dependencies=[Depends(require_permission("accounting.view_caja_menor"))],
+    responses=AUTHENTICATED,
+    operation_id="getCajaMenorSummary",
 )
 async def get_caja_menor_summary(
     school_id: UUID,
     db: DatabaseSession
 ):
-    """
-    Get today's Caja Menor summary (requires accounting.view_caja_menor permission)
+    """Resumen del dia para Caja Menor: saldos, liquidaciones y movimientos.
+
+    Suma todas las liquidaciones (`reference LIKE 'LIQ-%'`) del dia y cuenta
+    el numero total de entries en Caja Menor para hoy. Util para el dashboard
+    operativo del vendedor.
+
+    Args:
+        school_id: Ignorado por el servicio (cuentas son globales).
 
     Returns:
-        - caja_menor_balance: Current Caja Menor balance
-        - caja_mayor_balance: Current Caja Mayor balance
-        - today_liquidations: Total liquidated today
-        - today_entries_count: Number of entries today
-        - date: Today's date
+        Dict con caja_menor_balance, caja_mayor_balance, today_liquidations,
+        today_entries_count y `date` (hoy en zona Colombia).
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_caja_menor`.
     """
     from app.services.cash_register import CashRegisterService
 
@@ -1339,6 +1969,8 @@ async def get_caja_menor_summary(
 
 @router.post(
     "/caja-menor/liquidate",
+    responses=responses(400),
+    operation_id="liquidateCajaMenor",
 )
 async def liquidate_caja_menor(
     school_id: UUID,
@@ -1348,22 +1980,35 @@ async def liquidate_caja_menor(
     constraints: dict = Depends(require_permission_with_constraints("accounting.liquidate_caja_menor")),
     notes: str | None = None
 ):
-    """
-    Liquidate (transfer) from Caja Menor to Caja Mayor.
+    """Transfiere efectivo desde Caja Menor a Caja Mayor (liquidacion de cierre).
 
-    Requires accounting.liquidate_caja_menor permission.
-    Subject to max_amount constraint (Admin: 5M COP, Owner: unlimited).
+    Crea dos `BalanceEntry` espejo (negativo en Caja Menor, positivo en Caja
+    Mayor) con el mismo `reference` (`LIQ-<timestamp>`). Las entries se
+    registran como globales (`school_id=None`) — no se atan al colegio del path.
+    El permiso aplica una restriccion `max_amount` por rol: Admin tipicamente
+    5M COP, Owner sin limite. Si excede el limite y el rol requiere aprobacion,
+    retorna `403 REQUIRES_APPROVAL` con detalle estructurado.
+
+    Side effects:
+        - Resta `amount` del balance de Caja Menor (1101) e inserta un
+          `BalanceEntry` con monto negativo.
+        - Suma `amount` al balance de Caja Mayor (1102) e inserta el entry
+          espejo positivo.
 
     Args:
-        amount: Amount to liquidate
-        notes: Optional notes for the liquidation
+        amount: Monto a liquidar en COP. Debe ser > 0 y <= saldo de Caja Menor.
+        notes: Notas opcionales que se prefijan en la descripcion de los entries.
 
     Returns:
-        - success: Whether the operation was successful
-        - message: Status message
-        - caja_menor_balance: New Caja Menor balance
-        - caja_mayor_balance: New Caja Mayor balance
-        - amount_liquidated: Amount transferred
+        Dict con success, message, nuevos balances de ambas cuentas,
+        amount_liquidated, y los entries `entry_from`/`entry_to`.
+
+    Raises:
+        HTTPException 400: Si `amount <= 0`, si excede el saldo disponible,
+            o si las cuentas globales no se pueden crear/encontrar.
+        HTTPException 403: Si carece del permiso
+            `accounting.liquidate_caja_menor`, o si el monto supera la
+            restriccion `max_amount` del rol.
     """
     from decimal import Decimal
     from app.services.cash_register import CashRegisterService
@@ -1409,7 +2054,9 @@ async def liquidate_caja_menor(
 
 @router.get(
     "/caja-menor/liquidation-history",
-    dependencies=[Depends(require_permission("accounting.view_liquidation_history"))]
+    dependencies=[Depends(require_permission("accounting.view_liquidation_history"))],
+    responses=AUTHENTICATED,
+    operation_id="getLiquidationHistory",
 )
 async def get_liquidation_history(
     school_id: UUID,
@@ -1418,22 +2065,24 @@ async def get_liquidation_history(
     end_date: date = Query(None, description="End date filter"),
     limit: int = Query(50, ge=1, le=200)
 ):
-    """
-    Get history of Caja Menor liquidations (requires ADMIN role)
+    """Lista las liquidaciones historicas (entries en Caja Mayor con `LIQ-*`).
+
+    Filtra los `BalanceEntry` de Caja Mayor cuyo `reference` empieza con `LIQ-`
+    y `amount > 0` (solo el lado de ingreso). Ordenados por `created_at` desc.
+    Las liquidaciones son globales — `school_id` se ignora.
 
     Args:
-        start_date: Optional start date filter
-        end_date: Optional end date filter
-        limit: Maximum number of records to return
+        start_date: Filtro inferior por `entry_date` (opcional, inclusivo).
+        end_date: Filtro superior por `entry_date` (opcional, inclusivo).
+        limit: Maximo de registros (default 50, max 200).
 
-    Returns list of liquidation records with:
-        - id: Entry ID
-        - date: Liquidation date
-        - amount: Amount liquidated
-        - balance_after: Balance after liquidation
-        - description: Notes
-        - reference: Liquidation reference code
-        - created_at: Timestamp
+    Returns:
+        list[dict] con id, date, amount, balance_after, description, reference,
+        created_at por cada liquidacion.
+
+    Raises:
+        HTTPException 403: Si carece del permiso
+            `accounting.view_liquidation_history`.
     """
     from app.services.cash_register import CashRegisterService
 
@@ -1448,7 +2097,9 @@ async def get_liquidation_history(
 @router.post(
     "/initialize-default-accounts",
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=AUTHENTICATED,
+    operation_id="initializeDefaultAccounts",
 )
 async def initialize_default_accounts(
     school_id: UUID,
@@ -1457,18 +2108,31 @@ async def initialize_default_accounts(
     caja_initial_balance: float = 0,
     banco_initial_balance: float = 0
 ):
-    """
-    Initialize default balance accounts (Caja, Banco) for the school (requires ADMIN role)
+    """Inicializa el plan de cuentas por defecto (Caja Menor/Mayor, Nequi, Banco).
 
-    This is useful for initial setup or if accounts were deleted.
-    If accounts already exist, they won't be duplicated.
+    Operacion idempotente: si las cuentas globales ya existen, no las duplica
+    (este endpoint redirige al flujo global a pesar del path por colegio).
+    Util para setup inicial o recuperacion. Crea `BalanceEntry` "Saldo inicial"
+    cuando los balances iniciales son distintos de 0.
+
+    Side effects:
+        - Posibles inserciones en `balance_accounts` (Caja Menor 1101,
+          Caja Mayor 1102, Nequi, Banco) con `school_id=None`.
+        - Posibles inserciones de entries iniciales en `balance_entries`.
 
     Args:
-        caja_initial_balance: Initial cash balance (default 0)
-        banco_initial_balance: Initial bank balance (default 0)
+        school_id: Ignorado por el servicio (cuentas son globales).
+        caja_initial_balance: Saldo inicial de Caja (aplica a Caja Mayor en el
+            flujo global, default 0).
+        banco_initial_balance: Saldo inicial de Banco (default 0).
 
     Returns:
-        Mapping of account types to UUIDs
+        Dict con `message` y `accounts` (mapping de account_key -> UUID).
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
+        HTTPException 500: Si la inicializacion falla por cualquier motivo
+            (loggea el error original como detail).
     """
     from decimal import Decimal
     from app.services.balance_integration import BalanceIntegrationService
@@ -1503,28 +2167,28 @@ async def initialize_default_accounts(
 
 @router.get(
     "/patrimony/summary",
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=AUTHENTICATED,
+    operation_id="getPatrimonySummary",
 )
 async def get_patrimony_summary(
     school_id: UUID,
     db: DatabaseSession
 ):
-    """
-    Get complete patrimony summary (requires ADMIN role)
+    """Calcula el patrimonio neto del colegio: ASSETS - LIABILITIES.
 
-    PATRIMONY = ASSETS - LIABILITIES
+    Agrega:
+    - Activos: Caja + Banco, valor de inventario (cost o price*0.80 fallback),
+      cuentas por cobrar, activos fijos.
+    - Pasivos: cuentas por pagar a proveedores, deudas (prestamos, creditos).
 
-    Assets:
-    - Cash (Caja) + Bank (Banco)
-    - Inventory (valued at cost or 80% of price)
-    - Accounts Receivable
-    - Fixed Assets (equipment, machinery)
+    Solo lectura — calcula totales en runtime sin escribir en BD.
 
-    Liabilities:
-    - Accounts Payable (suppliers)
-    - Debts (loans, credits)
+    Returns:
+        Dict con desglose completo y `net_patrimony` (assets - liabilities).
 
-    Returns comprehensive breakdown and net patrimony.
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
     """
     from app.services.patrimony import PatrimonyService
 
@@ -1534,20 +2198,26 @@ async def get_patrimony_summary(
 
 @router.get(
     "/patrimony/inventory-valuation",
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=AUTHENTICATED,
+    operation_id="getInventoryValuation",
 )
 async def get_inventory_valuation(
     school_id: UUID,
     db: DatabaseSession
 ):
-    """
-    Get detailed inventory valuation (requires ADMIN role)
+    """Valoriza el inventario actual del colegio producto por producto.
 
-    Calculates total inventory value:
-    - Uses product.cost if available
-    - Falls back to price * 0.80 (80% margin) if cost not set
+    Aplica fallback: usa `product.cost` si esta definido, sino `price * 0.80`
+    (asume margen del 20%). El total se basa en `inventory.quantity` por talla.
+    Solo lectura.
 
-    Returns breakdown by product with quantities and values.
+    Returns:
+        Dict con breakdown por producto (cantidades, valor unitario, valor total)
+        y `total_value` agregado.
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
     """
     from app.services.patrimony import PatrimonyService
 
@@ -1557,7 +2227,9 @@ async def get_inventory_valuation(
 
 @router.post(
     "/patrimony/set-initial-balance",
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=responses(400, 404),
+    operation_id="setInitialBalance",
 )
 async def set_initial_balance(
     school_id: UUID,
@@ -1566,15 +2238,32 @@ async def set_initial_balance(
     db: DatabaseSession,
     current_user: CurrentUser
 ):
-    """
-    Set initial balance for Caja or Banco account (requires ADMIN role)
+    """Establece el saldo inicial de una cuenta del colegio (Caja/Banco).
 
-    Use this to set starting balances when migrating to the system.
-    Creates an adjustment entry in the balance history.
+    Calcula la diferencia entre el balance actual y `initial_balance` y crea
+    un `BalanceEntry` de ajuste con `reference='INICIAL'` y descripcion "Ajuste
+    de saldo inicial". Si la diferencia es 0, no hace nada. Esta operacion
+    busca la cuenta por `school_id + code`, por lo que afecta la cuenta del
+    colegio (no la global) — usar para setup inicial cuando se migra desde
+    sistemas previos.
+
+    Side effects:
+        - Actualiza `balance` en `balance_accounts`.
+        - Inserta `BalanceEntry` con monto = diferencia.
 
     Args:
-        account_code: "1101" for Caja, "1102" for Banco
-        initial_balance: The starting balance amount
+        account_code: `"1101"` para Caja, `"1102"` para Banco. Otros codigos
+            si la cuenta existe en el plan del colegio.
+        initial_balance: Nuevo saldo objetivo.
+
+    Returns:
+        Dict con message, account_id, account_name y new_balance.
+
+    Raises:
+        HTTPException 400: Si la cuenta no se encuentra (ValueError del servicio).
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
+        HTTPException 404: Documentado pero el servicio levanta `ValueError`,
+            por lo que en la practica retorna 400.
     """
     from decimal import Decimal
     from app.services.patrimony import PatrimonyService
@@ -1607,7 +2296,9 @@ async def set_initial_balance(
 @router.post(
     "/patrimony/debts",
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=responses(400),
+    operation_id="createDebt",
 )
 async def create_debt(
     school_id: UUID,
@@ -1621,19 +2312,33 @@ async def create_debt(
     due_date: date | None = None,
     description: str | None = None
 ):
-    """
-    Create a new debt record (requires ADMIN role)
+    """Registra una deuda como cuenta del balance (pasivo).
 
-    Use this to register existing debts when migrating to the system.
+    Crea una `BalanceAccount` de tipo `liability_long` o `liability_current`
+    segun `is_long_term`, con el monto inicial como `balance`. Util para
+    cargar deudas existentes al migrar al sistema.
+
+    Side effects:
+        - Inserta fila en `balance_accounts` con account_type pasivo.
 
     Args:
-        name: Name/description of the debt (e.g., "Préstamo Bancolombia")
-        amount: Total debt amount
-        creditor: Who the debt is owed to
-        is_long_term: True if > 1 year, False for short-term
-        interest_rate: Annual interest rate (optional)
-        due_date: When the debt is due (optional)
-        description: Additional notes (optional)
+        name: Identificador legible (ej. "Prestamo Bancolombia").
+        amount: Monto total de la deuda.
+        creditor: Acreedor.
+        is_long_term: True para pasivo a largo plazo (> 1 año),
+            False para pasivo corriente.
+        interest_rate: Tasa anual opcional.
+        due_date: Vencimiento opcional.
+        description: Notas opcionales.
+
+    Returns:
+        Dict con message, debt_id, name, amount, creditor, is_long_term.
+
+    Raises:
+        HTTPException 400: Si el servicio falla por cualquier motivo (atrapa
+            cualquier `Exception`, lo que enmascara errores 500 reales —
+            ver inconsistencia).
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
     """
     from decimal import Decimal
     from app.services.patrimony import PatrimonyService
@@ -1672,14 +2377,22 @@ async def create_debt(
 
 @router.get(
     "/patrimony/debts",
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=AUTHENTICATED,
+    operation_id="listDebts",
 )
 async def list_debts(
     school_id: UUID,
     db: DatabaseSession
 ):
-    """
-    List all debts (requires ADMIN role)
+    """Lista todas las deudas registradas del colegio.
+
+    Returns:
+        Dict con la lista de deudas y totales agregados (total_amount,
+        breakdown por tipo: long_term vs current).
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
     """
     from app.services.patrimony import PatrimonyService
 
@@ -1690,7 +2403,9 @@ async def list_debts(
 @router.post(
     "/patrimony/fixed-assets",
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=responses(400),
+    operation_id="createFixedAsset",
 )
 async def create_fixed_asset(
     school_id: UUID,
@@ -1701,16 +2416,28 @@ async def create_fixed_asset(
     description: str | None = None,
     useful_life_years: int | None = None
 ):
-    """
-    Create a fixed asset record (requires ADMIN role)
+    """Registra un activo fijo (equipo, maquinaria, mobiliario) en el balance.
 
-    Use this to register equipment, machinery, furniture, etc.
+    Crea una `BalanceAccount` de tipo `asset_fixed` con `original_value=value`,
+    `accumulated_depreciation=0`, y `balance=value`. La depreciacion se calcula
+    posteriormente en otros flujos a partir de `useful_life_years`.
+
+    Side effects:
+        - Inserta fila en `balance_accounts` con account_type=`asset_fixed`.
 
     Args:
-        name: Name of the asset (e.g., "Máquina de coser industrial")
-        value: Current value of the asset
-        description: Additional notes (optional)
-        useful_life_years: For depreciation calculation (optional)
+        name: Identificador del activo (ej. "Maquina de coser industrial").
+        value: Valor actual.
+        description: Notas opcionales.
+        useful_life_years: Vida util en años para calculo de depreciacion.
+
+    Returns:
+        Dict con message, asset_id, name y value.
+
+    Raises:
+        HTTPException 400: Si el servicio falla por cualquier motivo (atrapa
+            cualquier `Exception`).
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
     """
     from decimal import Decimal
     from app.services.patrimony import PatrimonyService
@@ -1744,14 +2471,22 @@ async def create_fixed_asset(
 
 @router.get(
     "/patrimony/fixed-assets",
-    dependencies=[Depends(require_school_access(UserRole.ADMIN))]
+    dependencies=[Depends(require_permission("accounting.view_cash"))],
+    responses=AUTHENTICATED,
+    operation_id="listFixedAssets",
 )
 async def list_fixed_assets(
     school_id: UUID,
     db: DatabaseSession
 ):
-    """
-    List all fixed assets (requires ADMIN role)
+    """Lista todos los activos fijos del colegio.
+
+    Returns:
+        Dict con la lista de activos y totales (valor original, depreciacion
+        acumulada, valor neto).
+
+    Raises:
+        HTTPException 403: Si carece del permiso `accounting.view_cash`.
     """
     from app.services.patrimony import PatrimonyService
 

@@ -1,5 +1,5 @@
 import apiClient from '@/lib/api';
-import type { Client } from '@/lib/api';
+import type { Client, PaginatedResponse } from '@/lib/api';
 
 export interface ClientCreate {
   name: string;
@@ -23,8 +23,8 @@ export interface ClientListParams {
 
 const clientService = {
   // Clients are GLOBAL (not tied to schools) in this system
-  async getClients(params?: ClientListParams): Promise<Client[]> {
-    const response = await apiClient.get('/clients', {
+  async getClients(params?: ClientListParams): Promise<PaginatedResponse<Client>> {
+    const response = await apiClient.get<PaginatedResponse<Client>>('/clients', {
       params: {
         limit: params?.limit || 500,
         skip: params?.offset || 0,

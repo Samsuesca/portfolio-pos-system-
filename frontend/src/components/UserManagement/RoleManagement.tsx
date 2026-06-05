@@ -219,7 +219,7 @@ export default function RoleManagement({
     return (
       <div className="flex items-center justify-center py-8">
         <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
-        <span className="ml-2 text-gray-600">Cargando roles...</span>
+        <span className="ml-2 text-stone-600">Cargando roles...</span>
       </div>
     );
   }
@@ -227,9 +227,9 @@ export default function RoleManagement({
   return (
     <>
       {/* Toolbar */}
-      <div className="p-4 bg-gray-50 border-b flex flex-wrap gap-3 items-center">
+      <div className="p-4 bg-stone-50 border-b flex flex-wrap gap-3 items-center">
         <div className="flex-1">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-stone-600">
             <span className="font-medium">Roles Globales</span> - Los roles personalizados se
             pueden asignar a usuarios en cualquier colegio.
           </p>

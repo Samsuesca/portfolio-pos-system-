@@ -44,7 +44,7 @@ export const useSchoolStore = create<SchoolState>()(
 
           if (user?.is_superuser) {
             // Superusers can see all schools
-            schools = await schoolService.getSchools();
+            schools = (await schoolService.getSchools()).items;
           } else if (user?.id) {
             // Regular users only see their assigned schools
             const userSchools = await userService.getUserSchools(user.id);

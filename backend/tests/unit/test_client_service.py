@@ -640,7 +640,7 @@ class TestClientServiceJWT:
         """Test JWT token creation for client."""
         from app.services.client import ClientService
         from app.schemas.client import ClientWebRegister, ClientStudentCreate
-        from jose import jwt
+        import jwt
         from app.core.config import settings
 
         service = ClientService(db_session)

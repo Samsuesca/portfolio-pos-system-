@@ -6,7 +6,8 @@
  * - School-specific: /schools/{school_id}/products - Original endpoints
  */
 import apiClient from '../utils/api-client';
-import type { Product, GarmentType, GlobalProduct, GlobalGarmentType, GarmentTypeImage } from '../types/api';
+import type { Product, GarmentType, GarmentTypeImage, CatalogOrderEntry, PaginatedResponse } from '../types/api';
+import { unwrapPaginated } from '../utils/pagination';
 
 export interface ProductFilters {
   school_id?: string;
@@ -18,6 +19,9 @@ export interface ProductFilters {
   missing_cost?: boolean;
   skip?: number;
   limit?: number;
+  /** Server-side sort field. `pending_orders` is not supported by the backend. */
+  sort_by?: 'code' | 'name' | 'size' | 'price' | 'stock';
+  order?: 'asc' | 'desc';
 }
 
 export interface ProductCostUpdate {
@@ -31,11 +35,25 @@ export interface BulkCostUpdateResult {
   errors: string[];
 }
 
+export interface DeleteResult {
+  mode: 'deleted' | 'deactivated';
+  message: string;
+}
+
+export interface ProductStats {
+  total_products: number;
+  total_stock: number;
+  out_of_stock_count: number;
+  low_stock_count: number;
+  with_orders_count: number;
+  total_pending_orders: number;
+}
+
 export const productService = {
   /**
    * Get all products from ALL schools user has access to (multi-school)
    */
-  async getAllProducts(filters?: ProductFilters): Promise<Product[]> {
+  async getAllProducts(filters?: ProductFilters): Promise<PaginatedResponse<Product>> {
     const params = new URLSearchParams();
     if (filters?.school_id) params.append('school_id', filters.school_id);
     if (filters?.garment_type_id) params.append('garment_type_id', filters.garment_type_id);
@@ -44,13 +62,15 @@ export const productService = {
     if (filters?.with_stock !== undefined) params.append('with_stock', String(filters.with_stock));
     if (filters?.with_images !== undefined) params.append('with_images', String(filters.with_images));
     if (filters?.missing_cost !== undefined) params.append('missing_cost', String(filters.missing_cost));
-    if (filters?.skip) params.append('skip', String(filters.skip));
-    if (filters?.limit) params.append('limit', String(filters.limit));
+    if (filters?.skip !== undefined) params.append('skip', String(filters.skip));
+    if (filters?.limit !== undefined) params.append('limit', String(filters.limit));
+    if (filters?.sort_by) params.append('sort_by', filters.sort_by);
+    if (filters?.order) params.append('order', filters.order);
 
     const queryString = params.toString();
     const url = queryString ? `/products?${queryString}` : '/products';
-    const response = await apiClient.get<Product[]>(url);
-    return response.data;
+    const response = await apiClient.get<PaginatedResponse<Product> | Product[]>(url);
+    return unwrapPaginated(response.data);
   },
 
   /**
@@ -59,15 +79,13 @@ export const productService = {
    * with_images=true by default to show garment type images in product selectors
    */
   async getProducts(schoolId?: string, withInventory: boolean = true, limit: number = 500): Promise<Product[]> {
-    if (schoolId) {
-      return this.getAllProducts({
-        school_id: schoolId,
-        with_stock: withInventory,
-        with_images: true,
-        limit
-      });
+    const result = schoolId
+      ? await this.getAllProducts({ school_id: schoolId, with_stock: withInventory, with_images: true, limit })
+      : await this.getAllProducts({ with_stock: withInventory, with_images: true, limit });
+    if (result.has_more) {
+      console.warn(`[productService.getProducts] Catálogo truncado en ${limit} ítems (hay más). Migra el caller a getAllProducts paginado.`);
     }
-    return this.getAllProducts({ with_stock: withInventory, with_images: true, limit });
+    return result.items;
   },
 
   /**
@@ -102,35 +120,34 @@ export const productService = {
     return response.data;
   },
 
-  /**
-   * Delete a product (soft delete)
-   */
-  async deleteProduct(schoolId: string, productId: string): Promise<void> {
-    await apiClient.delete(`/schools/${schoolId}/products/${productId}`);
+  async deleteProduct(schoolId: string, productId: string): Promise<DeleteResult> {
+    const response = await apiClient.delete<DeleteResult>(`/schools/${schoolId}/products/${productId}`);
+    return response.data;
   },
 
   /**
    * Get all garment types from ALL schools (multi-school)
    */
-  async getAllGarmentTypes(filters?: { school_id?: string; active_only?: boolean }): Promise<GarmentType[]> {
+  async getAllGarmentTypes(filters?: { school_id?: string; active_only?: boolean; with_stats?: boolean }): Promise<PaginatedResponse<GarmentType>> {
     const params = new URLSearchParams();
     if (filters?.school_id) params.append('school_id', filters.school_id);
     if (filters?.active_only !== undefined) params.append('active_only', String(filters.active_only));
+    if (filters?.with_stats) params.append('with_stats', 'true');
 
     const queryString = params.toString();
     const url = queryString ? `/garment-types?${queryString}` : '/garment-types';
-    const response = await apiClient.get<GarmentType[]>(url);
-    return response.data;
+    const response = await apiClient.get<PaginatedResponse<GarmentType> | GarmentType[]>(url);
+    return unwrapPaginated(response.data);
   },
 
   /**
    * Get all garment types for a school (backwards compatible)
    */
   async getGarmentTypes(schoolId?: string): Promise<GarmentType[]> {
-    if (schoolId) {
-      return this.getAllGarmentTypes({ school_id: schoolId });
-    }
-    return this.getAllGarmentTypes();
+    const result = schoolId
+      ? await this.getAllGarmentTypes({ school_id: schoolId })
+      : await this.getAllGarmentTypes();
+    return result.items;
   },
 
   /**
@@ -148,39 +165,43 @@ export const productService = {
   /**
    * Get all global products with inventory
    */
-  async getGlobalProducts(withInventory: boolean = true, limit: number = 500): Promise<GlobalProduct[]> {
-    const response = await apiClient.get<GlobalProduct[]>('/global/products', {
-      params: { with_inventory: withInventory, limit }
+  async getGlobalProducts(withInventory: boolean = true, limit: number = 500, withImages: boolean = false): Promise<PaginatedResponse<Product>> {
+    const response = await apiClient.get<PaginatedResponse<Product> | Product[]>('/global/products', {
+      params: { with_inventory: withInventory, limit, ...(withImages ? { with_images: true } : {}) }
     });
+    const result = unwrapPaginated(response.data);
+    if (result.has_more) {
+      console.warn(`[productService.getGlobalProducts] Catálogo global truncado en ${limit} ítems (hay más).`);
+    }
+    return result;
+  },
+
+  async getGlobalProductsStats(params?: {
+    school_id?: string;
+    garment_type_id?: string;
+    scope?: 'global' | 'school' | 'all';
+  }): Promise<ProductStats> {
+    const response = await apiClient.get<ProductStats>('/global/products/stats', { params });
     return response.data;
   },
 
-  /**
-   * Get a single global product by ID
-   */
-  async getGlobalProduct(productId: string): Promise<GlobalProduct> {
-    const response = await apiClient.get<GlobalProduct>(`/global/products/${productId}`);
+  async getGlobalProduct(productId: string): Promise<Product> {
+    const response = await apiClient.get<Product>(`/global/products/${productId}`);
     return response.data;
   },
 
-  /**
-   * Search global products
-   */
-  async searchGlobalProducts(query: string, limit: number = 20): Promise<GlobalProduct[]> {
-    const response = await apiClient.get<GlobalProduct[]>('/global/products/search', {
+  async searchGlobalProducts(query: string, limit: number = 20): Promise<Product[]> {
+    const response = await apiClient.get<Product[]>('/global/products/search', {
       params: { q: query, limit }
     });
     return response.data;
   },
 
-  /**
-   * Get all global garment types
-   */
-  async getGlobalGarmentTypes(activeOnly: boolean = true): Promise<GlobalGarmentType[]> {
-    const response = await apiClient.get<GlobalGarmentType[]>('/global/garment-types', {
+  async getGlobalGarmentTypes(activeOnly: boolean = true): Promise<PaginatedResponse<GarmentType>> {
+    const response = await apiClient.get<PaginatedResponse<GarmentType> | GarmentType[]>('/global/garment-types', {
       params: { active_only: activeOnly }
     });
-    return response.data;
+    return unwrapPaginated(response.data);
   },
 
   /**
@@ -200,17 +221,38 @@ export const productService = {
   /**
    * Create global product (superuser only)
    */
-  async createGlobalProduct(data: Partial<GlobalProduct>): Promise<GlobalProduct> {
-    const response = await apiClient.post<GlobalProduct>('/global/products', data);
+  async createGlobalProduct(data: Partial<Product>): Promise<Product> {
+    const response = await apiClient.post<Product>('/global/products', data);
     return response.data;
   },
 
-  /**
-   * Update global product (superuser only)
-   */
-  async updateGlobalProduct(productId: string, data: Partial<GlobalProduct>): Promise<GlobalProduct> {
-    const response = await apiClient.put<GlobalProduct>(`/global/products/${productId}`, data);
+  async updateGlobalProduct(productId: string, data: Partial<Product>): Promise<Product> {
+    const response = await apiClient.put<Product>(`/global/products/${productId}`, data);
     return response.data;
+  },
+
+  // ==========================================
+  // GLOBAL GARMENT TYPE - VISIBILIDAD POR COLEGIO
+  // ==========================================
+
+  /**
+   * Colegios donde este garment_type global esta OCULTO del catalogo publico.
+   * Modelo de exclusion: vacio = visible en todos.
+   */
+  async getGlobalGtVisibility(garmentTypeId: string): Promise<string[]> {
+    const response = await apiClient.get<{ hidden_school_ids: string[] }>(
+      `/global/garment-types/${garmentTypeId}/visibility`
+    );
+    return response.data.hidden_school_ids;
+  },
+
+  /**
+   * Reemplaza el set de colegios donde este garment_type global esta oculto.
+   */
+  async setGlobalGtVisibility(garmentTypeId: string, hiddenSchoolIds: string[]): Promise<void> {
+    await apiClient.put(`/global/garment-types/${garmentTypeId}/visibility`, {
+      hidden_school_ids: hiddenSchoolIds,
+    });
   },
 
   // ==========================================
@@ -220,28 +262,41 @@ export const productService = {
   /**
    * Create global garment type (superuser only)
    */
-  async createGlobalGarmentType(data: Partial<GlobalGarmentType>): Promise<GlobalGarmentType> {
-    const response = await apiClient.post<GlobalGarmentType>('/global/garment-types', data);
+  async createGlobalGarmentType(data: Partial<GarmentType>): Promise<GarmentType> {
+    const response = await apiClient.post<GarmentType>('/global/garment-types', data);
     return response.data;
   },
 
-  /**
-   * Update global garment type (superuser only)
-   */
-  async updateGlobalGarmentType(typeId: string, data: Partial<GlobalGarmentType>): Promise<GlobalGarmentType> {
-    const response = await apiClient.put<GlobalGarmentType>(`/global/garment-types/${typeId}`, data);
+  async updateGlobalGarmentType(typeId: string, data: Partial<GarmentType>): Promise<GarmentType> {
+    const response = await apiClient.put<GarmentType>(`/global/garment-types/${typeId}`, data);
     return response.data;
   },
 
   // ==========================================
-  // SCHOOL GARMENT TYPES - UPDATE (missing)
+  // SCHOOL GARMENT TYPES - UPDATE & DELETE
   // ==========================================
 
-  /**
-   * Update garment type for school (admin only)
-   */
   async updateGarmentType(schoolId: string, typeId: string, data: Partial<GarmentType>): Promise<GarmentType> {
     const response = await apiClient.put<GarmentType>(`/schools/${schoolId}/garment-types/${typeId}`, data);
+    return response.data;
+  },
+
+  async deleteGarmentType(schoolId: string, garmentTypeId: string): Promise<DeleteResult> {
+    const response = await apiClient.delete<DeleteResult>(`/schools/${schoolId}/garment-types/${garmentTypeId}`);
+    return response.data;
+  },
+
+  // ==========================================
+  // GLOBAL DELETE
+  // ==========================================
+
+  async deleteGlobalProduct(productId: string): Promise<DeleteResult> {
+    const response = await apiClient.delete<DeleteResult>(`/global/products/${productId}`);
+    return response.data;
+  },
+
+  async deleteGlobalGarmentType(garmentTypeId: string): Promise<DeleteResult> {
+    const response = await apiClient.delete<DeleteResult>(`/global/garment-types/${garmentTypeId}`);
     return response.data;
   },
 
@@ -293,6 +348,32 @@ export const productService = {
     const response = await apiClient.put<GarmentTypeImage[]>(
       `/schools/${schoolId}/garment-types/${garmentTypeId}/images/reorder`,
       { image_ids: imageIds }
+    );
+    return response.data;
+  },
+
+  // ==========================================
+  // CATALOG ORDER (per-school garment-type card order)
+  // ==========================================
+
+  /**
+   * Get the persisted catalog order (garment-type cards) for a school.
+   */
+  async getCatalogOrder(schoolId: string): Promise<CatalogOrderEntry[]> {
+    const response = await apiClient.get<CatalogOrderEntry[]>(
+      `/schools/${schoolId}/catalog/garment-types/order`
+    );
+    return response.data;
+  },
+
+  /**
+   * Persist a new catalog order for a school. `garmentTypeIds[0]` is shown first.
+   * Requires the `catalog.reorder` permission.
+   */
+  async reorderCatalog(schoolId: string, garmentTypeIds: string[]): Promise<CatalogOrderEntry[]> {
+    const response = await apiClient.put<CatalogOrderEntry[]>(
+      `/schools/${schoolId}/catalog/garment-types/reorder`,
+      { garment_type_ids: garmentTypeIds }
     );
     return response.data;
   },
@@ -364,11 +445,12 @@ export const productService = {
    * Get products without cost (convenience method)
    */
   async getProductsWithoutCost(schoolId?: string): Promise<Product[]> {
-    return this.getAllProducts({
+    const result = await this.getAllProducts({
       school_id: schoolId,
       missing_cost: true,
       active_only: true,
       limit: 500
     });
+    return result.items;
   },
 };

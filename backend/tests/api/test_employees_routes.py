@@ -10,6 +10,7 @@ from httpx import AsyncClient
 from datetime import date
 from uuid import uuid4
 from decimal import Decimal
+from tests.fixtures.assertions import assert_list_response
 
 
 # Base URL for employees endpoints (GLOBAL module)
@@ -29,7 +30,7 @@ async def test_list_employees(
     )
 
     assert response.status_code == 200
-    data = response.json()
+    data = assert_list_response(response)
     # Returns a list directly
     assert isinstance(data, list)
 
@@ -48,7 +49,7 @@ async def test_list_employees_by_status(
 
     assert response.status_code == 200
     data = response.json()
-    for item in data:
+    for item in data["items"]:
         assert item["is_active"] is True
 
 
@@ -65,7 +66,7 @@ async def test_list_employees_with_search(
     )
 
     assert response.status_code == 200
-    data = response.json()
+    data = assert_list_response(response)
     assert isinstance(data, list)
 
 
@@ -294,6 +295,6 @@ async def test_list_employees_pagination(
     )
 
     assert response.status_code == 200
-    data = response.json()
+    data = assert_list_response(response)
     assert isinstance(data, list)
     assert len(data) <= 5

@@ -1,7 +1,7 @@
 /**
  * UserDetailModal - Modal for viewing user details and managing multi-school roles
  */
-import { X, Building2, Loader2, Lock, Mail, Save, Eye, EyeOff, Plus, Trash2, Shield, UserX, UserCheck } from 'lucide-react';
+import { X, Building2, Loader2, Lock, Mail, Save, Eye, EyeOff, Plus, Trash2, Shield } from 'lucide-react';
 import type { SchoolUser, School, CustomRole, UserRole, UserSchoolRole } from '../types';
 import type { User } from '../../../types/api';
 
@@ -26,14 +26,14 @@ interface UserDetailModalProps {
   onAdminChangeEmail: () => void;
   onAdminResetPassword: () => void;
   onToggleSuperuser: () => void;
-  onToggleActive?: (user: SchoolUser) => void;
-  onDeleteUser?: () => void;
   onAddSchoolRole: (schoolId: string, role: UserRole, customRoleId?: string) => void;
   onUpdateSchoolRole: (schoolId: string, role: UserRole, customRoleId?: string) => void;
   onRemoveSchoolRole: (schoolId: string) => void;
   onRetryLoadRoles: () => void;
   saving: boolean;
   error: string | null;
+  onToggleActive?: (user: SchoolUser) => void;
+  onDeleteUser?: (user: SchoolUser) => void;
 }
 
 export default function UserDetailModal({
@@ -57,8 +57,6 @@ export default function UserDetailModal({
   onAdminChangeEmail,
   onAdminResetPassword,
   onToggleSuperuser,
-  onToggleActive,
-  onDeleteUser,
   onAddSchoolRole,
   onUpdateSchoolRole,
   onRemoveSchoolRole,
@@ -92,88 +90,34 @@ export default function UserDetailModal({
             <h3 className="text-lg font-semibold text-indigo-900">Detalle de Usuario</h3>
             <p className="text-sm text-indigo-600">Gestionar roles en multiples colegios</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {/* User Info */}
-          <div className="bg-gray-50 rounded-lg p-4">
+          <div className="bg-stone-50 rounded-lg p-4">
             <div className="flex items-center gap-4">
-              <div className={`w-16 h-16 rounded-full flex items-center justify-center ${
-                selectedUser.is_active ? 'bg-indigo-100' : 'bg-red-100'
-              }`}>
-                <span className={`text-2xl font-bold ${
-                  selectedUser.is_active ? 'text-indigo-600' : 'text-red-400'
-                }`}>
+              <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center">
+                <span className="text-2xl font-bold text-indigo-600">
                   {selectedUser.full_name?.[0]?.toUpperCase() ||
                     selectedUser.username[0].toUpperCase()}
                 </span>
               </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <h4 className="text-lg font-semibold text-gray-900">
-                    {selectedUser.full_name || selectedUser.username}
-                  </h4>
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                    selectedUser.is_active
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-red-100 text-red-700'
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${selectedUser.is_active ? 'bg-green-500' : 'bg-red-500'}`} />
-                    {selectedUser.is_active ? 'Activo' : 'Inactivo'}
+              <div>
+                <h4 className="text-lg font-semibold text-stone-900">
+                  {selectedUser.full_name || selectedUser.username}
+                </h4>
+                <p className="text-sm text-stone-500">@{selectedUser.username}</p>
+                <p className="text-sm text-stone-500">{selectedUser.email}</p>
+                {selectedUser.is_superuser && (
+                  <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
+                    Superusuario
                   </span>
-                </div>
-                <p className="text-sm text-gray-500">@{selectedUser.username}</p>
-                <p className="text-sm text-gray-500">{selectedUser.email}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  {selectedUser.is_superuser && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
-                      Superusuario
-                    </span>
-                  )}
-                </div>
+                )}
               </div>
             </div>
-
-            {/* Quick actions: Activate/Deactivate + Delete */}
-            {currentUser?.is_superuser && selectedUser.id !== currentUser.id && (
-              <div className="flex gap-2 mt-3 pt-3 border-t border-gray-200">
-                {onToggleActive && (
-                  <button
-                    onClick={() => onToggleActive(selectedUser)}
-                    disabled={saving}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition disabled:opacity-50 ${
-                      selectedUser.is_active
-                        ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                        : 'bg-green-100 text-green-700 hover:bg-green-200'
-                    }`}
-                  >
-                    {selectedUser.is_active ? (
-                      <>
-                        <UserX className="w-4 h-4" />
-                        Desactivar
-                      </>
-                    ) : (
-                      <>
-                        <UserCheck className="w-4 h-4" />
-                        Activar
-                      </>
-                    )}
-                  </button>
-                )}
-                {onDeleteUser && (
-                  <button
-                    onClick={onDeleteUser}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition ml-auto"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Eliminar
-                  </button>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Admin: Change Email and Password (superusers can edit anyone except themselves) */}
@@ -187,17 +131,17 @@ export default function UserDetailModal({
                 <div className="space-y-3">
                   {/* Change Email */}
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-xs font-medium text-stone-600 mb-1">
                       Cambiar Email (sin verificacion)
                     </label>
                     <div className="flex gap-2">
                       <div className="relative flex-1">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
                         <input
                           type="email"
                           value={adminEditEmail}
                           onChange={(e) => setAdminEditEmail(e.target.value)}
-                          className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                          className="w-full pl-9 pr-3 py-2 text-sm border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
                           placeholder="nuevo@email.com"
                         />
                       </div>
@@ -221,23 +165,23 @@ export default function UserDetailModal({
 
                   {/* Reset Password */}
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-xs font-medium text-stone-600 mb-1">
                       Nueva Contrasena
                     </label>
                     <div className="flex gap-2">
                       <div className="relative flex-1">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
                         <input
                           type={showAdminPassword ? 'text' : 'password'}
                           value={adminEditPassword}
                           onChange={(e) => setAdminEditPassword(e.target.value)}
-                          className="w-full pl-9 pr-10 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                          className="w-full pl-9 pr-10 py-2 text-sm border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
                           placeholder="Minimo 6 caracteres"
                         />
                         <button
                           type="button"
                           onClick={() => setShowAdminPassword(!showAdminPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
                         >
                           {showAdminPassword ? (
                             <EyeOff className="w-4 h-4" />
@@ -262,24 +206,24 @@ export default function UserDetailModal({
                         )}
                       </button>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-stone-500 mt-1">
                       El usuario debera usar esta contrasena para iniciar sesion.
                     </p>
                   </div>
 
                   {/* Toggle Superuser Status */}
                   <div className="border-t border-amber-200 pt-3 mt-3">
-                    <label className="block text-xs font-medium text-gray-600 mb-2">
+                    <label className="block text-xs font-medium text-stone-600 mb-2">
                       Estado de Superusuario
                     </label>
-                    <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
+                    <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-stone-200">
                       <div className="flex items-center gap-2">
-                        <Shield className={`w-5 h-5 ${selectedUser.is_superuser ? 'text-purple-600' : 'text-gray-400'}`} />
+                        <Shield className={`w-5 h-5 ${selectedUser.is_superuser ? 'text-purple-600' : 'text-stone-400'}`} />
                         <div>
-                          <p className="text-sm font-medium text-gray-900">
+                          <p className="text-sm font-medium text-stone-900">
                             {selectedUser.is_superuser ? 'Es Superusuario' : 'Usuario Normal'}
                           </p>
-                          <p className="text-xs text-gray-500">
+                          <p className="text-xs text-stone-500">
                             {selectedUser.is_superuser
                               ? 'Tiene acceso total al sistema'
                               : 'Acceso limitado por roles'}
@@ -291,7 +235,7 @@ export default function UserDetailModal({
                         disabled={superuserSaving}
                         className={`px-3 py-1.5 text-sm rounded-lg flex items-center gap-1 transition ${
                           selectedUser.is_superuser
-                            ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                            ? 'bg-red-50 text-red-700 ring-1 ring-red-200 hover:bg-red-200'
                             : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
                         } disabled:opacity-50 disabled:cursor-not-allowed`}
                       >
@@ -315,7 +259,7 @@ export default function UserDetailModal({
 
           {/* School Roles */}
           <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+            <h4 className="text-sm font-semibold text-stone-700 mb-3 flex items-center">
               <Building2 className="w-4 h-4 mr-2" />
               Roles por Colegio ({userSchoolRoles.length})
             </h4>
@@ -323,7 +267,7 @@ export default function UserDetailModal({
             {userRolesLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-5 h-5 animate-spin text-indigo-600 mr-2" />
-                <span className="text-gray-500">Cargando roles...</span>
+                <span className="text-stone-500">Cargando roles...</span>
               </div>
             ) : error && userSchoolRoles.length === 0 ? (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
@@ -346,20 +290,20 @@ export default function UserDetailModal({
                 {userSchoolRoles.map((sr) => (
                   <div
                     key={sr.id}
-                    className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg hover:border-indigo-200 transition"
+                    className="flex items-center justify-between p-3 bg-white border border-stone-200 rounded-lg hover:border-indigo-200 transition"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <Building2 className="w-5 h-5 text-blue-600" />
+                      <div className="w-10 h-10 bg-brand-100 rounded-lg flex items-center justify-center">
+                        <Building2 className="w-5 h-5 text-brand-600" />
                       </div>
                       <div>
-                        <p className="font-medium text-gray-900">{sr.school?.name}</p>
-                        <p className="text-xs text-gray-500">Codigo: {sr.school?.code}</p>
+                        <p className="font-medium text-stone-900">{sr.school?.name}</p>
+                        <p className="text-xs text-stone-500">Codigo: {sr.school?.code}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       {sr.is_primary && (
-                        <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">
+                        <span className="text-xs bg-amber-50 text-amber-700 ring-1 ring-amber-200 px-2 py-0.5 rounded">
                           Principal
                         </span>
                       )}
@@ -379,7 +323,7 @@ export default function UserDetailModal({
                           }
                         }}
                         disabled={saving}
-                        className="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 min-w-[160px]"
+                        className="px-2 py-1 text-sm border border-stone-200 rounded focus:ring-2 focus:ring-brand-400/30 disabled:opacity-50 min-w-[160px]"
                       >
                         <optgroup label="Roles del Sistema">
                           <option value="viewer">Visualizador</option>
@@ -415,13 +359,13 @@ export default function UserDetailModal({
           {/* Add to new school */}
           {currentUser?.is_superuser && schools.length > userSchoolRoles.length && (
             <div className="border-t pt-4">
-              <h4 className="text-sm font-semibold text-gray-700 mb-3">
+              <h4 className="text-sm font-semibold text-stone-700 mb-3">
                 Agregar a otro colegio
               </h4>
               <div className="flex flex-wrap gap-2">
                 <select
                   id="newSchoolSelect"
-                  className="flex-1 min-w-[200px] px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  className="flex-1 min-w-[200px] px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30"
                 >
                   <option value="">Seleccionar colegio...</option>
                   {schools
@@ -434,7 +378,7 @@ export default function UserDetailModal({
                 </select>
                 <select
                   id="newRoleSelect"
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 min-w-[180px]"
+                  className="px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 min-w-[180px]"
                 >
                   <optgroup label="Roles del Sistema">
                     <option value="viewer">Visualizador</option>
@@ -465,7 +409,7 @@ export default function UserDetailModal({
                 </button>
               </div>
               {globalCustomRoles.length > 0 && (
-                <p className="text-xs text-gray-500 mt-2">
+                <p className="text-xs text-stone-500 mt-2">
                   Los roles personalizados son globales y pueden asignarse en cualquier colegio.
                 </p>
               )}
@@ -476,7 +420,7 @@ export default function UserDetailModal({
         <div className="flex justify-end p-4 border-t">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg"
+            className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg"
           >
             Cerrar
           </button>

@@ -109,11 +109,12 @@ describe('Global Accounting Service', () => {
 
   describe('getGlobalBalanceAccounts', () => {
     it('should fetch balance accounts', async () => {
+      const items = [
+        { id: '1', name: 'Caja', code: '1101', balance: 500000 },
+        { id: '2', name: 'Banco', code: '1102', balance: 2000000 }
+      ]
       const mockResponse = {
-        data: [
-          { id: '1', name: 'Caja', code: '1101', balance: 500000 },
-          { id: '2', name: 'Banco', code: '1102', balance: 2000000 }
-        ]
+        data: { items, total: 2, skip: 0, limit: 100, page: 1, total_pages: 1, has_more: false }
       }
 
       ;(apiClient.get as Mock).mockResolvedValueOnce(mockResponse)
@@ -121,7 +122,7 @@ describe('Global Accounting Service', () => {
       const result = await getGlobalBalanceAccounts()
 
       expect(apiClient.get).toHaveBeenCalledWith('/global/accounting/balance-accounts', { params: { account_type: undefined, is_active: undefined } })
-      expect(result).toHaveLength(2)
+      expect(result.items).toHaveLength(2)
     })
 
     it('should filter by account type', async () => {
@@ -169,11 +170,12 @@ describe('Global Accounting Service', () => {
 
   describe('getGlobalExpenses', () => {
     it('should fetch expenses', async () => {
+      const items = [
+        { id: '1', category: 'utilities', description: 'Luz', amount: 150000 },
+        { id: '2', category: 'rent', description: 'Arriendo', amount: 2500000 }
+      ]
       const mockResponse = {
-        data: [
-          { id: '1', category: 'utilities', description: 'Luz', amount: 150000 },
-          { id: '2', category: 'rent', description: 'Arriendo', amount: 2500000 }
-        ]
+        data: { items, total: 2, skip: 0, limit: 100, page: 1, total_pages: 1, has_more: false }
       }
 
       ;(apiClient.get as Mock).mockResolvedValueOnce(mockResponse)
@@ -181,7 +183,7 @@ describe('Global Accounting Service', () => {
       const result = await getGlobalExpenses()
 
       expect(apiClient.get).toHaveBeenCalled()
-      expect(result).toHaveLength(2)
+      expect(result.items).toHaveLength(2)
     })
 
     it('should filter by category', async () => {
@@ -260,10 +262,11 @@ describe('Global Accounting Service', () => {
 
   describe('getGlobalPayables', () => {
     it('should fetch payables', async () => {
+      const items = [
+        { id: '1', vendor: 'Proveedor A', amount: 500000 }
+      ]
       const mockResponse = {
-        data: [
-          { id: '1', vendor: 'Proveedor A', amount: 500000 }
-        ]
+        data: { items, total: 1, skip: 0, limit: 100, page: 1, total_pages: 1, has_more: false }
       }
 
       ;(apiClient.get as Mock).mockResolvedValueOnce(mockResponse)
@@ -271,21 +274,21 @@ describe('Global Accounting Service', () => {
       const result = await getGlobalPayables()
 
       expect(apiClient.get).toHaveBeenCalled()
-      expect(result).toHaveLength(1)
+      expect(result.items).toHaveLength(1)
     })
   })
 
   describe('createGlobalPayable', () => {
     it('should create a new payable', async () => {
       const newPayable = {
-        vendor: 'Proveedor Nuevo',
+        vendor_id: 'vendor-123',
         amount: 300000,
         description: 'Compra de telas',
         invoice_date: '2026-01-23'
       }
 
       const mockResponse = {
-        data: { id: 'new-id', ...newPayable, is_paid: false }
+        data: { id: 'new-id', ...newPayable, vendor_name: 'Proveedor Nuevo', is_paid: false }
       }
 
       ;(apiClient.post as Mock).mockResolvedValueOnce(mockResponse)
@@ -296,7 +299,7 @@ describe('Global Accounting Service', () => {
         '/global/accounting/payables',
         newPayable
       )
-      expect(result.vendor).toBe('Proveedor Nuevo')
+      expect(result.vendor_id).toBe('vendor-123')
     })
   })
 

@@ -76,7 +76,7 @@ web-portal/
 │   ├── activar-cuenta/[token]/   # Activacion de cuenta
 │   └── api/                      # API routes (proxy al backend)
 │       ├── contacts/             # Envio de formularios PQRS
-│       └── orders/               # Upload comprobantes de pago
+│       └── orders/               # Proxy para creacion de pedidos
 ├── components/                   # ~15 componentes React
 │   ├── HomePageClient.tsx        # Home: auth, busqueda, grid colegios
 │   ├── CatalogClient.tsx         # Catalogo: filtros, productos, carrito
@@ -130,6 +130,6 @@ El portal se conecta al backend FastAPI.
 
 ## Payments
 
-- **Wompi:** Gateway principal (tarjeta, Nequi, PSE, Bancolombia)
-- **Manual:** Transferencia bancaria + subir comprobante
-- **Resultado:** `/pago/resultado?id=REF` verifica estado via API
+- **Wompi:** Gateway unico (tarjeta, Nequi, PSE, Bancolombia, Daviplata)
+- **Flujo:** Crear sesion → redirect a checkout Wompi → webhook confirma → contabilidad automatica
+- **Resultado:** `/pago/resultado?ref=REF` verifica estado via polling (5s, max 60s)

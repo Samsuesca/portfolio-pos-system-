@@ -21,9 +21,12 @@ import {
 } from '../services/cfoDashboardService';
 import { formatCurrency } from '../utils/formatting';
 import { useUserRole } from '../hooks/useUserRole';
+import { usePermissions } from '../hooks/usePermissions';
 
 export default function CFODashboard() {
-  const { canAccessAccounting, isSuperuser } = useUserRole();
+  const { isSuperuser } = useUserRole();
+  const { hasPermission } = usePermissions();
+  const canAccess = isSuperuser || hasPermission('accounting.view_cash');
   const [metrics, setMetrics] = useState<CFODashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,16 +48,16 @@ export default function CFODashboard() {
   };
 
   useEffect(() => {
-    if (canAccessAccounting || isSuperuser) {
+    if (canAccess) {
       loadMetrics();
     }
-  }, [canAccessAccounting, isSuperuser]);
+  }, [canAccess]);
 
-  if (!canAccessAccounting && !isSuperuser) {
+  if (!canAccess) {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <p className="text-gray-500">No tienes acceso a esta seccion</p>
+          <p className="text-stone-500">No tienes acceso a esta seccion</p>
         </div>
       </Layout>
     );
@@ -64,7 +67,7 @@ export default function CFODashboard() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          <Loader2 className="w-8 h-8 animate-spin text-brand-600" />
         </div>
       </Layout>
     );
@@ -91,11 +94,11 @@ export default function CFODashboard() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <BarChart3 className="w-7 h-7 text-blue-600" />
+            <h1 className="text-2xl font-bold text-stone-900 flex items-center gap-2">
+              <BarChart3 className="w-7 h-7 text-brand-600" />
               Panel CFO
             </h1>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-stone-500 mt-1">
               Vista ejecutiva de salud financiera
               {lastUpdated && (
                 <span className="ml-2">
@@ -107,7 +110,7 @@ export default function CFODashboard() {
           <button
             onClick={loadMetrics}
             disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Actualizar
@@ -164,10 +167,10 @@ export default function CFODashboard() {
         {/* Alerts Section */}
         {metrics.alerts.items.length > 0 && (
           <div className="bg-white rounded-xl shadow-sm border p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-stone-900 mb-4 flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-amber-500" />
               Alertas Urgentes
-              <span className="ml-2 text-sm font-normal text-gray-500">
+              <span className="ml-2 text-sm font-normal text-stone-500">
                 ({metrics.alerts.critical_count} criticas, {metrics.alerts.warning_count} advertencias)
               </span>
             </h3>
@@ -195,18 +198,18 @@ export default function CFODashboard() {
           {/* Liquidity Card */}
           <div className="bg-white rounded-xl shadow-sm border p-6">
             <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                <Wallet className="w-6 h-6 text-blue-600" />
+              <div className="w-12 h-12 bg-brand-100 rounded-full flex items-center justify-center">
+                <Wallet className="w-6 h-6 text-brand-600" />
               </div>
-              <Link to="/accounting" className="text-blue-600 hover:text-blue-800">
+              <Link to="/accounting" className="text-brand-600 hover:text-brand-700">
                 <ArrowRight className="w-5 h-5" />
               </Link>
             </div>
-            <p className="text-sm text-gray-500">Liquidez Disponible</p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">
+            <p className="text-sm text-stone-500">Liquidez Disponible</p>
+            <p className="text-2xl font-bold text-stone-900 mt-1">
               {formatCFOCurrency(metrics.liquidity.total)}
             </p>
-            <p className="text-xs text-gray-400 mt-2">
+            <p className="text-xs text-stone-400 mt-2">
               {formatCurrency(metrics.liquidity.total)}
             </p>
           </div>
@@ -221,8 +224,8 @@ export default function CFODashboard() {
                 <ArrowRight className="w-5 h-5" />
               </Link>
             </div>
-            <p className="text-sm text-gray-500">Deuda Total</p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">
+            <p className="text-sm text-stone-500">Deuda Total</p>
+            <p className="text-2xl font-bold text-stone-900 mt-1">
               {formatCFOCurrency(metrics.debt.total)}
             </p>
             {metrics.debt.overdue > 0 && (
@@ -248,8 +251,8 @@ export default function CFODashboard() {
                 <ArrowRight className="w-5 h-5" />
               </Link>
             </div>
-            <p className="text-sm text-gray-500">Nomina Mensual</p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">
+            <p className="text-sm text-stone-500">Nomina Mensual</p>
+            <p className="text-2xl font-bold text-stone-900 mt-1">
               {formatCFOCurrency(metrics.payroll.monthly_estimate)}
             </p>
             <div className="flex items-center gap-2 mt-2">
@@ -264,7 +267,7 @@ export default function CFODashboard() {
                   Insuficiente
                 </span>
               )}
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-stone-400">
                 · {metrics.payroll.employees} empleados
               </span>
             </div>
@@ -285,8 +288,8 @@ export default function CFODashboard() {
                 }`} />
               </div>
             </div>
-            <p className="text-sm text-gray-500">Cash Runway</p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">
+            <p className="text-sm text-stone-500">Cash Runway</p>
+            <p className="text-2xl font-bold text-stone-900 mt-1">
               {metrics.operations.cash_runway_days > 365 ? '+1 año' : `${metrics.operations.cash_runway_days} dias`}
             </p>
             <p className={`text-xs mt-2 ${
@@ -309,13 +312,13 @@ export default function CFODashboard() {
                 dscrStatus.color === 'yellow' ? 'text-yellow-600' : 'text-red-600'
               }`} />
               <div>
-                <h4 className="font-medium text-gray-900">Cobertura de Deuda (DSCR)</h4>
-                <p className="text-xs text-gray-500">Debt Service Coverage Ratio</p>
+                <h4 className="font-medium text-stone-900">Cobertura de Deuda (DSCR)</h4>
+                <p className="text-xs text-stone-500">Debt Service Coverage Ratio</p>
               </div>
             </div>
             <div className="flex items-end justify-between">
               <div>
-                <p className="text-3xl font-bold text-gray-900">
+                <p className="text-3xl font-bold text-stone-900">
                   {metrics.debt.debt_service_coverage_ratio >= 999
                     ? 'N/A'
                     : `${metrics.debt.debt_service_coverage_ratio}x`
@@ -328,7 +331,7 @@ export default function CFODashboard() {
                   {dscrStatus.status}
                 </p>
               </div>
-              <div className="text-right text-xs text-gray-500">
+              <div className="text-right text-xs text-stone-500">
                 <p>Liquidez / Deuda 30d</p>
                 <p>{formatCFOCurrency(metrics.liquidity.total)} / {formatCFOCurrency(metrics.debt.due_30_days)}</p>
               </div>
@@ -340,18 +343,18 @@ export default function CFODashboard() {
             <div className="flex items-center gap-3 mb-4">
               <DollarSign className="w-5 h-5 text-purple-600" />
               <div>
-                <h4 className="font-medium text-gray-900">Burn Rate Mensual</h4>
-                <p className="text-xs text-gray-500">Gastos fijos + Nomina</p>
+                <h4 className="font-medium text-stone-900">Burn Rate Mensual</h4>
+                <p className="text-xs text-stone-500">Gastos fijos + Nomina</p>
               </div>
             </div>
             <div className="flex items-end justify-between">
               <div>
-                <p className="text-3xl font-bold text-gray-900">
+                <p className="text-3xl font-bold text-stone-900">
                   {formatCFOCurrency(metrics.operations.monthly_burn_rate)}
                 </p>
-                <p className="text-sm text-gray-500">por mes</p>
+                <p className="text-sm text-stone-500">por mes</p>
               </div>
-              <div className="text-right text-xs text-gray-500">
+              <div className="text-right text-xs text-stone-500">
                 <p>Fijos: {formatCFOCurrency(metrics.operations.monthly_fixed_expenses)}</p>
                 <p>Nomina: {formatCFOCurrency(metrics.payroll.monthly_estimate)}</p>
               </div>
@@ -366,18 +369,18 @@ export default function CFODashboard() {
                 metrics.data_quality.score >= 50 ? 'text-yellow-600' : 'text-red-600'
               }`} />
               <div>
-                <h4 className="font-medium text-gray-900">Calidad de Datos</h4>
-                <p className="text-xs text-gray-500">Productos con costo real</p>
+                <h4 className="font-medium text-stone-900">Calidad de Datos</h4>
+                <p className="text-xs text-stone-500">Productos con costo real</p>
               </div>
             </div>
             <div className="flex items-end justify-between">
               <div>
-                <p className="text-3xl font-bold text-gray-900">
+                <p className="text-3xl font-bold text-stone-900">
                   {metrics.data_quality.score}%
                 </p>
-                <p className="text-sm text-gray-500">cobertura</p>
+                <p className="text-sm text-stone-500">cobertura</p>
               </div>
-              <div className="text-right text-xs text-gray-500">
+              <div className="text-right text-xs text-stone-500">
                 <p className="text-green-600">{metrics.data_quality.products_with_cost} con costo</p>
                 <p className="text-amber-600">{metrics.data_quality.products_without_cost} estimados</p>
               </div>
@@ -385,7 +388,7 @@ export default function CFODashboard() {
             {metrics.data_quality.products_without_cost > 0 && (
               <Link
                 to="/accounting"
-                className="mt-4 block text-center text-sm text-blue-600 hover:text-blue-800"
+                className="mt-4 block text-center text-sm text-brand-600 hover:text-brand-700"
               >
                 Asignar costos a productos
               </Link>
@@ -395,34 +398,34 @@ export default function CFODashboard() {
 
         {/* Quick Links */}
         <div className="bg-white rounded-xl shadow-sm border p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Accesos Rapidos</h3>
+          <h3 className="text-lg font-semibold text-stone-900 mb-4">Accesos Rapidos</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Link
               to="/accounting"
-              className="flex items-center gap-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+              className="flex items-center gap-3 p-4 bg-stone-50 hover:bg-stone-100 rounded-lg transition-colors"
             >
-              <Wallet className="w-5 h-5 text-blue-600" />
+              <Wallet className="w-5 h-5 text-brand-600" />
               <span className="text-sm font-medium">Contabilidad</span>
             </Link>
             <Link
               to="/payroll"
-              className="flex items-center gap-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+              className="flex items-center gap-3 p-4 bg-stone-50 hover:bg-stone-100 rounded-lg transition-colors"
             >
               <Users className="w-5 h-5 text-green-600" />
               <span className="text-sm font-medium">Nomina</span>
             </Link>
             <Link
               to="/reports"
-              className="flex items-center gap-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+              className="flex items-center gap-3 p-4 bg-stone-50 hover:bg-stone-100 rounded-lg transition-colors"
             >
               <BarChart3 className="w-5 h-5 text-purple-600" />
               <span className="text-sm font-medium">Reportes</span>
             </Link>
             <Link
               to="/settings"
-              className="flex items-center gap-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+              className="flex items-center gap-3 p-4 bg-stone-50 hover:bg-stone-100 rounded-lg transition-colors"
             >
-              <Calendar className="w-5 h-5 text-gray-600" />
+              <Calendar className="w-5 h-5 text-stone-600" />
               <span className="text-sm font-medium">Configuracion</span>
             </Link>
           </div>

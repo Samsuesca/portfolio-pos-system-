@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.yourdomain.com';
 
     // Forward the request to the backend API
-    const response = await fetch(`${API_URL}/api/v1/portal/orders/create`, {
+    const response = await fetch(`${API_URL}/api/v1/portal/orders`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

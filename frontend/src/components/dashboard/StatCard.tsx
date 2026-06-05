@@ -1,6 +1,3 @@
-/**
- * StatCard - Statistics card with trend indicator
- */
 import { type LucideIcon, ArrowRight, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 export interface TrendData {
@@ -61,13 +58,13 @@ export function StatCard({
   return (
     <div
       onClick={onClick}
-      className={`bg-white rounded-xl shadow-sm border border-surface-200 p-4 md:p-6 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group ${
+      className={`bg-white rounded-xl shadow-sm border border-surface-200 p-4 md:p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 group ${
         isClickable ? 'cursor-pointer' : ''
       }`}
     >
-      <div className="flex items-center justify-between mb-3 md:mb-4">
-        <div className={`p-2 md:p-3 rounded-xl ${bgColor} ${color} group-hover:bg-brand-600 group-hover:text-white transition-colors duration-300`}>
-          <Icon className="w-5 h-5 md:w-6 md:h-6" />
+      <div className="flex items-center justify-between mb-3">
+        <div className={`p-2 md:p-2.5 rounded-xl ${bgColor} ${color} transition-all duration-300 group-hover:scale-110`}>
+          <Icon className="w-5 h-5 md:w-5 md:h-5" />
         </div>
         <div className="flex items-center gap-2">
           {trend && (
@@ -77,14 +74,14 @@ export function StatCard({
             </div>
           )}
           {isClickable && (
-            <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-brand-600 transition-colors" />
+            <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-0.5 transition-all" />
           )}
         </div>
       </div>
-      <h3 className="text-xl md:text-3xl font-bold font-display text-primary tracking-tight">{value}</h3>
-      <p className="text-xs md:text-sm text-slate-500 mt-1 font-medium">{title}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">{title}</p>
+      <h3 className="text-lg md:text-2xl font-bold font-display text-primary tracking-tight">{value}</h3>
       {subtitle && (
-        <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>
+        <p className="text-xs text-slate-500 mt-1">{subtitle}</p>
       )}
       {trend?.label && (
         <p className="text-xs text-slate-400 mt-0.5">{trend.label}</p>

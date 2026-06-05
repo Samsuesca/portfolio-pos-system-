@@ -38,7 +38,7 @@ def alteration_service(mock_db_session):
 async def test_create_alteration_generates_code(mock_db_session, alteration_service):
     """Test that creating alteration generates unique code."""
     create_data = AlterationCreate(
-        external_client_name="Test Client",
+        client_id=uuid4(),
         garment_name="Pantalón",
         description="Arreglo de dobladillo en pantalón",
         alteration_type=AlterationType.HEM,
@@ -76,7 +76,7 @@ async def test_create_alteration_generates_code(mock_db_session, alteration_serv
 async def test_create_alteration_with_initial_payment(mock_db_session, alteration_service):
     """Test that creating alteration with initial payment records it."""
     create_data = AlterationCreate(
-        external_client_name="Test Client",
+        client_id=uuid4(),
         garment_name="Falda",
         description="Ajuste de ancho en falda escolar",
         alteration_type=AlterationType.WIDTH,

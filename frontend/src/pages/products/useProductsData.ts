@@ -2,23 +2,24 @@
  * Custom hook that encapsulates all data-fetching and filtering logic
  * for the Products page.
  */
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { productService } from '../../services/productService';
+import type { ProductStats } from '../../services/productService';
 import { extractErrorMessage } from '../../utils/api-client';
 import { useSchoolStore } from '../../stores/schoolStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useConfigStore } from '../../stores/configStore';
 import { usePermissions } from '../../hooks/usePermissions';
+import type { CatalogOrderEntry } from '../../types/api';
 import type {
   TabType,
+  ViewMode,
   StockFilter,
   SortConfig,
   SortField,
   ProductsStats,
   Product,
-  GlobalProduct,
   GarmentType,
-  GlobalGarmentType,
 } from './types';
 
 const PRODUCTS_LIMIT = 100;
@@ -27,22 +28,33 @@ export function useProductsData() {
   const { currentSchool, availableSchools, loadSchools } = useSchoolStore();
   const { user } = useAuthStore();
   const { apiUrl } = useConfigStore();
-  const { hasPermission, canManageProducts } = usePermissions();
+  const { hasPermission, canManageProducts, canViewCosts, canEditCosts } = usePermissions();
 
   // Tab state
   const [activeTab, setActiveTab] = useState<TabType>('school');
+
+  // View mode: dense table vs catalog grid (mirrors the web storefront).
+  // Grid loads the full catalog (limit 500) with images so groups are complete.
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
+  const GRID_LIMIT = 500;
 
   // School products state
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Global products state
-  const [globalProducts, setGlobalProducts] = useState<GlobalProduct[]>([]);
+  const [globalProducts, setGlobalProducts] = useState<Product[]>([]);
   const [loadingGlobal, setLoadingGlobal] = useState(true);
 
-  // Garment types
+  // Server-aggregated catalog stats (replaces client-side reduce over
+  // paginated products which produced wrong counts beyond the page limit).
+  // One set per tab so the cards mirror the catalog the user is viewing:
+  // global products (school_id IS NULL) vs school-specific products.
+  const [serverStats, setServerStats] = useState<ProductStats | null>(null);
+  const [schoolStats, setSchoolStats] = useState<ProductStats | null>(null);
+
   const [garmentTypes, setGarmentTypes] = useState<GarmentType[]>([]);
-  const [globalGarmentTypes, setGlobalGarmentTypes] = useState<GlobalGarmentType[]>([]);
+  const [globalGarmentTypes, setGlobalGarmentTypes] = useState<GarmentType[]>([]);
 
   // Common state
   const [error, setError] = useState<string | null>(null);
@@ -54,18 +66,22 @@ export function useProductsData() {
   const [stockFilter, setStockFilter] = useState<StockFilter>('all');
   const [hasMoreProducts, setHasMoreProducts] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [totalProductsCount, setTotalProductsCount] = useState(0);
 
   // Sorting
   const [sortConfig, setSortConfig] = useState<SortConfig>({ field: 'code', direction: 'asc' });
 
-  // Garment types tab sub-tab state
-  const [showGlobalTypes, setShowGlobalTypes] = useState(false);
+  // Per-school catalog order (garment-type card order, issue #8)
+  const [catalogOrder, setCatalogOrder] = useState<CatalogOrderEntry[]>([]);
 
   // Derived values
   const schoolIdForCreate = schoolFilter || currentSchool?.id || availableSchools[0]?.id || '';
   const isSuperuser = user?.is_superuser || false;
   const canAdjustGlobalInventory = isSuperuser || hasPermission('global_inventory.adjust');
+  const canEditGlobalProduct = isSuperuser || hasPermission('products.edit_global');
+  const canManageGlobalGarmentTypes = isSuperuser || hasPermission('garment_types.manage_global');
   const canManageGarmentTypes = isSuperuser || hasPermission('settings.manage_garment_types') || canManageProducts;
+  const canReorderCatalog = isSuperuser || hasPermission('catalog.reorder');
 
   // Debounce search term
   useEffect(() => {
@@ -90,29 +106,66 @@ export function useProductsData() {
     loadGarmentTypes();
   }, [schoolFilter, debouncedSearch, garmentTypeFilter]);
 
+  // Reload products from the server when the sort or view mode changes (sort
+  // applies over the FULL catalog; grid mode refetches with images + higher
+  // limit). Skip the first render — the mount/filter effects already load.
+  const reloadInitialized = useRef(false);
+  useEffect(() => {
+    if (!reloadInitialized.current) {
+      reloadInitialized.current = true;
+      return;
+    }
+    loadProducts();
+  }, [sortConfig, viewMode]);
+
+  // Global products carry garment-type images only when fetched with_images.
+  // Reload them with images when the global catalog is shown as a grid so the
+  // cards display photos (the initial mount load fetches them without images).
+  useEffect(() => {
+    if (activeTab === 'global' && viewMode === 'grid') {
+      loadGlobalProducts(true);
+    }
+  }, [activeTab, viewMode]);
+
+  // School-scoped stats track school/garment filters (the /stats endpoint
+  // has no text search, so debouncedSearch is intentionally excluded).
+  useEffect(() => {
+    loadSchoolStats();
+  }, [schoolFilter, garmentTypeFilter]);
+
   const loadProducts = useCallback(async (append = false) => {
+    // Grid mode loads the whole catalog at once (no "load more"), with images
+    // so the per-garment-type groups are complete and show their photo.
+    const isGrid = viewMode === 'grid';
+    const effectiveAppend = append && !isGrid;
     try {
-      if (append) {
+      if (effectiveAppend) {
         setLoadingMore(true);
       } else {
         setLoading(true);
       }
       setError(null);
-      const skip = append ? products.length : 0;
+      const skip = effectiveAppend ? products.length : 0;
       const data = await productService.getAllProducts({
         school_id: schoolFilter || undefined,
         search: debouncedSearch || undefined,
         garment_type_id: garmentTypeFilter || undefined,
         with_stock: true,
+        with_images: isGrid || undefined,
         skip,
-        limit: PRODUCTS_LIMIT,
+        limit: isGrid ? GRID_LIMIT : PRODUCTS_LIMIT,
+        // Server-side sort over the full catalog. `pending_orders` is derived
+        // and not SQL-sortable, so it's left to the client fallback below.
+        sort_by: sortConfig.field === 'pending_orders' ? undefined : sortConfig.field,
+        order: sortConfig.direction,
       });
-      if (append) {
-        setProducts(prev => [...prev, ...data]);
+      if (effectiveAppend) {
+        setProducts(prev => [...prev, ...data.items]);
       } else {
-        setProducts(data);
+        setProducts(data.items);
+        setTotalProductsCount(data.total);
       }
-      setHasMoreProducts(data.length === PRODUCTS_LIMIT);
+      setHasMoreProducts(isGrid ? false : data.has_more);
     } catch (err: unknown) {
       console.error('Error loading products:', err);
       setError(extractErrorMessage(err));
@@ -120,13 +173,21 @@ export function useProductsData() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [schoolFilter, debouncedSearch, garmentTypeFilter, products.length]);
+  }, [schoolFilter, debouncedSearch, garmentTypeFilter, products.length, sortConfig, viewMode]);
 
-  const loadGlobalProducts = async () => {
+  const loadGlobalProducts = async (withImages = false) => {
     try {
       setLoadingGlobal(true);
-      const data = await productService.getGlobalProducts();
-      setGlobalProducts(data);
+      const [result, statsResult] = await Promise.all([
+        // Grid mode needs garment-type images so the cards show photos.
+        productService.getGlobalProducts(true, GRID_LIMIT, withImages),
+        productService.getGlobalProductsStats().catch(err => {
+          console.error('Error loading global products stats:', err);
+          return null;
+        }),
+      ]);
+      setGlobalProducts(result.items);
+      if (statsResult) setServerStats(statsResult);
     } catch (err: unknown) {
       console.error('Error loading global products:', err);
     } finally {
@@ -134,25 +195,80 @@ export function useProductsData() {
     }
   };
 
-  const loadGarmentTypes = async () => {
+  const loadSchoolStats = useCallback(async () => {
     try {
-      const data = await productService.getAllGarmentTypes({
-        school_id: schoolFilter || undefined
+      const stats = await productService.getGlobalProductsStats({
+        // A specific school filter wins; otherwise aggregate every
+        // school-specific product (school_id IS NOT NULL).
+        scope: schoolFilter ? undefined : 'school',
+        school_id: schoolFilter || undefined,
+        garment_type_id: garmentTypeFilter || undefined,
       });
-      setGarmentTypes(data);
+      setSchoolStats(stats);
+    } catch (err: unknown) {
+      console.error('Error loading school products stats:', err);
+      setSchoolStats(null);
+    }
+  }, [schoolFilter, garmentTypeFilter]);
+
+  const loadGarmentTypes = useCallback(async () => {
+    try {
+      const result = await productService.getAllGarmentTypes({
+        school_id: schoolFilter || undefined,
+        // The catalog tree is a management surface — load inactive types too so
+        // the status filter is meaningful, with stats for the tree rows.
+        active_only: false,
+        with_stats: true,
+      });
+      setGarmentTypes(result.items);
     } catch (err: unknown) {
       console.error('Error loading garment types:', err);
     }
-  };
+  }, [schoolFilter]);
 
-  const loadGlobalGarmentTypes = async () => {
+  const loadGlobalGarmentTypes = useCallback(async () => {
     try {
-      const data = await productService.getGlobalGarmentTypes();
-      setGlobalGarmentTypes(data);
+      const result = await productService.getGlobalGarmentTypes(false);
+      setGlobalGarmentTypes(result.items);
     } catch (err: unknown) {
       console.error('Error loading global garment types:', err);
     }
-  };
+  }, []);
+
+  // Per-school catalog order (issue #8). Loaded for the school in context so the
+  // grid can sort garment-type cards by it and the reorder UI starts from it.
+  const loadCatalogOrder = useCallback(async (schoolId: string) => {
+    if (!schoolId) {
+      setCatalogOrder([]);
+      return;
+    }
+    try {
+      setCatalogOrder(await productService.getCatalogOrder(schoolId));
+    } catch (err: unknown) {
+      console.error('Error loading catalog order:', err);
+      setCatalogOrder([]);
+    }
+  }, []);
+
+  // Persist a new garment-type card order for the school in context (optimistic).
+  const reorderCatalog = useCallback(async (garmentTypeIds: string[]) => {
+    if (!schoolIdForCreate) return;
+    const previous = catalogOrder;
+    setCatalogOrder(garmentTypeIds.map((id, i) => ({ garment_type_id: id, display_order: i })));
+    try {
+      const saved = await productService.reorderCatalog(schoolIdForCreate, garmentTypeIds);
+      setCatalogOrder(saved);
+    } catch (err: unknown) {
+      console.error('Error saving catalog order:', err);
+      setCatalogOrder(previous);
+      setError(extractErrorMessage(err));
+    }
+  }, [schoolIdForCreate, catalogOrder]);
+
+  // Reload the catalog order whenever the school in context changes.
+  useEffect(() => {
+    loadCatalogOrder(schoolIdForCreate);
+  }, [schoolIdForCreate, loadCatalogOrder]);
 
   // Sorting handler
   const handleSort = useCallback((field: SortField) => {
@@ -185,69 +301,78 @@ export function useProductsData() {
       return matchesSize && matchesStock;
     });
 
-    filtered.sort((a, b) => {
-      let aVal: string | number, bVal: string | number;
-
-      switch (sortConfig.field) {
-        case 'code':
-          aVal = a.code.toLowerCase();
-          bVal = b.code.toLowerCase();
-          break;
-        case 'name':
-          aVal = (a.name || '').toLowerCase();
-          bVal = (b.name || '').toLowerCase();
-          break;
-        case 'size':
-          aVal = a.size.toLowerCase();
-          bVal = b.size.toLowerCase();
-          break;
-        case 'price':
-          aVal = Number(a.price);
-          bVal = Number(b.price);
-          break;
-        case 'stock':
-          aVal = a.stock ?? a.inventory_quantity ?? 0;
-          bVal = b.stock ?? b.inventory_quantity ?? 0;
-          break;
-        case 'pending_orders':
-          aVal = a.pending_orders_qty ?? 0;
-          bVal = b.pending_orders_qty ?? 0;
-          break;
-        default:
-          aVal = a.code;
-          bVal = b.code;
-      }
-
-      if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
-      return 0;
-    });
+    // The server already orders by code/name/size/price/stock over the full
+    // catalog. Only `pending_orders` (a derived field the backend can't sort)
+    // is ordered client-side here, over the loaded set.
+    if (sortConfig.field === 'pending_orders') {
+      filtered.sort((a, b) => {
+        const aVal = a.pending_orders_qty ?? 0;
+        const bVal = b.pending_orders_qty ?? 0;
+        return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
+      });
+    }
 
     return filtered;
   }, [products, sizeFilter, stockFilter, sortConfig]);
 
-  // Filter global products
+  // Filter + sort global products. Unlike school products these are loaded in
+  // full (not server-paginated), so client-side sort here is correct.
   const filteredGlobalProducts = useMemo(() => {
-    return globalProducts.filter(product => {
-      const matchesSearch = searchTerm === '' ||
-        product.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.size.toLowerCase().includes(searchTerm.toLowerCase());
+    const term = debouncedSearch.toLowerCase();
+    const filtered = globalProducts.filter(product => {
+      const matchesSearch = term === '' ||
+        product.code.toLowerCase().includes(term) ||
+        product.name?.toLowerCase().includes(term) ||
+        product.size.toLowerCase().includes(term);
 
       const matchesSize = sizeFilter === '' || product.size === sizeFilter;
+      const matchesGarmentType = garmentTypeFilter === '' || product.garment_type_id === garmentTypeFilter;
 
-      return matchesSearch && matchesSize;
+      return matchesSearch && matchesSize && matchesGarmentType;
     });
-  }, [globalProducts, searchTerm, sizeFilter]);
+
+    const dir = sortConfig.direction === 'asc' ? 1 : -1;
+    filtered.sort((a, b) => {
+      switch (sortConfig.field) {
+        case 'price':
+          return (Number(a.price) - Number(b.price)) * dir;
+        case 'stock':
+          return ((a.stock ?? a.inventory_quantity ?? 0) - (b.stock ?? b.inventory_quantity ?? 0)) * dir;
+        case 'name':
+          return (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase()) * dir;
+        case 'size':
+          return a.size.toLowerCase().localeCompare(b.size.toLowerCase()) * dir;
+        case 'code':
+        default:
+          return a.code.toLowerCase().localeCompare(b.code.toLowerCase()) * dir;
+      }
+    });
+
+    return filtered;
+  }, [globalProducts, debouncedSearch, sizeFilter, garmentTypeFilter, sortConfig]);
 
   // Unique sizes for filter
   const allProducts = activeTab === 'school' ? products : globalProducts;
   const uniqueSizes = Array.from(new Set(allProducts.map(p => p.size))).sort();
 
-  // Statistics
+  // Statistics — prefer server-aggregated values (cover full catalog),
+  // fall back to client-side reduce over loaded products if the stats
+  // endpoint failed.
   const stats: ProductsStats = useMemo(() => {
+    const activeStats = activeTab === 'global' ? serverStats : schoolStats;
+    if (activeStats) {
+      return {
+        totalProducts: activeStats.total_products,
+        totalStock: activeStats.total_stock,
+        lowStockCount: activeStats.low_stock_count,
+        outOfStockCount: activeStats.out_of_stock_count,
+        withOrdersCount: activeStats.with_orders_count,
+        totalPendingOrders: activeStats.total_pending_orders,
+      };
+    }
+
     const prods = activeTab === 'school' ? products : globalProducts;
-    let totalProducts = prods.length;
+    let totalProducts = activeTab === 'school' ? (totalProductsCount || prods.length) : prods.length;
     let totalStock = 0;
     let lowStockCount = 0;
     let outOfStockCount = 0;
@@ -255,9 +380,9 @@ export function useProductsData() {
     let totalPendingOrders = 0;
 
     prods.forEach(p => {
-      const stock = (p as any).stock ?? (p as any).inventory_quantity ?? 0;
-      const minStock = (p as any).min_stock ?? (p as any).inventory_min_stock ?? 5;
-      const pendingOrders = (p as any).pending_orders_qty ?? 0;
+      const stock = p.stock ?? p.inventory_quantity ?? 0;
+      const minStock = p.min_stock ?? p.inventory_min_stock ?? 5;
+      const pendingOrders = p.pending_orders_qty ?? 0;
 
       totalStock += stock;
       if (stock === 0) outOfStockCount++;
@@ -269,7 +394,7 @@ export function useProductsData() {
     });
 
     return { totalProducts, totalStock, lowStockCount, outOfStockCount, withOrdersCount, totalPendingOrders };
-  }, [products, globalProducts, activeTab]);
+  }, [serverStats, schoolStats, products, globalProducts, activeTab, totalProductsCount]);
 
   const isLoading = activeTab === 'school' ? loading : loadingGlobal;
   const currentProducts = activeTab === 'school' ? filteredAndSortedProducts : filteredGlobalProducts;
@@ -290,16 +415,21 @@ export function useProductsData() {
     return `${apiUrl}${imageUrl}`;
   }, [apiUrl]);
 
-  // Tab switch handler
+  // Tab switch handler. Resets every filter — a garment_type_id from the
+  // school catalog has no match in the global one, so a lingering filter
+  // would silently empty the new tab.
   const handleTabChange = useCallback((tab: TabType) => {
     setActiveTab(tab);
     setSizeFilter('');
     setStockFilter('all');
+    setSchoolFilter('');
+    setGarmentTypeFilter('');
   }, []);
 
   return {
     // State
     activeTab,
+    viewMode,
     products,
     globalProducts,
     garmentTypes,
@@ -316,32 +446,38 @@ export function useProductsData() {
     sortConfig,
     hasMoreProducts,
     loadingMore,
-    showGlobalTypes,
+    totalProductsCount,
     currentProducts,
     filteredAndSortedProducts,
     filteredGlobalProducts,
     uniqueSizes,
     stats,
     hasActiveFilters,
+    catalogOrder,
 
     // Derived permissions / values
     schoolIdForCreate,
     isSuperuser,
     canAdjustGlobalInventory,
+    canEditGlobalProduct,
+    canManageGlobalGarmentTypes,
     canManageGarmentTypes,
+    canReorderCatalog,
+    canViewCosts,
+    canEditCosts,
     currentSchool,
     availableSchools,
     user,
     apiUrl,
 
     // Setters
+    setViewMode,
     setSearchTerm,
     setSizeFilter,
     setSchoolFilter,
     setGarmentTypeFilter,
     setStockFilter,
     setError,
-    setShowGlobalTypes,
 
     // Actions
     handleTabChange,
@@ -349,6 +485,9 @@ export function useProductsData() {
     clearFilters,
     loadProducts,
     loadGlobalProducts,
+    loadGarmentTypes,
+    loadGlobalGarmentTypes,
+    reorderCatalog,
     getImageUrl,
   };
 }

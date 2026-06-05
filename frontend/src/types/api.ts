@@ -59,7 +59,10 @@ export interface User {
   last_login: string | null;
   created_at: string;
   updated_at: string;
+  google_id?: string | null;
+  auth_provider?: string | null;
   school_roles?: UserSchoolRole[];
+  permissions_version?: number;
 }
 
 export interface LoginResponse {
@@ -125,7 +128,7 @@ export interface SchoolSummary {
 
 export interface Product {
   id: string;
-  school_id: string;
+  school_id: string | null;
   code: string;
   garment_type_id: string;
   name: string | null;
@@ -134,15 +137,21 @@ export interface Product {
   gender: string | null;
   price: number;
   cost: number | null;
+  cost_type?: 'manufactured' | 'purchased';
   description: string | null;
   image_url: string | null;
   is_active: boolean;
+  is_global?: boolean;
   created_at: string;
   updated_at: string;
   // Inventory fields (when with_inventory=true)
   inventory_quantity?: number;
+  inventory_reserved?: number;
+  inventory_available?: number;
   inventory_min_stock?: number;
-  stock?: number; // Alias for inventory_quantity
+  stock?: number; // Alias for inventory_quantity (total fisico)
+  reserved?: number; // Stock reservado a Orders pendientes/READY
+  available?: number; // stock - reserved (lo que se puede vender directo)
   min_stock?: number; // Minimum stock alert level
   // Pending orders info
   pending_orders_qty?: number;
@@ -157,6 +166,8 @@ export interface Product {
 
 export interface ProductWithInventory extends Product {
   inventory_quantity: number;
+  inventory_reserved: number;
+  inventory_available: number;
   inventory_min_stock: number;
 }
 
@@ -173,23 +184,38 @@ export interface GarmentTypeImage {
 
 export interface GarmentType {
   id: string;
-  school_id: string;
+  school_id: string | null;
   name: string;
   description: string | null;
   category: string | null;
   has_custom_measurements: boolean;
   requires_embroidery: boolean;
+  cost_type: 'manufactured' | 'purchased';
   is_active: boolean;
   created_at: string;
   updated_at: string;
   // Image fields (when included by backend)
   images?: GarmentTypeImage[];
   primary_image_url?: string | null;
+  // Aggregated catalog stats (populated when fetched with_stats=true)
+  product_count?: number;
+  total_stock?: number;
+  min_price?: number | null;
+  max_price?: number | null;
+  has_images?: boolean;
+}
+
+/** Per-school display order of a garment-type card in the catalog grid. */
+export interface CatalogOrderEntry {
+  garment_type_id: string;
+  display_order: number;
 }
 
 // ============================================
 // Client Types
 // ============================================
+
+export type IdentificationType = 'CC' | 'NIT' | 'CE' | 'TI' | 'PA';
 
 export interface Client {
   id: string;
@@ -199,6 +225,9 @@ export interface Client {
   phone: string | null;
   email: string | null;
   address: string | null;
+  // DIAN identification for electronic invoicing (optional)
+  identification_type: IdentificationType | null;
+  identification_number: string | null;
   student_name: string | null;
   student_grade: string | null;
   notes: string | null;
@@ -262,9 +291,7 @@ export interface Sale {
 export interface SaleItem {
   id: string;
   sale_id: string;
-  product_id: string | null;  // null when is_global_product is true
-  global_product_id?: string | null;
-  is_global_product?: boolean;
+  product_id: string;
   quantity: number;
   unit_price: number;
   subtotal: number;
@@ -277,14 +304,6 @@ export interface SaleItemWithProduct extends SaleItem {
   product_name: string | null;
   product_size: string | null;
   product_color: string | null;
-  // Global product info (if applicable)
-  global_product_code: string | null;
-  global_product_name: string | null;
-  global_product_size: string | null;
-  global_product_color: string | null;
-  // Flag to identify global products
-  is_global_product?: boolean;
-  global_product_id?: string | null;
 }
 
 export interface SalePayment {
@@ -338,14 +357,13 @@ export interface SaleListItem {
 
 export type ChangeType = 'size_change' | 'product_change' | 'return' | 'defect';
 export type ChangeStatus = 'pending' | 'pending_stock' | 'approved' | 'rejected';
+export type OriginalItemDisposal = 'cancel_production' | 'return_to_inventory' | 'register_loss';
 
 export interface SaleChange {
   id: string;
   sale_id: string;
   original_item_id: string;
   new_product_id: string | null;
-  new_global_product_id: string | null;
-  is_new_global_product: boolean;
   change_type: ChangeType;
   status: ChangeStatus;
   returned_quantity: number;
@@ -363,8 +381,7 @@ export interface SaleChange {
 
 export interface SaleChangeCreate {
   original_item_id: string;
-  new_product_id?: string | null;  // null for returns
-  is_new_global_product?: boolean;  // true if new_product_id refers to a global product
+  new_product_id?: string | null;
   change_type: ChangeType;
   returned_quantity: number;
   new_quantity?: number;  // 0 for returns
@@ -505,14 +522,8 @@ export interface OrderItem {
 export interface OrderItemCreate {
   garment_type_id: string;
   quantity: number;
-  // Order type
   order_type?: OrderType;
-  // For catalog/yomber orders - product for price (school products)
   product_id?: string;
-  // For global products (shared inventory)
-  global_product_id?: string;
-  is_global_product?: boolean;
-  // For custom orders - manual price
   unit_price?: number;
   // Additional services price
   additional_price?: number;
@@ -583,8 +594,6 @@ export interface OrderListItem {
   // Partial delivery tracking
   items_delivered: number;
   items_total: number;
-  // Payment proof
-  payment_proof_url: string | null;
   // Quotation flag
   needs_quotation?: boolean;
   // Delivery info
@@ -592,6 +601,8 @@ export interface OrderListItem {
   delivery_fee: number;
   delivery_address: string | null;
   delivery_neighborhood: string | null;
+  // Payment proof (web orders) — optional, not yet exposed by backend
+  payment_proof_url?: string | null;
 }
 
 export interface OrderCreate {
@@ -630,8 +641,6 @@ export interface OrderChange {
   change_date: string;
   returned_quantity: number;
   new_product_id: string | null;
-  new_global_product_id: string | null;
-  is_new_global_product: boolean;
   new_quantity: number;
   new_unit_price: number | null;
   new_size: string | null;
@@ -651,7 +660,6 @@ export interface OrderChangeCreate {
   change_type: ChangeType;
   returned_quantity: number;
   new_product_id?: string | null;
-  is_new_global_product?: boolean;
   new_quantity?: number;
   reason: string;
   payment_method?: 'cash' | 'nequi' | 'transfer' | 'card';
@@ -659,6 +667,9 @@ export interface OrderChangeCreate {
   new_color?: string | null;
   new_custom_measurements?: Record<string, number> | null;
   new_embroidery_text?: string | null;
+  // Required when original item was NOT reserved from stock (production / made-to-order).
+  // Backend exige declarar el destino de la prenda física original.
+  original_item_disposal?: OriginalItemDisposal | null;
 }
 
 export interface OrderChangeListItem {
@@ -709,7 +720,7 @@ export interface ProductDemandItem {
   order_count: number;
   item_count: number;
   is_yomber: boolean;
-  is_global_product: boolean;
+  is_global: boolean;
   school_ids: string[];
   school_names: string[];
   orders: OrderReference[];
@@ -801,7 +812,8 @@ export interface Expense {
   is_paid: boolean;
   expense_date: string;
   due_date: string | null;
-  vendor: string | null;
+  vendor_id: string | null;
+  vendor_name: string | null;
   receipt_number: string | null;
   notes: string | null;
   is_recurring: boolean;
@@ -822,7 +834,8 @@ export interface ExpenseListItem {
   is_paid: boolean;
   expense_date: string;
   due_date: string | null;
-  vendor: string | null;
+  vendor_id: string | null;
+  vendor_name: string | null;
   notes: string | null;
   is_recurring: boolean;
   balance: number;
@@ -838,7 +851,7 @@ export interface ExpenseCreate {
   amount: number;
   expense_date: string;
   due_date?: string;
-  vendor?: string;
+  vendor_id?: string;
   receipt_number?: string;
   notes?: string;
   is_recurring?: boolean;
@@ -1094,7 +1107,8 @@ export interface AccountsReceivableListItem {
 export interface AccountsPayable {
   id: string;
   school_id: string;
-  vendor: string;
+  vendor_id: string;
+  vendor_name: string;
   amount: number;
   amount_paid: number;
   description: string;
@@ -1112,7 +1126,7 @@ export interface AccountsPayable {
 }
 
 export interface AccountsPayableCreate {
-  vendor: string;
+  vendor_id: string;
   amount: number;
   description: string;
   category?: string;
@@ -1130,7 +1144,8 @@ export interface AccountsPayablePayment {
 
 export interface AccountsPayableListItem {
   id: string;
-  vendor: string;
+  vendor_id: string;
+  vendor_name: string;
   amount: number;
   amount_paid: number;
   balance: number;
@@ -1207,50 +1222,6 @@ export interface ReceivablesPayablesSummary {
 }
 
 // ============================================
-// Global Product Types
-// ============================================
-
-export interface GlobalGarmentType {
-  id: string;
-  name: string;
-  description: string | null;
-  category: string | null;
-  has_custom_measurements: boolean;
-  requires_embroidery: boolean;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-  images?: GarmentTypeImage[];
-}
-
-export interface GlobalProduct {
-  id: string;
-  code: string;
-  garment_type_id: string;
-  name: string | null;
-  size: string;
-  color: string | null;
-  gender: string | null;
-  price: number;
-  cost: number | null;
-  description: string | null;
-  image_url: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-  // Inventory fields
-  inventory_quantity?: number;
-  inventory_min_stock?: number;
-  stock?: number; // Alias for inventory_quantity (for consistency with Product)
-  min_stock?: number; // Minimum stock alert level
-}
-
-export interface GlobalProductWithInventory extends GlobalProduct {
-  inventory_quantity: number;
-  inventory_min_stock: number;
-}
-
-// ============================================
 // API Response Types
 // ============================================
 
@@ -1259,6 +1230,9 @@ export interface PaginatedResponse<T> {
   total: number;
   skip: number;
   limit: number;
+  page: number;
+  total_pages: number;
+  has_more: boolean;
 }
 
 export interface ApiError {
@@ -1377,19 +1351,17 @@ export const ALTERATION_STATUS_LABELS: Record<AlterationStatus, string> = {
 };
 
 export const ALTERATION_STATUS_COLORS: Record<AlterationStatus, string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  in_progress: 'bg-blue-100 text-blue-800',
-  ready: 'bg-green-100 text-green-800',
+  pending: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+  in_progress: 'bg-brand-100 text-brand-700',
+  ready: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
   delivered: 'bg-emerald-600 text-white',
-  cancelled: 'bg-red-100 text-red-800'
+  cancelled: 'bg-red-50 text-red-700 ring-1 ring-red-200'
 };
 
 export interface Alteration {
   id: string;
   code: string;
-  client_id: string | null;
-  external_client_name: string | null;
-  external_client_phone: string | null;
+  client_id: string;
   alteration_type: AlterationType;
   garment_name: string;
   description: string;
@@ -1441,9 +1413,7 @@ export interface AlterationWithPayments extends Alteration {
 }
 
 export interface AlterationCreate {
-  client_id?: string;
-  external_client_name?: string;
-  external_client_phone?: string;
+  client_id: string;
   alteration_type: AlterationType;
   garment_name: string;
   description: string;
@@ -1481,10 +1451,52 @@ export interface AlterationsSummary {
   ready_count: number;
   delivered_count: number;
   cancelled_count: number;
-  total_revenue: number;
-  total_pending_payment: number;
+  /** Null when caller lacks `alterations.view_revenue`. */
+  total_revenue: number | null;
+  /** Null when caller lacks `alterations.view_revenue`. */
+  total_pending_payment: number | null;
   today_received: number;
   today_delivered: number;
+  // Fase 2 (Reports Coverage) — populated only when getSummary(filters)
+  // was called with dates. Null on legacy calls (the dashboard widget).
+  period_start?: string | null;
+  period_end?: string | null;
+  revenue_in_period?: number | null;
+  received_in_period?: number | null;
+  delivered_in_period?: number | null;
+}
+
+/**
+ * Operational KPIs for the Arreglos tab (Fase 2 — Reports Coverage).
+ * Production turnaround + pickup overdue.
+ */
+export interface AlterationsResponseTime {
+  period_start: string | null;
+  period_end: string | null;
+  /** Avg days between received_date and ready_at. Null when no sample. */
+  avg_received_to_ready_days: number | null;
+  median_received_to_ready_days: number | null;
+  sample_received_to_ready: number;
+  /** Avg days between ready_at and delivered_date. Null when no sample. */
+  avg_ready_to_delivered_days: number | null;
+  sample_ready_to_delivered: number;
+  /** Alterations marked READY for more than threshold days but not picked up. */
+  overdue_pickup_count: number;
+  overdue_pickup_threshold_days: number;
+  /** Money sitting uncollected on those overdue-pickup rows. */
+  overdue_pickup_revenue_pending: number;
+}
+
+/**
+ * Top alteration types by volume in the period (Fase 2 — Reports Coverage).
+ */
+export interface AlterationsTopType {
+  alteration_type: string;
+  type_label: string;
+  count: number;
+  revenue: number;
+  /** Average hours received -> ready. Null when no rows have ready_at. */
+  avg_response_hours: number | null;
 }
 
 // ============================================
@@ -1514,9 +1526,7 @@ export interface Notification {
   created_at: string;
 }
 
-export interface NotificationListResponse {
-  items: Notification[];
-  total: number;
+export interface NotificationListResponse extends PaginatedResponse<Notification> {
   unread_count: number;
 }
 
@@ -1645,4 +1655,107 @@ export interface PlanningDashboard {
   quick_projection: MonthlyProjection[];
   current_season: 'ALTA' | 'MEDIA' | 'BAJA';
   season_message: string;
+}
+
+// ─── Telegram Alerts ─────────────────────────────────────────────
+// Mirrors backend app/models/telegram_subscription.py + schemas/telegram_alert.py.
+
+export type TelegramAlertType =
+  | 'sale_created'
+  | 'web_order_created'
+  | 'order_status_changed'
+  | 'low_stock'
+  | 'expense_created'
+  | 'expense_paid'
+  | 'wompi_payment'
+  | 'pqrs_received'
+  | 'attendance_alert'
+  | 'cash_drawer_access'
+  | 'reminder_close_cash'
+  | 'reminder_pending_expenses'
+  | 'reminder_overdue_receivables'
+  | 'reminder_orders_ready'
+  | 'reminder_weekly_summary'
+  | 'system_health'
+  | 'daily_digest'
+  | 'daily_digest_seller';
+
+export type TelegramAlertCategory = 'event' | 'reminder' | 'system';
+
+export interface AlertTypeInfo {
+  alert_type: TelegramAlertType;
+  description: string;
+  category: TelegramAlertCategory;
+}
+
+export interface TelegramSubscription {
+  alert_type: TelegramAlertType;
+  description: string;
+  is_active: boolean;
+}
+
+export interface MyTelegramSubscriptions {
+  is_linked: boolean;
+  telegram_chat_id: string | null;
+  subscriptions: TelegramSubscription[];
+}
+
+export interface UserTelegramInfo {
+  user_id: string;
+  username: string;
+  full_name: string | null;
+  is_linked: boolean;
+  telegram_chat_id: string | null;
+  subscriptions: TelegramSubscription[];
+}
+
+export interface TelegramLinkRequest {
+  chat_id: string;
+}
+
+export interface TelegramUpdateSubscriptionsRequest {
+  alert_types: TelegramAlertType[];
+}
+
+// ============================================
+// Electronic Invoicing (Facturacion Electronica DIAN / Alegra)
+// ============================================
+
+export type InvoiceDocumentType = 'sale' | 'order' | 'alteration';
+export type ElectronicInvoiceStatus = 'pending' | 'emitted' | 'failed' | 'voided';
+
+export interface ElectronicInvoice {
+  id: string;
+  document_type: InvoiceDocumentType;
+  sale_id: string | null;
+  order_id: string | null;
+  alteration_id: string | null;
+  status: ElectronicInvoiceStatus;
+  alegra_invoice_id: string | null;
+  full_number: string | null;
+  cufe: string | null;
+  legal_status: string | null;
+  pdf_url: string | null;
+  xml_url: string | null;
+  total: string | null;
+  client_name: string | null;
+  client_identification: string | null;
+  error_message: string | null;
+  credit_note_alegra_id: string | null;
+  credit_note_number: string | null;
+  credit_note_cufe: string | null;
+  void_reason: string | null;
+  voided_at: string | null;
+  emitted_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EmitInvoiceRequest {
+  document_type: InvoiceDocumentType;
+  document_id: string;
+}
+
+export interface VoidInvoiceRequest {
+  reason: string;
 }

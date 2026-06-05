@@ -42,9 +42,13 @@ class OrderStockMixin:
         if not order:
             raise ValueError("Pedido no encontrado")
 
-        # First, load all products with their stock for this school
+        # First, load all products with their AVAILABLE stock for this school.
+        # Available = quantity total - reserved_quantity (lo comprometido a
+        # Orders pendientes/READY de OTROS pedidos). El verify debe trabajar
+        # contra `available`, no contra `quantity`, para no prometer stock
+        # que ya esta apartado.
         all_products_query = (
-            select(Product, Inventory.quantity)
+            select(Product, Inventory.quantity, Inventory.reserved_quantity)
             .outerjoin(Inventory, Product.id == Inventory.product_id)
             .where(
                 Product.school_id == school_id,
@@ -54,11 +58,13 @@ class OrderStockMixin:
         result = await self.db.execute(all_products_query)
         all_products = result.all()
 
-        # Build a map of product_id -> (product, available_stock)
-        # This will track "virtual" stock as we assign items
+        # Build a map of product_id -> (product, virtual_available_stock)
+        # Virtual: se decrementa en memoria a medida que asignamos items
+        # del mismo Order, simulando reserva atomica.
         product_stock_map: dict[UUID, tuple[Product, int]] = {}
-        for product, inv_qty in all_products:
-            product_stock_map[product.id] = (product, inv_qty or 0)
+        for product, inv_qty, inv_reserved in all_products:
+            available = max(0, (inv_qty or 0) - (inv_reserved or 0))
+            product_stock_map[product.id] = (product, available)
 
         items_info = []
         items_in_stock = 0

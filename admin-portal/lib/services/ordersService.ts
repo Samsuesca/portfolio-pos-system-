@@ -1,4 +1,5 @@
 import apiClient, {
+  PaginatedResponse,
   Order,
   OrderWithItems,
   OrderItem,
@@ -9,6 +10,7 @@ import apiClient, {
   OrderType,
   YomberMeasurements,
 } from '../api';
+import { unwrapPaginated } from '../utils/pagination';
 
 export interface OrderListParams {
   school_id?: string;
@@ -100,7 +102,6 @@ export interface StockVerification {
 export interface OrderListItem extends Order {
   items_count?: number;
   student_name?: string;
-  payment_proof_url?: string;
   delivery_address?: string;
   delivery_neighborhood?: string;
   delivery_city?: string;
@@ -109,8 +110,8 @@ export interface OrderListItem extends Order {
 
 const ordersService = {
   // List orders (multi-school)
-  list: async (params?: OrderListParams): Promise<Order[]> => {
-    const response = await apiClient.get<Order[]>('/orders', { params });
+  list: async (params?: OrderListParams): Promise<PaginatedResponse<Order>> => {
+    const response = await apiClient.get<PaginatedResponse<Order>>('/orders', { params });
     return response.data;
   },
 
@@ -228,34 +229,12 @@ const ordersService = {
     return response.data;
   },
 
-  // Approve payment proof for an order
-  approvePayment: async (schoolId: string, orderId: string): Promise<Order> => {
-    const response = await apiClient.post<Order>(
-      `/schools/${schoolId}/orders/${orderId}/approve-payment`
-    );
-    return response.data;
-  },
-
-  // Reject payment proof for an order
-  rejectPayment: async (
-    schoolId: string,
-    orderId: string,
-    rejectionNotes: string
-  ): Promise<Order> => {
-    const response = await apiClient.post<Order>(
-      `/schools/${schoolId}/orders/${orderId}/reject-payment`,
-      null,
-      { params: { rejection_notes: rejectionNotes } }
-    );
-    return response.data;
-  },
-
   // List web orders (from all schools, filtered by source='web_portal')
   listWebOrders: async (params?: OrderListParams): Promise<OrderListItem[]> => {
-    const response = await apiClient.get<OrderListItem[]>('/orders', {
+    const response = await apiClient.get<OrderListItem[] | PaginatedResponse<OrderListItem>>('/orders', {
       params: { ...params, source: 'web_portal' }
     });
-    return response.data;
+    return unwrapPaginated(response.data).items;
   },
 };
 

@@ -34,8 +34,7 @@ jobs:
             # Tags share the same SHA as the branch commit, so this always works
             # regardless of whether GitHub associates check-runs with the tag ref.
             WF_RESULT=$(gh api "repos/${REPO}/actions/workflows/tests.yml/runs?head_sha=${COMMIT_SHA}&per_page=1" \
-              --jq '(.workflow_runs[0].status // "not_found") + "|" + (.workflow_runs[0].conclusion // "pending")' 2>&1) || true
-            echo "  API result: '$WF_RESULT'"
+              --jq '(.workflow_runs[0].status // "not_found") + "|" + (.workflow_runs[0].conclusion // "pending")' 2>/dev/null) || true
             WF_STATUS=$(echo "$WF_RESULT" | cut -d'|' -f1)
             WF_CONCLUSION=$(echo "$WF_RESULT" | cut -d'|' -f2)
 
@@ -135,16 +134,25 @@ jobs:
             # 4. Web Portal: build + restart PM2
             echo "🌐 Building web portal..."
             cd ${DEPLOY_PATH}/web-portal
-            npm install --legacy-peer-deps
-            npm run build
+            # First pnpm deploy: drop npm-era node_modules (incompatible layout)
+            if [ -f node_modules/.package-lock.json ] && [ ! -d node_modules/.pnpm ]; then
+              echo "  Removing npm-era node_modules..."
+              rm -rf node_modules
+            fi
+            pnpm install --frozen-lockfile
+            pnpm run build
             pm2 restart uniformes-web
             echo "✅ Web portal restarted"
 
             # 5. Admin Portal: build + restart PM2
             echo "🔧 Building admin portal..."
             cd ${DEPLOY_PATH}/admin-portal
-            npm install --legacy-peer-deps
-            npm run build
+            if [ -f node_modules/.package-lock.json ] && [ ! -d node_modules/.pnpm ]; then
+              echo "  Removing npm-era node_modules..."
+              rm -rf node_modules
+            fi
+            pnpm install --frozen-lockfile
+            pnpm run build
             pm2 restart uniformes-admin
             echo "✅ Admin portal restarted"
 

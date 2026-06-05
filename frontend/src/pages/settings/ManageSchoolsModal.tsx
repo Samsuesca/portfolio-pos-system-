@@ -25,8 +25,8 @@ const ManageSchoolsModal: React.FC<ManageSchoolsModalProps> = ({ isOpen, onClose
   const loadSchools = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await schoolService.getSchools(false);
-      setSchools(data);
+      const result = await schoolService.getSchools(false);
+      setSchools(result.items);
     } catch (err: any) {
       console.error('Error loading schools:', err);
     } finally {
@@ -90,7 +90,7 @@ const ManageSchoolsModal: React.FC<ManageSchoolsModalProps> = ({ isOpen, onClose
                 <Plus className="w-4 h-4 mr-1" />
                 Nuevo
               </button>
-              <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              <button onClick={onClose} className="text-stone-400 hover:text-stone-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -99,18 +99,18 @@ const ManageSchoolsModal: React.FC<ManageSchoolsModalProps> = ({ isOpen, onClose
             {loading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-6 h-6 animate-spin text-green-600" />
-                <span className="ml-2 text-gray-600">Cargando colegios...</span>
+                <span className="ml-2 text-stone-600">Cargando colegios...</span>
               </div>
             ) : schools.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">No hay colegios registrados</div>
+              <div className="text-center py-8 text-stone-500">No hay colegios registrados</div>
             ) : (
               <div className="space-y-3">
                 {schools.map((school) => (
-                  <div key={school.id} className={`p-4 border rounded-lg ${school.is_active ? 'bg-white' : 'bg-gray-50'}`}>
+                  <div key={school.id} className={`p-4 border rounded-lg ${school.is_active ? 'bg-white' : 'bg-stone-50'}`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         {/* Logo */}
-                        <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden flex-shrink-0">
+                        <div className="w-10 h-10 rounded-lg bg-stone-100 flex items-center justify-center overflow-hidden flex-shrink-0">
                           {school.logo_url ? (
                             <img
                               src={`${apiUrl}${school.logo_url}`}
@@ -118,24 +118,24 @@ const ManageSchoolsModal: React.FC<ManageSchoolsModalProps> = ({ isOpen, onClose
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            <School className="w-5 h-5 text-gray-400" />
+                            <School className="w-5 h-5 text-stone-400" />
                           )}
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
                             {school.primary_color && (
                               <div
-                                className="w-3 h-3 rounded-full border border-gray-200"
+                                className="w-3 h-3 rounded-full border border-stone-200"
                                 style={{ backgroundColor: school.primary_color }}
                               />
                             )}
-                            <span className="font-medium text-gray-800">{school.name}</span>
-                            <span className="text-xs text-gray-500 font-mono">{school.code}</span>
+                            <span className="font-medium text-stone-800">{school.name}</span>
+                            <span className="text-xs text-stone-500 font-mono">{school.code}</span>
                             {!school.is_active && (
-                              <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs">Inactivo</span>
+                              <span className="px-2 py-0.5 bg-red-50 text-red-700 ring-1 ring-red-200 rounded-full text-xs">Inactivo</span>
                             )}
                           </div>
-                          <div className="text-sm text-gray-500 mt-1">
+                          <div className="text-sm text-stone-500 mt-1">
                             {school.email && <span>{school.email}</span>}
                             {school.phone && <span className="ml-3">{school.phone}</span>}
                           </div>
@@ -144,7 +144,7 @@ const ManageSchoolsModal: React.FC<ManageSchoolsModalProps> = ({ isOpen, onClose
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleOpenEdit(school)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                          className="p-2 text-brand-600 hover:bg-brand-50 rounded-lg transition"
                           title="Editar"
                         >
                           <Edit2 className="w-4 h-4" />

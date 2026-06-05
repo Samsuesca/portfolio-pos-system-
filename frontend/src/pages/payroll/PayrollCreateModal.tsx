@@ -58,13 +58,19 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
       employee_ids: [],
     });
 
-    // Load active employees
+    // Load active employees — explicit limit=500 so the payroll selector
+    // doesn't silently drop employees beyond the default page size.
     const loadEmployees = async () => {
       try {
         setLoadingEmployees(true);
-        const emps = await getEmployees({ is_active: true });
-        setEmployees(emps);
-        setSelectedIds(emps.map(e => e.id));
+        const empsResult = await getEmployees({ is_active: true, limit: 500 });
+        setEmployees(empsResult.items);
+        setSelectedIds(empsResult.items.map(e => e.id));
+        if (empsResult.total > empsResult.items.length) {
+          setError(
+            `Atención: hay ${empsResult.total} empleados activos pero la liquidación sólo verá los primeros ${empsResult.items.length}. Contacta al administrador.`
+          );
+        }
       } catch (err) {
         console.error('Error loading employees for payroll:', err);
       } finally {
@@ -174,7 +180,7 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-white">
           <h3 className="text-lg font-semibold">Nueva Liquidacion de Nomina</h3>
-          <button onClick={handleClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={handleClose} className="text-stone-400 hover:text-stone-600">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -188,7 +194,7 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
         <div className="p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Inicio *</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Fecha Inicio *</label>
               <DatePicker
                 value={form.period_start || ''}
                 onChange={(date) => setForm({ ...form, period_start: date })}
@@ -196,7 +202,7 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Fin *</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Fecha Fin *</label>
               <DatePicker
                 value={form.period_end || ''}
                 onChange={(date) => setForm({ ...form, period_end: date })}
@@ -206,7 +212,7 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Pago</label>
+            <label className="block text-sm font-medium text-stone-700 mb-1">Fecha de Pago</label>
             <DatePicker
               value={form.payment_date || ''}
               onChange={(date) => setForm({ ...form, payment_date: date })}
@@ -217,46 +223,46 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
           {/* Employee Selection */}
           <div>
             <div className="flex justify-between items-center mb-2">
-              <label className="block text-sm font-medium text-gray-700">
+              <label className="block text-sm font-medium text-stone-700">
                 Empleados a Liquidar ({selectedIds.length} de {employees.length})
               </label>
               <button
                 type="button"
                 onClick={toggleSelectAll}
-                className="text-xs text-blue-600 hover:text-blue-800"
+                className="text-xs text-brand-600 hover:text-brand-700"
               >
                 {selectedIds.length === employees.length ? 'Deseleccionar todos' : 'Seleccionar todos'}
               </button>
             </div>
-            <div className="border border-gray-300 rounded-lg max-h-48 overflow-y-auto">
+            <div className="border border-stone-200 rounded-lg max-h-48 overflow-y-auto">
               {loadingEmployees ? (
-                <div className="p-4 text-center text-gray-500 flex items-center justify-center gap-2">
+                <div className="p-4 text-center text-stone-500 flex items-center justify-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Cargando empleados...
                 </div>
               ) : employees.length === 0 ? (
-                <div className="p-4 text-center text-gray-500">
+                <div className="p-4 text-center text-stone-500">
                   No hay empleados activos
                 </div>
               ) : (
                 employees.map(emp => (
                   <label
                     key={emp.id}
-                    className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
+                    className="flex items-center gap-3 px-3 py-2 hover:bg-stone-50 cursor-pointer border-b last:border-b-0"
                   >
                     <input
                       type="checkbox"
                       checked={selectedIds.includes(emp.id)}
                       onChange={(e) => toggleEmployee(emp.id, e.target.checked)}
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      className="w-4 h-4 text-brand-600 border-stone-200 rounded focus:ring-brand-400/30"
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{emp.full_name}</p>
-                      <p className="text-xs text-gray-500">{emp.position}</p>
+                      <p className="text-sm font-medium text-stone-900 truncate">{emp.full_name}</p>
+                      <p className="text-xs text-stone-500">{emp.position}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-medium text-gray-700">{formatCurrency(emp.base_salary)}</p>
-                      <p className="text-xs text-gray-500">{getPaymentFrequencyLabel(emp.payment_frequency)}</p>
+                      <p className="text-sm font-medium text-stone-700">{formatCurrency(emp.base_salary)}</p>
+                      <p className="text-xs text-stone-500">{getPaymentFrequencyLabel(emp.payment_frequency)}</p>
                     </div>
                   </label>
                 ))
@@ -266,35 +272,35 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
 
           {/* Preview Summary */}
           {preview && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h4 className="text-sm font-semibold text-blue-800 mb-3 flex items-center gap-2">
+            <div className="bg-brand-50 border border-brand-200 rounded-lg p-4">
+              <h4 className="text-sm font-semibold text-brand-700 mb-3 flex items-center gap-2">
                 <DollarSign className="w-4 h-4" />
                 Vista Previa de Liquidacion
               </h4>
               <div className="space-y-3">
                 <div className="grid grid-cols-3 gap-3 text-center">
                   <div className="bg-white rounded-lg p-2">
-                    <p className="text-xs text-gray-500">Empleados</p>
-                    <p className="text-lg font-bold text-blue-600">{preview.count}</p>
+                    <p className="text-xs text-stone-500">Empleados</p>
+                    <p className="text-lg font-bold text-brand-600">{preview.count}</p>
                   </div>
                   <div className="bg-white rounded-lg p-2">
-                    <p className="text-xs text-gray-500">Dias</p>
-                    <p className="text-lg font-bold text-blue-600">{preview.periodDays}</p>
+                    <p className="text-xs text-stone-500">Dias</p>
+                    <p className="text-lg font-bold text-brand-600">{preview.periodDays}</p>
                   </div>
                   <div className="bg-white rounded-lg p-2">
-                    <p className="text-xs text-gray-500">Total Est.</p>
+                    <p className="text-xs text-stone-500">Total Est.</p>
                     <p className="text-lg font-bold text-green-600">{formatCurrency(preview.totalBase)}</p>
                   </div>
                 </div>
 
                 {/* Mini breakdown */}
-                <div className="text-xs text-blue-700 max-h-24 overflow-y-auto">
+                <div className="text-xs text-brand-700 max-h-24 overflow-y-auto">
                   <table className="w-full">
                     <tbody>
                       {preview.breakdown.map((item, idx) => (
-                        <tr key={idx} className="border-b border-blue-100 last:border-0">
+                        <tr key={idx} className="border-b border-brand-100 last:border-0">
                           <td className="py-1 truncate max-w-[120px]">{item.name}</td>
-                          <td className="py-1 text-center text-blue-500">
+                          <td className="py-1 text-center text-brand-500">
                             {getPaymentFrequencyLabel(item.frequency as any)}
                           </td>
                           <td className="py-1 text-right font-medium">
@@ -306,7 +312,7 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
                   </table>
                 </div>
 
-                <p className="text-xs text-blue-600 italic">
+                <p className="text-xs text-brand-600 italic">
                   * Estimacion basada en dias laborales. El total final puede variar segun registros de asistencia y deducciones.
                 </p>
               </div>
@@ -314,24 +320,24 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
+            <label className="block text-sm font-medium text-stone-700 mb-1">Notas</label>
             <textarea
               value={form.notes || ''}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30"
               rows={2}
             />
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50 sticky bottom-0">
-          <button onClick={handleClose} className="px-4 py-2 text-gray-600 hover:text-gray-800">
+        <div className="flex justify-end gap-3 px-6 py-4 border-t bg-stone-50 sticky bottom-0">
+          <button onClick={handleClose} className="px-4 py-2 text-stone-600 hover:text-stone-800">
             Cancelar
           </button>
           <button
             onClick={handleSubmit}
             disabled={submitting || !form.period_start || !form.period_end || selectedIds.length === 0}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg disabled:opacity-50 flex items-center gap-2"
           >
             {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
             Crear Liquidacion ({selectedIds.length})

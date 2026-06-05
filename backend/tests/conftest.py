@@ -54,9 +54,96 @@ import os
 
 TEST_DATABASE_URL = os.getenv(
     "TEST_DATABASE_URL",
-    # Default: dedicated test container (postgres-test service on port 5433)
-    "postgresql+asyncpg://uniformes_test:test_password@localhost:5433/uniformes_test"
+    # Default: dedicated test container (postgres-test service on port 5442)
+    "postgresql+asyncpg://uniformes_test:test_password@localhost:5442/uniformes_test"
 )
+
+
+# Canonical expense category catalog, mirroring the rows seeded in production by
+# migrations e7f8g9h0i1j2 (base), n2o3p4q5r6s7 (production), exp_cat_002
+# (formalization) and p4q5r6s7t8u9 (discounts). Keep in sync if a migration adds
+# a new category code; (code, display name) is all the FK needs.
+EXPENSE_CATEGORY_SEED: tuple[tuple[str, str], ...] = (
+    ("rent", "Arriendo"),
+    ("utilities", "Servicios Públicos"),
+    ("payroll", "Nómina"),
+    ("supplies", "Insumos"),
+    ("inventory", "Inventario"),
+    ("transport", "Transporte"),
+    ("maintenance", "Mantenimiento"),
+    ("marketing", "Marketing"),
+    ("taxes", "Impuestos"),
+    ("bank_fees", "Comisiones Bancarias"),
+    ("other", "Otros"),
+    ("prod_fabric", "Tela (Producción)"),
+    ("prod_tailoring", "Confección"),
+    ("prod_embroidery", "Bordado"),
+    ("prod_accessories", "Accesorios (Producción)"),
+    ("prod_other", "Otros (Producción)"),
+    ("payroll_in_kind", "Compensación en Especie"),
+    ("owner_drawings", "Retiros del Propietario"),
+    ("intereses_financieros", "Intereses Financieros"),
+    ("discounts", "Descuentos"),
+)
+
+
+async def _reset_database(engine) -> None:
+    """Wipe every metadata table and re-seed the reference catalog.
+
+    Called after each test using ``db_session`` to give real cross-test isolation:
+    routes invoked via ``api_client`` commit data through their own sessions, and
+    rolling back the test's ``db_session`` does not undo those commits. ``TRUNCATE
+    ... CASCADE`` clears them, ``RESTART IDENTITY`` resets sequences, and we re-seed
+    ``expense_categories`` so the FK from ``expenses.category`` keeps resolving.
+
+    A new connection (NullPool) is used so any leftover idle-in-transaction state on
+    the test's connection does not interfere.
+    """
+    from sqlalchemy import text
+
+    # Query pg_tables instead of Base.metadata: model classes register on metadata
+    # via lazy imports, so metadata may list tables that ``create_all`` never built
+    # (e.g. ``budgets`` if its module wasn't imported before engine setup).
+    async with engine.connect() as conn:
+        result = await conn.execute(
+            text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+        )
+        tables = [row[0] for row in result.fetchall()]
+        if not tables:
+            return
+        await conn.execute(
+            text(f'TRUNCATE TABLE {", ".join(tables)} RESTART IDENTITY CASCADE')
+        )
+        await conn.commit()
+    await _seed_expense_categories(engine)
+
+
+async def _seed_expense_categories(engine) -> None:
+    """Insert the global expense_categories catalog once per test session.
+
+    Idempotent: a test container that survives an interrupted run keeps its
+    rows (drop_all runs only at session end), so re-seeding the same codes
+    would hit the UNIQUE constraint on `code`. Only insert missing codes.
+    """
+    from sqlalchemy import select
+    from app.models.accounting import ExpenseCategoryModel
+
+    session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with session_factory() as session:
+        existing = set(
+            (await session.execute(select(ExpenseCategoryModel.code))).scalars().all()
+        )
+        session.add_all(
+            ExpenseCategoryModel(
+                code=code,
+                name=name,
+                is_system=True,
+                display_order=order,
+            )
+            for order, (code, name) in enumerate(EXPENSE_CATEGORY_SEED)
+            if code not in existing
+        )
+        await session.commit()
 
 
 @pytest.fixture(scope="session")
@@ -75,6 +162,13 @@ async def async_engine():
     # Create all tables once at session start
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Seed the expense_categories catalog. Bug 5 (exp_cat_fk_001) made
+    # expenses.category a hard FK -> expense_categories.code, so any fixture
+    # that inserts an Expense fails with IntegrityError unless the referenced
+    # code exists. Production seeds these via migrations; tests recreate the
+    # schema from metadata, so the catalog must be seeded explicitly here.
+    await _seed_expense_categories(engine)
 
     yield engine
 
@@ -107,6 +201,10 @@ async def db_session(async_engine) -> AsyncGenerator[AsyncSession, None]:
             # Always rollback at the end to clean up
             await session.rollback()
             await session.close()
+    # After the session is closed, wipe test-mutable data and re-seed reference
+    # catalogs so the next test starts from a known state — committed writes from
+    # api_client routes and concurrency tests do not leak across the suite.
+    await _reset_database(async_engine)
 
 
 @pytest.fixture
@@ -243,6 +341,7 @@ def inventory_factory():
         product_id: str = None,
         school_id: str = None,
         quantity: int = 100,
+        reserved_quantity: int = 0,
         min_stock_alert: int = 10,
         **kwargs
     ) -> Inventory:
@@ -251,6 +350,7 @@ def inventory_factory():
             product_id=product_id or str(uuid4()),
             school_id=school_id or str(uuid4()),
             quantity=quantity,
+            reserved_quantity=reserved_quantity,
             min_stock_alert=min_stock_alert,
             **kwargs
         )
@@ -299,7 +399,7 @@ def sale_factory():
             school_id=school_id or str(uuid4()),
             client_id=client_id,
             user_id=user_id or str(uuid4()),
-            code=code or f"VNT-2025-{uuid4().hex[:4].upper()}",
+            code=code or f"TEST-001-VNT-2025-{uuid4().hex[:4].upper()}",
             status=status,
             total=total,
             paid_amount=paid_amount,
@@ -358,7 +458,7 @@ def order_factory():
             school_id=school_id or str(uuid4()),
             client_id=client_id or str(uuid4()),
             user_id=user_id or str(uuid4()),
-            code=code or f"ENC-2025-{uuid4().hex[:4].upper()}",
+            code=code or f"TEST-001-ENC-2025-{uuid4().hex[:4].upper()}",
             status=status,
             subtotal=subtotal,
             tax=tax,
@@ -631,6 +731,28 @@ async def test_school(db_session) -> School:
 
 
 @pytest.fixture
+async def test_vendor(db_session):
+    """Create a persisted Vendor for fixtures that need a real ``vendor_id`` FK.
+
+    Bug-fix scope: AccountsPayable.vendor_id is NOT NULL after the vendor
+    normalization migrations (vendor_norm_a/b/c). Expense.vendor_id is nullable,
+    so Expense fixtures can simply omit ``vendor=`` instead of using this.
+    """
+    from app.models.vendor import Vendor, VendorType
+    unique = uuid4().hex[:8]
+    vendor = Vendor(
+        id=uuid4(),
+        name=f"Proveedor Test {unique}",
+        normalized_name=f"proveedor_test_{unique}",
+        type=VendorType.BUSINESS,
+        is_active=True,
+    )
+    db_session.add(vendor)
+    await db_session.flush()
+    return vendor
+
+
+@pytest.fixture
 async def test_user_with_school_role(db_session, test_user, test_school) -> tuple[User, School]:
     """Create a test user with ADMIN role in test school."""
     role = UserSchoolRole(
@@ -689,6 +811,64 @@ def superuser_headers(test_superuser) -> dict[str, str]:
     )
 
     return {"Authorization": f"Bearer {token.access_token}"}
+
+
+@pytest.fixture
+async def test_client_b(db_session) -> Client:
+    """Segundo cliente del portal para tests cross-tenant.
+
+    Distinto de ``test_client`` para escenarios donde se valida que el
+    cliente A no pueda leer datos del cliente B.
+    """
+    from app.models.client import ClientType
+
+    unique_id = uuid4().hex[:8]
+    client = Client(
+        id=str(uuid4()),
+        code=f"CLI-B-{unique_id}",
+        name=f"Pedro Lopez {unique_id}",
+        email=f"pedro_{unique_id}@test.com",
+        phone="3009876543",
+        student_name="Carlos Lopez",
+        student_grade="6B",
+        client_type=ClientType.REGULAR,
+        is_active=True
+    )
+    db_session.add(client)
+    await db_session.flush()
+    return client
+
+
+@pytest.fixture
+def portal_client_headers(test_client) -> dict[str, str]:
+    """JWT headers para autenticar como ``test_client`` (portal cliente A).
+
+    Usa ``ClientService.create_client_token`` que genera un JWT con
+    ``client_type=web_client`` consumido por ``CurrentPortalClient``.
+    """
+    from app.services.client import ClientService
+    from unittest.mock import MagicMock
+
+    mock_db = MagicMock()
+    service = ClientService(mock_db)
+    token = service.create_client_token(test_client)
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def portal_client_b_headers(test_client_b) -> dict[str, str]:
+    """JWT headers para autenticar como ``test_client_b`` (portal cliente B).
+
+    Usado para validar denegaciones cross-tenant: cliente B intenta
+    acceder a recursos del cliente A.
+    """
+    from app.services.client import ClientService
+    from unittest.mock import MagicMock
+
+    mock_db = MagicMock()
+    service = ClientService(mock_db)
+    token = service.create_client_token(test_client_b)
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture
@@ -783,7 +963,7 @@ async def test_sale(
         school_id=test_school.id,
         user_id=test_user.id,
         client_id=test_client.id,
-        code=f"VNT-2025-{unique_id}",
+        code=f"{test_school.code}-VNT-2025-{unique_id}",
         status=SaleStatus.COMPLETED,
         total=Decimal("45000"),
         paid_amount=Decimal("45000"),
@@ -822,7 +1002,7 @@ async def test_order(
         school_id=test_school.id,
         user_id=test_user.id,
         client_id=test_client.id,
-        code=f"ENC-2025-{unique_id}",
+        code=f"{test_school.code}-ENC-2025-{unique_id}",
         status=OrderStatus.PENDING,
         subtotal=Decimal("50000"),
         tax=Decimal("9500"),
@@ -930,16 +1110,15 @@ async def test_employee(db_session) -> "Employee":
 
 
 @pytest.fixture
-async def test_alteration(db_session, test_user) -> "Alteration":
-    """Create a test alteration."""
+async def test_alteration(db_session, test_user, test_client) -> "Alteration":
+    """Create a test alteration linked to a registered client."""
     from app.models.alteration import Alteration, AlterationStatus, AlterationType
 
     unique_id = uuid4().hex[:8]
     alteration = Alteration(
         id=uuid4(),
         code=f"ARR-2026-{unique_id}",
-        external_client_name=f"Cliente Prueba {unique_id}",
-        external_client_phone="3001234567",
+        client_id=test_client.id,
         garment_name="Pantalón azul talla 12",
         alteration_type=AlterationType.HEM,
         description="Subir bota 3cm",
@@ -1038,11 +1217,10 @@ async def test_payroll_run(db_session, test_employee, test_user) -> "PayrollRun"
 
 @pytest.fixture
 def alteration_factory():
-    """Factory for creating Alteration instances."""
+    """Factory for creating Alteration instances. Requires `client_id`."""
     def _create(
+        client_id: UUID,
         id: UUID = None,
-        external_client_name: str = None,
-        external_client_phone: str = "3001234567",
         garment_name: str = "Pantalón azul",
         alteration_type = None,
         description: str = "Arreglo de dobladillo",
@@ -1057,8 +1235,7 @@ def alteration_factory():
         return Alteration(
             id=id or uuid4(),
             code=f"ARR-2026-{unique_id}",
-            external_client_name=external_client_name or f"Cliente {unique_id}",
-            external_client_phone=external_client_phone,
+            client_id=client_id,
             garment_name=garment_name,
             description=description,
             alteration_type=alteration_type or AlterationType.HEM,

@@ -38,7 +38,7 @@ async def send_welcome_notification_if_first_transaction(
     Args:
         db: Database session
         client_id: Client UUID
-        reference_code: Order/Sale code for reference (e.g., "ENC-2024-0001" or "VNT-2024-0001")
+        reference_code: Order/Sale code (e.g., "CARACAS-001-ENC-2026-0001")
         transaction_type: "encargo" for orders, "compra" for sales
 
     Returns:
@@ -92,7 +92,11 @@ async def send_welcome_notification_if_first_transaction(
                 channels.append("whatsapp")
             logger.info(f"Welcome notification sent via {', '.join(channels)} for {transaction_type} {reference_code}")
         else:
-            logger.warning(f"Failed to send welcome notification for {transaction_type} {reference_code}")
+            logger.warning(
+                "Failed to send welcome notification: all channels failed for %s %s (email=%s, whatsapp=%s)",
+                transaction_type, reference_code,
+                notification_result.email_sent, notification_result.whatsapp_sent,
+            )
             # Rollback the flag if all channels failed
             client.welcome_email_sent = False
             client.welcome_email_sent_at = None

@@ -62,16 +62,6 @@ export const createMockUser = (overrides = {}) => ({
   ...overrides
 })
 
-// Helper to create mock payment account
-export const createMockPaymentAccount = (overrides = {}) => ({
-  id: 'test-account-id',
-  name: 'Test Account',
-  account_type: 'bank',
-  account_number: '1234567890',
-  is_active: true,
-  ...overrides
-})
-
 // Helper to create mock delivery zone
 export const createMockDeliveryZone = (overrides = {}) => ({
   id: 'test-zone-id',

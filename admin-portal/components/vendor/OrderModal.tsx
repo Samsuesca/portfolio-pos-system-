@@ -290,7 +290,11 @@ export default function OrderModal({
 
   const handleCatalogProductSelect = (product: Product | GlobalProduct, quantity?: number) => {
     const garmentType = garmentTypes.find(gt => gt.id === product.garment_type_id);
-    const stockAvailable = product.inventory_quantity ?? (product as Product).stock ?? 0;
+    const stockAvailable =
+      (product as Product).inventory_available ??
+      (product as Product).available ??
+      ((product.inventory_quantity ?? (product as Product).stock ?? 0) -
+        ((product as Product).inventory_reserved ?? (product as Product).reserved ?? 0));
     const isGlobalProduct = !('school_id' in product) || !(product as Product).school_id;
 
     const item: OrderItemForm = {

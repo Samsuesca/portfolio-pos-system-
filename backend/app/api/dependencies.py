@@ -11,12 +11,18 @@ Superusers (is_superuser=True) bypass ALL role checks.
 """
 from typing import Annotated
 from uuid import UUID
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Query, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import jwt
+from jwt.exceptions import PyJWTError
+
+from app.core.config import settings
 from app.db.session import get_db
 from app.models.user import User, UserRole
+from app.models.client import Client
 from app.schemas.user import TokenData
 from app.services.user import UserService
 from app.services.permission import PermissionService
@@ -81,6 +87,21 @@ async def get_current_user(
             detail="Inactive user"
         )
 
+    # Token version mismatch → JWT invalidado (password/email change desde
+    # que se emitió). Se rechazan los tokens viejos inmediatamente.
+    # `token_version is None` se permite por compatibilidad con tokens
+    # emitidos antes de la migración usr_token_ver_001 (válidos hasta
+    # su `exp` natural; el primer bump post-deploy los invalida).
+    if (
+        token_data.token_version is not None
+        and token_data.token_version != user.token_version
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token invalidado. Inicia sesion nuevamente.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     return user
 
 
@@ -130,184 +151,6 @@ async def get_current_superuser(
     return current_user
 
 
-def require_school_access(required_role: UserRole | None = None):
-    """
-    Dependency factory to verify user has access to a school with required role.
-
-    Args:
-        required_role: Minimum required role. If None, only checks school access.
-                      For users with custom roles, this checks equivalent permissions.
-
-    Returns:
-        Dependency function that validates access
-
-    Usage:
-        @router.get("/products")
-        async def get_products(
-            school_id: UUID,
-            current_user: User = Depends(get_current_user),
-            _: None = Depends(require_school_access(UserRole.VIEWER))
-        ):
-            ...
-
-    Role requirements by operation type:
-        - Read operations: VIEWER or higher
-        - Create sales/orders: SELLER or higher
-        - Update inventory/prices: ADMIN or higher
-        - Delete/cancel operations: ADMIN or higher
-        - User management: OWNER or higher
-        - School settings: OWNER or higher
-
-    Note:
-        Users with custom roles (custom_role_id) are checked via permissions.
-        The mapping from system roles to permissions is:
-        - VIEWER: basic view permissions
-        - SELLER: sales.create, orders.create, clients.create
-        - ADMIN: most permissions except user management
-        - OWNER: all permissions
-    """
-    # Map system roles to key permissions for equivalence checking
-    ROLE_KEY_PERMISSIONS = {
-        UserRole.VIEWER: ["sales.view", "products.view"],
-        UserRole.SELLER: ["sales.create", "orders.create"],
-        UserRole.ADMIN: ["inventory.adjust", "sales.cancel", "products.edit"],
-        UserRole.OWNER: ["users.manage"],  # Special - handled separately
-    }
-
-    async def verify_school_access(
-        school_id: UUID,
-        current_user: Annotated[User, Depends(get_current_user)],
-        db: Annotated[AsyncSession, Depends(get_db)]
-    ) -> None:
-        """Verify user has access to school with required role"""
-        # Superusers bypass ALL role checks
-        if current_user.is_superuser:
-            return
-
-        # Check user has role in this school
-        from app.services.user import UserService
-        user_service = UserService(db)
-
-        user_roles = await user_service.get_user_schools(current_user.id)
-        school_role = next(
-            (r for r in user_roles if r.school_id == school_id),
-            None
-        )
-
-        if not school_role:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No access to this school"
-            )
-
-        # No role requirement - just having access is enough
-        if not required_role:
-            return
-
-        # If user has system role, use hierarchy check
-        if school_role.role:
-            user_level = ROLE_HIERARCHY.get(school_role.role, 0)
-            required_level = ROLE_HIERARCHY.get(required_role, 0)
-
-            if user_level < required_level:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Requires {required_role.value} role or higher"
-                )
-            return
-
-        # User has custom role - check via permissions
-        if school_role.custom_role_id:
-            permission_service = PermissionService(db)
-            user_permissions = await permission_service.get_user_permissions(
-                current_user.id, school_id
-            )
-
-            # For custom roles, check if they have equivalent permissions
-            # based on what the required system role would have
-            key_permissions = ROLE_KEY_PERMISSIONS.get(required_role, [])
-
-            # For SELLER and above, check if they have at least one key permission
-            if required_role in [UserRole.SELLER, UserRole.ADMIN]:
-                has_equivalent = any(p in user_permissions for p in key_permissions)
-                if not has_equivalent:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail=f"Requires {required_role.value} role or equivalent permissions"
-                    )
-                return
-
-            # For OWNER, must be actual owner (custom roles can't be owner equivalent)
-            if required_role == UserRole.OWNER:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Requires OWNER role"
-                )
-
-            # For VIEWER, having any permissions means they have access
-            return
-
-        # No role and no custom_role - deny access
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Requires {required_role.value} role or higher"
-        )
-
-    return verify_school_access
-
-
-def require_any_role(*roles: UserRole):
-    """
-    Dependency factory to verify user has ANY of the specified roles.
-
-    Useful when multiple roles can perform an action but not in hierarchy order.
-
-    Args:
-        *roles: Roles that can access this resource
-
-    Usage:
-        @router.post("/changes/approve")
-        async def approve_change(
-            school_id: UUID,
-            _: None = Depends(require_any_role(UserRole.ADMIN, UserRole.OWNER))
-        ):
-            ...
-    """
-    async def verify_role(
-        school_id: UUID,
-        current_user: Annotated[User, Depends(get_current_user)],
-        db: Annotated[AsyncSession, Depends(get_db)]
-    ) -> None:
-        """Verify user has one of the specified roles"""
-        # Superusers bypass ALL role checks
-        if current_user.is_superuser:
-            return
-
-        from app.services.user import UserService
-        user_service = UserService(db)
-
-        user_roles = await user_service.get_user_schools(current_user.id)
-        school_role = next(
-            (r for r in user_roles if r.school_id == school_id),
-            None
-        )
-
-        if not school_role:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No access to this school"
-            )
-
-        if school_role.role not in roles:
-            role_names = ", ".join(r.value for r in roles)
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Requires one of: {role_names}"
-            )
-
-    return verify_role
-
-
 async def get_user_school_role(
     school_id: UUID,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -335,11 +178,82 @@ async def get_user_school_role(
     return school_role.role if school_role else None
 
 
+class PaginatedParams:
+    """Standard pagination query parameters."""
+    def __init__(
+        self,
+        skip: int = Query(0, ge=0, description="Items a saltar"),
+        limit: int = Query(100, ge=1, le=500, description="Items por pagina (max 500)"),
+    ):
+        self.skip = skip
+        self.limit = limit
+
+
 # Type aliases for common dependencies
+Pagination = Annotated[PaginatedParams, Depends()]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 CurrentActiveUser = Annotated[User, Depends(get_current_active_user)]
 CurrentSuperuser = Annotated[User, Depends(get_current_superuser)]
 DatabaseSession = Annotated[AsyncSession, Depends(get_db)]
+
+
+async def get_current_portal_client(
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
+    db: Annotated[AsyncSession, Depends(get_db)]
+) -> Client:
+    token = credentials.credentials
+
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM]
+        )
+    except PyJWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token invalido o expirado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if payload.get("client_type") != "web_client":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token no es de cliente del portal",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    client_id_str = payload.get("sub")
+    if not client_id_str:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token invalido",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    from sqlalchemy import select
+    result = await db.execute(
+        select(Client).where(Client.id == UUID(client_id_str))
+    )
+    client = result.scalar_one_or_none()
+
+    if not client:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Cliente no encontrado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not client.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cuenta de cliente inactiva"
+        )
+
+    return client
+
+
+CurrentPortalClient = Annotated[Client, Depends(get_current_portal_client)]
 
 
 async def get_user_school_ids(
@@ -371,6 +285,56 @@ async def get_user_school_ids(
 
 # Type alias for user's school IDs
 UserSchoolIds = Annotated[list[UUID], Depends(get_user_school_ids)]
+
+
+def get_user_school_ids_with_permission(permission_code: str):
+    """
+    Dependency factory que retorna los school IDs donde el user tiene
+    el permiso `permission_code`.
+
+    Para superusuarios: retorna todos los school IDs del sistema.
+    Para usuarios regulares: filtra a los schools donde tienen sea un
+    system role con el permiso, sea un custom role con el permiso, sea
+    un permission_override grant.
+
+    Si el resultado es lista vacia, el endpoint deberia retornar 200 con
+    una respuesta vacia (consistente con el patron de cross-school endpoints).
+
+    Args:
+        permission_code: codigo de permiso (e.g., "sales.view")
+
+    Returns:
+        Lista de UUIDs de schools donde el user puede hacer la accion.
+    """
+    async def _dep(
+        current_user: Annotated[User, Depends(get_current_user)],
+        db: Annotated[AsyncSession, Depends(get_db)],
+    ) -> list[UUID]:
+        from app.services.user import UserService
+        from app.models.school import School
+
+        if current_user.is_superuser:
+            result = await db.execute(select(School.id))
+            return list(result.scalars().all())
+
+        user_service = UserService(db)
+        permission_service = PermissionService(db)
+        user_roles = await user_service.get_user_schools(current_user.id)
+
+        # Siempre delegamos a get_user_permissions: respeta system roles,
+        # custom roles, y permission_overrides (incluyendo revoke). El cache
+        # con TTL 60s amortiza la query post-warmup.
+        allowed: list[UUID] = []
+        for school_role in user_roles:
+            user_perms = await permission_service.get_user_permissions(
+                current_user.id, school_role.school_id
+            )
+            if permission_code in user_perms:
+                allowed.append(school_role.school_id)
+
+        return allowed
+
+    return _dep
 
 
 async def require_superuser(
@@ -457,102 +421,9 @@ def require_global_permission(permission_code: str):
             detail=f"Permission required: {permission_code}"
         )
 
+    # Tag para introspection (startup validator).
+    verify_global_permission.__permission_code__ = permission_code  # type: ignore[attr-defined]
     return verify_global_permission
-
-
-# Permission check helpers
-def can_manage_users(role: UserRole | None) -> bool:
-    """Check if role can manage users (OWNER only)"""
-    return role == UserRole.OWNER
-
-
-def can_access_accounting(role: UserRole | None) -> bool:
-    """Check if role can access accounting (ADMIN or higher)"""
-    if role is None:
-        return False
-    return ROLE_HIERARCHY.get(role, 0) >= ROLE_HIERARCHY[UserRole.ADMIN]
-
-
-def can_modify_inventory(role: UserRole | None) -> bool:
-    """Check if role can modify inventory (ADMIN or higher)"""
-    if role is None:
-        return False
-    return ROLE_HIERARCHY.get(role, 0) >= ROLE_HIERARCHY[UserRole.ADMIN]
-
-
-def can_create_sales(role: UserRole | None) -> bool:
-    """Check if role can create sales (SELLER or higher)"""
-    if role is None:
-        return False
-    return ROLE_HIERARCHY.get(role, 0) >= ROLE_HIERARCHY[UserRole.SELLER]
-
-
-def can_delete_records(role: UserRole | None) -> bool:
-    """Check if role can delete records (ADMIN or higher)"""
-    if role is None:
-        return False
-    return ROLE_HIERARCHY.get(role, 0) >= ROLE_HIERARCHY[UserRole.ADMIN]
-
-
-async def require_any_school_admin(
-    current_user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)]
-) -> User:
-    """
-    Dependency to verify user is ADMIN in at least one school.
-
-    Used for global accounting operations that affect the entire business.
-    Superusers always pass this check.
-
-    For users with custom roles, checks if they have admin-equivalent permissions
-    (like inventory.adjust, sales.cancel, etc.) in at least one school.
-
-    Returns:
-        Current user if authorized
-
-    Raises:
-        HTTPException: 403 if user is not admin in any school
-    """
-    # Superusers bypass all role checks
-    if current_user.is_superuser:
-        return current_user
-
-    from app.services.user import UserService
-    user_service = UserService(db)
-
-    user_roles = await user_service.get_user_schools(current_user.id)
-
-    # Check if user has ADMIN or higher in any school (system role)
-    has_admin = any(
-        ROLE_HIERARCHY.get(r.role, 0) >= ROLE_HIERARCHY[UserRole.ADMIN]
-        for r in user_roles
-        if r.role is not None
-    )
-
-    if has_admin:
-        return current_user
-
-    # Check custom roles for admin-equivalent permissions
-    # Admin-equivalent means having at least one of these permissions
-    ADMIN_EQUIVALENT_PERMISSIONS = [
-        "inventory.adjust", "sales.cancel", "products.edit",
-        "accounting.create_expense", "alterations.view"
-    ]
-
-    permission_service = PermissionService(db)
-
-    for school_role in user_roles:
-        if school_role.custom_role_id:
-            user_permissions = await permission_service.get_user_permissions(
-                current_user.id, school_role.school_id
-            )
-            if any(p in user_permissions for p in ADMIN_EQUIVALENT_PERMISSIONS):
-                return current_user
-
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="Requires ADMIN role or equivalent permissions in at least one school"
-    )
 
 
 # ============================================
@@ -581,13 +452,19 @@ def require_permission(permission_code: str):
             ...
     """
     async def verify_permission(
-        school_id: UUID,
-        current_user: Annotated[User, Depends(get_current_user)],
-        db: Annotated[AsyncSession, Depends(get_db)]
+        school_id: UUID | None = None,
+        current_user: Annotated[User, Depends(get_current_user)] = None,
+        db: Annotated[AsyncSession, Depends(get_db)] = None
     ) -> None:
         # Superusers bypass all checks
         if current_user.is_superuser:
             return
+
+        if school_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permission required: {permission_code} (school_id needed)"
+            )
 
         permission_service = PermissionService(db)
         has_perm = await permission_service.has_permission(
@@ -600,6 +477,8 @@ def require_permission(permission_code: str):
                 detail=f"Permission required: {permission_code}"
             )
 
+    # Tag para introspection (startup validator).
+    verify_permission.__permission_code__ = permission_code  # type: ignore[attr-defined]
     return verify_permission
 
 
@@ -619,17 +498,24 @@ def require_any_permission(*permission_codes: str):
             ...
     """
     async def verify_any_permission(
-        school_id: UUID,
-        current_user: Annotated[User, Depends(get_current_user)],
-        db: Annotated[AsyncSession, Depends(get_db)]
+        school_id: UUID | None = None,
+        current_user: Annotated[User, Depends(get_current_user)] = None,
+        db: Annotated[AsyncSession, Depends(get_db)] = None
     ) -> None:
         if current_user.is_superuser:
             return
+
+        if school_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"One of these permissions required: {', '.join(permission_codes)} (school_id needed)"
+            )
 
         permission_service = PermissionService(db)
         has_any = await permission_service.has_any_permission(
             current_user.id, school_id, *permission_codes
         )
+        # Tag set en el factory abajo (require_any_permission)
 
         if not has_any:
             raise HTTPException(
@@ -637,6 +523,8 @@ def require_any_permission(*permission_codes: str):
                 detail=f"One of these permissions required: {', '.join(permission_codes)}"
             )
 
+    # Tag con la tupla de codes para introspection.
+    verify_any_permission.__permission_codes__ = tuple(permission_codes)  # type: ignore[attr-defined]
     return verify_any_permission
 
 
@@ -890,3 +778,32 @@ def require_global_permission_with_constraints(permission_code: str):
         }
 
     return verify_and_get_constraints
+
+
+# ============================================================================
+# Date range validation helper — Reports Coverage Expansion (P2 fix)
+# ============================================================================
+
+def validate_date_range(
+    start_date: 'date | None' = None,
+    end_date: 'date | None' = None,
+) -> None:
+    """Validate that start_date <= end_date when both are provided.
+
+    Reports endpoints accept independent ?start_date and ?end_date query
+    params. Without this check, an inverted range (e.g. preset bug,
+    typo) silently returns an empty payload instead of an actionable
+    error — caught by the QA pass on 2026-05-24.
+
+    Raises 400 with a Spanish message (per CLAUDE.md i18n rule).
+    """
+    if start_date is not None and end_date is not None and start_date > end_date:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Rango de fechas invalido: start_date ({start_date}) "
+                f"no puede ser posterior a end_date ({end_date})."
+            ),
+        )
+

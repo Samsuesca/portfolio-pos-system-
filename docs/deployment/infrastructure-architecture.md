@@ -1,4 +1,4 @@
-# Arquitectura de Despliegue - Uniformes System v2.0
+# Arquitectura de Despliegue - Uniformes System v2.9
 
 ## Vision General
 
@@ -25,20 +25,20 @@ Sistema de gestion de uniformes profesional con arquitectura multi-tenant desple
                     │  └─────┘    │Webs │    │
                     │             └─────┘    │
                     │                         │
-                    │  ┌─────────────────┐    │
-                    │  │   PostgreSQL    │    │
-                    │  │     (Docker)    │    │
-                    │  └─────────────────┘    │
+                    │  ┌──────────┐ ┌──────┐ │
+                    │  │PostgreSQL│ │Redis │ │
+                    │  │ (Docker) │ │      │ │
+                    │  └──────────┘ └──────┘ │
                     └─────────────────────────┘
                               │
-        ┌─────────────────────┼─────────────────────┐
-        │                     │                     │
-        ▼                     ▼                     ▼
-┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-│  Desktop App  │   │  Web Portal   │   │ Admin Portal  │
-│    (Tauri)    │   │   (Next.js)   │   │   (Next.js)   │
-│  Windows/Mac  │   │  Puerto 3000  │   │  Puerto 3001  │
-└───────────────┘   └───────────────┘   └───────────────┘
+        ┌──────────────┬──────┴───────┬──────────────┐
+        │              │              │              │
+        ▼              ▼              ▼              ▼
+┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
+│ Desktop App │ │ Web Portal  │ │Admin Portal │ │ Mobile App  │
+│   (Tauri)   │ │  (Next.js)  │ │  (Next.js)  │ │   (Expo)    │
+│ Windows/Mac │ │ Puerto 3000 │ │ Puerto 3001 │ │  iOS/Android│
+└─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘
 ```
 
 ### Dominios y URLs
@@ -48,7 +48,8 @@ Sistema de gestion de uniformes profesional con arquitectura multi-tenant desple
 | API Backend | `api.yourdomain.com` | 8000 |
 | Web Portal (Clientes) | `yourdomain.com` | 3000 |
 | Admin Portal | `admin.yourdomain.com` | 3001 |
-| Desktop App | Conecta a API via HTTPS | - |
+| Desktop App (Tauri) | Conecta a API via HTTPS | - |
+| Mobile App (Expo) | Conecta a API via HTTPS | - |
 
 ---
 
@@ -60,11 +61,19 @@ Sistema de gestion de uniformes profesional con arquitectura multi-tenant desple
 
 **Stack:**
 - Python 3.10+
-- FastAPI 0.104.1
-- SQLAlchemy 2.0 (async)
+- FastAPI 0.115.6
+- SQLAlchemy 2.0.36 (async)
+- Pydantic 2.10.4
 - PostgreSQL 15
+- Redis 5.2.1
 - Alembic (migraciones)
-- Pydantic v2
+- structlog 24.4.0 (logging estructurado)
+- httpx 0.28.1 (cliente Wompi)
+
+**Integraciones:**
+- Wompi Payment Gateway (pagos en linea)
+- Telegram Bot API (alertas operacionales)
+- Google Auth (login federado opcional)
 
 **Configuracion de Produccion:**
 ```bash
@@ -78,9 +87,28 @@ ExecStart=/var/www/uniformes-system-v2/backend/venv/bin/uvicorn app.main:app --h
 
 **Variables de Entorno (`.env`):**
 ```env
+# Database & Cache
 DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/uniformes_db
+REDIS_URL=redis://localhost:6379
+
+# Auth
 SECRET_KEY=<jwt-secret>
-CORS_ORIGINS=["https://yourdomain.com","https://admin.yourdomain.com"]
+
+# CORS
+BACKEND_CORS_ORIGINS=["https://yourdomain.com","https://www.yourdomain.com","https://admin.yourdomain.com","https://api.yourdomain.com"]
+
+# Wompi Payment Gateway
+WOMPI_ENABLED=true
+WOMPI_ENVIRONMENT=production
+WOMPI_PUBLIC_KEY=pub_prod_xxx
+WOMPI_PRIVATE_KEY=prv_prod_xxx
+WOMPI_EVENTS_KEY=stagtest_events_xxx
+WOMPI_INTEGRITY_KEY=integrity_xxx
+WOMPI_REDIRECT_URL=https://yourdomain.com/pago/resultado
+
+# Telegram Alerts
+TELEGRAM_BOT_TOKEN=<bot-token>
+TELEGRAM_CHAT_ID=<chat-id>
 ```
 
 ### 2. Web Portal - Clientes (Next.js)
@@ -99,6 +127,7 @@ CORS_ORIGINS=["https://yourdomain.com","https://admin.yourdomain.com"]
 - Sistema de pedidos web
 - Verificacion telefonica
 - Seleccion de zona de entrega
+- Pagos en linea via Wompi
 
 **PM2 Config:**
 ```bash
@@ -118,11 +147,12 @@ pm2 start npm --name "uniformes-web" -- start -- -p 3000
 **Funcionalidades:**
 - Dashboard de administracion
 - Gestion de colegios (CRUD)
-- Gestion de usuarios y roles
+- Gestion de usuarios y roles (sistema de permisos granular)
 - Cuentas de pago
 - Zonas de entrega
 - Productos e inventario
 - Contabilidad (gastos, balances)
+- Suscripciones a alertas Telegram
 
 **PM2 Config:**
 ```bash
@@ -134,7 +164,7 @@ pm2 start npm --name "uniformes-admin" -- start -- -p 3001
 **Ubicacion:** `/frontend/`
 
 **Stack:**
-- Tauri (Rust + WebView)
+- Tauri 2.x (Rust + WebView)
 - React 18 + TypeScript
 - Tailwind CSS
 - Zustand (estado)
@@ -147,6 +177,27 @@ pm2 start npm --name "uniformes-admin" -- start -- -p 3001
 - Impresion de recibos
 - Encargos personalizados
 - Contabilidad global
+
+### 5. Mobile App (Expo) — MVP
+
+**Ubicacion:** `/mobile/`
+
+**Stack:**
+- Expo SDK 54
+- React Native 0.81
+- expo-router v6
+- NativeWind (Tailwind para RN)
+- EAS Build / Workflows
+
+**Funcionalidades (MVP):**
+- Auth (login)
+- Ventas (crear/listar)
+- Clientes
+- Inventario (consulta)
+- Pedidos
+
+**Distribucion:**
+- iOS/Android via EAS Build
 
 ---
 
@@ -291,6 +342,9 @@ WantedBy=multi-user.target
 
 ## Comandos de Deployment
 
+> **Branch de produccion:** `main` (NO `develop`).
+> Todo deploy a produccion debe partir de `main`.
+
 ### Deploy Completo
 
 ```bash
@@ -299,7 +353,7 @@ ssh root@104.156.247.226
 
 # Pull cambios
 cd /var/www/uniformes-system-v2
-git pull origin develop
+git pull origin main
 
 # Backend (si hay cambios)
 cd backend
@@ -316,6 +370,7 @@ pm2 restart uniformes-web
 
 # Admin Portal (si hay cambios)
 cd ../admin-portal
+npm install
 npm run build
 pm2 restart uniformes-admin
 ```
@@ -324,7 +379,7 @@ pm2 restart uniformes-admin
 
 ```bash
 # Desde local - una linea
-ssh root@104.156.247.226 "cd /var/www/uniformes-system-v2 && git pull origin develop && cd admin-portal && npm run build && pm2 restart uniformes-admin"
+ssh root@104.156.247.226 "cd /var/www/uniformes-system-v2 && git pull origin main && cd admin-portal && npm run build && pm2 restart uniformes-admin"
 ```
 
 ### Verificar Estado
@@ -395,9 +450,12 @@ uniformes-system-v2/
 │   │   ├── api/routes/        # Endpoints
 │   │   ├── models/            # SQLAlchemy models
 │   │   ├── schemas/           # Pydantic schemas
-│   │   ├── services/          # Business logic
+│   │   ├── services/          # Business logic (wompi, telegram, etc.)
+│   │   ├── core/              # Config, security
+│   │   ├── utils/             # Timezone, helpers
 │   │   └── main.py            # Entry point
 │   ├── alembic/               # Migraciones DB
+│   ├── tests/                 # pytest (284+ tests)
 │   ├── requirements.txt
 │   └── .env                   # Variables (gitignored)
 │
@@ -420,19 +478,22 @@ uniformes-system-v2/
 │   ├── app/
 │   │   ├── login/             # Pagina login
 │   │   └── (dashboard)/       # Rutas protegidas
-│   │       ├── schools/
-│   │       ├── users/
-│   │       ├── products/
-│   │       ├── payment-accounts/
-│   │       ├── delivery-zones/
-│   │       └── accounting/
-│   ├── lib/
-│   │   ├── adminAuth.ts       # Auth store
-│   │   ├── api.ts             # API client
-│   │   └── services/          # API services
+│   ├── lib/                   # Auth, API client, services
 │   └── package.json
 │
-└── docs/                       # Documentacion
+├── mobile/                     # Mobile App (Expo SDK 54)
+│   ├── app/                   # expo-router v6 pages
+│   ├── assets/
+│   ├── eas.json               # EAS Build / Workflows
+│   └── app.json
+│
+├── shared/                     # Codigo compartido entre apps
+├── scripts/                    # dev.sh, migrate.sh, test.sh
+├── docker/                     # Dockerfiles y compose
+├── docs/                       # Documentacion
+├── logs/                       # Logs locales
+├── backups/                    # Backups de BD
+└── version.json               # Versiones del sistema
 ```
 
 ---
@@ -442,23 +503,24 @@ uniformes-system-v2/
 ### Implementado
 
 - HTTPS obligatorio (SSL/TLS)
-- JWT con expiracion (tokens)
+- JWT con expiracion (PyJWT + bcrypt directo, sin python-jose ni passlib)
 - Passwords hasheados (bcrypt)
-- CORS configurado por dominio
-- Autenticacion de superuser para admin portal
-- Validacion de datos con Pydantic
+- CORS configurado por dominio (allowlist explicita, no `*`)
+- Sistema de permisos granular con cache compartido y audit trail
+- Validacion de datos con Pydantic v2
+- Rate limiting en endpoints publicos
+- Verificacion de firma en webhooks (Wompi `WOMPI_EVENTS_KEY`)
 
 ### Configuracion CORS (Backend)
 
 ```python
-# app/main.py
-CORS_ORIGINS = [
+# Configurado via BACKEND_CORS_ORIGINS en .env
+# Valores tipicos en produccion:
+[
     "https://yourdomain.com",
     "https://www.yourdomain.com",
     "https://admin.yourdomain.com",
     "https://api.yourdomain.com",
-    "http://localhost:3000",
-    "http://localhost:3001",
     "tauri://localhost",
 ]
 ```
@@ -467,10 +529,15 @@ CORS_ORIGINS = [
 
 ## Monitoreo y Logs
 
+### Logging Estructurado
+
+El backend emite logs JSON con `structlog` (request_id, client_ip, ruta, latencia).
+Los logs son consumidos por el VultrUI Log Explorer.
+
 ### Ubicacion de Logs
 
 ```bash
-# Backend API
+# Backend API (structlog JSON)
 journalctl -u uniformes-api -f
 /var/log/uniformes/backend.log
 
@@ -521,7 +588,7 @@ cat backup.sql | docker exec -i uniformes-postgres psql -U uniformes uniformes_d
 
 ```bash
 # Git es el backup del codigo
-git push origin develop
+git push origin main
 ```
 
 ---
@@ -546,7 +613,7 @@ pm2 logs uniformes-web --lines 100
 
 ### Error de CORS
 
-1. Verificar que el dominio este en CORS_ORIGINS del backend
+1. Verificar que el dominio este en `BACKEND_CORS_ORIGINS` del backend
 2. Reiniciar backend: `systemctl restart uniformes-api`
 
 ### Error 502 Bad Gateway
@@ -568,37 +635,217 @@ certbot renew
 systemctl restart nginx
 ```
 
+### Webhook Wompi no llega
+
+```bash
+# Verificar que el endpoint este accesible
+curl -X POST https://api.yourdomain.com/api/v1/payments/webhooks/wompi
+
+# Revisar logs
+journalctl -u uniformes-api -f | grep wompi
+```
+
 ---
 
 ## Desarrollo Local
 
-### Backend
+### Arquitectura Desarrollo vs Produccion
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    PRODUCCION (VPS)                         │
+│                    Rama: main                               │
+│                                                             │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │ Web Portal   │  │ Admin Portal │  │ Desktop App  │      │
+│  │ PM2 :3000    │  │ PM2 :3001    │  │ (conecta)    │      │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘      │
+│         └─────────────────┼─────────────────┘              │
+│                           ▼                                │
+│              ┌────────────────────────┐                    │
+│              │  Backend API           │                    │
+│              │  systemd :8000         │                    │
+│              │  api.uniformes...com   │                    │
+│              └───────────┬────────────┘                    │
+│                          ▼                                 │
+│         ┌────────────────────────────────┐                 │
+│         │  PostgreSQL (Docker) + Redis   │                 │
+│         └────────────────────────────────┘                 │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                    DESARROLLO (Local)                       │
+│                    Ramas: develop, feature/*, fix/*         │
+│                                                             │
+│  ┌────────────┐ ┌────────────┐ ┌──────────┐ ┌────────────┐ │
+│  │ Web Portal │ │Admin Portal│ │Tauri App │ │ Mobile App │ │
+│  │npm dev:3000│ │npm dev:3001│ │tauri:dev │ │ expo start │ │
+│  └─────┬──────┘ └─────┬──────┘ └─────┬────┘ └─────┬──────┘ │
+│        └──────────────┼──────────────┴────────────┘        │
+│                       ▼                                    │
+│              ┌────────────────────────┐                    │
+│              │  Docker Backend        │                    │
+│              │  localhost:8000        │                    │
+│              └───────────┬────────────┘                    │
+│                          ▼                                 │
+│         ┌────────────────────────────────┐                 │
+│         │  Docker PostgreSQL + Redis     │                 │
+│         │  (copia de datos produccion)   │                 │
+│         └────────────────────────────────┘                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Entorno Docker (Recomendado)
+
+El entorno Docker incluye: PostgreSQL + Redis + Backend FastAPI.
+
+**Iniciar entorno completo:**
 
 ```bash
+# Desde la raiz del proyecto
+./scripts/dev.sh up
+
+# Salida esperada:
+# ✓ Entorno de desarrollo iniciado
+#   - Backend: http://localhost:8000
+#   - PostgreSQL: localhost:5432
+#   - Redis: localhost:6379
+```
+
+**Comandos disponibles (`./scripts/dev.sh`):**
+
+| Comando | Descripcion |
+|---------|-------------|
+| `up` | Iniciar todos los contenedores |
+| `down` | Detener todos los contenedores |
+| `restart` | Reiniciar contenedores |
+| `logs [servicio]` | Ver logs (ej: `logs backend`) |
+| `ps` | Ver estado de contenedores |
+| `db` | Conectar a PostgreSQL (DB desarrollo) |
+| `test-db` | Conectar a PostgreSQL (DB tests) |
+| `shell` | Abrir shell en contenedor backend |
+| `build` | Reconstruir imagen del backend |
+| `clean` | Eliminar contenedores y volumenes |
+
+**Migraciones (`./scripts/migrate.sh`):**
+
+| Comando | Descripcion |
+|---------|-------------|
+| `up` | Aplicar migraciones pendientes |
+| `down [n]` | Revertir n migraciones (default: 1) |
+| `new "mensaje"` | Crear nueva migracion |
+| `history` | Ver historial de migraciones |
+| `current` | Ver migracion actual |
+| `heads` | Ver cabezas de migracion |
+
+**Tests (`./scripts/test.sh`):**
+
+| Comando | Descripcion |
+|---------|-------------|
+| `all` | Correr todos los tests |
+| `unit` | Solo tests unitarios |
+| `api` | Solo tests de API |
+| `cov` | Tests con reporte de coverage |
+| `fast` | Tests rapidos (sin lentos) |
+
+### Configuracion de Environment
+
+**Web Portal - Desarrollo** (`web-portal/.env.local`):
+```env
+# Apunta al Docker local
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+**Web Portal - Produccion** (`web-portal/.env.production`):
+```env
+NEXT_PUBLIC_API_URL=https://api.yourdomain.com
+```
+
+**Admin Portal - Desarrollo** (`admin-portal/.env.local`):
+```env
+# Apunta al Docker local
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+**Admin Portal - Produccion** (`admin-portal/.env.production`):
+```env
+NEXT_PUBLIC_API_URL=https://api.yourdomain.com
+```
+
+**Tauri Desktop App:**
+- Tiene selector de servidor en la UI (Settings)
+- Puede apuntar a localhost:8000 o produccion
+
+**Mobile App (Expo):**
+- Configura `EXPO_PUBLIC_API_URL` en `mobile/.env` o via `eas.json`
+
+### Iniciar Frontends en Desarrollo
+
+**Paso 1: Iniciar Docker Backend**
+```bash
+./scripts/dev.sh up
+# Esperar a que muestre "Backend: http://localhost:8000"
+```
+
+**Paso 2: Iniciar Frontend deseado**
+
+```bash
+# Web Portal (puerto 3000)
+cd web-portal
+npm run dev
+
+# Admin Portal (puerto 3001)
+cd admin-portal
+npm run dev
+
+# Desktop App (Tauri)
+cd frontend
+npm run tauri:dev
+
+# Mobile App (Expo)
+cd mobile
+npx expo start
+```
+
+### Iniciar Frontends en Produccion (Build)
+
+**Web Portal:**
+```bash
+cd web-portal
+npm run build
+npm start -p 3000
+```
+
+**Admin Portal:**
+```bash
+cd admin-portal
+npm run build
+npm start -p 3001
+```
+
+**Desktop App:**
+```bash
+cd frontend
+npm run tauri:build
+# Genera instaladores en frontend/src-tauri/target/release/bundle/
+```
+
+**Mobile App (EAS Build):**
+```bash
+cd mobile
+eas build --platform ios
+eas build --platform android
+```
+
+### Backend Sin Docker (Alternativa)
+
+Si prefieres correr el backend sin Docker:
+
+```bash
+# Requiere PostgreSQL y Redis instalados localmente
 cd backend
 source venv/bin/activate
 uvicorn app.main:app --reload --port 8000
-```
-
-### Web Portal
-
-```bash
-cd web-portal
-npm run dev
-```
-
-### Admin Portal
-
-```bash
-cd admin-portal
-npm run dev
-```
-
-### Desktop App
-
-```bash
-cd frontend
-npm run tauri:dev
 ```
 
 ---
@@ -612,6 +859,6 @@ npm run tauri:dev
 
 ---
 
-**Ultima actualizacion:** 2026-01-10
-**Version:** v2.0.0
+**Ultima actualizacion:** 2026-05-02
+**Version:** v2.9.0
 **Estado:** EN PRODUCCION

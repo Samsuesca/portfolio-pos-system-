@@ -2,6 +2,7 @@ import AuthGuard from '@/components/AuthGuard';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import DashboardWrapper from '@/components/DashboardWrapper';
+import FeedbackButton from '@/components/FeedbackButton';
 import { ToastContainer } from '@/components/ui/Toast';
 
 export default function DashboardLayout({
@@ -20,6 +21,7 @@ export default function DashboardLayout({
           </DashboardWrapper>
         </div>
         <ToastContainer />
+        <FeedbackButton />
       </div>
     </AuthGuard>
   );

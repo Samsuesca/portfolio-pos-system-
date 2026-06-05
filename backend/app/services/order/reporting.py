@@ -45,9 +45,7 @@ class OrderReportingMixin:
         """
         from app.models.school import School
         from app.models.client import Client
-        from app.models.product import GlobalGarmentType
 
-        # Build status filter
         item_statuses = [OrderItemStatus.PENDING, OrderItemStatus.IN_PRODUCTION]
         if include_ready:
             item_statuses.append(OrderItemStatus.READY)
@@ -56,7 +54,6 @@ class OrderReportingMixin:
         if include_ready:
             order_statuses.append(OrderStatus.READY)
 
-        # Single optimized query with all JOINs (including GlobalGarmentType for global products)
         query = (
             select(
                 OrderItem,
@@ -64,13 +61,11 @@ class OrderReportingMixin:
                 Client,
                 School,
                 GarmentType,
-                GlobalGarmentType,
             )
             .join(Order, OrderItem.order_id == Order.id)
             .join(Client, Order.client_id == Client.id)
             .join(School, Order.school_id == School.id)
             .outerjoin(GarmentType, OrderItem.garment_type_id == GarmentType.id)
-            .outerjoin(GlobalGarmentType, OrderItem.global_garment_type_id == GlobalGarmentType.id)
             .where(
                 Order.school_id.in_(school_ids),
                 Order.status.in_(order_statuses),
@@ -81,34 +76,24 @@ class OrderReportingMixin:
         result = await self.db.execute(query)
         rows = result.all()
 
-        # Group by (garment_type_id, size, color, is_yomber)
         demand_map: dict[str, dict] = {}
 
-        for item, order, client, school, garment_type, global_garment_type in rows:
+        for item, order, client, school, garment_type in rows:
             is_yomber = bool(item.custom_measurements and len(item.custom_measurements) > 0)
 
-            # Apply type filter early
             if type_filter == 'yomber' and not is_yomber:
                 continue
             if type_filter == 'standard' and is_yomber:
                 continue
 
-            # Get garment type info - try GarmentType first, then GlobalGarmentType
             garment_name = 'Desconocido'
             garment_category = None
-            garment_type_id = item.garment_type_id  # Default to school garment_type_id
+            garment_type_id = item.garment_type_id
 
             if garment_type:
-                # School-specific garment type
                 garment_name = garment_type.name
                 garment_category = garment_type.category
-            elif global_garment_type:
-                # Global product - use GlobalGarmentType info
-                garment_name = global_garment_type.name
-                garment_category = global_garment_type.category
-                garment_type_id = item.global_garment_type_id  # Use global_garment_type_id for key
 
-            # Create unique key for grouping (use appropriate garment_type_id)
             key = f"{garment_type_id or 'none'}|{item.size or ''}|{item.color or ''}|{is_yomber}"
 
             if key not in demand_map:
@@ -116,7 +101,7 @@ class OrderReportingMixin:
                     'garment_type_id': str(garment_type_id) if garment_type_id else None,
                     'garment_type_name': garment_name,
                     'garment_type_category': garment_category,
-                    'is_global_product': item.is_global_product,
+                    'is_global': garment_type.school_id is None if garment_type else False,
                     'size': item.size,
                     'color': item.color,
                     'total_quantity': 0,

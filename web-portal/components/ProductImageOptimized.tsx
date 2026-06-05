@@ -72,7 +72,6 @@ export default function ProductImageOptimized({
         className="object-cover transition-transform duration-300 hover:scale-105"
         loading={priority ? 'eager' : 'lazy'}
         priority={priority}
-        unoptimized
         onError={() => setImageError(true)}
       />
     </div>

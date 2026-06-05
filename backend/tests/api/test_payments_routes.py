@@ -12,7 +12,7 @@ Tests cover:
 import hashlib
 import pytest
 from decimal import Decimal
-from uuid import uuid4
+from uuid import uuid4, UUID
 from datetime import datetime, date
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -34,12 +34,43 @@ API_PREFIX = "/api/v1/payments"
 
 
 # ============================================================================
+# AUTH CONTRACT
+# ============================================================================
+# As of the portal-client cutover, ``/payments/sessions``, ``/payments/status``
+# and ``/payments/resolve`` require a portal-client JWT (``CurrentPortalClient``)
+# AND, for ``/sessions``, the referenced ``order_id`` must belong to that client.
+# ``/payments/sync-pending`` requires ``CurrentSuperuser``.
+
+
+@pytest.fixture
+async def test_client_order(db_session, test_client, test_school):
+    """An ``Order`` owned by ``test_client`` for use as ``order_id`` in tests."""
+    order = Order(
+        id=uuid4(),
+        school_id=test_school.id,
+        code=f"WP-TEST-{uuid4().hex[:6]}",
+        client_id=test_client.id,
+        subtotal=Decimal("80000"),
+        total=Decimal("80000"),
+        paid_amount=Decimal("0"),
+        status=OrderStatus.PENDING,
+    )
+    db_session.add(order)
+    await db_session.flush()
+    # Refresh so identity-mapped attributes (client_id) are typed as UUID, not the
+    # raw str assigned from the fixture — the route compares order.client_id to the
+    # DB-loaded current_client.id (UUID) and a str/UUID mismatch yields a false 403.
+    await db_session.refresh(order)
+    return order
+
+
+# ============================================================================
 # HELPERS
 # ============================================================================
 
 def _build_valid_webhook_payload(
     events_key: str,
-    reference: str = "WP-ENC-2026-0042-1710345600",
+    reference: str = "WP-CARACAS-001-ENC-2026-0042-1710345600",
     wompi_status: str = "APPROVED",
     wompi_id: str = "txn-abc-123",
 ) -> dict:
@@ -126,14 +157,15 @@ class TestCreatePaymentSession:
 
     @patch("app.api.routes.payments.settings")
     async def test_create_session_returns_503_when_disabled(
-        self, mock_settings, api_client
+        self, mock_settings, api_client, portal_client_headers, test_client_order
     ):
         """Should return 503 when Wompi is disabled."""
         mock_settings.WOMPI_ENABLED = False
 
         response = await api_client.post(
             f"{API_PREFIX}/sessions",
-            json={"order_id": str(uuid4())},
+            json={"order_id": str(test_client_order.id)},
+            headers=portal_client_headers,
         )
 
         assert_error_response(response, 503, "no disponibles")
@@ -141,7 +173,7 @@ class TestCreatePaymentSession:
     @patch("app.api.routes.payments.WompiService")
     @patch("app.api.routes.payments.settings")
     async def test_create_session_success(
-        self, mock_settings, MockWompiService, api_client
+        self, mock_settings, MockWompiService, api_client, portal_client_headers, test_client_order
     ):
         """Should create session and return redirect data."""
         mock_settings.WOMPI_ENABLED = True
@@ -149,13 +181,13 @@ class TestCreatePaymentSession:
         from app.schemas.payment_transaction import PaymentSessionResponse
 
         mock_response = PaymentSessionResponse(
-            reference="WP-ENC-2026-0042-1710345600",
+            reference="WP-CARACAS-001-ENC-2026-0042-1710345600",
             amount_in_cents=8000000,
             currency="COP",
             public_key="pub_test_key",
             integrity_signature="a" * 64,
             redirect_url="https://example.com/resultado",
-            description="Pago encargo ENC-2026-0042",
+            description="Pago encargo CARACAS-001-ENC-2026-0042",
         )
 
         mock_service_instance = AsyncMock()
@@ -166,11 +198,12 @@ class TestCreatePaymentSession:
 
         response = await api_client.post(
             f"{API_PREFIX}/sessions",
-            json={"order_id": str(uuid4())},
+            json={"order_id": str(test_client_order.id)},
+            headers=portal_client_headers,
         )
 
         data = assert_success_response(response)
-        assert data["reference"] == "WP-ENC-2026-0042-1710345600"
+        assert data["reference"] == "WP-CARACAS-001-ENC-2026-0042-1710345600"
         assert data["amount_in_cents"] == 8000000
         assert data["currency"] == "COP"
         assert data["public_key"] == "pub_test_key"
@@ -179,7 +212,7 @@ class TestCreatePaymentSession:
     @patch("app.api.routes.payments.WompiService")
     @patch("app.api.routes.payments.settings")
     async def test_create_session_order_not_found_returns_400(
-        self, mock_settings, MockWompiService, api_client
+        self, mock_settings, MockWompiService, api_client, portal_client_headers, test_client_order
     ):
         """Should return 400 when order not found."""
         mock_settings.WOMPI_ENABLED = True
@@ -192,7 +225,8 @@ class TestCreatePaymentSession:
 
         response = await api_client.post(
             f"{API_PREFIX}/sessions",
-            json={"order_id": str(uuid4())},
+            json={"order_id": str(test_client_order.id)},
+            headers=portal_client_headers,
         )
 
         assert_bad_request(response, "no encontrado")
@@ -200,7 +234,7 @@ class TestCreatePaymentSession:
     @patch("app.api.routes.payments.WompiService")
     @patch("app.api.routes.payments.settings")
     async def test_create_session_double_payment_returns_400(
-        self, mock_settings, MockWompiService, api_client
+        self, mock_settings, MockWompiService, api_client, portal_client_headers, test_client_order
     ):
         """Should return 400 when a PENDING transaction already exists."""
         mock_settings.WOMPI_ENABLED = True
@@ -213,22 +247,24 @@ class TestCreatePaymentSession:
 
         response = await api_client.post(
             f"{API_PREFIX}/sessions",
-            json={"order_id": str(uuid4())},
+            json={"order_id": str(test_client_order.id)},
+            headers=portal_client_headers,
         )
 
         assert_bad_request(response, "pago en proceso")
 
-    async def test_create_session_validation_error_without_ids(self, api_client):
+    async def test_create_session_validation_error_without_ids(self, api_client, portal_client_headers):
         """Should return 422 when neither order_id nor receivable_id provided."""
         response = await api_client.post(
             f"{API_PREFIX}/sessions",
             json={},
+            headers=portal_client_headers,
         )
 
         # Pydantic validator rejects — 400 (custom handler) or 422 or 503 (Wompi disabled)
         assert response.status_code in (400, 422, 503)
 
-    async def test_create_session_validation_error_both_ids(self, api_client):
+    async def test_create_session_validation_error_both_ids(self, api_client, portal_client_headers):
         """Should return 400/422 when both order_id and receivable_id provided."""
         response = await api_client.post(
             f"{API_PREFIX}/sessions",
@@ -236,6 +272,7 @@ class TestCreatePaymentSession:
                 "order_id": str(uuid4()),
                 "receivable_id": str(uuid4()),
             },
+            headers=portal_client_headers,
         )
 
         # Pydantic validator rejects both — 400 (custom handler) or 422 or 503
@@ -336,14 +373,15 @@ class TestPaymentStatus:
     """Tests for GET /api/v1/payments/status/{reference}"""
 
     @patch("app.api.routes.payments.WompiService")
-    async def test_status_found(self, MockWompiService, api_client):
+    async def test_status_found(self, MockWompiService, api_client, portal_client_headers, test_client):
         """Should return payment status when found."""
         mock_payment = MagicMock()
-        mock_payment.reference = "WP-ENC-2026-0042-1710345600"
+        mock_payment.reference = "WP-CARACAS-001-ENC-2026-0042-1710345600"
         mock_payment.status = WompiTransactionStatus.APPROVED
         mock_payment.amount_in_cents = 8000000
         mock_payment.payment_method_type = "CARD"
-        mock_payment.order_id = uuid4()
+        mock_payment.client_id = UUID(str(test_client.id))  # owner resolves directly via client_id
+        mock_payment.order_id = None
         mock_payment.receivable_id = None
         mock_payment.created_at = datetime(2026, 3, 15, 10, 30, 0)
         mock_payment.completed_at = datetime(2026, 3, 15, 10, 31, 0)
@@ -358,34 +396,36 @@ class TestPaymentStatus:
         MockWompiService.return_value = mock_service_instance
 
         response = await api_client.get(
-            f"{API_PREFIX}/status/WP-ENC-2026-0042-1710345600"
+            f"{API_PREFIX}/status/WP-CARACAS-001-ENC-2026-0042-1710345600",
+            headers=portal_client_headers,
         )
 
         data = assert_success_response(response)
-        assert data["reference"] == "WP-ENC-2026-0042-1710345600"
+        assert data["reference"] == "WP-CARACAS-001-ENC-2026-0042-1710345600"
         assert data["status"] == "APPROVED"
         assert data["amount_in_cents"] == 8000000
 
     @patch("app.api.routes.payments.WompiService")
-    async def test_status_not_found_returns_404(self, MockWompiService, api_client):
+    async def test_status_not_found_returns_404(self, MockWompiService, api_client, portal_client_headers):
         """Should return 404 when reference not found."""
         mock_service_instance = AsyncMock()
         mock_service_instance.get_payment_status = AsyncMock(return_value=None)
         MockWompiService.return_value = mock_service_instance
 
-        response = await api_client.get(f"{API_PREFIX}/status/NONEXISTENT-REF")
+        response = await api_client.get(f"{API_PREFIX}/status/NONEXISTENT-REF", headers=portal_client_headers)
 
         assert_not_found(response, "no encontrada")
 
     @patch("app.api.routes.payments.WompiService")
-    async def test_status_pending_triggers_sync(self, MockWompiService, api_client):
+    async def test_status_pending_triggers_sync(self, MockWompiService, api_client, portal_client_headers, test_client):
         """Should attempt sync with Wompi when status is PENDING."""
         mock_payment = MagicMock()
         mock_payment.reference = "WP-TEST-PENDING"
         mock_payment.status = WompiTransactionStatus.PENDING
         mock_payment.amount_in_cents = 5000000
         mock_payment.payment_method_type = None
-        mock_payment.order_id = uuid4()
+        mock_payment.client_id = UUID(str(test_client.id))  # owner resolves directly via client_id
+        mock_payment.order_id = None
         mock_payment.receivable_id = None
         mock_payment.created_at = datetime(2026, 3, 15, 10, 0, 0)
         mock_payment.completed_at = None
@@ -399,7 +439,7 @@ class TestPaymentStatus:
         )
         MockWompiService.return_value = mock_service_instance
 
-        response = await api_client.get(f"{API_PREFIX}/status/WP-TEST-PENDING")
+        response = await api_client.get(f"{API_PREFIX}/status/WP-TEST-PENDING", headers=portal_client_headers)
 
         data = assert_success_response(response)
         assert data["status"] == "PENDING"
@@ -413,9 +453,9 @@ class TestPaymentStatus:
 class TestSyncPending:
     """Tests for POST /api/v1/payments/sync-pending"""
 
-    async def test_sync_no_pending_returns_zeros(self, api_client, db_session):
+    async def test_sync_no_pending_returns_zeros(self, api_client, db_session, superuser_headers):
         """Should return synced=0 when no pending payments exist."""
-        response = await api_client.post(f"{API_PREFIX}/sync-pending")
+        response = await api_client.post(f"{API_PREFIX}/sync-pending", headers=superuser_headers)
 
         data = assert_success_response(response)
         assert data["synced"] == 0
@@ -423,7 +463,7 @@ class TestSyncPending:
 
     @patch("app.api.routes.payments.WompiService")
     async def test_sync_pending_processes_transactions(
-        self, MockWompiService, api_client, db_session
+        self, MockWompiService, api_client, db_session, superuser_headers
     ):
         """Should sync each pending payment and report count."""
         # Create PENDING payment transactions in DB
@@ -454,7 +494,7 @@ class TestSyncPending:
         )
         MockWompiService.return_value = mock_service_instance
 
-        response = await api_client.post(f"{API_PREFIX}/sync-pending")
+        response = await api_client.post(f"{API_PREFIX}/sync-pending", headers=superuser_headers)
 
         data = assert_success_response(response)
         assert data["total_pending"] == 2
@@ -469,7 +509,7 @@ class TestResolveByWompiId:
     """Tests for GET /api/v1/payments/resolve/{wompi_id}"""
 
     @patch("app.api.routes.payments.WompiService")
-    async def test_resolve_found_locally(self, MockWompiService, api_client, db_session):
+    async def test_resolve_found_locally(self, MockWompiService, api_client, db_session, portal_client_headers, test_client):
         """Should return payment when found by wompi_transaction_id locally."""
         from app.models.payment_transaction import PaymentTransaction
 
@@ -482,11 +522,13 @@ class TestResolveByWompiId:
             status=WompiTransactionStatus.APPROVED,
             integrity_signature="c" * 64,
             payment_method_type="NEQUI",
+            client_id=test_client.id,
         )
         db_session.add(tx)
         await db_session.flush()
+        await db_session.refresh(tx)
 
-        response = await api_client.get(f"{API_PREFIX}/resolve/{wompi_id}")
+        response = await api_client.get(f"{API_PREFIX}/resolve/{wompi_id}", headers=portal_client_headers)
 
         data = assert_success_response(response)
         assert data["reference"] == tx.reference
@@ -495,7 +537,7 @@ class TestResolveByWompiId:
 
     @patch("app.api.routes.payments.WompiService")
     async def test_resolve_falls_back_to_wompi_api(
-        self, MockWompiService, api_client, db_session
+        self, MockWompiService, api_client, db_session, portal_client_headers, test_client
     ):
         """Should query Wompi API when not found locally, then look up by reference."""
         from app.models.payment_transaction import PaymentTransaction
@@ -508,9 +550,11 @@ class TestResolveByWompiId:
             currency="COP",
             status=WompiTransactionStatus.APPROVED,
             integrity_signature="d" * 64,
+            client_id=test_client.id,
         )
         db_session.add(tx)
         await db_session.flush()
+        await db_session.refresh(tx)
 
         # Mock WompiService to resolve reference from Wompi API
         mock_service_instance = AsyncMock()
@@ -520,14 +564,14 @@ class TestResolveByWompiId:
         mock_service_instance.get_payment_status = AsyncMock(return_value=tx)
         MockWompiService.return_value = mock_service_instance
 
-        response = await api_client.get(f"{API_PREFIX}/resolve/unknown-wompi-id")
+        response = await api_client.get(f"{API_PREFIX}/resolve/unknown-wompi-id", headers=portal_client_headers)
 
         data = assert_success_response(response)
         assert data["reference"] == reference
 
     @patch("app.api.routes.payments.WompiService")
     async def test_resolve_not_found_anywhere_returns_404(
-        self, MockWompiService, api_client
+        self, MockWompiService, api_client, portal_client_headers
     ):
         """Should return 404 when not found locally or via Wompi API."""
         mock_service_instance = AsyncMock()
@@ -536,6 +580,6 @@ class TestResolveByWompiId:
         )
         MockWompiService.return_value = mock_service_instance
 
-        response = await api_client.get(f"{API_PREFIX}/resolve/totally-unknown")
+        response = await api_client.get(f"{API_PREFIX}/resolve/totally-unknown", headers=portal_client_headers)
 
         assert_not_found(response, "no encontrada")

@@ -4,11 +4,56 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Design Tokens ──────────────────────────────────────── */
+:root {
+  /* Surface */
+  --ucr-surface-base: #F8F7F4;
+  --ucr-surface-card: #FFFFFF;
+  --ucr-surface-elevated: #FFFFFF;
+  --ucr-surface-hover: #F1EFE9;
+  --ucr-surface-active: rgba(212,175,55, 0.08);
+  --ucr-surface-overlay: rgba(28,25,23, 0.6);
+
+  /* Text */
+  --ucr-text-primary: #1C1917;
+  --ucr-text-secondary: #57534E;
+  --ucr-text-tertiary: #A8A29E;
+  --ucr-text-muted: #D6D3D1;
+  --ucr-text-on-brand: #FFFFFF;
+
+  /* Border */
+  --ucr-border-subtle: rgba(28,25,23, 0.06);
+  --ucr-border-default: rgba(28,25,23, 0.10);
+  --ucr-border-strong: rgba(28,25,23, 0.16);
+  --ucr-border-focus: #D4AF37;
+
+  /* Shadows (multi-layer, warm tone) */
+  --ucr-shadow-xs: 0 1px 2px rgba(28,25,23, 0.04);
+  --ucr-shadow-sm: 0 1px 3px rgba(28,25,23, 0.06), 0 1px 2px rgba(28,25,23, 0.04);
+  --ucr-shadow-md: 0 4px 12px rgba(28,25,23, 0.07), 0 1px 3px rgba(28,25,23, 0.05);
+  --ucr-shadow-lg: 0 12px 40px rgba(28,25,23, 0.08), 0 4px 12px rgba(28,25,23, 0.04);
+  --ucr-shadow-xl: 0 24px 64px rgba(28,25,23, 0.12), 0 8px 24px rgba(28,25,23, 0.06);
+
+  /* Motion */
+  --ucr-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ucr-ease-in: cubic-bezier(0.55, 0, 1, 0.45);
+  --ucr-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ucr-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ucr-duration-instant: 80ms;
+  --ucr-duration-fast: 150ms;
+  --ucr-duration-base: 200ms;
+  --ucr-duration-moderate: 300ms;
+  --ucr-duration-slow: 400ms;
+}
+
+/* ─── Base Styles ────────────────────────────────────────── */
 body {
   margin: 0;
   font-family: 'Inter', system-ui, sans-serif;
-  background-color: #F8F7F4; /* surface-100 warm */
-  color: #1C1917; /* stone-900 */
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  font-optical-sizing: auto;
+  background-color: var(--ucr-surface-base);
+  color: var(--ucr-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -18,13 +63,88 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: -0.02em;
 }
 
-/* Tabular numbers for prices and data */
+/* ─── Utility Classes ────────────────────────────────────── */
 .font-tabular {
   font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum";
+  font-feature-settings: "tnum", "cv02";
 }
 
-/* Page entry animation */
+.card {
+  background-color: var(--ucr-surface-card);
+  border: 1px solid var(--ucr-border-subtle);
+  border-radius: 12px;
+  box-shadow: var(--ucr-shadow-sm);
+}
+
+.card-hover {
+  transition: box-shadow var(--ucr-duration-fast) var(--ucr-ease-out),
+              transform var(--ucr-duration-fast) var(--ucr-ease-out),
+              border-color var(--ucr-duration-fast) var(--ucr-ease-out);
+}
+.card-hover:hover {
+  box-shadow: var(--ucr-shadow-md);
+  border-color: var(--ucr-border-default);
+  transform: translateY(-1px);
+}
+
+.input-base {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--ucr-text-primary);
+  background: var(--ucr-surface-card);
+  border: 1px solid var(--ucr-border-default);
+  border-radius: 8px;
+  transition: border-color var(--ucr-duration-fast) var(--ucr-ease-out),
+              box-shadow var(--ucr-duration-fast) var(--ucr-ease-out);
+}
+.input-base::placeholder {
+  color: var(--ucr-text-tertiary);
+}
+.input-base:hover {
+  border-color: var(--ucr-border-strong);
+}
+.input-base:focus {
+  outline: none;
+  border-color: var(--ucr-border-focus);
+  box-shadow: 0 0 0 3px rgba(212,175,55, 0.12);
+}
+.input-base:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--ucr-border-focus);
+  outline-offset: 2px;
+}
+
+/* ─── Dark Mode ──────────────────────────────────────────── */
+.dark {
+  --ucr-surface-base: #0F0E0C;
+  --ucr-surface-card: #1C1917;
+  --ucr-surface-elevated: #292524;
+  --ucr-surface-hover: #292524;
+  --ucr-surface-active: rgba(212,175,55, 0.12);
+  --ucr-surface-overlay: rgba(0,0,0, 0.7);
+
+  --ucr-text-primary: #FAFAF9;
+  --ucr-text-secondary: #A8A29E;
+  --ucr-text-tertiary: #78716C;
+  --ucr-text-muted: #57534E;
+
+  --ucr-border-subtle: rgba(255,255,255, 0.06);
+  --ucr-border-default: rgba(255,255,255, 0.10);
+  --ucr-border-strong: rgba(255,255,255, 0.16);
+
+  --ucr-shadow-xs: 0 1px 2px rgba(0,0,0, 0.3);
+  --ucr-shadow-sm: 0 1px 3px rgba(0,0,0, 0.4), 0 1px 2px rgba(0,0,0, 0.3);
+  --ucr-shadow-md: 0 4px 12px rgba(0,0,0, 0.4), 0 1px 3px rgba(0,0,0, 0.3);
+  --ucr-shadow-lg: 0 12px 40px rgba(0,0,0, 0.4), 0 4px 12px rgba(0,0,0, 0.3);
+  --ucr-shadow-xl: 0 24px 64px rgba(0,0,0, 0.5), 0 8px 24px rgba(0,0,0, 0.4);
+}
+
+/* ─── Animations ─────────────────────────────────────────── */
 @keyframes page-enter {
   from {
     opacity: 0;
@@ -37,28 +157,25 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .animate-page-enter {
-  animation: page-enter 0.25s ease-out forwards;
+  animation: page-enter var(--ucr-duration-moderate) var(--ucr-ease-out) forwards;
 }
 
-/* Stagger children */
 .animate-stagger > * {
   opacity: 0;
-  animation: page-enter 0.25s ease-out forwards;
+  animation: page-enter var(--ucr-duration-moderate) var(--ucr-ease-out) forwards;
 }
-
 .animate-stagger > *:nth-child(1) { animation-delay: 0ms; }
 .animate-stagger > *:nth-child(2) { animation-delay: 40ms; }
 .animate-stagger > *:nth-child(3) { animation-delay: 80ms; }
 .animate-stagger > *:nth-child(4) { animation-delay: 120ms; }
 .animate-stagger > *:nth-child(5) { animation-delay: 160ms; }
 .animate-stagger > *:nth-child(6) { animation-delay: 200ms; }
-.animate-stagger > *:nth-child(n+7) { animation-delay: 230ms; }
+.animate-stagger > *:nth-child(n+7) { animation-delay: 240ms; }
 
-/* Scale-in for modals */
 @keyframes scale-in {
   from {
     opacity: 0;
-    transform: scale(0.95);
+    transform: scale(0.96);
   }
   to {
     opacity: 1;
@@ -67,5 +184,30 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .animate-scale-in {
-  animation: scale-in 0.2s ease-out forwards;
+  animation: scale-in var(--ucr-duration-base) var(--ucr-ease-out) forwards;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--ucr-surface-hover) 25%,
+    var(--ucr-surface-card) 50%,
+    var(--ucr-surface-hover) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+/* ─── Accessibility ──────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

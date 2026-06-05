@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "UCR Vendedoras",
+    "slug": "ucr-vendedoras",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "ucr-vendedoras",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#B8860B"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.uniformesconsuelorios.vendedoras"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#B8860B"
+      },
+      "package": "com.uniformesconsuelorios.vendedoras",
+      "edgeToEdgeEnabled": true
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font",
+      "expo-system-ui"
+    ]
+  }
+}

@@ -11,7 +11,7 @@ import ClientSelector, { NO_CLIENT_ID } from './ClientSelector';
 import ProductGroupSelector from './ProductGroupSelector';
 import { useSchoolStore } from '../stores/schoolStore';
 import { useDraftStore, type SaleDraft, type DraftItem, type DraftPayment } from '../stores/draftStore';
-import type { Product, GlobalProduct, GarmentType, OrderListItem } from '../types/api';
+import type { Product, GarmentType, OrderListItem } from '../types/api';
 import { orderService } from '../services/orderService';
 
 // Import sub-components
@@ -61,7 +61,7 @@ export default function SaleModal({
 
   const [loading, setLoading] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
-  const [globalProducts, setGlobalProducts] = useState<GlobalProduct[]>([]);
+  const [globalProducts, setGlobalProducts] = useState<Product[]>([]);
   const [garmentTypes, setGarmentTypes] = useState<GarmentType[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [productSource, setProductSource] = useState<'school' | 'global'>('school');
@@ -104,7 +104,6 @@ export default function SaleModal({
     product_id: '',
     quantity: 1,
     unit_price: 0,
-    is_global: false,
   });
 
   useEffect(() => {
@@ -131,7 +130,6 @@ export default function SaleModal({
             product_id: item.productId || '',
             quantity: item.quantity,
             unit_price: item.unitPrice,
-            is_global: item.isGlobal || false,
             display_name: item.productName,
             size: item.size,
             school_id: item.schoolId || saleDraft.schoolId,
@@ -160,15 +158,14 @@ export default function SaleModal({
   useEffect(() => {
     if (isOpen && initialProduct) {
       // Auto-add the initial product to the cart
-      const schoolName = getSchoolName(initialProduct.school_id);
+      const schoolName = getSchoolName(initialProduct.school_id || selectedSchoolId);
       const newItem: SaleItemCreateExtended = {
         product_id: initialProduct.id,
         quantity: initialQuantity,
         unit_price: Number(initialProduct.price),
-        is_global: false,
         display_name: initialProduct.name || '',
         size: initialProduct.size,
-        school_id: initialProduct.school_id,
+        school_id: initialProduct.school_id || selectedSchoolId,
         school_name: schoolName,
       };
       setItems([newItem]);
@@ -178,7 +175,7 @@ export default function SaleModal({
   // Handler for school change - reload products but KEEP existing items from other schools
   const handleSchoolChange = async (newSchoolId: string) => {
     setSelectedSchoolId(newSchoolId);
-    setCurrentItem({ product_id: '', quantity: 1, unit_price: 0, is_global: false });
+    setCurrentItem({ product_id: '', quantity: 1, unit_price: 0 });
     setError(null);
     await loadProducts(newSchoolId);
   };
@@ -216,7 +213,6 @@ export default function SaleModal({
       product_id: '',
       quantity: 1,
       unit_price: 0,
-      is_global: false,
     });
     setProductSource('school');
     setError(null);
@@ -302,7 +298,7 @@ export default function SaleModal({
         productService.getGarmentTypes(targetSchoolId),
       ]);
       setProducts(productsData);
-      setGlobalProducts(globalProductsData);
+      setGlobalProducts(globalProductsData.items);
       setGarmentTypes(garmentTypesData);
     } catch (err: unknown) {
       console.error('Error loading products:', err);
@@ -311,18 +307,20 @@ export default function SaleModal({
   };
 
   // Handler for ProductSelectorModal selection
-  const handleProductSelectorSelect = (product: Product | GlobalProduct, quantity?: number, isGlobalParam?: boolean) => {
-    const isGlobal = isGlobalParam ?? ('inventory_quantity' in product && !('school_id' in product));
-    const schoolId = isGlobal ? selectedSchoolId : (product as Product).school_id;
+  const handleProductSelectorSelect = (product: Product, quantity?: number, isGlobalParam?: boolean) => {
+    const isGlobal = isGlobalParam ?? (product.is_global || product.school_id === null);
+    const schoolId = isGlobal ? selectedSchoolId : (product.school_id || selectedSchoolId);
     const schoolName = getSchoolName(schoolId);
     const requestedQty = quantity || 1;
 
-    const availableStock = isGlobal
-      ? (product as GlobalProduct).inventory_quantity ?? 0
-      : (product as Product).inventory_quantity ?? (product as Product).stock ?? 0;
+    const availableStock =
+      product.inventory_available ??
+      product.available ??
+      ((product.inventory_quantity ?? product.stock ?? 0) -
+        (product.inventory_reserved ?? product.reserved ?? 0));
 
     const existingItem = items.find(
-      item => item.product_id === product.id && item.is_global === isGlobal
+      item => item.product_id === product.id
     );
     const totalQuantity = (existingItem?.quantity || 0) + requestedQty;
 
@@ -335,7 +333,6 @@ export default function SaleModal({
       product_id: product.id,
       quantity: requestedQty,
       unit_price: Number(product.price),
-      is_global: isGlobal,
       display_name: product.name || '',
       size: product.size,
       school_id: schoolId,
@@ -343,7 +340,7 @@ export default function SaleModal({
     };
 
     const existingIndex = items.findIndex(
-      item => item.product_id === product.id && item.is_global === isGlobal
+      item => item.product_id === product.id && item.school_id === schoolId
     );
 
     if (existingIndex !== -1) {
@@ -366,13 +363,13 @@ export default function SaleModal({
     return items.reduce((total, item) => total + (item.quantity * item.unit_price), 0);
   };
 
-  const getProductName = (productId: string, isGlobal: boolean = false) => {
-    if (isGlobal) {
-      const product = globalProducts.find(p => p.id === productId);
-      return product ? `🌐 ${product.name} - ${product.size} (${product.code})` : productId;
-    }
-    const product = products.find(p => p.id === productId);
-    return product ? `${product.name} - ${product.size} (${product.code})` : productId;
+  const getProductName = (productId: string) => {
+    const product = products.find(p => p.id === productId) || globalProducts.find(p => p.id === productId);
+    if (!product) return productId;
+    const isGlobal = product.is_global || product.school_id === null;
+    return isGlobal
+      ? `${product.name} - ${product.size} (${product.code})`
+      : `${product.name} - ${product.size} (${product.code})`;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -473,7 +470,6 @@ export default function SaleModal({
             product_id: item.product_id,
             quantity: item.quantity,
             unit_price: item.unit_price,
-            is_global: item.is_global,
           })),
           payments: schoolPayments,
           notes: formData.notes || undefined,
@@ -549,7 +545,7 @@ export default function SaleModal({
       size: item.size || '',
       quantity: item.quantity,
       unitPrice: item.unit_price,
-      isGlobal: item.is_global,
+      isGlobal: false,
       schoolId: item.school_id,
       schoolName: item.school_name,
     }));
@@ -585,7 +581,7 @@ export default function SaleModal({
 
   const handleProductSourceChange = (source: 'school' | 'global') => {
     setProductSource(source);
-    setCurrentItem({ ...currentItem, product_id: '', is_global: source === 'global' });
+    setCurrentItem({ ...currentItem, product_id: '' });
   };
 
   const handleFormDataChange = (data: Partial<SaleFormData>) => {
@@ -606,12 +602,12 @@ export default function SaleModal({
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="relative bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
-            <h2 className="text-xl font-semibold text-gray-800 flex items-center">
+          <div className="flex items-center justify-between p-6 border-b border-stone-200 sticky top-0 bg-white z-10">
+            <h2 className="text-xl font-semibold text-stone-800 flex items-center">
               <ShoppingCart className="w-6 h-6 mr-2" />
               {draftId ? 'Continuar Venta' : 'Nueva Venta'}
               {draftId && (
-                <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                <span className="ml-2 text-xs bg-brand-100 text-brand-700 px-2 py-0.5 rounded">
                   Borrador
                 </span>
               )}
@@ -621,7 +617,7 @@ export default function SaleModal({
                 <button
                   type="button"
                   onClick={handleMinimize}
-                  className="p-2 hover:bg-blue-100 rounded-lg text-blue-600 transition"
+                  className="p-2 hover:bg-brand-100 rounded-lg text-brand-600 transition"
                   title="Minimizar y guardar como borrador"
                 >
                   <Minimize2 className="w-5 h-5" />
@@ -629,7 +625,7 @@ export default function SaleModal({
               )}
               <button
                 onClick={onClose}
-                className="text-gray-400 hover:text-gray-600 transition p-2 hover:bg-gray-100 rounded-lg"
+                className="text-stone-400 hover:text-stone-600 transition p-2 hover:bg-stone-100 rounded-lg"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -649,14 +645,14 @@ export default function SaleModal({
               {/* School Selector */}
               {showSchoolSelector && (
                 <div className="md:col-span-2 mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-stone-700 mb-1">
                     <Building2 className="w-4 h-4 inline mr-1" />
                     Colegio *
                   </label>
                   <select
                     value={selectedSchoolId}
                     onChange={(e) => handleSchoolChange(e.target.value)}
-                    className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-blue-50"
+                    className="w-full px-3 py-2 border border-brand-300 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none bg-brand-50"
                   >
                     {availableSchools.map(school => (
                       <option key={school.id} value={school.id}>
@@ -664,7 +660,7 @@ export default function SaleModal({
                       </option>
                     ))}
                   </select>
-                  <p className="mt-1 text-xs text-blue-600">
+                  <p className="mt-1 text-xs text-brand-600">
                     Los productos y clientes se cargan del colegio seleccionado
                   </p>
                 </div>
@@ -672,7 +668,7 @@ export default function SaleModal({
 
               {/* Client */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-stone-700 mb-1">
                   Cliente
                 </label>
                 <ClientSelector
@@ -746,8 +742,8 @@ export default function SaleModal({
             />
 
             {/* Add Product Section */}
-            <div className="border-t border-gray-200 pt-6 mb-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Agregar Productos</h3>
+            <div className="border-t border-stone-200 pt-6 mb-6">
+              <h3 className="text-lg font-semibold text-stone-800 mb-4">Agregar Productos</h3>
 
               {/* Product Source Tabs */}
               <ProductSourceTabs
@@ -759,19 +755,19 @@ export default function SaleModal({
 
               {/* Product Selector Button */}
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-stone-700 mb-2">
                   Agregar Productos
                 </label>
                 <button
                   type="button"
                   onClick={() => setProductSelectorOpen(true)}
-                  className="w-full px-6 py-4 border-2 border-dashed border-blue-400 rounded-lg hover:border-blue-600 hover:bg-blue-50 transition flex flex-col items-center gap-2 group"
+                  className="w-full px-6 py-4 border-2 border-dashed border-brand-400 rounded-lg hover:border-brand-600 hover:bg-brand-50 transition flex flex-col items-center gap-2 group"
                 >
-                  <Package className="w-8 h-8 text-blue-500 group-hover:text-blue-600" />
-                  <span className="text-sm font-medium text-blue-600 group-hover:text-blue-700">
+                  <Package className="w-8 h-8 text-brand-500 group-hover:text-brand-600" />
+                  <span className="text-sm font-medium text-brand-600 group-hover:text-brand-700">
                     Buscar y agregar productos
                   </span>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-stone-500">
                     Click para abrir el catálogo
                   </span>
                 </button>
@@ -803,7 +799,7 @@ export default function SaleModal({
 
             {/* Notes */}
             <div className="mb-6 mt-6">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-stone-700 mb-1">
                 Notas (Opcional)
               </label>
               <textarea
@@ -811,24 +807,24 @@ export default function SaleModal({
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 rows={3}
                 placeholder="Observaciones adicionales..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none resize-none"
               />
             </div>
 
             {/* Actions */}
-            <div className="flex gap-3 pt-4 border-t border-gray-200">
+            <div className="flex gap-3 pt-4 border-t border-stone-200">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={loading}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+                className="flex-1 px-4 py-2 border border-stone-200 text-stone-700 rounded-lg hover:bg-stone-50 transition disabled:opacity-50"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={loading || items.length === 0 || payments.some(p => !p.payment_method)}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 flex items-center justify-center"
+                className="flex-1 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition disabled:opacity-50 flex items-center justify-center"
               >
                 {loading ? (
                   <>

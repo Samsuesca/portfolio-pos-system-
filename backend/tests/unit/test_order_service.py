@@ -28,10 +28,10 @@ class TestOrderCodeGeneration:
 
     @pytest.mark.asyncio
     async def test_generate_first_order_code(self, mock_db_session):
-        """Should generate ENC-YYYY-0001 for first order"""
+        """Should generate {SCHOOL}-ENC-YYYY-0001 for first order"""
         # The service makes TWO queries:
-        # 1. scalar_one_or_none() to get max code
-        # 2. scalar_one() to check if code exists (returns count)
+        # 1. scalar_one() to get school.code
+        # 2. scalar_one_or_none() to get max existing code
         call_count = 0
 
         async def mock_execute(query):
@@ -39,11 +39,9 @@ class TestOrderCodeGeneration:
             call_count += 1
             mock_result = MagicMock()
             if call_count == 1:
-                # First call: get max code - None means no orders exist
-                mock_result.scalar_one_or_none = MagicMock(return_value=None)
+                mock_result.scalar_one = MagicMock(return_value="TEST-001")
             else:
-                # Second call: check if code exists - 0 means code is available
-                mock_result.scalar_one = MagicMock(return_value=0)
+                mock_result.scalar_one_or_none = MagicMock(return_value=None)
             return mock_result
 
         mock_db_session.execute = mock_execute
@@ -52,24 +50,23 @@ class TestOrderCodeGeneration:
         code = await service._generate_order_code(str(uuid4()))
 
         current_year = datetime.now().year
-        assert code == f"ENC-{current_year}-0001"
+        assert code == f"TEST-001-ENC-{current_year}-0001"
 
     @pytest.mark.asyncio
     async def test_generate_sequential_order_code(self, mock_db_session):
-        """Should increment sequence for new orders"""
+        """Should increment sequence based on highest existing code"""
         current_year = datetime.now().year
         call_count = 0
+        existing_max = f"TEST-001-ENC-{current_year}-0025"
 
         async def mock_execute(query):
             nonlocal call_count
             call_count += 1
             mock_result = MagicMock()
             if call_count == 1:
-                # First call: return existing max code
-                mock_result.scalar_one_or_none = MagicMock(return_value=f"ENC-{current_year}-0025")
+                mock_result.scalar_one = MagicMock(return_value="TEST-001")
             else:
-                # Second call: code is available
-                mock_result.scalar_one = MagicMock(return_value=0)
+                mock_result.scalar_one_or_none = MagicMock(return_value=existing_max)
             return mock_result
 
         mock_db_session.execute = mock_execute
@@ -77,22 +74,23 @@ class TestOrderCodeGeneration:
 
         code = await service._generate_order_code(str(uuid4()))
 
-        assert code == f"ENC-{current_year}-0026"
+        assert code == f"TEST-001-ENC-{current_year}-0026"
 
     @pytest.mark.asyncio
     async def test_order_code_format(self, mock_db_session):
-        """Code should be ENC-YYYY-NNNN format (4 digits padded)"""
+        """Code should be {SCHOOL}-ENC-YYYY-NNNN format (sequence padded to 4)"""
         current_year = datetime.now().year
         call_count = 0
+        existing_max = f"TEST-001-ENC-{current_year}-0005"
 
         async def mock_execute(query):
             nonlocal call_count
             call_count += 1
             mock_result = MagicMock()
             if call_count == 1:
-                mock_result.scalar_one_or_none = MagicMock(return_value=f"ENC-{current_year}-0005")
+                mock_result.scalar_one = MagicMock(return_value="TEST-001")
             else:
-                mock_result.scalar_one = MagicMock(return_value=0)
+                mock_result.scalar_one_or_none = MagicMock(return_value=existing_max)
             return mock_result
 
         mock_db_session.execute = mock_execute
@@ -100,12 +98,14 @@ class TestOrderCodeGeneration:
 
         code = await service._generate_order_code(str(uuid4()))
 
-        # Verify format
+        # Verify format: SCHOOL-CODE-ENC-YYYY-NNNN (5 segments)
         parts = code.split("-")
-        assert len(parts) == 3
-        assert parts[0] == "ENC"
-        assert len(parts[1]) == 4  # Year
-        assert len(parts[2]) == 4  # Padded sequence
+        assert len(parts) == 5
+        assert parts[0] == "TEST"
+        assert parts[1] == "001"
+        assert parts[2] == "ENC"
+        assert len(parts[3]) == 4  # Year
+        assert len(parts[4]) == 4  # Padded sequence
 
 
 # ============================================================================

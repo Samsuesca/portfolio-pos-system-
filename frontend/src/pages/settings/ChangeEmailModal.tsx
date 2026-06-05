@@ -62,7 +62,7 @@ const ChangeEmailModal: React.FC<ChangeEmailModalProps> = ({ isOpen, onClose }) 
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
         <div className="flex items-center justify-between p-4 border-b">
           <h3 className="text-lg font-semibold">Cambiar Correo Electronico</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -78,12 +78,12 @@ const ChangeEmailModal: React.FC<ChangeEmailModalProps> = ({ isOpen, onClose }) 
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Mail className="w-8 h-8 text-green-600" />
               </div>
-              <h4 className="text-lg font-medium text-gray-900 mb-2">Correo de verificacion enviado</h4>
-              <p className="text-sm text-gray-600 mb-4">
+              <h4 className="text-lg font-medium text-stone-900 mb-2">Correo de verificacion enviado</h4>
+              <p className="text-sm text-stone-600 mb-4">
                 Hemos enviado un enlace de verificacion a:
               </p>
-              <p className="font-medium text-gray-900 mb-4">{emailForm.new_email}</p>
-              <p className="text-xs text-gray-500">
+              <p className="font-medium text-stone-900 mb-4">{emailForm.new_email}</p>
+              <p className="text-xs text-stone-500">
                 Revisa tu bandeja de entrada (y spam) y haz clic en el enlace para confirmar tu nuevo correo.
                 El enlace expira en 24 horas.
               </p>
@@ -100,21 +100,21 @@ const ChangeEmailModal: React.FC<ChangeEmailModalProps> = ({ isOpen, onClose }) 
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Correo actual</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1">Correo actual</label>
                 <input
                   type="email"
                   value={user?.email || ''}
                   disabled
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500"
+                  className="w-full px-3 py-2 border border-stone-200 rounded-lg bg-stone-100 text-stone-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nuevo correo electronico</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1">Nuevo correo electronico</label>
                 <input
                   type="email"
                   value={emailForm.new_email}
                   onChange={(e) => setEmailForm({ new_email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                   placeholder="nuevo@email.com"
                 />
               </div>
@@ -122,7 +122,7 @@ const ChangeEmailModal: React.FC<ChangeEmailModalProps> = ({ isOpen, onClose }) 
           )}
         </div>
         <div className="flex justify-end gap-2 p-4 border-t">
-          <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:text-gray-800 transition">
+          <button onClick={onClose} className="px-4 py-2 text-stone-600 hover:text-stone-800 transition">
             {emailSent ? 'Cerrar' : 'Cancelar'}
           </button>
           {!emailSent && (

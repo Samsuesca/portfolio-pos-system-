@@ -9,6 +9,7 @@ import { useEffect, useState, useCallback } from 'react';
 import Layout from '../../components/Layout';
 import { Users, Loader2, AlertCircle } from 'lucide-react';
 import { useUserRole } from '../../hooks/useUserRole';
+import { usePermissions } from '../../hooks/usePermissions';
 import {
   getEmployees,
   deleteEmployee,
@@ -29,7 +30,6 @@ import PayrollRunsTab from './PayrollRunsTab';
 
 // Modals
 import PayrollEmployeeModal from './PayrollEmployeeModal';
-import PayrollBonusModal from './PayrollBonusModal';
 import PayrollCreateModal from './PayrollCreateModal';
 import PayrollDetailModal from './PayrollDetailModal';
 
@@ -37,7 +37,9 @@ import type { TabType, EmployeeFilterType } from './types';
 import { getErrorMessage } from './types';
 
 export default function Payroll() {
-  const { canAccessAccounting, isSuperuser } = useUserRole();
+  const { isSuperuser } = useUserRole();
+  const { hasPermission } = usePermissions();
+  const canManagePayroll = isSuperuser || hasPermission('payroll.manage');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('employees');
@@ -54,8 +56,6 @@ export default function Payroll() {
   // Modal targets (which modal is open and with what data)
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
   const [employeeEditTarget, setEmployeeEditTarget] = useState<EmployeeListItem | null>(null);
-  const [showBonusModal, setShowBonusModal] = useState(false);
-  const [bonusTarget, setBonusTarget] = useState<EmployeeListItem | null>(null);
   const [showPayrollCreateModal, setShowPayrollCreateModal] = useState(false);
   const [showPayrollDetailModal, setShowPayrollDetailModal] = useState(false);
   const [payrollDetailTarget, setPayrollDetailTarget] = useState<PayrollRunListItem | null>(null);
@@ -70,15 +70,15 @@ export default function Payroll() {
       if (activeTab === 'employees') {
         const isActiveFilter = employeeFilter === 'active' ? true :
                                employeeFilter === 'inactive' ? false : undefined;
-        const data = await getEmployees({ is_active: isActiveFilter });
-        setEmployees(data);
+        const employeesResult = await getEmployees({ is_active: isActiveFilter });
+        setEmployees(employeesResult.items);
       } else {
-        const [summary, runs] = await Promise.all([
+        const [summary, runsResult] = await Promise.all([
           getPayrollSummary(),
           getPayrollRuns({ status: payrollFilter === 'all' ? undefined : payrollFilter }),
         ]);
         setPayrollSummary(summary);
-        setPayrollRuns(runs);
+        setPayrollRuns(runsResult.items);
       }
     } catch (err: any) {
       console.error('Error loading payroll data:', err);
@@ -89,10 +89,10 @@ export default function Payroll() {
   }, [activeTab, employeeFilter, payrollFilter]);
 
   useEffect(() => {
-    if (canAccessAccounting || isSuperuser) {
+    if (canManagePayroll) {
       loadData();
     }
-  }, [canAccessAccounting, isSuperuser, loadData]);
+  }, [canManagePayroll, loadData]);
 
   // --- Employee Handlers ---
 
@@ -126,16 +126,6 @@ export default function Payroll() {
     }
   }, [loadData]);
 
-  const handleManageBonuses = useCallback((emp: EmployeeListItem) => {
-    setBonusTarget(emp);
-    setShowBonusModal(true);
-  }, []);
-
-  const handleCloseBonusModal = useCallback(() => {
-    setShowBonusModal(false);
-    setBonusTarget(null);
-  }, []);
-
   // --- Payroll Handlers ---
 
   const handleNewPayroll = useCallback(() => {
@@ -166,7 +156,7 @@ export default function Payroll() {
 
   // --- Access Control / Loading / Error States ---
 
-  if (!canAccessAccounting && !isSuperuser) {
+  if (!canManagePayroll) {
     return (
       <Layout>
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
@@ -188,8 +178,8 @@ export default function Payroll() {
     return (
       <Layout>
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-          <span className="ml-3 text-gray-600">Cargando nomina...</span>
+          <Loader2 className="w-8 h-8 animate-spin text-brand-600" />
+          <span className="ml-3 text-stone-600">Cargando nomina...</span>
         </div>
       </Layout>
     );
@@ -219,11 +209,11 @@ export default function Payroll() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center">
-            <Users className="w-8 h-8 mr-3 text-blue-600" />
+          <h1 className="text-2xl font-bold text-stone-900 flex items-center">
+            <Users className="w-8 h-8 mr-3 text-brand-600" />
             Nomina
           </h1>
-          <p className="text-gray-600 mt-1">Gestion de empleados y liquidaciones</p>
+          <p className="text-stone-600 mt-1">Gestion de empleados y liquidaciones</p>
         </div>
       </div>
 
@@ -238,7 +228,6 @@ export default function Payroll() {
           onFilterChange={setEmployeeFilter}
           onNewEmployee={handleNewEmployee}
           onEditEmployee={handleEditEmployee}
-          onManageBonuses={handleManageBonuses}
           onDeleteEmployee={handleDeleteEmployee}
         />
       )}
@@ -259,11 +248,6 @@ export default function Payroll() {
         onClose={handleCloseEmployeeModal}
         editTarget={employeeEditTarget}
         onSaved={handleEmployeeSaved}
-      />
-      <PayrollBonusModal
-        isOpen={showBonusModal}
-        onClose={handleCloseBonusModal}
-        employee={bonusTarget}
       />
       <PayrollCreateModal
         isOpen={showPayrollCreateModal}

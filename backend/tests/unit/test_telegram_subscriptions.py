@@ -10,9 +10,10 @@ from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 from uuid import uuid4, UUID
 
 from app.models.telegram_subscription import (
+    DEFAULT_SUBSCRIPTIONS_BY_ROLE,
+    RESTRICTED_TO_ADMIN_ALERTS,
     TelegramAlertSubscription,
     TelegramAlertType,
-    DEFAULT_SUBSCRIPTIONS_BY_ROLE,
 )
 from app.models.user import User, UserRole
 from app.services.telegram_subscriptions import TelegramSubscriptionService
@@ -337,6 +338,178 @@ class TestGetChatIdsForAlert:
 
         assert result == ["CHAT_A", "CHAT_B"]
 
+    @pytest.mark.unit
+    async def test_accepts_school_id_parameter(self):
+        """get_chat_ids_for_alert accepts school_id without error."""
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.all.return_value = [("CHAT_X",)]
+        db.execute = AsyncMock(return_value=mock_result)
+
+        svc = TelegramSubscriptionService(db)
+        result = await svc.get_chat_ids_for_alert(
+            TelegramAlertType.sale_created, school_id=uuid4()
+        )
+
+        assert result == ["CHAT_X"]
+        db.execute.assert_awaited_once()
+
+    @pytest.mark.unit
+    async def test_school_id_filter_appears_in_compiled_sql(self):
+        """When school_id is given, the SQL contains a user_school_roles filter."""
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.all.return_value = []
+        db.execute = AsyncMock(return_value=mock_result)
+
+        svc = TelegramSubscriptionService(db)
+        await svc.get_chat_ids_for_alert(
+            TelegramAlertType.sale_created, school_id=uuid4()
+        )
+
+        compiled = str(db.execute.await_args.args[0])
+        assert "user_school_roles" in compiled
+        assert "school_id" in compiled
+
+    @pytest.mark.unit
+    async def test_no_school_filter_when_school_id_omitted(self):
+        """When school_id is None, SQL does not filter by user_school_roles for non-restricted alerts."""
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.all.return_value = []
+        db.execute = AsyncMock(return_value=mock_result)
+
+        svc = TelegramSubscriptionService(db)
+        await svc.get_chat_ids_for_alert(TelegramAlertType.sale_created)
+
+        compiled = str(db.execute.await_args.args[0])
+        assert "user_school_roles" not in compiled
+
+    @pytest.mark.unit
+    async def test_restricted_alert_filters_by_admin_role(self):
+        """Restricted alerts add a user_school_roles role filter even without school_id."""
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.all.return_value = []
+        db.execute = AsyncMock(return_value=mock_result)
+
+        svc = TelegramSubscriptionService(db)
+        await svc.get_chat_ids_for_alert(TelegramAlertType.expense_created)
+
+        compiled = str(db.execute.await_args.args[0])
+        assert "user_school_roles" in compiled
+        assert "is_superuser" in compiled
+
+
+# ---------------------------------------------------------------------------
+# is_admin_level
+# ---------------------------------------------------------------------------
+
+
+class TestIsAdminLevel:
+    """Test TelegramSubscriptionService.is_admin_level."""
+
+    @pytest.mark.unit
+    async def test_superuser_is_admin_level_without_querying(self):
+        """A superuser short-circuits to True without hitting the DB."""
+        user = _make_user(is_superuser=True)
+        db = AsyncMock()
+
+        svc = TelegramSubscriptionService(db)
+        assert await svc.is_admin_level(user) is True
+        db.execute.assert_not_called()
+
+    @pytest.mark.unit
+    async def test_owner_or_admin_role_is_admin_level(self):
+        """A non-superuser with an OWNER/ADMIN school role is admin-level."""
+        user = _make_user(is_superuser=False)
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.first.return_value = (user.id,)
+        db.execute = AsyncMock(return_value=mock_result)
+
+        svc = TelegramSubscriptionService(db)
+        assert await svc.is_admin_level(user) is True
+
+    @pytest.mark.unit
+    async def test_seller_is_not_admin_level(self):
+        """A non-superuser with no OWNER/ADMIN role is not admin-level."""
+        user = _make_user(is_superuser=False)
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.first.return_value = None
+        db.execute = AsyncMock(return_value=mock_result)
+
+        svc = TelegramSubscriptionService(db)
+        assert await svc.is_admin_level(user) is False
+
+    @pytest.mark.unit
+    async def test_query_filters_by_admin_roles(self):
+        """The lookup restricts to OWNER/ADMIN roles for the given user."""
+        user = _make_user(is_superuser=False)
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.first.return_value = None
+        db.execute = AsyncMock(return_value=mock_result)
+
+        svc = TelegramSubscriptionService(db)
+        await svc.is_admin_level(user)
+
+        compiled = str(db.execute.await_args.args[0])
+        assert "user_school_roles" in compiled
+
+
+# ---------------------------------------------------------------------------
+# RESTRICTED_TO_ADMIN_ALERTS
+# ---------------------------------------------------------------------------
+
+
+class TestRestrictedToAdminAlerts:
+    """Verify the RESTRICTED_TO_ADMIN_ALERTS hard-restriction list."""
+
+    @pytest.mark.unit
+    def test_includes_expense_alerts(self):
+        """expense_created and expense_paid are restricted to admin."""
+        assert TelegramAlertType.expense_created in RESTRICTED_TO_ADMIN_ALERTS
+        assert TelegramAlertType.expense_paid in RESTRICTED_TO_ADMIN_ALERTS
+
+    @pytest.mark.unit
+    def test_includes_global_digest(self):
+        """daily_digest (with balances/expenses) is admin-only."""
+        assert TelegramAlertType.daily_digest in RESTRICTED_TO_ADMIN_ALERTS
+
+    @pytest.mark.unit
+    def test_excludes_seller_digest(self):
+        """daily_digest_seller is NOT restricted — sellers must receive it."""
+        assert TelegramAlertType.daily_digest_seller not in RESTRICTED_TO_ADMIN_ALERTS
+
+    @pytest.mark.unit
+    def test_excludes_operational_events(self):
+        """Operational events (sale, order, low_stock) are not admin-restricted."""
+        for alert in (
+            TelegramAlertType.sale_created,
+            TelegramAlertType.web_order_created,
+            TelegramAlertType.order_status_changed,
+            TelegramAlertType.low_stock,
+            TelegramAlertType.reminder_orders_ready,
+        ):
+            assert alert not in RESTRICTED_TO_ADMIN_ALERTS
+
+    @pytest.mark.unit
+    def test_includes_attendance_alert(self):
+        """attendance_alert exposes HR data — restricted to admin."""
+        assert TelegramAlertType.attendance_alert in RESTRICTED_TO_ADMIN_ALERTS
+
+    @pytest.mark.unit
+    def test_includes_cash_drawer(self):
+        """cash_drawer_access is a security-sensitive admin event."""
+        assert TelegramAlertType.cash_drawer_access in RESTRICTED_TO_ADMIN_ALERTS
+
+    @pytest.mark.unit
+    def test_includes_weekly_summary(self):
+        """reminder_weekly_summary contains net result — admin only."""
+        assert TelegramAlertType.reminder_weekly_summary in RESTRICTED_TO_ADMIN_ALERTS
+
 
 # ---------------------------------------------------------------------------
 # _get_highest_role_key
@@ -442,14 +615,14 @@ class TestDefaultSubscriptionsByRole:
     """Verify the DEFAULT_SUBSCRIPTIONS_BY_ROLE mapping."""
 
     @pytest.mark.unit
-    def test_owner_has_all_17_types(self):
-        """Owner role subscribes to all 17 alert types."""
-        assert len(DEFAULT_SUBSCRIPTIONS_BY_ROLE["owner"]) == 17
+    def test_owner_has_all_alert_types(self):
+        """Owner role subscribes to every TelegramAlertType."""
+        assert set(DEFAULT_SUBSCRIPTIONS_BY_ROLE["owner"]) == set(TelegramAlertType)
 
     @pytest.mark.unit
-    def test_superuser_has_all_17_types(self):
-        """Superuser role subscribes to all 17 alert types."""
-        assert len(DEFAULT_SUBSCRIPTIONS_BY_ROLE["superuser"]) == 17
+    def test_superuser_has_all_alert_types(self):
+        """Superuser role subscribes to every TelegramAlertType."""
+        assert set(DEFAULT_SUBSCRIPTIONS_BY_ROLE["superuser"]) == set(TelegramAlertType)
 
     @pytest.mark.unit
     def test_admin_has_15_types(self):
@@ -462,10 +635,26 @@ class TestDefaultSubscriptionsByRole:
         assert len(DEFAULT_SUBSCRIPTIONS_BY_ROLE["seller"]) == 6
 
     @pytest.mark.unit
-    def test_viewer_has_1_type(self):
-        """Viewer role subscribes to 1 alert type (daily_digest)."""
-        assert len(DEFAULT_SUBSCRIPTIONS_BY_ROLE["viewer"]) == 1
-        assert TelegramAlertType.daily_digest in DEFAULT_SUBSCRIPTIONS_BY_ROLE["viewer"]
+    def test_viewer_has_only_seller_digest(self):
+        """Viewer role subscribes only to the seller digest variant."""
+        assert DEFAULT_SUBSCRIPTIONS_BY_ROLE["viewer"] == [
+            TelegramAlertType.daily_digest_seller
+        ]
+
+    @pytest.mark.unit
+    def test_seller_does_not_receive_global_daily_digest(self):
+        """Seller defaults exclude the global daily_digest (which contains balances/expenses)."""
+        assert TelegramAlertType.daily_digest not in DEFAULT_SUBSCRIPTIONS_BY_ROLE["seller"]
+
+    @pytest.mark.unit
+    def test_seller_receives_daily_digest_seller(self):
+        """Seller defaults include the per-school seller digest."""
+        assert TelegramAlertType.daily_digest_seller in DEFAULT_SUBSCRIPTIONS_BY_ROLE["seller"]
+
+    @pytest.mark.unit
+    def test_viewer_does_not_receive_global_daily_digest(self):
+        """Viewer defaults exclude the global daily_digest."""
+        assert TelegramAlertType.daily_digest not in DEFAULT_SUBSCRIPTIONS_BY_ROLE["viewer"]
 
     @pytest.mark.unit
     def test_owner_is_superset_of_admin(self):
@@ -475,11 +664,12 @@ class TestDefaultSubscriptionsByRole:
         assert admin_set.issubset(owner_set)
 
     @pytest.mark.unit
-    def test_admin_is_superset_of_seller(self):
-        """Admin subscriptions include all seller subscriptions."""
+    def test_admin_covers_seller_event_alerts(self):
+        """Admin receives every event/reminder alert that seller does, except the seller digest variant."""
         admin_set = set(DEFAULT_SUBSCRIPTIONS_BY_ROLE["admin"])
         seller_set = set(DEFAULT_SUBSCRIPTIONS_BY_ROLE["seller"])
-        assert seller_set.issubset(admin_set)
+        # Admins receive the global digest instead of daily_digest_seller.
+        assert (seller_set - {TelegramAlertType.daily_digest_seller}).issubset(admin_set)
 
     @pytest.mark.unit
     def test_seller_is_superset_of_viewer(self):

@@ -28,31 +28,33 @@ class TestSaleCodeGeneration:
 
     @pytest.mark.asyncio
     async def test_generate_first_sale_code(self, mock_db_session):
-        """Should generate VNT-YYYY-0001 when no previous sales exist"""
-        mock_db_session.execute = AsyncMock(
-            return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None))
-        )
+        """Should generate {SCHOOL}-VNT-YYYY-0001 for first sale"""
+        # First execute returns school.code; second returns max_code = None
+        mock_db_session.execute = AsyncMock(side_effect=[
+            MagicMock(scalar_one=MagicMock(return_value="TEST-001")),
+            MagicMock(scalar_one_or_none=MagicMock(return_value=None)),
+        ])
         service = SaleService(mock_db_session)
 
         code = await service._generate_sale_code(str(uuid4()))
 
         current_year = datetime.now().year
-        assert code == f"VNT-{current_year}-0001"
+        assert code == f"TEST-001-VNT-{current_year}-0001"
 
     @pytest.mark.asyncio
     async def test_generate_sequential_sale_code(self, mock_db_session):
-        """Should increment sequence based on MAX(code)"""
+        """Should increment sequence based on highest existing code"""
         current_year = datetime.now().year
-        mock_db_session.execute = AsyncMock(
-            return_value=MagicMock(
-                scalar_one_or_none=MagicMock(return_value=f"VNT-{current_year}-0015")
-            )
-        )
+        existing_max = f"TEST-001-VNT-{current_year}-0015"
+        mock_db_session.execute = AsyncMock(side_effect=[
+            MagicMock(scalar_one=MagicMock(return_value="TEST-001")),
+            MagicMock(scalar_one_or_none=MagicMock(return_value=existing_max)),
+        ])
         service = SaleService(mock_db_session)
 
         code = await service._generate_sale_code(str(uuid4()))
 
-        assert code == f"VNT-{current_year}-0016"
+        assert code == f"TEST-001-VNT-{current_year}-0016"
 
 
 # ============================================================================
@@ -746,44 +748,44 @@ class TestHistoricalSales:
 # ============================================================================
 
 class TestGlobalProductsSales:
-    """Tests for sales with global products"""
+    """Tests for sales with unified products (global = school_id is None)"""
 
-    def test_sale_item_with_global_product_flag(self):
-        """Sale items should support global product flag"""
+    def test_sale_item_references_product_id(self):
+        """Sale items use a single product_id for both school and global products"""
         from app.schemas.sale import SaleItemCreate
+        from uuid import UUID
 
-        # School product
+        school_product_id = uuid4()
+        global_product_id = uuid4()
+
         school_item = SaleItemCreate(
-            product_id=str(uuid4()),
+            product_id=school_product_id,
             quantity=2,
-            is_global=False
         )
-        assert school_item.is_global == False
+        assert school_item.product_id == school_product_id
 
-        # Global product
         global_item = SaleItemCreate(
-            product_id=str(uuid4()),
+            product_id=global_product_id,
             quantity=1,
-            is_global=True
         )
-        assert global_item.is_global == True
+        assert global_item.product_id == global_product_id
 
     def test_mixed_sale_items(self):
-        """Sale can have both school and global products"""
+        """Sale can have items from both school and global products via product_id"""
         from app.schemas.sale import SaleCreate, SaleItemCreate
+
+        school_product_ids = [str(uuid4()), str(uuid4())]
+        global_product_id = str(uuid4())
 
         sale_data = SaleCreate(
             school_id=str(uuid4()),
             items=[
-                SaleItemCreate(product_id=str(uuid4()), quantity=2, is_global=False),
-                SaleItemCreate(product_id=str(uuid4()), quantity=1, is_global=True),
-                SaleItemCreate(product_id=str(uuid4()), quantity=3, is_global=False),
+                SaleItemCreate(product_id=school_product_ids[0], quantity=2),
+                SaleItemCreate(product_id=global_product_id, quantity=1),
+                SaleItemCreate(product_id=school_product_ids[1], quantity=3),
             ],
             payment_method=PaymentMethod.CASH
         )
 
-        school_items = [i for i in sale_data.items if not i.is_global]
-        global_items = [i for i in sale_data.items if i.is_global]
-
-        assert len(school_items) == 2
-        assert len(global_items) == 1
+        assert len(sale_data.items) == 3
+        assert all(item.product_id is not None for item in sale_data.items)

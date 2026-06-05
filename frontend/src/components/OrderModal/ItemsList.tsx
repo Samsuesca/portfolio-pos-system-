@@ -9,7 +9,7 @@ import type { OrderType } from '../../types/api';
 const getOrderTypeBadge = (orderType: OrderType | undefined) => {
   switch (orderType) {
     case 'catalog':
-      return <span className="px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">Catalogo</span>;
+      return <span className="px-1.5 py-0.5 text-xs bg-brand-100 text-brand-700 rounded">Catalogo</span>;
     case 'yomber':
       return <span className="px-1.5 py-0.5 text-xs bg-purple-100 text-purple-700 rounded">Yomber</span>;
     case 'custom':
@@ -31,7 +31,7 @@ function ItemRow({ item, onRemove }: ItemRowProps) {
         <div>
           <p className="font-medium">{item.displayName}</p>
           {item.embroidery_text && (
-            <p className="text-xs text-gray-500">Bordado: {item.embroidery_text}</p>
+            <p className="text-xs text-stone-500">Bordado: {item.embroidery_text}</p>
           )}
           {item.custom_measurements && (
             <p className="text-xs text-purple-600">Con medidas personalizadas</p>
@@ -85,25 +85,25 @@ function SchoolItemsGroup({ schoolId, schoolItems, showSchoolHeader, onRemoveIte
   );
 
   return (
-    <div key={schoolId} className="border border-gray-200 rounded-lg overflow-hidden">
+    <div key={schoolId} className="border border-stone-200 rounded-lg overflow-hidden">
       {/* School header - only show if multiple schools */}
       {showSchoolHeader && (
-        <div className="bg-blue-50 px-4 py-2 flex items-center justify-between border-b border-blue-200">
-          <span className="font-medium text-blue-800 flex items-center">
+        <div className="bg-brand-50 px-4 py-2 flex items-center justify-between border-b border-brand-200">
+          <span className="font-medium text-brand-700 flex items-center">
             <Building2 className="w-4 h-4 mr-2" />
             {schoolItems[0].school_name}
           </span>
-          <span className="text-sm text-blue-600 font-medium">
+          <span className="text-sm text-brand-600 font-medium">
             Subtotal: ${schoolTotal.toLocaleString()}
           </span>
         </div>
       )}
 
       {/* Items table for this school */}
-      <div className="bg-gray-50 p-4 overflow-x-auto">
+      <div className="bg-stone-50 p-4 overflow-x-auto">
         <table className="w-full min-w-[500px]">
           <thead>
-            <tr className="text-xs text-gray-500 uppercase">
+            <tr className="text-xs text-stone-500 uppercase">
               <th className="text-left pb-2">Item</th>
               <th className="text-center pb-2">Tipo</th>
               <th className="text-center pb-2">Cant.</th>
@@ -112,7 +112,7 @@ function SchoolItemsGroup({ schoolId, schoolItems, showSchoolHeader, onRemoveIte
               <th className="pb-2"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-stone-100">
             {schoolItems.map((item) => (
               <ItemRow
                 key={item.tempId}
@@ -136,10 +136,10 @@ export default function ItemsList({ items, itemsBySchool, onRemoveItem }: ItemsL
 
   return (
     <div className="mb-6">
-      <h4 className="text-sm font-medium text-gray-700 mb-3">
+      <h4 className="text-sm font-medium text-stone-700 mb-3">
         Items del Encargo ({items.length})
         {schoolCount > 1 && (
-          <span className="ml-2 text-sm font-normal text-blue-600">
+          <span className="ml-2 text-sm font-normal text-brand-600">
             ({schoolCount} colegios)
           </span>
         )}
@@ -160,7 +160,7 @@ export default function ItemsList({ items, itemsBySchool, onRemoveItem }: ItemsL
 
       {/* Multi-school note */}
       {schoolCount > 1 && (
-        <p className="text-sm text-gray-500 mt-3">
+        <p className="text-sm text-stone-500 mt-3">
           Se crearan {schoolCount} encargos separados (uno por colegio)
         </p>
       )}

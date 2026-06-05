@@ -18,10 +18,10 @@ const ProductsStatsCards: React.FC<ProductsStatsCardsProps> = ({ stats, onStockF
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
       <div className="bg-white rounded-lg shadow-sm p-4">
         <div className="flex items-center">
-          <Package className="w-8 h-8 text-blue-600 mr-3" />
+          <Package className="w-8 h-8 text-brand-600 mr-3" />
           <div>
-            <p className="text-sm text-gray-500">Total Productos</p>
-            <p className="text-xl font-bold text-gray-800">{stats.totalProducts}</p>
+            <p className="text-sm text-stone-500">Total Productos</p>
+            <p className="text-xl font-bold text-stone-800">{stats.totalProducts}</p>
           </div>
         </div>
       </div>
@@ -29,8 +29,8 @@ const ProductsStatsCards: React.FC<ProductsStatsCardsProps> = ({ stats, onStockF
         <div className="flex items-center">
           <BarChart3 className="w-8 h-8 text-green-600 mr-3" />
           <div>
-            <p className="text-sm text-gray-500">Stock Total</p>
-            <p className="text-xl font-bold text-gray-800">{stats.totalStock.toLocaleString()}</p>
+            <p className="text-sm text-stone-500">Stock Total</p>
+            <p className="text-xl font-bold text-stone-800">{stats.totalStock.toLocaleString()}</p>
           </div>
         </div>
       </div>
@@ -41,7 +41,7 @@ const ProductsStatsCards: React.FC<ProductsStatsCardsProps> = ({ stats, onStockF
         <div className="flex items-center">
           <AlertTriangle className="w-8 h-8 text-yellow-600 mr-3" />
           <div>
-            <p className="text-sm text-gray-500">Stock Bajo</p>
+            <p className="text-sm text-stone-500">Stock Bajo</p>
             <p className="text-xl font-bold text-yellow-600">{stats.lowStockCount}</p>
           </div>
         </div>
@@ -53,7 +53,7 @@ const ProductsStatsCards: React.FC<ProductsStatsCardsProps> = ({ stats, onStockF
         <div className="flex items-center">
           <PackageX className="w-8 h-8 text-red-600 mr-3" />
           <div>
-            <p className="text-sm text-gray-500">Sin Stock</p>
+            <p className="text-sm text-stone-500">Sin Stock</p>
             <p className="text-xl font-bold text-red-600">{stats.outOfStockCount}</p>
           </div>
         </div>
@@ -65,7 +65,7 @@ const ProductsStatsCards: React.FC<ProductsStatsCardsProps> = ({ stats, onStockF
         <div className="flex items-center">
           <ShoppingCart className="w-8 h-8 text-purple-600 mr-3" />
           <div>
-            <p className="text-sm text-gray-500">Con Encargos</p>
+            <p className="text-sm text-stone-500">Con Encargos</p>
             <p className="text-xl font-bold text-purple-600">{stats.withOrdersCount}</p>
           </div>
         </div>
@@ -74,7 +74,7 @@ const ProductsStatsCards: React.FC<ProductsStatsCardsProps> = ({ stats, onStockF
         <div className="flex items-center">
           <TrendingUp className="w-8 h-8 text-indigo-600 mr-3" />
           <div>
-            <p className="text-sm text-gray-500">Uds. en Encargos</p>
+            <p className="text-sm text-stone-500">Uds. en Encargos</p>
             <p className="text-xl font-bold text-indigo-600">{stats.totalPendingOrders}</p>
           </div>
         </div>

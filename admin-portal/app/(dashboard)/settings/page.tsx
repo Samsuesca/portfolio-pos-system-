@@ -23,11 +23,14 @@ import businessSettingsService, { type BusinessInfo } from '@/lib/services/busin
 import { extractErrorMessage } from '@/lib/api';
 import { useAdminAuth } from '@/lib/adminAuth';
 import apiClient from '@/lib/api';
+import { GoogleLogin } from '@react-oauth/google';
 
 type SectionKey = 'profile' | 'password' | 'general' | 'contact' | 'address' | 'hours' | 'web';
 
 export default function SettingsPage() {
-  const { user } = useAdminAuth();
+  const { user, checkAuth } = useAdminAuth();
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleMessage, setGoogleMessage] = useState<string | null>(null);
   const [settings, setSettings] = useState<BusinessInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -261,6 +264,71 @@ export default function SettingsPage() {
                 )}
                 Guardar Perfil
               </button>
+            </div>
+
+            {/* Google Account Linking */}
+            <div className="pt-6 mt-6 border-t border-slate-200">
+              <h4 className="text-sm font-semibold text-slate-700 mb-3">Cuenta de Google</h4>
+              {user?.google_id ? (
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-green-700 bg-green-50 px-2.5 py-1 rounded-full">Vinculada</span>
+                  <button
+                    onClick={async () => {
+                      setGoogleLoading(true);
+                      setGoogleMessage(null);
+                      try {
+                        const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+                        const { token } = useAdminAuth.getState();
+                        await fetch(`${API_BASE_URL}/api/v1/auth/unlink-google`, {
+                          method: 'POST',
+                          headers: { Authorization: `Bearer ${token}` },
+                        });
+                        setGoogleMessage('Cuenta de Google desvinculada');
+                        checkAuth();
+                      } catch {
+                        setGoogleMessage('Error al desvincular Google');
+                      } finally {
+                        setGoogleLoading(false);
+                      }
+                    }}
+                    disabled={googleLoading}
+                    className="text-sm text-red-600 hover:text-red-700 disabled:opacity-50"
+                  >
+                    Desvincular
+                  </button>
+                </div>
+              ) : (
+                <GoogleLogin
+                  onSuccess={(response) => {
+                    if (response.credential) {
+                      setGoogleLoading(true);
+                      setGoogleMessage(null);
+                      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+                      const { token } = useAdminAuth.getState();
+                      fetch(`${API_BASE_URL}/api/v1/auth/link-google`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ id_token: response.credential }),
+                      })
+                        .then((r) => r.json())
+                        .then((data) => {
+                          setGoogleMessage(data.message || data.detail);
+                          if (data.message) checkAuth();
+                        })
+                        .catch(() => setGoogleMessage('Error al vincular Google'))
+                        .finally(() => setGoogleLoading(false));
+                    }
+                  }}
+                  onError={() => setGoogleMessage('Error al conectar con Google')}
+                  text="signin_with"
+                  size="medium"
+                />
+              )}
+              {googleMessage && (
+                <p className={`text-xs mt-2 ${googleMessage.includes('Error') ? 'text-red-600' : 'text-green-600'}`}>
+                  {googleMessage}
+                </p>
+              )}
             </div>
           </div>
         );

@@ -127,9 +127,9 @@ export default function UserManagement({
     try {
       if (isAllUsersMode) {
         // Load all users from the system (max 100 per request)
-        const allUsers = await userService.getUsers(0, 100);
+        const allUsersResult = await userService.getUsers({ skip: 0, limit: 100 });
         // Convert User[] to SchoolUser[] format
-        const mappedUsers: SchoolUser[] = allUsers
+        const mappedUsers: SchoolUser[] = allUsersResult.items
           .filter((u) => {
             if (!userSearchTerm) return true;
             const search = userSearchTerm.toLowerCase();
@@ -158,7 +158,7 @@ export default function UserManagement({
           search: userSearchTerm || undefined,
           role_filter: userRoleFilter || undefined,
         });
-        setSchoolUsers(result.users);
+        setSchoolUsers(result.items);
       }
     } catch (err: any) {
       console.error('Error loading users:', err);
@@ -492,7 +492,7 @@ export default function UserManagement({
     return (
       <>
         {/* Toolbar even when no school selected */}
-        <div className="p-4 bg-gray-50 border-b flex flex-wrap gap-3 items-center">
+        <div className="p-4 bg-stone-50 border-b flex flex-wrap gap-3 items-center">
           <SchoolSelector
             schools={schools}
             selectedSchoolId={selectedSchoolId}
@@ -503,7 +503,7 @@ export default function UserManagement({
           {user?.is_superuser && (
             <button
               onClick={() => setShowCreateUserModal(true)}
-              className="px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm flex items-center ml-auto"
+              className="px-3 py-2 bg-stone-600 hover:bg-stone-700 text-white rounded-lg text-sm flex items-center ml-auto"
             >
               <Plus className="w-4 h-4 mr-1" />
               Crear Usuario
@@ -512,9 +512,9 @@ export default function UserManagement({
         </div>
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <Building2 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h4 className="text-lg font-semibold text-gray-600 mb-2">Selecciona un Colegio</h4>
-            <p className="text-gray-500">
+            <Building2 className="w-12 h-12 text-stone-400 mx-auto mb-4" />
+            <h4 className="text-lg font-semibold text-stone-600 mb-2">Selecciona un Colegio</h4>
+            <p className="text-stone-500">
               {user?.is_superuser
                 ? 'Selecciona un colegio o "Todos los Usuarios" para ver usuarios.'
                 : 'Usa el selector de arriba para ver los usuarios.'}
@@ -537,7 +537,7 @@ export default function UserManagement({
   return (
     <>
       {/* Toolbar */}
-      <div className="p-4 bg-gray-50 border-b flex flex-wrap gap-3 items-center">
+      <div className="p-4 bg-stone-50 border-b flex flex-wrap gap-3 items-center">
         <SchoolSelector
           schools={schools}
           selectedSchoolId={selectedSchoolId}
@@ -548,24 +548,24 @@ export default function UserManagement({
 
         {/* Search */}
         <div className="flex-1 min-w-[200px] relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-stone-400" />
           <input
             type="text"
             placeholder="Buscar por nombre, usuario o email..."
             value={userSearchTerm}
             onChange={(e) => setUserSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+            className="w-full pl-9 pr-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-indigo-500 text-sm"
           />
         </div>
 
         {/* Role Filter - hide in all users mode */}
         {!isAllUsersMode && (
           <div className="relative">
-            <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-stone-400" />
             <select
               value={userRoleFilter}
               onChange={(e) => setUserRoleFilter(e.target.value as UserRole | '')}
-              className="pl-9 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none bg-white text-sm"
+              className="pl-9 pr-8 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-indigo-500 appearance-none bg-white text-sm"
             >
               <option value="">Todos los roles</option>
               <option value="viewer">Visualizador</option>
@@ -589,7 +589,7 @@ export default function UserManagement({
           {user?.is_superuser && (
             <button
               onClick={() => setShowCreateUserModal(true)}
-              className="px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm flex items-center"
+              className="px-3 py-2 bg-stone-600 hover:bg-stone-700 text-white rounded-lg text-sm flex items-center"
             >
               <Plus className="w-4 h-4 mr-1" />
               Crear Usuario
@@ -637,6 +637,7 @@ export default function UserManagement({
             setShowDeleteUserModal(true);
           }}
           saving={saving}
+          searchTerm={userSearchTerm}
         />
       </div>
 
@@ -740,8 +741,8 @@ export default function UserManagement({
                 <Trash2 className="w-5 h-5 text-red-600" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Eliminar Usuario</h3>
-                <p className="text-sm text-gray-500">Esta accion no se puede deshacer</p>
+                <h3 className="text-lg font-semibold text-stone-900">Eliminar Usuario</h3>
+                <p className="text-sm text-stone-500">Esta accion no se puede deshacer</p>
               </div>
             </div>
 
@@ -758,7 +759,7 @@ export default function UserManagement({
               <button
                 onClick={() => setShowDeleteUserModal(false)}
                 disabled={deletingUser}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm disabled:opacity-50"
+                className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-sm disabled:opacity-50"
               >
                 Cancelar
               </button>

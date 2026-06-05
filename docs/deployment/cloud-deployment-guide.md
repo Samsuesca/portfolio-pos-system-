@@ -3,19 +3,13 @@
 ## Pre-requisitos
 
 ### Sistema Verificado
-- [x] 117 tests pasando
-- [x] 3 colegios configurados (Caracas, Pinal, Pumarejo)
-- [x] 292 productos con precios actualizados
+- [x] Tests pasando (suite pytest, 284+ tests)
+- [x] Sistema multi-tenant (colegios)
 - [x] Sistema de entornos (LOCAL/LAN/CLOUD)
 - [x] Variables de entorno preparadas
 
-### Datos en BD Local
-| Item | Cantidad |
-|------|----------|
-| Colegios | 3 (+ 1 Demo) |
-| Tipos de Prenda | 27 |
-| Productos | 292 |
-| Inventario | 292 registros |
+> Nota: Datos de BD (cantidad de colegios, productos, etc.) varian con el tiempo. Consultar
+> el dashboard del admin portal o `version.json` para el estado actual.
 
 ---
 
@@ -62,7 +56,7 @@
 │ :8000   │    │   :5432     │   │  :6379  │
 └─────────┘    └─────────────┘   └─────────┘
 
-App Tauri (Desktop) ──► https://api.uniformes-system.com
+App Tauri (Desktop) ──► https://api.yourdomain.com
 ```
 
 ---
@@ -84,10 +78,25 @@ apt install -y python3.11 python3.11-venv python3-pip \
     nginx certbot python3-certbot-nginx git
 ```
 
-### 2. Configurar PostgreSQL
+### 2. Configurar PostgreSQL (Docker — recomendado en produccion)
+
+En produccion el VPS usa PostgreSQL en Docker. Para una nueva instalacion:
 
 ```bash
-# Crear usuario y base de datos
+docker run -d \
+  --name uniformes-postgres \
+  --restart unless-stopped \
+  -e POSTGRES_USER=uniformes \
+  -e POSTGRES_PASSWORD=YOUR_SECURE_PASSWORD \
+  -e POSTGRES_DB=uniformes_db \
+  -p 5432:5432 \
+  -v postgres_data:/var/lib/postgresql/data \
+  postgres:15
+```
+
+**Alternativa nativa (apt) — solo si NO usas Docker:**
+
+```bash
 sudo -u postgres psql
 
 CREATE USER uniformes_user WITH PASSWORD 'YOUR_SECURE_PASSWORD';
@@ -112,6 +121,33 @@ pip install -r requirements.txt
 # Configurar variables de entorno
 cp .env.production .env
 nano .env  # Editar con valores reales
+```
+
+**Variables criticas en `.env`:**
+
+```env
+# Database & Cache
+DATABASE_URL=postgresql+asyncpg://uniformes:PASSWORD@localhost:5432/uniformes_db
+REDIS_URL=redis://localhost:6379
+
+# Auth
+SECRET_KEY=<generar-con-openssl-rand-hex-32>
+
+# CORS
+BACKEND_CORS_ORIGINS=["https://yourdomain.com","https://www.yourdomain.com","https://admin.yourdomain.com","https://api.yourdomain.com","tauri://localhost"]
+
+# Wompi Payment Gateway
+WOMPI_ENABLED=true
+WOMPI_ENVIRONMENT=production
+WOMPI_PUBLIC_KEY=pub_prod_xxx
+WOMPI_PRIVATE_KEY=prv_prod_xxx
+WOMPI_EVENTS_KEY=stagtest_events_xxx
+WOMPI_INTEGRITY_KEY=integrity_xxx
+WOMPI_REDIRECT_URL=https://yourdomain.com/pago/resultado
+
+# Telegram Alerts
+TELEGRAM_BOT_TOKEN=<bot-token-from-@BotFather>
+TELEGRAM_CHAT_ID=<chat-id>
 ```
 
 ### 4. Ejecutar Migraciones
@@ -168,7 +204,7 @@ sudo nano /etc/nginx/sites-available/uniformes-api
 ```nginx
 server {
     listen 80;
-    server_name api.uniformes-system.com;
+    server_name api.yourdomain.com;
 
     location / {
         proxy_pass http://127.0.0.1:8000;
@@ -190,7 +226,7 @@ sudo systemctl reload nginx
 ### 7. Configurar SSL
 
 ```bash
-sudo certbot --nginx -d api.uniformes-system.com
+sudo certbot --nginx -d api.yourdomain.com
 ```
 
 ### 8. Migrar Datos de Producción
@@ -217,14 +253,14 @@ sudo -u postgres psql uniformes_db < /tmp/backup.sql
 export const ENVIRONMENTS = {
   LOCAL: 'http://localhost:8000',
   LAN: 'http://192.168.18.48:8000',
-  CLOUD: 'https://api.uniformes-system.com',  // ← URL real
+  CLOUD: 'https://api.yourdomain.com',  // ← URL real
 } as const;
 ```
 
 2. Compilar app para distribución:
 ```bash
 cd frontend
-npm run tauri:build
+pnpm run tauri:build
 ```
 
 3. Distribuir instalador desde `frontend/src-tauri/target/release/bundle/`
@@ -233,7 +269,7 @@ npm run tauri:build
 
 ## Checklist Post-Deployment
 
-- [ ] API responde en https://api.uniformes-system.com/api/v1/health
+- [ ] API responde en https://api.yourdomain.com/api/v1/health
 - [ ] Login funciona desde app Tauri
 - [ ] CORS configurado correctamente
 - [ ] SSL funcionando (candado verde)

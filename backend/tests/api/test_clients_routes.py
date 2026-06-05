@@ -12,6 +12,7 @@ from uuid import uuid4
 
 from tests.fixtures.assertions import (
     assert_success_response,
+    assert_list_response,
     assert_created_response,
     assert_no_content_response,
     assert_unauthorized,
@@ -124,9 +125,10 @@ class TestClientRetrieval:
         )
 
         data = assert_success_response(response)
-        # Response is a list for this endpoint
-        assert isinstance(data, list)
-        assert len(data) >= 1
+        assert "items" in data
+        assert "total" in data
+        assert isinstance(data["items"], list)
+        assert len(data["items"]) >= 1
 
     @NEEDS_ISOLATION_FIX
     async def test_get_single_client(
@@ -174,7 +176,7 @@ class TestClientRetrieval:
             params={"q": search_term}
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
         # Should find at least the test client
         assert isinstance(data, list)
 
@@ -260,7 +262,7 @@ class TestClientSummary:
         )
 
         if response.status_code == 200:
-            data = response.json()
+            data = assert_list_response(response)
             assert isinstance(data, list)
 
 

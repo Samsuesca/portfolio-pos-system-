@@ -4,7 +4,7 @@ Payroll Schemas - Employee and Payroll Management
 from uuid import UUID
 from decimal import Decimal
 from datetime import datetime, date
-from pydantic import Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 from app.schemas.base import BaseSchema, IDModelSchema
 from app.models.payroll import PaymentFrequency, BonusType, PayrollStatus
 
@@ -15,25 +15,25 @@ from app.models.payroll import PaymentFrequency, BonusType, PayrollStatus
 
 class EmployeeBase(BaseSchema):
     """Base employee schema"""
-    full_name: str = Field(..., min_length=1, max_length=255)
-    document_type: str = Field(default="CC", max_length=10)
-    document_id: str = Field(..., min_length=1, max_length=50)
-    email: str | None = Field(None, max_length=255)
-    phone: str | None = Field(None, max_length=50)
+    full_name: str = Field(..., min_length=1, max_length=255, example="Carlos Rodríguez")
+    document_type: str = Field(default="CC", max_length=10, example="CC")
+    document_id: str = Field(..., min_length=1, max_length=50, example="1020456789")
+    email: str | None = Field(None, max_length=255, example="carlos.rodriguez@correo.com")
+    phone: str | None = Field(None, max_length=50, example="3125551234")
     address: str | None = None
 
-    position: str = Field(..., min_length=1, max_length=100)
+    position: str = Field(..., min_length=1, max_length=100, example="Vendedora")
     hire_date: date
 
-    base_salary: Decimal = Field(..., gt=0)
+    base_salary: Decimal = Field(..., gt=0, example=1800000.00)
     payment_frequency: PaymentFrequency = PaymentFrequency.MONTHLY
-    payment_method: str = Field(default="cash", max_length=20)
-    bank_name: str | None = Field(None, max_length=100)
-    bank_account: str | None = Field(None, max_length=50)
+    payment_method: str = Field(default="cash", max_length=20, example="cash")
+    bank_name: str | None = Field(None, max_length=100, example="Bancolombia")
+    bank_account: str | None = Field(None, max_length=50, example="12345678901")
 
-    health_deduction: Decimal = Field(default=0, ge=0)
-    pension_deduction: Decimal = Field(default=0, ge=0)
-    other_deductions: Decimal = Field(default=0, ge=0)
+    health_deduction: Decimal = Field(default=0, ge=0, example=72000.00)
+    pension_deduction: Decimal = Field(default=0, ge=0, example=72000.00)
+    other_deductions: Decimal = Field(default=0, ge=0, example=0)
 
 
 class EmployeeCreate(EmployeeBase):
@@ -43,26 +43,26 @@ class EmployeeCreate(EmployeeBase):
 
 class EmployeeUpdate(BaseSchema):
     """Schema for updating an employee"""
-    full_name: str | None = Field(None, min_length=1, max_length=255)
-    document_type: str | None = Field(None, max_length=10)
-    document_id: str | None = Field(None, min_length=1, max_length=50)
-    email: str | None = Field(None, max_length=255)
-    phone: str | None = Field(None, max_length=50)
+    full_name: str | None = Field(None, min_length=1, max_length=255, example="Andrea Torres")
+    document_type: str | None = Field(None, max_length=10, example="CC")
+    document_id: str | None = Field(None, min_length=1, max_length=50, example="1020456789")
+    email: str | None = Field(None, max_length=255, example="andrea.torres@correo.com")
+    phone: str | None = Field(None, max_length=50, example="3189876543")
     address: str | None = None
 
-    position: str | None = Field(None, min_length=1, max_length=100)
+    position: str | None = Field(None, min_length=1, max_length=100, example="Costurera")
     termination_date: date | None = None
     is_active: bool | None = None
 
-    base_salary: Decimal | None = Field(None, gt=0)
+    base_salary: Decimal | None = Field(None, gt=0, example=1900000.00)
     payment_frequency: PaymentFrequency | None = None
-    payment_method: str | None = Field(None, max_length=20)
-    bank_name: str | None = Field(None, max_length=100)
-    bank_account: str | None = Field(None, max_length=50)
+    payment_method: str | None = Field(None, max_length=20, example="transfer")
+    bank_name: str | None = Field(None, max_length=100, example="Nequi")
+    bank_account: str | None = Field(None, max_length=50, example="3189876543")
 
-    health_deduction: Decimal | None = Field(None, ge=0)
-    pension_deduction: Decimal | None = Field(None, ge=0)
-    other_deductions: Decimal | None = Field(None, ge=0)
+    health_deduction: Decimal | None = Field(None, ge=0, example=76000.00)
+    pension_deduction: Decimal | None = Field(None, ge=0, example=76000.00)
+    other_deductions: Decimal | None = Field(None, ge=0, example=0)
 
     # User linking - allows updating the linked user
     user_id: UUID | None = None
@@ -82,7 +82,37 @@ class EmployeeResponse(EmployeeInDB):
     """Employee for API responses"""
     total_deductions: Decimal = Field(default=0)
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "full_name": "Carlos Rodríguez",
+                "document_type": "CC",
+                "document_id": "1020456789",
+                "email": "carlos.rodriguez@correo.com",
+                "phone": "3125551234",
+                "address": "Cra 45 #23-10, Medellín",
+                "position": "Vendedora",
+                "hire_date": "2025-03-01",
+                "base_salary": 1800000.00,
+                "payment_frequency": "monthly",
+                "payment_method": "cash",
+                "bank_name": None,
+                "bank_account": None,
+                "health_deduction": 72000.00,
+                "pension_deduction": 72000.00,
+                "other_deductions": 0,
+                "user_id": None,
+                "termination_date": None,
+                "is_active": True,
+                "created_by": "660e8400-e29b-41d4-a716-446655440000",
+                "created_at": "2025-03-01T08:00:00",
+                "updated_at": "2026-04-12T10:00:00",
+                "total_deductions": 144000.00,
+            }
+        },
+    )
 
     @field_validator("total_deductions", mode="before")
     @classmethod
@@ -115,9 +145,9 @@ class EmployeeListResponse(BaseSchema):
 
 class EmployeeBonusBase(BaseSchema):
     """Base bonus schema"""
-    name: str = Field(..., min_length=1, max_length=100)
+    name: str = Field(..., min_length=1, max_length=100, example="Auxilio de transporte")
     bonus_type: BonusType
-    amount: Decimal = Field(..., gt=0)
+    amount: Decimal = Field(..., gt=0, example=162000.00)
     is_recurring: bool = True
     start_date: date
     end_date: date | None = None
@@ -131,9 +161,9 @@ class EmployeeBonusCreate(EmployeeBonusBase):
 
 class EmployeeBonusUpdate(BaseSchema):
     """Schema for updating a bonus"""
-    name: str | None = Field(None, min_length=1, max_length=100)
+    name: str | None = Field(None, min_length=1, max_length=100, example="Bono por ventas")
     bonus_type: BonusType | None = None
-    amount: Decimal | None = Field(None, gt=0)
+    amount: Decimal | None = Field(None, gt=0, example=50000.00)
     is_recurring: bool | None = None
     end_date: date | None = None
     is_active: bool | None = None
@@ -150,7 +180,25 @@ class EmployeeBonusInDB(EmployeeBonusBase, IDModelSchema):
 
 class EmployeeBonusResponse(EmployeeBonusInDB):
     """Bonus for API responses"""
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": "770e8400-e29b-41d4-a716-446655440000",
+                "employee_id": "550e8400-e29b-41d4-a716-446655440000",
+                "name": "Auxilio de transporte",
+                "bonus_type": "fixed",
+                "amount": 162000.00,
+                "is_recurring": True,
+                "start_date": "2025-03-01",
+                "end_date": None,
+                "notes": None,
+                "is_active": True,
+                "created_at": "2025-03-01T08:00:00",
+                "updated_at": "2025-03-01T08:00:00",
+            }
+        },
+    )
 
 
 # ============================================
@@ -159,17 +207,17 @@ class EmployeeBonusResponse(EmployeeBonusInDB):
 
 class PayrollRunCreate(BaseSchema):
     """Schema for creating a payroll run"""
-    period_start: date
-    period_end: date
-    payment_date: date | None = None
-    notes: str | None = None
-    employee_ids: list[UUID] | None = None  # None = all active employees
+    period_start: date = Field(..., example="2026-04-01")
+    period_end: date = Field(..., example="2026-04-30")
+    payment_date: date | None = Field(None, example="2026-04-30")
+    notes: str | None = Field(None, example="Nómina abril 2026")
+    employee_ids: list[UUID] | None = None
 
 
 class PayrollRunUpdate(BaseSchema):
     """Schema for updating a payroll run (only draft status)"""
-    payment_date: date | None = None
-    notes: str | None = None
+    payment_date: date | None = Field(None, example="2026-04-30")
+    notes: str | None = Field(None, example="Ajuste de nómina abril")
 
 
 class PayrollRunInDB(IDModelSchema):
@@ -194,7 +242,30 @@ class PayrollRunInDB(IDModelSchema):
 
 class PayrollRunResponse(PayrollRunInDB):
     """Payroll run for API responses"""
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": "880e8400-e29b-41d4-a716-446655440000",
+                "period_start": "2026-04-01",
+                "period_end": "2026-04-30",
+                "payment_date": "2026-04-30",
+                "status": "draft",
+                "total_base_salary": 3600000.00,
+                "total_bonuses": 324000.00,
+                "total_deductions": 288000.00,
+                "total_net": 3636000.00,
+                "employee_count": 2,
+                "expense_id": None,
+                "notes": "Nómina abril 2026",
+                "approved_by": None,
+                "approved_at": None,
+                "paid_at": None,
+                "created_by": "660e8400-e29b-41d4-a716-446655440000",
+                "created_at": "2026-04-12T08:00:00",
+            }
+        },
+    )
 
 
 class PayrollRunListResponse(BaseSchema):
@@ -235,7 +306,7 @@ class PayrollItemBase(BaseSchema):
 
 class PayrollItemUpdate(BaseSchema):
     """Schema for updating a payroll item"""
-    base_salary: Decimal | None = Field(None, gt=0)
+    base_salary: Decimal | None = Field(None, gt=0, example=1800000.00)
     bonus_breakdown: list[BonusBreakdownItem] | None = None
     deduction_breakdown: list[DeductionBreakdownItem] | None = None
 
@@ -261,13 +332,39 @@ class PayrollItemResponse(PayrollItemInDB):
     employee_name: str | None = None
     employee_payment_frequency: str | None = None
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": "990e8400-e29b-41d4-a716-446655440000",
+                "payroll_run_id": "880e8400-e29b-41d4-a716-446655440000",
+                "employee_id": "550e8400-e29b-41d4-a716-446655440000",
+                "base_salary": 1800000.00,
+                "total_bonuses": 162000.00,
+                "total_deductions": 144000.00,
+                "net_amount": 1818000.00,
+                "bonus_breakdown": [{"name": "Auxilio de transporte", "amount": 162000.00}],
+                "deduction_breakdown": [
+                    {"name": "Salud", "amount": 72000.00},
+                    {"name": "Pensión", "amount": 72000.00},
+                ],
+                "worked_days": 30,
+                "daily_rate": 60000.00,
+                "is_paid": False,
+                "paid_at": None,
+                "payment_method": None,
+                "payment_reference": None,
+                "employee_name": "Carlos Rodríguez",
+                "employee_payment_frequency": "monthly",
+            }
+        },
+    )
 
 
 class PayrollItemPayRequest(BaseSchema):
     """Request to pay a single payroll item"""
-    payment_method: str = Field(..., max_length=20)
-    payment_reference: str | None = Field(None, max_length=100)
+    payment_method: str = Field(..., max_length=20, example="transfer")
+    payment_reference: str | None = Field(None, max_length=100, example="REF-20260430-001")
 
 
 # ============================================

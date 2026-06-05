@@ -45,7 +45,7 @@ export default function RoleModal({
           <h3 className="text-lg font-semibold">
             {selectedRole ? 'Editar Rol Personalizado' : 'Crear Rol Personalizado'}
           </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -53,17 +53,17 @@ export default function RoleModal({
           {/* Role Info */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Nombre *</label>
               <input
                 type="text"
                 value={roleForm.name}
                 onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30"
                 placeholder="Cajero Avanzado"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Codigo *</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Codigo *</label>
               <input
                 type="text"
                 value={roleForm.code}
@@ -74,30 +74,30 @@ export default function RoleModal({
                   })
                 }
                 disabled={!!selectedRole}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 disabled:bg-stone-100"
                 placeholder="cajero_avanzado"
               />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Descripcion</label>
+            <label className="block text-sm font-medium text-stone-700 mb-1">Descripcion</label>
             <textarea
               value={roleForm.description}
               onChange={(e) => setRoleForm({ ...roleForm, description: e.target.value })}
               rows={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 resize-none"
+              className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 resize-none"
               placeholder="Vendedor con acceso a reportes basicos"
             />
           </div>
 
           {/* Copy from role */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-stone-700 mb-1">
               Copiar permisos de:
             </label>
             <select
               onChange={(e) => e.target.value && onCopyPermissionsFromRole(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30"
               value=""
             >
               <option value="">Seleccionar rol base...</option>
@@ -128,7 +128,7 @@ export default function RoleModal({
           />
         </div>
         <div className="flex justify-end gap-2 p-4 border-t">
-          <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:text-gray-800">
+          <button onClick={onClose} className="px-4 py-2 text-stone-600 hover:text-stone-800">
             Cancelar
           </button>
           <button

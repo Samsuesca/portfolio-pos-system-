@@ -43,6 +43,10 @@ class ExpenseCategory(str, enum.Enum):
     TAXES = "taxes"                     # Impuestos
     BANK_FEES = "bank_fees"             # Comisiones bancarias
     OTHER = "other"                     # Otros
+    # Categorias de formalizacion (agregadas 2026-05-03)
+    PAYROLL_IN_KIND = "payroll_in_kind"        # Compensacion en especie (historico pre-formalizacion)
+    OWNER_DRAWINGS = "owner_drawings"          # Retiros del propietario (van contra patrimonio, no P&L)
+    INTERESES_FINANCIEROS = "intereses_financieros"  # Intereses sobre prestamos (gasto financiero)
 
 
 class ExpenseCategoryModel(Base):
@@ -171,7 +175,7 @@ class Transaction(Base):
     # Description and categorization
     description: Mapped[str] = mapped_column(String(500), nullable=False)
     category: Mapped[str | None] = mapped_column(String(100))  # For expenses
-    reference_code: Mapped[str | None] = mapped_column(String(100))  # VNT-2025-0001, etc.
+    reference_code: Mapped[str | None] = mapped_column(String(100))  # e.g. CARACAS-001-VNT-2026-0001
 
     # Date tracking
     transaction_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
@@ -283,12 +287,18 @@ class Expense(Base):
     )
 
     # Expense details
-    # Note: category is now a string to support dynamic categories from expense_categories table.
-    # The category code references expense_categories.code
+    # category is a string code referencing expense_categories.code.
+    # FK constraint added by migration exp_cat_fk_001 (Bug 5 stabilization
+    # sprint): ON UPDATE CASCADE, ON DELETE RESTRICT.
     category: Mapped[str] = mapped_column(
         String(50),
+        ForeignKey(
+            "expense_categories.code",
+            onupdate="CASCADE",
+            ondelete="RESTRICT",
+        ),
         nullable=False,
-        index=True
+        index=True,
     )
     description: Mapped[str] = mapped_column(String(500), nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
@@ -306,7 +316,12 @@ class Expense(Base):
     due_date: Mapped[date | None] = mapped_column(Date)  # For recurring/scheduled expenses
 
     # Additional info
-    vendor: Mapped[str | None] = mapped_column(String(255))  # Proveedor
+    vendor_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("vendors.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
     receipt_number: Mapped[str | None] = mapped_column(String(100))  # Número de factura
     notes: Mapped[str | None] = mapped_column(Text)
 
@@ -370,6 +385,7 @@ class Expense(Base):
         cascade="all, delete-orphan",
         order_by="ExpenseAdjustment.adjusted_at.desc()"
     )
+    vendor: Mapped["Vendor | None"] = relationship(foreign_keys=[vendor_id])
 
     @property
     def balance(self) -> Decimal:
@@ -726,7 +742,9 @@ class AccountsReceivable(Base):
     )
 
     description: Mapped[str] = mapped_column(String(500), nullable=False)
-    due_date: Mapped[date | None] = mapped_column(Date)
+    # NOT NULL enforced by migration ar_due_date_001 (Bug 4 stabilization sprint).
+    # Defaulted by services to invoice_date + 30 days when callers omit it.
+    due_date: Mapped[date] = mapped_column(Date, nullable=False)
     invoice_date: Mapped[date] = mapped_column(Date, nullable=False)
 
     # Status
@@ -924,7 +942,12 @@ class AccountsPayable(Base):
     )
 
     # Payable details
-    vendor: Mapped[str] = mapped_column(String(255), nullable=False)  # Supplier/creditor name
+    vendor_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("vendors.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True
+    )
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     amount_paid: Mapped[Decimal] = mapped_column(
         Numeric(12, 2),
@@ -965,6 +988,7 @@ class AccountsPayable(Base):
 
     # Relationships
     school: Mapped["School | None"] = relationship()
+    vendor: Mapped["Vendor"] = relationship(foreign_keys=[vendor_id])
 
     @property
     def balance(self) -> Decimal:
@@ -972,7 +996,7 @@ class AccountsPayable(Base):
         return self.amount - self.amount_paid
 
     def __repr__(self) -> str:
-        return f"<AccountsPayable({self.vendor}: ${self.amount} - Paid: ${self.amount_paid})>"
+        return f"<AccountsPayable(vendor_id={self.vendor_id}: ${self.amount} - Paid: ${self.amount_paid})>"
 
 
 class DebtPaymentStatus(str, enum.Enum):

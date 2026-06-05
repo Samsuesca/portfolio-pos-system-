@@ -131,7 +131,7 @@ const ManageDeliveryZonesModal: React.FC<ManageDeliveryZonesModalProps> = ({ isO
             <h3 className="text-lg font-semibold">
               {view === 'create' ? 'Nueva Zona de Envio' : 'Editar Zona de Envio'}
             </h3>
-            <button onClick={handleBackToList} className="text-gray-400 hover:text-gray-600">
+            <button onClick={handleBackToList} className="text-stone-400 hover:text-stone-600">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -143,59 +143,59 @@ const ManageDeliveryZonesModal: React.FC<ManageDeliveryZonesModalProps> = ({ isO
               </div>
             )}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Nombre *</label>
               <input
                 type="text"
                 value={zoneForm.name}
                 onChange={(e) => setZoneForm({ ...zoneForm, name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent"
                 placeholder="Ej: Zona Norte"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Descripcion</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Descripcion</label>
               <textarea
                 value={zoneForm.description}
                 onChange={(e) => setZoneForm({ ...zoneForm, description: e.target.value })}
                 rows={2}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent resize-none"
                 placeholder="Ej: Barrios incluidos en esta zona"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Costo de Envio *</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Costo de Envio *</label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400">$</span>
                 <input
                   type="number"
                   min="0"
                   value={zoneForm.delivery_fee || ''}
                   onChange={(e) => setZoneForm({ ...zoneForm, delivery_fee: parseFloat(e.target.value) || 0 })}
-                  className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-8 pr-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent"
                   placeholder="8000"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Dias Estimados *</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Dias Estimados *</label>
               <input
                 type="number"
                 min="1"
                 value={zoneForm.estimated_days || ''}
                 onChange={(e) => setZoneForm({ ...zoneForm, estimated_days: parseInt(e.target.value) || 1 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent"
                 placeholder="1"
               />
             </div>
           </div>
           <div className="flex justify-end gap-2 p-4 border-t">
-            <button onClick={handleBackToList} className="px-4 py-2 text-gray-600 hover:text-gray-800 transition">
+            <button onClick={handleBackToList} className="px-4 py-2 text-stone-600 hover:text-stone-800 transition">
               Cancelar
             </button>
             <button
               onClick={handleSaveZone}
               disabled={saving || !zoneForm.name || zoneForm.delivery_fee < 0}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition flex items-center disabled:opacity-50"
+              className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg transition flex items-center disabled:opacity-50"
             >
               {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
               Guardar
@@ -215,12 +215,12 @@ const ManageDeliveryZonesModal: React.FC<ManageDeliveryZonesModalProps> = ({ isO
           <div className="flex items-center gap-2">
             <button
               onClick={handleOpenCreate}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm flex items-center"
+              className="px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-sm flex items-center"
             >
               <Plus className="w-4 h-4 mr-1" />
               Nueva Zona
             </button>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <button onClick={onClose} className="text-stone-400 hover:text-stone-600">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -228,32 +228,32 @@ const ManageDeliveryZonesModal: React.FC<ManageDeliveryZonesModalProps> = ({ isO
         <div className="p-4 overflow-y-auto flex-1">
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-              <span className="ml-2 text-gray-600">Cargando zonas...</span>
+              <Loader2 className="w-6 h-6 animate-spin text-brand-600" />
+              <span className="ml-2 text-stone-600">Cargando zonas...</span>
             </div>
           ) : zones.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">No hay zonas de envio registradas</div>
+            <div className="text-center py-8 text-stone-500">No hay zonas de envio registradas</div>
           ) : (
             <div className="space-y-3">
               {zones.map((zone) => (
-                <div key={zone.id} className={`p-4 border rounded-lg ${zone.is_active ? 'bg-white' : 'bg-gray-50'}`}>
+                <div key={zone.id} className={`p-4 border rounded-lg ${zone.is_active ? 'bg-white' : 'bg-stone-50'}`}>
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="flex items-center gap-2">
-                        <Truck className="w-5 h-5 text-blue-500" />
-                        <span className="font-medium text-gray-800">{zone.name}</span>
+                        <Truck className="w-5 h-5 text-brand-500" />
+                        <span className="font-medium text-stone-800">{zone.name}</span>
                         {!zone.is_active && (
-                          <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs">Inactiva</span>
+                          <span className="px-2 py-0.5 bg-red-50 text-red-700 ring-1 ring-red-200 rounded-full text-xs">Inactiva</span>
                         )}
                       </div>
-                      <div className="text-sm text-gray-500 mt-1 ml-7">
+                      <div className="text-sm text-stone-500 mt-1 ml-7">
                         {zone.description && <span>{zone.description}</span>}
                       </div>
                       <div className="flex items-center gap-4 mt-2 ml-7">
                         <span className="text-sm font-medium text-green-600">
                           ${zone.delivery_fee.toLocaleString()}
                         </span>
-                        <span className="text-sm text-gray-500">
+                        <span className="text-sm text-stone-500">
                           {zone.estimated_days} dia{zone.estimated_days > 1 ? 's' : ''}
                         </span>
                       </div>
@@ -261,7 +261,7 @@ const ManageDeliveryZonesModal: React.FC<ManageDeliveryZonesModalProps> = ({ isO
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleOpenEdit(zone)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                        className="p-2 text-brand-600 hover:bg-brand-50 rounded-lg transition"
                         title="Editar"
                       >
                         <Edit2 className="w-4 h-4" />

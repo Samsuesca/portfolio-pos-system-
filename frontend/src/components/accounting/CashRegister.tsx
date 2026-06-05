@@ -41,7 +41,7 @@ const getAccountStyle = (code: string) => {
     case '1104':
       return { icon: Landmark, color: 'bg-amber-100 text-amber-600', borderColor: 'border-amber-200' };
     default:
-      return { icon: Wallet, color: 'bg-gray-100 text-gray-600', borderColor: 'border-gray-200' };
+      return { icon: Wallet, color: 'bg-stone-100 text-stone-600', borderColor: 'border-stone-200' };
   }
 };
 
@@ -53,7 +53,7 @@ const CATEGORY_CONFIG: Record<keyof CategoryBreakdown, { label: string; icon: Re
   sale_changes: { label: 'Cambios', icon: RefreshCw, color: 'text-amber-600' },
   transfers: { label: 'Transferencias', icon: ArrowLeftRight, color: 'text-cyan-600' },
   expenses: { label: 'Gastos', icon: FileText, color: 'text-red-600' },
-  other: { label: 'Otros', icon: HelpCircle, color: 'text-gray-600' },
+  other: { label: 'Otros', icon: HelpCircle, color: 'text-stone-600' },
 };
 
 // Helper to check if breakdown has any data
@@ -116,7 +116,7 @@ const CashRegister: React.FC<CashRegisterProps> = ({
       {loading || !dailyFlow ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
-          <span className="ml-3 text-gray-600">Cargando flujo de caja...</span>
+          <span className="ml-3 text-stone-600">Cargando flujo de caja...</span>
         </div>
       ) : (
         <div className="space-y-6">
@@ -131,28 +131,28 @@ const CashRegister: React.FC<CashRegisterProps> = ({
                   className={`bg-white rounded-xl shadow-sm border-2 ${style.borderColor} p-5`}
                 >
                   {/* Account Header */}
-                  <div className="flex items-center gap-3 mb-4 pb-3 border-b border-gray-100">
+                  <div className="flex items-center gap-3 mb-4 pb-3 border-b border-stone-100">
                     <div className={`w-10 h-10 ${style.color} rounded-full flex items-center justify-center`}>
                       <Icon className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-gray-800">{account.account_name}</h3>
-                      <p className="text-xs text-gray-500">Codigo: {account.account_code}</p>
+                      <h3 className="font-semibold text-stone-800">{account.account_name}</h3>
+                      <p className="text-xs text-stone-500">Codigo: {account.account_code}</p>
                     </div>
                   </div>
 
                   {/* Flow Details */}
                   <div className="space-y-2">
                     <div className="flex justify-between items-center py-1.5">
-                      <span className="text-gray-500 text-sm">Saldo Inicial</span>
-                      <span className="font-medium text-gray-700">{formatCurrency(account.opening_balance)}</span>
+                      <span className="text-stone-500 text-sm">Saldo Inicial</span>
+                      <span className="font-medium text-stone-700">{formatCurrency(account.opening_balance)}</span>
                     </div>
                     <div className="flex justify-between items-center py-1.5">
                       <span className="text-green-600 text-sm flex items-center gap-1">
                         <ArrowUpRight className="w-4 h-4" />
                         Entradas
                         {account.income_count > 0 && (
-                          <span className="text-xs text-gray-400">({account.income_count})</span>
+                          <span className="text-xs text-stone-400">({account.income_count})</span>
                         )}
                       </span>
                       <span className="font-medium text-green-600">+{formatCurrency(account.total_income)}</span>
@@ -162,20 +162,20 @@ const CashRegister: React.FC<CashRegisterProps> = ({
                         <ArrowDownRight className="w-4 h-4" />
                         Salidas
                         {account.expense_count > 0 && (
-                          <span className="text-xs text-gray-400">({account.expense_count})</span>
+                          <span className="text-xs text-stone-400">({account.expense_count})</span>
                         )}
                       </span>
                       <span className="font-medium text-red-600">-{formatCurrency(account.total_expenses)}</span>
                     </div>
-                    <div className="border-t border-gray-200 pt-2 mt-2">
-                      <div className="flex justify-between items-center py-1.5 bg-gray-50 -mx-2 px-2 rounded">
-                        <span className="font-medium text-gray-700">Saldo Final</span>
-                        <span className="font-bold text-gray-900 text-lg">{formatCurrency(account.closing_balance)}</span>
+                    <div className="border-t border-stone-200 pt-2 mt-2">
+                      <div className="flex justify-between items-center py-1.5 bg-stone-50 -mx-2 px-2 rounded">
+                        <span className="font-medium text-stone-700">Saldo Final</span>
+                        <span className="font-bold text-stone-900 text-lg">{formatCurrency(account.closing_balance)}</span>
                       </div>
                     </div>
                     {/* Net Flow indicator */}
                     <div className="flex justify-between items-center pt-1">
-                      <span className="text-xs text-gray-400">Flujo Neto</span>
+                      <span className="text-xs text-stone-400">Flujo Neto</span>
                       <span className={`text-sm font-medium ${account.net_flow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {account.net_flow >= 0 ? '+' : ''}{formatCurrency(account.net_flow)}
                       </span>
@@ -185,7 +185,7 @@ const CashRegister: React.FC<CashRegisterProps> = ({
                     {hasBreakdownData(account.breakdown_by_category) && (
                       <button
                         onClick={() => toggleExpand(account.account_id)}
-                        className="w-full mt-3 flex items-center justify-center gap-1 text-xs text-gray-500 hover:text-gray-700 py-2 border-t border-gray-100 transition-colors"
+                        className="w-full mt-3 flex items-center justify-center gap-1 text-xs text-stone-500 hover:text-stone-700 py-2 border-t border-stone-100 transition-colors"
                       >
                         {expandedAccounts.has(account.account_id) ? (
                           <>
@@ -203,8 +203,8 @@ const CashRegister: React.FC<CashRegisterProps> = ({
 
                     {/* Breakdown by Category */}
                     {expandedAccounts.has(account.account_id) && account.breakdown_by_category && (
-                      <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
-                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                      <div className="mt-3 pt-3 border-t border-stone-200 space-y-2">
+                        <h4 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">
                           Desglose por Origen
                         </h4>
                         {(Object.keys(CATEGORY_CONFIG) as Array<keyof CategoryBreakdown>).map(catKey => {
@@ -213,11 +213,11 @@ const CashRegister: React.FC<CashRegisterProps> = ({
                           const config = CATEGORY_CONFIG[catKey];
                           const CatIcon = config.icon;
                           return (
-                            <div key={catKey} className="flex items-center justify-between py-1.5 px-2 bg-gray-50 rounded-lg">
+                            <div key={catKey} className="flex items-center justify-between py-1.5 px-2 bg-stone-50 rounded-lg">
                               <div className="flex items-center gap-2">
                                 <CatIcon className={`w-4 h-4 ${config.color}`} />
-                                <span className="text-sm text-gray-700">{config.label}</span>
-                                <span className="text-xs text-gray-400">({catData.count})</span>
+                                <span className="text-sm text-stone-700">{config.label}</span>
+                                <span className="text-xs text-stone-400">({catData.count})</span>
                               </div>
                               <div className="flex items-center gap-3 text-sm">
                                 {catData.income > 0 && (
@@ -246,7 +246,7 @@ const CashRegister: React.FC<CashRegisterProps> = ({
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div className="text-center">
-                <p className="text-gray-400 text-xs mb-1">Saldo Inicial</p>
+                <p className="text-stone-400 text-xs mb-1">Saldo Inicial</p>
                 <p className="text-xl font-bold">{formatCurrency(dailyFlow.totals.opening_balance)}</p>
               </div>
               <div className="text-center">
@@ -258,11 +258,11 @@ const CashRegister: React.FC<CashRegisterProps> = ({
                 <p className="text-xl font-bold text-red-400">-{formatCurrency(dailyFlow.totals.total_expenses)}</p>
               </div>
               <div className="text-center">
-                <p className="text-gray-400 text-xs mb-1">Saldo Final</p>
+                <p className="text-stone-400 text-xs mb-1">Saldo Final</p>
                 <p className="text-xl font-bold">{formatCurrency(dailyFlow.totals.closing_balance)}</p>
               </div>
               <div className="text-center">
-                <p className="text-gray-400 text-xs mb-1">Flujo Neto</p>
+                <p className="text-stone-400 text-xs mb-1">Flujo Neto</p>
                 <p className={`text-xl font-bold ${dailyFlow.totals.net_flow >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                   {dailyFlow.totals.net_flow >= 0 ? '+' : ''}{formatCurrency(dailyFlow.totals.net_flow)}
                 </p>

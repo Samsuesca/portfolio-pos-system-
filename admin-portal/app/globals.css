@@ -50,21 +50,77 @@
   --color-error:   #DC2626;
   --color-info:    #2563EB;
 
-  /* Shadows - warm-toned */
-  --shadow-xs:  0 1px 2px 0 rgb(28 25 23 / 0.04);
-  --shadow-sm:  0 1px 3px 0 rgb(28 25 23 / 0.06), 0 1px 2px -1px rgb(28 25 23 / 0.06);
-  --shadow-md:  0 4px 6px -1px rgb(28 25 23 / 0.06), 0 2px 4px -2px rgb(28 25 23 / 0.06);
-  --shadow-lg:  0 10px 15px -3px rgb(28 25 23 / 0.06), 0 4px 6px -4px rgb(28 25 23 / 0.06);
+  /* Shadows - multi-layer warm-toned */
+  --shadow-xs:  0 1px 2px rgba(28 25 23 / 0.04);
+  --shadow-sm:  0 1px 3px rgba(28 25 23 / 0.06), 0 1px 2px rgba(28 25 23 / 0.04);
+  --shadow-md:  0 4px 12px rgba(28 25 23 / 0.07), 0 1px 3px rgba(28 25 23 / 0.05);
+  --shadow-lg:  0 12px 40px rgba(28 25 23 / 0.08), 0 4px 12px rgba(28 25 23 / 0.04);
+  --shadow-xl:  0 24px 64px rgba(28 25 23 / 0.12), 0 8px 24px rgba(28 25 23 / 0.06);
 
   /* Base */
   --color-background: var(--color-surface-100);
   --color-foreground: var(--color-primary);
 }
 
+/* ─── Semantic Tokens ─────────────────────────────────────── */
+:root {
+  --ucr-surface-base: var(--color-surface-100);
+  --ucr-surface-card: var(--color-surface-50);
+  --ucr-surface-hover: var(--color-surface-200);
+  --ucr-surface-overlay: rgba(28,25,23, 0.6);
+
+  --ucr-text-primary: var(--color-primary);
+  --ucr-text-secondary: var(--color-stone-600);
+  --ucr-text-tertiary: var(--color-stone-400);
+  --ucr-text-muted: var(--color-stone-300);
+
+  --ucr-border-subtle: rgba(28,25,23, 0.06);
+  --ucr-border-default: rgba(28,25,23, 0.10);
+  --ucr-border-strong: rgba(28,25,23, 0.16);
+  --ucr-border-focus: var(--color-brand-400);
+
+  --ucr-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ucr-ease-in: cubic-bezier(0.55, 0, 1, 0.45);
+  --ucr-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ucr-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ucr-duration-instant: 80ms;
+  --ucr-duration-fast: 150ms;
+  --ucr-duration-base: 200ms;
+  --ucr-duration-moderate: 300ms;
+  --ucr-duration-slow: 400ms;
+}
+
+/* ─── Dark Mode ──────────────────────────────────────────── */
+.dark {
+  --color-background: #0F0E0C;
+  --color-foreground: #E7E5E4;
+
+  --color-surface-50: #1C1917;
+  --color-surface-100: #0F0E0C;
+  --color-surface-200: #1C1917;
+
+  --color-stone-50: #1C1917;
+  --color-stone-100: #292524;
+  --color-stone-200: #44403C;
+  --color-stone-800: #E7E5E4;
+  --color-stone-900: #FAFAF9;
+
+  --shadow-xs:  0 1px 2px rgba(0 0 0 / 0.3);
+  --shadow-sm:  0 1px 3px rgba(0 0 0 / 0.4), 0 1px 2px rgba(0 0 0 / 0.3);
+  --shadow-md:  0 4px 12px rgba(0 0 0 / 0.4), 0 1px 3px rgba(0 0 0 / 0.3);
+  --shadow-lg:  0 12px 40px rgba(0 0 0 / 0.4), 0 4px 12px rgba(0 0 0 / 0.3);
+  --shadow-xl:  0 24px 64px rgba(0 0 0 / 0.5), 0 8px 24px rgba(0 0 0 / 0.4);
+
+  --color-admin-sidebar: #0F0E0C;
+  --color-admin-sidebar-hover: #1C1917;
+}
+
 body {
   background: var(--color-background);
   color: var(--color-foreground);
   font-family: var(--font-sans);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -406,5 +462,20 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .animate-modal-in {
-  animation: modal-in 0.2s ease-out forwards;
+  animation: modal-in var(--ucr-duration-base) var(--ucr-ease-out) forwards;
+}
+
+/* Focus ring */
+.focus-ring:focus-visible {
+  outline: 2px solid var(--ucr-border-focus);
+  outline-offset: 2px;
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -16,12 +16,12 @@ export default function MyScheduleWidget({ employeeId }: Props) {
         const today = getColombiaNow();
         const endDate = getColombiaNow();
         endDate.setDate(today.getDate() + 6);
-        const data = await workforceService.getEmployeeSchedule(
+        const result = await workforceService.getEmployeeSchedule(
           employeeId,
           getColombiaDateString(),
           endDate.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
         );
-        setSchedules(data);
+        setSchedules(result.items);
       } catch {
         // No schedule data
       } finally {

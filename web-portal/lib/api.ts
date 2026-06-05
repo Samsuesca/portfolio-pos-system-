@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { getPublicToken, clearPublicToken } from './auth';
+import { unwrapPaginated, PaginatedResponse } from './pagination';
 
 // API Base URL - se configura desde variables de entorno (exported for image URLs)
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
@@ -68,7 +69,14 @@ export interface School {
   id: string;
   name: string;
   slug: string;
+  /** Path relativo servido por el backend (e.g. `/uploads/school-logos/<uuid>.jpg`).
+   *  El consumidor debe prefijar con `API_BASE_URL` para obtener la URL absoluta. */
   logo_url?: string;
+  /** Codigo institucional usado para mostrar siglas (e.g. "CARACAS-001"). */
+  code?: string | null;
+  /** Color de marca del colegio en hex. Usado para acentos visuales. */
+  primary_color?: string | null;
+  display_order?: number | null;
   address?: string;
   phone?: string;
   email?: string;
@@ -88,8 +96,9 @@ export interface GarmentTypeImage {
 
 export interface Product {
   id: string;
-  school_id: string;
+  school_id: string | null;
   garment_type_id: string;
+  is_global?: boolean;
   name: string;
   code: string;
   description?: string;
@@ -97,9 +106,13 @@ export interface Product {
   gender?: string;
   color?: string;
   price: number;
-  stock?: number; // Campo devuelto por ProductListResponse cuando with_stock=true
+  stock?: number; // ProductListResponse cuando with_stock=true (quantity TOTAL)
   stock_quantity?: number; // Alias por compatibilidad
+  reserved?: number; // Stock reservado a Orders pendientes/READY
+  available?: number; // stock - reserved (lo que se puede comprar ahora sin encargo)
   inventory_quantity?: number; // Para GlobalProduct
+  inventory_reserved?: number;
+  inventory_available?: number;
   min_stock_level?: number;
   location?: string;
   barcode?: string;
@@ -134,8 +147,6 @@ export interface OrderItem {
   notes?: string;
   order_type?: string;
   product_id?: string;
-  global_product_id?: string;
-  is_global_product?: boolean;
   needs_quotation?: boolean;
 }
 
@@ -182,18 +193,25 @@ export interface Order {
 
 // Schools (public endpoints - no auth required)
 export const schoolsApi = {
-  list: () => publicClient.get<School[]>('/schools'),
+  list: async () => {
+    const response = await publicClient.get<School[] | PaginatedResponse<School>>('/schools');
+    return { ...response, data: unwrapPaginated(response.data).items };
+  },
   getBySlug: (slug: string) => publicClient.get<School>(`/schools/slug/${slug}`),
 };
 
 // Products
 export const productsApi = {
-  list: (schoolId: string, params?: { is_active?: boolean; with_stock?: boolean; with_images?: boolean }) =>
-    apiClient.get<Product[]>('/products', { params: { school_id: schoolId, with_stock: true, with_images: true, ...params } }),
+  list: async (schoolId: string, params?: { is_active?: boolean; with_stock?: boolean; with_images?: boolean }) => {
+    const response = await apiClient.get<Product[] | PaginatedResponse<Product>>('/products', { params: { school_id: schoolId, with_stock: true, with_images: true, ...params } });
+    return { ...response, data: unwrapPaginated(response.data).items };
+  },
   get: (schoolId: string, productId: string) =>
     apiClient.get<Product>(`/schools/${schoolId}/products/${productId}`),
-  listGlobal: (params?: { with_inventory?: boolean; limit?: number }) =>
-    apiClient.get<Product[]>('/global/products', { params }),
+  listGlobal: async (params?: { with_inventory?: boolean; limit?: number }) => {
+    const response = await apiClient.get<Product[] | PaginatedResponse<Product>>('/global/products', { params });
+    return { ...response, data: unwrapPaginated(response.data).items };
+  },
 
   // Search products with filters
   search: async (schoolId: string, params: {
@@ -209,7 +227,7 @@ export const productsApi = {
 
     // If no search query, just use the regular list endpoint with filters
     if (!query || query.trim().length === 0) {
-      const response = await apiClient.get<Product[]>('/products', {
+      const response = await apiClient.get<Product[] | PaginatedResponse<Product>>('/products', {
         params: {
           school_id: schoolId,
           with_stock: true,
@@ -217,7 +235,7 @@ export const productsApi = {
           is_active: true
         }
       });
-      let results = response.data;
+      let results = unwrapPaginated(response.data).items;
 
       // Apply client-side filters since backend doesn't support all filters in search
       if (category && category !== 'all') {
@@ -228,7 +246,7 @@ export const productsApi = {
           if (categoryLower === 'chompas') return name.includes('chompa');
           if (categoryLower === 'pantalones') return name.includes('pantalon') || name.includes('falda');
           if (categoryLower === 'sudaderas') return name.includes('sudadera') || name.includes('buzo') || name.includes('chaqueta');
-          if (categoryLower === 'yomber') return name.includes('yomber');
+          if (categoryLower === 'yomber' || categoryLower === 'jumper') return name.includes('yomber') || name.includes('jumper');
           if (categoryLower === 'calzado') return name.includes('zapato') || name.includes('tennis') || name.includes('media') || name.includes('jean');
           return false;
         });
@@ -248,7 +266,14 @@ export const productsApi = {
       }
 
       if (in_stock) {
-        results = results.filter(p => (p.stock ?? p.stock_quantity ?? p.inventory_quantity ?? 0) > 0);
+        // "in_stock" en el portal de padres significa "comprable ahora sin encargo".
+        // Usa available (= total - reservado) en vez de stock bruto.
+        results = results.filter(p => {
+          const total = p.stock ?? p.stock_quantity ?? p.inventory_quantity ?? 0;
+          const reserved = p.reserved ?? p.inventory_reserved ?? 0;
+          const available = p.available ?? p.inventory_available ?? Math.max(0, total - reserved);
+          return available > 0;
+        });
       }
 
       return results;
@@ -259,10 +284,10 @@ export const productsApi = {
       ? '/global/products/search'
       : `/schools/${schoolId}/products/search/by-term`;
 
-    const response = await apiClient.get<Product[]>(url, {
+    const response = await apiClient.get<Product[] | PaginatedResponse<Product>>(url, {
       params: { q: query, limit: 100 }
     });
-    let results = response.data;
+    let results = unwrapPaginated(response.data).items;
 
     // Apply client-side filters to search results
     if (category && category !== 'all') {
@@ -273,7 +298,7 @@ export const productsApi = {
         if (categoryLower === 'chompas') return name.includes('chompa');
         if (categoryLower === 'pantalones') return name.includes('pantalon') || name.includes('falda');
         if (categoryLower === 'sudaderas') return name.includes('sudadera') || name.includes('buzo') || name.includes('chaqueta');
-        if (categoryLower === 'yomber') return name.includes('yomber');
+        if (categoryLower === 'yomber' || categoryLower === 'jumper') return name.includes('yomber') || name.includes('jumper');
         if (categoryLower === 'calzado') return name.includes('zapato') || name.includes('tennis') || name.includes('media') || name.includes('jean');
         return false;
       });
@@ -301,10 +326,10 @@ export const productsApi = {
 
   // Get price statistics for a school's products
   getStats: async (schoolId: string): Promise<{ min_price: number; max_price: number }> => {
-    const response = await apiClient.get<Product[]>('/products', {
+    const response = await apiClient.get<Product[] | PaginatedResponse<Product>>('/products', {
       params: { school_id: schoolId, with_stock: true }
     });
-    const products = response.data;
+    const products = unwrapPaginated(response.data).items;
 
     if (products.length === 0) {
       return { min_price: 0, max_price: 100000 };
@@ -388,28 +413,6 @@ export const ordersApi = {
   get: (schoolId: string, orderId: string) =>
     apiClient.get<Order>(`/schools/${schoolId}/orders/${orderId}`),
 
-  // Upload payment proof (public endpoint - sin autenticación)
-  uploadPaymentProof: async (orderId: string, file: File, notes?: string) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    if (notes && notes.trim()) {
-      formData.append('notes', notes.trim());
-    }
-
-    // Use Next.js API proxy to avoid CORS issues
-    const response = await fetch(`/api/orders/${orderId}/upload-payment-proof`, {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: 'Error al subir el comprobante' }));
-      throw new Error(error.detail || 'Error al subir el comprobante');
-    }
-
-    const result = await response.json();
-    return { data: result };
-  },
 };
 
 // Payments (Wompi)

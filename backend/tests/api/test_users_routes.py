@@ -12,6 +12,7 @@ from uuid import uuid4
 
 from tests.fixtures.assertions import (
     assert_success_response,
+    assert_list_response,
     assert_created_response,
     assert_no_content_response,
     assert_unauthorized,
@@ -56,7 +57,7 @@ class TestUserListing:
             "/api/v1/users",
             headers=superuser_headers,
         )
-        data = assert_success_response(response)
+        data = assert_list_response(response)
         assert isinstance(data, list)
         assert len(data) >= 1  # At least the superuser itself
 
@@ -245,7 +246,7 @@ class TestUserSchoolRoles:
             f"/api/v1/users/{test_user.id}/schools",
             headers=auth_headers,
         )
-        data = assert_success_response(response)
+        data = assert_list_response(response)
         assert isinstance(data, list)
 
 

@@ -40,7 +40,7 @@ export function DashboardWidget({
     <div className={`bg-white rounded-xl shadow-sm border border-surface-200 p-6 overflow-hidden ${className}`}>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-800 flex items-center">
+        <h3 className="text-lg font-semibold text-stone-800 flex items-center">
           <Icon className={`w-5 h-5 mr-2 ${iconColor}`} />
           {title}
         </h3>

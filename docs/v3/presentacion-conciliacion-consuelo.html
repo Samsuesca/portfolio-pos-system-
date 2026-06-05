@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sesión de Conciliación Contable — Consuelo Ríos</title>
+<style>
+:root {
+  --navy: #0a2540;
+  --navy-light: #1e3a5f;
+  --gold: #d4a574;
+  --gold-dark: #b8894d;
+  --cream: #faf6f0;
+  --white: #ffffff;
+  --gray: #6b7280;
+  --gray-dark: #374151;
+  --red: #c44545;
+  --green: #2d7d46;
+  --orange: #d97706;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  color: var(--gray-dark);
+  background: var(--cream);
+  line-height: 1.5;
+  scroll-snap-type: y mandatory;
+  overflow-y: scroll;
+}
+
+.slide {
+  min-height: 100vh;
+  padding: 4rem 6rem;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  border-bottom: 1px solid #e5e0d8;
+  page-break-after: always;
+}
+
+.slide.cover {
+  background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
+  color: var(--white);
+  align-items: center;
+  text-align: center;
+}
+
+.slide.section {
+  background: var(--navy);
+  color: var(--white);
+  align-items: center;
+  text-align: center;
+}
+
+.slide-num {
+  position: absolute;
+  top: 2rem;
+  right: 3rem;
+  font-size: 0.85rem;
+  color: var(--gray);
+  font-weight: 500;
+}
+
+.slide.cover .slide-num,
+.slide.section .slide-num {
+  color: rgba(255,255,255,0.5);
+}
+
+h1 {
+  font-size: 3.5rem;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 1rem;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.slide.cover h1, .slide.section h1 { color: var(--white); }
+
+h2 {
+  font-size: 2.5rem;
+  font-weight: 600;
+  color: var(--navy);
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.01em;
+}
+
+h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--navy);
+  margin-bottom: 1rem;
+}
+
+.subtitle {
+  font-size: 1.5rem;
+  color: var(--gray);
+  margin-bottom: 3rem;
+  font-weight: 400;
+}
+
+.cover .subtitle { color: var(--gold); }
+
+.eyebrow {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--gold-dark);
+  margin-bottom: 0.5rem;
+}
+
+.eyebrow.dark { color: var(--gold); }
+
+.lead {
+  font-size: 1.4rem;
+  color: var(--gray-dark);
+  line-height: 1.5;
+  max-width: 65ch;
+  margin-bottom: 1.5rem;
+}
+
+p { font-size: 1.15rem; max-width: 70ch; margin-bottom: 1rem; }
+
+ul { margin: 1rem 0 1.5rem 1.5rem; font-size: 1.15rem; }
+ul li { margin-bottom: 0.6rem; }
+
+.big-number {
+  font-size: 5.5rem;
+  font-weight: 800;
+  color: var(--navy);
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.big-number.gold { color: var(--gold-dark); }
+.big-number.red { color: var(--red); }
+.big-number.green { color: var(--green); }
+
+.cover .big-number, .section .big-number { color: var(--white); }
+
+.big-number-label {
+  font-size: 1.1rem;
+  color: var(--gray);
+  margin-top: 0.5rem;
+  font-weight: 500;
+}
+
+.cover .big-number-label, .section .big-number-label { color: rgba(255,255,255,0.7); }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: start; margin: 2rem 0; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; margin: 2rem 0; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin: 2rem 0; }
+
+.stat-card {
+  background: var(--white);
+  border-radius: 12px;
+  padding: 2rem;
+  border-left: 4px solid var(--gold);
+  box-shadow: 0 2px 8px rgba(10,37,64,0.06);
+}
+
+.stat-card .big-number { font-size: 3rem; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  background: var(--white);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(10,37,64,0.06);
+  font-size: 1.05rem;
+}
+
+th {
+  background: var(--navy);
+  color: var(--white);
+  padding: 0.9rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+td {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid #f0ebe2;
+  vertical-align: top;
+}
+
+tr:last-child td { border-bottom: none; }
+
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; }
+td.center, th.center { text-align: center; }
+
+tr.total td { font-weight: 700; background: #f9f5ee; border-top: 2px solid var(--navy); }
+
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.badge.green { background: #dcfce7; color: var(--green); }
+.badge.orange { background: #fed7aa; color: var(--orange); }
+.badge.red { background: #fecaca; color: var(--red); }
+.badge.gold { background: #f5e6d3; color: var(--gold-dark); }
+.badge.navy { background: #dbeafe; color: var(--navy); }
+
+.callout {
+  background: #fef9f0;
+  border-left: 4px solid var(--gold);
+  padding: 1.5rem 2rem;
+  margin: 1.5rem 0;
+  border-radius: 0 8px 8px 0;
+  font-size: 1.1rem;
+}
+
+.callout.red { background: #fef2f2; border-color: var(--red); }
+.callout.green { background: #f0fdf4; border-color: var(--green); }
+.callout.navy { background: #eff6ff; border-color: var(--navy); }
+
+.question {
+  background: var(--navy);
+  color: var(--white);
+  padding: 2rem;
+  border-radius: 12px;
+  margin: 2rem 0;
+  font-size: 1.25rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.question .label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--gold);
+  margin-bottom: 0.5rem;
+}
+
+.option {
+  background: var(--white);
+  border: 2px solid #e5e0d8;
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  margin: 0.75rem 0;
+  font-size: 1.05rem;
+  cursor: pointer;
+}
+
+.option:hover { border-color: var(--gold); background: #fef9f0; }
+
+.option strong { color: var(--navy); display: block; margin-bottom: 0.3rem; }
+
+.footnote {
+  font-size: 0.9rem;
+  color: var(--gray);
+  margin-top: 1.5rem;
+  font-style: italic;
+}
+
+.nav {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  display: flex;
+  gap: 0.5rem;
+  z-index: 100;
+}
+
+.nav button {
+  background: var(--navy);
+  color: var(--white);
+  border: none;
+  padding: 0.6rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.nav button:hover { background: var(--navy-light); }
+
+@media print {
+  body { background: white; }
+  .slide {
+    min-height: 0;
+    height: 100vh;
+    padding: 2rem 3rem;
+    page-break-after: always;
+    border: none;
+  }
+  .nav { display: none; }
+  h1 { font-size: 2.5rem; }
+  h2 { font-size: 2rem; }
+  .big-number { font-size: 4rem; }
+  table { font-size: 0.95rem; }
+}
+
+@media (max-width: 768px) {
+  .slide { padding: 2rem 1.5rem; }
+  h1 { font-size: 2rem; }
+  h2 { font-size: 1.5rem; }
+  .big-number { font-size: 3rem; }
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     SLIDE 1 — Portada
+     ============================================================ -->
+<section class="slide cover">
+  <span class="slide-num">1 / 15</span>
+  <div class="eyebrow dark">Uniformes Consuelo Ríos · 24 de mayo de 2026</div>
+  <h1>Sesión de Conciliación Contable</h1>
+  <p class="subtitle">Cerremos los huecos antes del relanzamiento del sistema (v3)</p>
+  <div style="margin-top:3rem; opacity:0.8;">
+    <p style="font-size:1.1rem;">Consuelo Ríos &middot; Owner</p>
+    <p style="font-size:1.1rem;">Angel Suesca &middot; CTO</p>
+    <p style="font-size:0.95rem; margin-top:1.5rem; color:rgba(255,255,255,0.6);">Duración estimada: 1h 30min</p>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 2 — Por qué esta sesión
+     ============================================================ -->
+<section class="slide">
+  <span class="slide-num">2 / 15</span>
+  <div class="eyebrow">Por qué estamos aquí</div>
+  <h2>El sistema lleva 6 meses operando.<br>Algunos huecos solo tú puedes cerrar.</h2>
+  <p class="lead">El código de v3 está listo para subir a producción, pero antes de subirlo hay <strong>7 decisiones contables</strong> que requieren tu palabra. Sin ellas, el sistema arranca limpio en código pero con la contabilidad incompleta.</p>
+
+  <div class="grid-3" style="margin-top:3rem;">
+    <div class="stat-card">
+      <div class="big-number gold">$83M</div>
+      <div class="big-number-label">en movimientos pendientes de catalogar bien</div>
+    </div>
+    <div class="stat-card">
+      <div class="big-number gold">7</div>
+      <div class="big-number-label">bloques de decisión hoy</div>
+    </div>
+    <div class="stat-card">
+      <div class="big-number gold">1.5h</div>
+      <div class="big-number-label">para cerrar todo</div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>Importante:</strong> ninguna de estas decisiones es "técnica". Todas son decisiones de negocio que tú ya tomas día a día. Yo solo te muestro los números del sistema para que decidamos juntos cómo registrarlos.
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 3 — Estado actual del negocio
+     ============================================================ -->
+<section class="slide">
+  <span class="slide-num">3 / 15</span>
+  <div class="eyebrow">Punto de partida</div>
+  <h2>Cómo se ve el negocio hoy en el sistema</h2>
+  <p class="lead">Lo que el sistema sabe del 2026 hasta hoy (24 de mayo):</p>
+
+  <div class="grid-4" style="margin-top:2rem;">
+    <div class="stat-card">
+      <div class="big-number">$88.4M</div>
+      <div class="big-number-label">Ventas YTD (827 ventas)</div>
+    </div>
+    <div class="stat-card">
+      <div class="big-number">$11.3M</div>
+      <div class="big-number-label">Por cobrar (67 clientes)</div>
+    </div>
+    <div class="stat-card">
+      <div class="big-number">$10.6M</div>
+      <div class="big-number-label">Total caja + bancos</div>
+    </div>
+    <div class="stat-card">
+      <div class="big-number">$19M</div>
+      <div class="big-number-label">Por pagar (Cristina)</div>
+    </div>
+  </div>
+
+  <h3 style="margin-top:2.5rem;">Saldos de caja y bancos hoy</h3>
+  <table>
+    <thead>
+      <tr><th>Cuenta</th><th class="num">Saldo</th><th>Notas</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Caja Mayor</td><td class="num">$7,899,509</td><td>Físico en el local</td></tr>
+      <tr><td>Bancolombia (cuenta 7338)</td><td class="num">$1,813,800</td><td>Recién conciliado con extracto</td></tr>
+      <tr><td>Caja Menor</td><td class="num">$737,500</td><td>Manejo diario</td></tr>
+      <tr><td>Nequi</td><td class="num">$191,355</td><td>Recién conciliado con extracto</td></tr>
+      <tr class="total"><td>Total</td><td class="num">$10,642,164</td><td></td></tr>
+    </tbody>
+  </table>
+
+  <p class="footnote">La estacionalidad escolar es real: enero concentró $50M (57%) y mayo apenas $3M (4%). Esto no es un problema, es la realidad del negocio.</p>
+</section>
+
+<!-- ============================================================
+     SLIDE 4 — Qué vamos a discutir
+     ============================================================ -->
+<section class="slide">
+  <span class="slide-num">4 / 15</span>
+  <div class="eyebrow">Agenda de la sesión</div>
+  <h2>Las 7 decisiones que vamos a cerrar hoy</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Tema</th>
+        <th class="num">Monto en juego</th>
+        <th class="center">Estado</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>0</strong></td>
+        <td><strong>Línea de perfumería/belleza</strong> en el punto de venta</td>
+        <td class="num">~$12M detectado</td>
+        <td class="center"><span class="badge red">Pre-requisito</span></td>
+      </tr>
+      <tr>
+        <td>1</td>
+        <td>Préstamo Cristina Ríos — confirmar deuda vigente</td>
+        <td class="num">$19,000,000</td>
+        <td class="center"><span class="badge green">✓ Decidido</span></td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td>Ajuste Nequi del 5-ene-2026 ($20M → $10)</td>
+        <td class="num">$20,000,000</td>
+        <td class="center"><span class="badge orange">Pendiente</span></td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td>Discrepancia $21.6M entre saldo real y registrado</td>
+        <td class="num">$21,600,000</td>
+        <td class="center"><span class="badge orange">Pendiente</span></td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td>20 compras en YANBAL, ESIKA y TEMU</td>
+        <td class="num">$5,050,680</td>
+        <td class="center"><span class="badge orange">Pendiente</span></td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td>114 gastos de mercado, ocio, comida y viáticos</td>
+        <td class="num">$7,431,001</td>
+        <td class="center"><span class="badge orange">Pendiente</span></td>
+      </tr>
+      <tr>
+        <td>6</td>
+        <td>7 transferencias entre Bancolombia ↔ Nequi</td>
+        <td class="num">~$1,440,000</td>
+        <td class="center"><span class="badge gold">Confirmar</span></td>
+      </tr>
+      <tr class="total">
+        <td colspan="2">Total en juego</td>
+        <td class="num">~$83,000,000</td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p class="footnote">Empezamos por el Bloque 0 porque cambia cómo interpretamos los Bloques 3, 4 y 5.</p>
+</section>
+
+<!-- ============================================================
+     SLIDE 5 — Bloque 0: el hallazgo crítico
+     ============================================================ -->
+<section class="slide section">
+  <span class="slide-num">5 / 15</span>
+  <div class="eyebrow dark">Bloque 0 — Hallazgo crítico</div>
+  <h1>El sistema solo ve una mitad<br>del negocio.</h1>
+  <p class="subtitle" style="margin-top:2rem;">Llevamos meses haciendo cuentas de uniformes,<br>pero en el punto de venta también vendes perfumería.</p>
+</section>
+
+<!-- ============================================================
+     SLIDE 6 — Bloque 0: el detalle
+     ============================================================ -->
+<section class="slide">
+  <span class="slide-num">6 / 15</span>
+  <div class="eyebrow">Bloque 0 — Línea perfumería</div>
+  <h2>El negocio tiene 2 líneas. El sistema solo modela 1.</h2>
+
+  <div class="grid-2" style="margin-top:1.5rem;">
+    <div>
+      <h3 style="color:var(--green);">Lo que el sistema sí ve</h3>
+      <ul>
+        <li><strong>Uniformes:</strong> $88.4M en ventas YTD</li>
+        <li>12 colegios, 642 productos en catálogo</li>
+        <li>Inventario por talla y color</li>
+        <li>Costos por componente (tela, confección, bordado)</li>
+      </ul>
+    </div>
+    <div>
+      <h3 style="color:var(--red);">Lo que el sistema NO ve</h3>
+      <ul>
+        <li><strong>Perfumería / belleza / aseo:</strong> productos sueltos en el punto de venta</li>
+        <li>Compras YANBAL, ESIKA, TEMU pasan por banco pero no como inventario</li>
+        <li>Las ventas QR de esa línea entran a Nequi sin contraparte</li>
+        <li>Sin trazabilidad → no se puede calcular su rentabilidad</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout red">
+    <strong>Impacto:</strong> el P&L de uniformes está <strong>inflado en gastos</strong> (carga compras YANBAL) y <strong>subestimado en ingresos</strong> (no incluye ventas beauty). Por eso los saldos bancarios "no cuadran" con lo registrado — hay flujo de un negocio paralelo que el sistema no ve.
+  </div>
+
+  <h3 style="margin-top:2rem;">Estimación inicial (ene–abr 2026, solo lo detectado automáticamente):</h3>
+  <div class="grid-3">
+    <div class="stat-card">
+      <div class="big-number green">+$7.19M</div>
+      <div class="big-number-label">Ventas QR sin match en sistema (57 mov)</div>
+    </div>
+    <div class="stat-card">
+      <div class="big-number red">-$5.05M</div>
+      <div class="big-number-label">Compras YANBAL/ESIKA/TEMU (20 mov)</div>
+    </div>
+    <div class="stat-card">
+      <div class="big-number gold">+$2.14M</div>
+      <div class="big-number-label">Margen bruto estimado (4 meses)</div>
+    </div>
+  </div>
+
+  <p class="footnote">Esto es <strong>el piso</strong>, no el techo. No incluye efectivo en caja ni otras transacciones sin clasificar que probablemente también son de esta línea.</p>
+</section>
+
+<!-- ============================================================
+     SLIDE 7 — Bloque 0: pregunta + opciones
+     ============================================================ -->
+<section class="slide">
+  <span class="slide-num">7 / 15</span>
+  <div class="eyebrow">Bloque 0 — Decisión</div>
+  <h2>¿Cómo modelamos la línea perfumería en el sistema?</h2>
+
+  <div class="question">
+    <span class="label">Tu decisión</span>
+    Necesitamos que la línea perfumería tenga su propia trazabilidad en el sistema: catálogo, inventario, ventas, costos, todo separado de uniformes pero en la misma plataforma.
+  </div>
+
+  <h3>Hay 3 caminos para hacerlo:</h3>
+
+  <div class="option">
+    <strong>(A) Modelar AHORA, antes del relanzamiento (~1 semana más)</strong>
+    El relanzamiento del sistema sale con las 2 líneas correctas desde el día 1. Trabajo extra pero queda limpio.
+  </div>
+
+  <div class="option">
+    <strong>(B) Relanzar uniformes ahora, agregar beauty en 2-3 semanas</strong>
+    El relanzamiento sale a tiempo. La línea beauty queda sin trazabilidad durante 2-3 semanas más, luego se agrega.
+  </div>
+
+  <div class="option">
+    <strong>(C) Solución intermedia con Excel temporal</strong>
+    El relanzamiento sale a tiempo. Tú llevas la línea beauty en un Excel que el sistema lee mensualmente. Cuando llegue la versión 3.1, se migra automáticamente.
+  </div>
+
+  <p class="footnote">Mi sugerencia (Angel): <strong>opción B</strong>. Te da el relanzamiento rápido para empezar a usar las otras mejoras (costos, equipo, conciliación bancaria) y nos da tiempo para diseñar bien la línea beauty contigo, no apurados.</p>
+</section>
+
+<!-- ============================================================
+     SLIDE 8 — Bloque 1: Cristina
+     ============================================================ -->
+<section class="slide">
+  <span class="slide-num">8 / 15</span>
+  <div class="eyebrow">Bloque 1 — Cristina Ríos</div>
+  <h2>El préstamo de Cristina: confirmamos $19M vigentes</h2>
+
+  <p class="lead">El sistema tenía cargada una deuda de <strong>$39M con Cristina</strong> desde diciembre 2025. Entre enero y febrero registramos pagos por $20.05M. Faltaban $19M por explicar.</p>
+
+  <table>
+    <thead>
+      <tr><th>Fecha</th><th>Pago</th><th class="num">Monto</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>2026-02-01</td><td>Nequi — "1 de intereses, 4 de capital"</td><td class="num">$4,000,000</td></tr>
+      <tr><td>2026-02-04</td><td>Banco — "Pago Cris"</td><td class="num">$1,000,000</td></tr>
+      <tr><td>2026-02-04</td><td>Banco — "pago capital de cris a nombre de mariangel"</td><td class="num">$2,000,000</td></tr>
+      <tr><td>2026-02-07</td><td>Caja Mayor — "pago a cristi segundo acuerdo"</td><td class="num">$10,000,000</td></tr>
+      <tr><td>2026-02-12</td><td>Banco — "para cris"</td><td class="num">$3,050,000</td></tr>
+      <tr class="total"><td colspan="2">Total pagado</td><td class="num">$20,050,000</td></tr>
+      <tr class="total"><td colspan="2">Residual sin rastrear</td><td class="num" style="color:var(--red);">$18,950,000</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout green">
+    <strong>Tu confirmación (24-may-2026):</strong> los $19M residuales son una <strong>deuda vigente</strong> con Cristina (no condonada, no pagada en efectivo sin registro). Ya creamos la cuenta por pagar en el sistema.
+  </div>
+
+  <div class="question" style="margin-top:1.5rem;">
+    <span class="label">Pregunta abierta para esta sesión</span>
+    ¿Hay un soporte (recibo, mensaje, pagaré) que pueda escanearse? ¿Hay fecha límite o intereses acordados con Cristina?
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 9 — Bloque 4: YANBAL/ESIKA
+     ============================================================ -->
+<section class="slide">
+  <span class="slide-num">9 / 15</span>
+  <div class="eyebrow">Bloque 4 — Compras YANBAL / ESIKA / TEMU</div>
+  <h2>20 compras por $5M. ¿Personal o inventario beauty?</h2>
+
+  <p class="lead">El sistema detectó 20 movimientos bancarios en marcas típicas de la línea perfumería. <strong>Después del hallazgo del Bloque 0, la pregunta cambia:</strong> ya no asumimos que son personales por defecto — probablemente son inventario beauty.</p>
+
+  <table>
+    <thead>
+      <tr><th>Fecha</th><th>Marca</th><th class="num">Monto</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>2026-03-29</td><td>YANBAL</td><td class="num">$858,310</td></tr>
+      <tr><td>2026-02-12</td><td>YANBAL</td><td class="num">$797,665</td></tr>
+      <tr><td>2026-02-19</td><td>ESIKA</td><td class="num">$433,370</td></tr>
+      <tr><td>2026-03-06</td><td>YANBAL</td><td class="num">$382,825</td></tr>
+      <tr><td>2026-01-17</td><td>YANBAL</td><td class="num">$370,362</td></tr>
+      <tr><td>2026-01-04</td><td>ESIKA</td><td class="num">$358,733</td></tr>
+      <tr><td>2026-03-20</td><td>ESIKA</td><td class="num">$340,160</td></tr>
+      <tr><td>2026-01-21</td><td>ESIKA</td><td class="num">$324,331</td></tr>
+      <tr><td>…</td><td>+ 12 más</td><td class="num">$1,184,924</td></tr>
+      <tr class="total"><td colspan="2">Total (20 compras)</td><td class="num">$5,050,680</td></tr>
+    </tbody>
+  </table>
+
+  <div class="question">
+    <span class="label">Pregunta para Consuelo</span>
+    De estas 20 compras, ¿cuáles son <strong>inventario beauty</strong> que vendiste en el punto de venta, y cuáles fueron uso personal?
+  </div>
+
+  <p class="footnote">El default ahora es: <strong>todo es inventario beauty</strong>. Solo marca como personal las que tú recuerdes específicamente que no fueron a vender.</p>
+</section>
+
+<!-- ============================================================
+     SLIDE 10 — Bloque 5: mercado/ocio
+     ============================================================ -->
+<section class="slide">
+  <span class="slide-num">10 / 15</span>
+  <div class="eyebrow">Bloque 5 — Mercado, ocio, comida, viáticos</div>
+  <h2>114 transacciones por $7.4M con mezcla personal/negocio</h2>
+
+  <div class="grid-4" style="margin-top:1.5rem;">
+    <div class="stat-card">
+      <div class="big-number">68</div>
+      <div class="big-number-label">mercado · $5.46M</div>
+    </div>
+    <div class="stat-card">
+      <div class="big-number">38</div>
+      <div class="big-number-label">ocio · $1.71M</div>
+    </div>
+    <div class="stat-card">
+      <div class="big-number">5</div>
+      <div class="big-number-label">viáticos · $212K</div>
+    </div>
+    <div class="stat-card">
+      <div class="big-number">3</div>
+      <div class="big-number-label">comida · $57K</div>
+    </div>
+  </div>
+
+  <h3 style="margin-top:1.5rem;">Ejemplos reales del sistema:</h3>
+  <table>
+    <thead>
+      <tr><th>Fecha</th><th>Categoría</th><th>Descripción</th><th class="num">Monto</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>2026-05-22</td><td>mercado</td><td>"D1 PAPel y varios"</td><td class="num">$1,500,001</td></tr>
+      <tr><td>2026-05-08</td><td>mercado</td><td>"verdura y carne"</td><td class="num">$247,500</td></tr>
+      <tr><td>2026-01-21</td><td>ocio</td><td>"cena mis hijos"</td><td class="num">$160,000</td></tr>
+      <tr><td>2026-03-31</td><td>ocio</td><td>"almuerzo de cumple de esteban"</td><td class="num">$160,000</td></tr>
+      <tr><td>2026-01-17</td><td>viáticos</td><td>"almuerzo viaticos"</td><td class="num">$90,000</td></tr>
+    </tbody>
+  </table>
+
+  <div class="question">
+    <span class="label">Tu decisión por regla general</span>
+    No vamos a revisar las 114 una por una. Necesitamos elegir una regla:
+  </div>
+
+  <div class="option"><strong>(R1)</strong> Todo es personal → mover a "retiros del propietario"</div>
+  <div class="option"><strong>(R2)</strong> Todo es del negocio → mantener como gasto operativo (alimentación equipo)</div>
+  <div class="option"><strong>(R3)</strong> Por subcategoría: viáticos y comida → negocio; mercado D1 y ocio → personal</div>
+  <div class="option"><strong>(R4)</strong> Revisar las 94 más pequeñas 1-a-1 (toma 30 min extra)</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 11 — Bloque 2: Nequi $20M
+     ============================================================ -->
+<section class="slide">
+  <span class="slide-num">11 / 15</span>
+  <div class="eyebrow">Bloque 2 — Ajuste Nequi 5-enero-2026</div>
+  <h2>$20M desaparecieron de Nequi en un solo día</h2>
+
+  <p class="lead">El 5 de enero de 2026, el saldo de Nequi en el sistema saltó <strong>de ~$20M a $10</strong> en un solo ajuste manual. No hay movimiento contable que lo explique.</p>
+
+  <div class="callout">
+    <strong>Lo que hace el ajuste manual:</strong> alguien (probablemente tú o quien manejaba el sistema) usó el botón "ajustar saldo" en lugar de registrar una transacción real. El sistema cambió el número pero no guardó la transacción de respaldo.
+  </div>
+
+  <h3 style="margin-top:2rem;">5 hipótesis posibles:</h3>
+
+  <div class="option"><strong>(a)</strong> Saldo antiguo mal cargado al sistema. El ajuste corrigió hacia el saldo real → <em>se registra como ajuste de apertura</em>.</div>
+  <div class="option"><strong>(b)</strong> Transferencia a una cuenta personal (Bancolombia personal, otra Nequi, efectivo) → <em>se registra como retiro de propietario</em>.</div>
+  <div class="option"><strong>(c)</strong> Pago grande que no se digitó (proveedor, deuda, inversión) → <em>se registra como gasto con categoría a definir</em>.</div>
+  <div class="option"><strong>(d)</strong> Error de digitación corregido sin pista → <em>se registra como corrección histórica</em>.</div>
+  <div class="option"><strong>(e)</strong> Otra explicación que tú recuerdes.</div>
+
+  <div class="question">
+    <span class="label">Pregunta clave</span>
+    ¿Recuerdas algo del 5 de enero de 2026 relacionado con Nequi? Era la primera semana de fuerte temporada escolar — ¿hubo un pago grande, una transferencia inusual?
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 12 — Bloque 3: discrepancia $21.6M
+     ============================================================ -->
+<section class="slide">
+  <span class="slide-num">12 / 15</span>
+  <div class="eyebrow">Bloque 3 — Discrepancia $21.6M</div>
+  <h2>Hay $21.6M entre el saldo "real" y lo que suman las transacciones</h2>
+
+  <p class="lead">Cuando el sistema suma todas las entradas y salidas registradas en Caja Menor + Caja Mayor + Banco + Nequi, el total no coincide con los saldos que el sistema muestra. La diferencia es de <strong>$21.6M</strong>, concentrada en enero 2026.</p>
+
+  <table>
+    <thead>
+      <tr><th>Mes</th><th class="num">Caja Menor</th><th class="num">Caja Mayor</th><th class="num">Banco</th><th class="num">Nequi</th><th class="num">Total mes</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Enero 2026</strong></td><td class="num">+$7.20M</td><td class="num">+$16.17M</td><td class="num">+$13.48M</td><td class="num">-$15.21M</td><td class="num"><strong>+$21.64M</strong></td></tr>
+      <tr><td>Febrero 2026</td><td class="num">+$0.41M</td><td class="num">+$13.20M</td><td class="num">+$6.15M</td><td class="num">-$17.77M</td><td class="num">+$1.99M</td></tr>
+      <tr><td>Marzo 2026</td><td class="num">+$0.78M</td><td class="num">+$13.22M</td><td class="num">+$7.03M</td><td class="num">-$21.29M</td><td class="num">-$0.26M</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout navy">
+    <strong>Insight tras descubrir la línea beauty:</strong> una parte material de los $21.6M es probablemente <strong>el flujo neto histórico de la línea perfumería</strong> que el sistema nunca registró. La línea opera desde antes del sistema → es deuda histórica del sistema con esa línea.
+  </div>
+
+  <h3 style="margin-top:2rem;">4 opciones para resolver:</h3>
+  <div class="option"><strong>(a)</strong> Reconstruir desde extractos bancarios + separar línea beauty → <em>más limpio, más trabajo</em>.</div>
+  <div class="option"><strong>(b)</strong> Aceptar como "saldo apertura no rastreado" → <em>desbloquea hoy, pierde la explicación</em>.</div>
+  <div class="option"><strong>(c)</strong> Bloquear hasta tener todo: extractos dic-2025 + línea beauty implementada → <em>limpio pero atrasa 2 semanas</em>.</div>
+  <div class="option"><strong>(d)</strong> <strong>Híbrida (sugerida):</strong> apertura provisional ahora + reconstrucción detallada en v3.1 cuando beauty esté en el sistema.</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 13 — Bloque 6: transferencias internas
+     ============================================================ -->
+<section class="slide">
+  <span class="slide-num">13 / 15</span>
+  <div class="eyebrow">Bloque 6 — Transferencias entre tus cuentas</div>
+  <h2>7 pares de transferencias Bancolombia ↔ Nequi</h2>
+
+  <p class="lead">El sistema detectó 7 pares donde se movió plata de una cuenta tuya a otra. El problema: cada par está registrado como <strong>2 transacciones separadas</strong>, lo que infla artificialmente los ingresos y gastos.</p>
+
+  <table>
+    <thead>
+      <tr><th>#</th><th>Fecha</th><th>Origen</th><th class="num">Monto</th><th>Destino</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>1</td><td>2026-01-03 → 05</td><td>Bancolombia</td><td class="num">$90,000</td><td>Nequi</td></tr>
+      <tr><td>2</td><td>2026-01-14</td><td>Bancolombia</td><td class="num">$384,150</td><td>Nequi</td></tr>
+      <tr><td>3</td><td>2026-01-15 → 16</td><td>Bancolombia</td><td class="num">$50,000</td><td>Nequi</td></tr>
+      <tr><td>4</td><td>2026-01-25 → 27</td><td>Nequi</td><td class="num">$40,000</td><td>Bancolombia</td></tr>
+      <tr><td>5</td><td>2026-03-22</td><td>Bancolombia</td><td class="num">$156,000</td><td>Nequi</td></tr>
+      <tr><td>6</td><td>2026-03-29</td><td>Bancolombia</td><td class="num">$700,000</td><td>Nequi</td></tr>
+      <tr><td>7</td><td>2026-03-30 → 04-01</td><td>Bancolombia</td><td class="num">$20,000</td><td>Nequi</td></tr>
+      <tr class="total"><td colspan="3">Total</td><td class="num">~$1,440,000</td><td></td></tr>
+    </tbody>
+  </table>
+
+  <div class="question">
+    <span class="label">Pregunta</span>
+    ¿Confirmas que todos son transferencias entre <strong>tus propias cuentas</strong> (no a terceros)? Si sí → se marcan como "transferencia interna" y dejan de aparecer como ingreso/gasto extra.
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 14 — Después de esta sesión
+     ============================================================ -->
+<section class="slide">
+  <span class="slide-num">14 / 15</span>
+  <div class="eyebrow">Próximos pasos</div>
+  <h2>Qué pasa después de esta conversación</h2>
+
+  <div style="margin-top:2rem;">
+    <div style="display:flex; gap:1.5rem; margin-bottom:1.5rem;">
+      <div style="background:var(--gold);color:white;width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.3rem;flex-shrink:0;">1</div>
+      <div>
+        <h3 style="margin-bottom:0.3rem;">Hoy mismo, después de la sesión (30 min)</h3>
+        <p>Angel aplica las decisiones a la base de datos de desarrollo. Reversible si algo no cuadra.</p>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:1.5rem; margin-bottom:1.5rem;">
+      <div style="background:var(--gold);color:white;width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.3rem;flex-shrink:0;">2</div>
+      <div>
+        <h3 style="margin-bottom:0.3rem;">Mañana o pasado (30 min)</h3>
+        <p>Sesión de revisión: abrimos el panel del CFO y verificamos que el P&L se ve coherente con tu percepción del negocio.</p>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:1.5rem; margin-bottom:1.5rem;">
+      <div style="background:var(--gold);color:white;width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.3rem;flex-shrink:0;">3</div>
+      <div>
+        <h3 style="margin-bottom:0.3rem;">Sábado madrugada (~2h)</h3>
+        <p>Subimos el relanzamiento del sistema a producción. El equipo no debe estar operando.</p>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:1.5rem; margin-bottom:1.5rem;">
+      <div style="background:var(--gold);color:white;width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.3rem;flex-shrink:0;">4</div>
+      <div>
+        <h3 style="margin-bottom:0.3rem;">Próximas 2-3 semanas (si elegimos opción B del Bloque 0)</h3>
+        <p>Implementamos la línea perfumería como segundo eje en el sistema. Luego subimos v3.1 con el modelo completo.</p>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:1.5rem;">
+      <div style="background:var(--gold);color:white;width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.3rem;flex-shrink:0;">5</div>
+      <div>
+        <h3 style="margin-bottom:0.3rem;">Mediano plazo</h3>
+        <p>Con la contabilidad limpia, podemos pasar el estado financiero a contadora externa. Lo que hoy es "tu memoria" pasa a ser un sistema defendible ante DIAN.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 15 — Resumen decisiones para firmar
+     ============================================================ -->
+<section class="slide">
+  <span class="slide-num">15 / 15</span>
+  <div class="eyebrow">Resumen de la sesión</div>
+  <h2>Decisiones tomadas hoy</h2>
+  <p class="lead">Tabla a llenar durante la sesión. Consuelo confirma con sus iniciales que estas son sus decisiones.</p>
+
+  <table style="margin-top:2rem;">
+    <thead>
+      <tr><th>Bloque</th><th>Decisión</th><th class="center">Iniciales</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>0</strong></td>
+        <td>Línea perfumería: modelar como segundo eje. Timing pre/post relanzamiento: ____</td>
+        <td class="center">______</td>
+      </tr>
+      <tr>
+        <td>1</td>
+        <td>Cristina: $19M vigentes confirmados</td>
+        <td class="center"><span class="badge green">C.R.</span></td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td>Nequi 5-ene-2026: hipótesis elegida ____ (a/b/c/d/e)</td>
+        <td class="center">______</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td>Discrepancia $21.6M: opción elegida ____ (a/b/c/d)</td>
+        <td class="center">______</td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td>YANBAL/ESIKA/TEMU: ___ beauty / ___ personal / ___ reembolsable</td>
+        <td class="center">______</td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td>Mercado/ocio: regla elegida ____ (R1/R2/R3/R4)</td>
+        <td class="center">______</td>
+      </tr>
+      <tr>
+        <td>6</td>
+        <td>7 transferencias internas: confirma todas SÍ / NO</td>
+        <td class="center">______</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="margin-top:3rem; display:flex; justify-content:space-around; gap:3rem;">
+    <div style="text-align:center; flex:1;">
+      <div style="border-top:2px solid var(--navy); padding-top:0.5rem;">Consuelo Ríos · Owner</div>
+    </div>
+    <div style="text-align:center; flex:1;">
+      <div style="border-top:2px solid var(--navy); padding-top:0.5rem;">Angel Suesca · CTO</div>
+    </div>
+  </div>
+
+  <p class="footnote" style="text-align:center; margin-top:2rem;">Doc generado 2026-05-24 · Para imprimir: Chrome → Imprimir → Guardar como PDF · Orientación horizontal recomendada</p>
+</section>
+
+<!-- ============================================================
+     Navegación
+     ============================================================ -->
+<nav class="nav">
+  <button onclick="document.documentElement.scrollBy({top: -window.innerHeight, behavior: 'smooth'})">↑</button>
+  <button onclick="document.documentElement.scrollBy({top: window.innerHeight, behavior: 'smooth'})">↓</button>
+  <button onclick="window.print()" title="Imprimir / Guardar PDF">⎙</button>
+</nav>
+
+<script>
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown' || e.key === ' ' || e.key === 'PageDown') {
+    e.preventDefault();
+    window.scrollBy({top: window.innerHeight, behavior: 'smooth'});
+  } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+    e.preventDefault();
+    window.scrollBy({top: -window.innerHeight, behavior: 'smooth'});
+  } else if (e.key === 'Home') {
+    e.preventDefault();
+    window.scrollTo({top: 0, behavior: 'smooth'});
+  } else if (e.key === 'End') {
+    e.preventDefault();
+    window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});
+  }
+});
+</script>
+
+</body>
+</html>

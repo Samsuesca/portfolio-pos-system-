@@ -14,6 +14,7 @@ import SaleModal from '../../components/SaleModal';
 import OrderModal from '../../components/OrderModal';
 import InventoryHistoryModal from '../../components/InventoryHistoryModal';
 import ProductCostManager from '../../components/accounting/ProductCostManager';
+import CostBreakdownModal from '../../components/accounting/CostBreakdownModal';
 import { Loader2, AlertCircle } from 'lucide-react';
 
 // Sub-components
@@ -22,7 +23,9 @@ import ProductsStatsCards from './ProductsStatsCards';
 import ProductsTabs from './ProductsTabs';
 import ProductsFilters from './ProductsFilters';
 import ProductsTable from './ProductsTable';
-import GarmentTypesTab from './GarmentTypesTab';
+import ProductsGrid from './ProductsGrid';
+import SchoolCatalogTab from './SchoolCatalogTab';
+import CostInsightsTab from './CostInsightsTab';
 import InventoryAdjustmentModal from './InventoryAdjustmentModal';
 import ProductsEmptyState from './ProductsEmptyState';
 
@@ -32,9 +35,7 @@ import type {
   InventoryAdjustment,
   HistoryProductInfo,
   Product,
-  GlobalProduct,
   GarmentType,
-  GlobalGarmentType,
 } from './types';
 
 export default function Products() {
@@ -48,16 +49,42 @@ export default function Products() {
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [initialProduct, setInitialProduct] = useState<Product | null>(null);
   const [globalProductModalOpen, setGlobalProductModalOpen] = useState(false);
-  const [selectedGlobalProduct, setSelectedGlobalProduct] = useState<GlobalProduct | null>(null);
+  const [selectedGlobalProduct, setSelectedGlobalProduct] = useState<Product | null>(null);
   const [garmentTypeModalOpen, setGarmentTypeModalOpen] = useState(false);
-  const [selectedGarmentType, setSelectedGarmentType] = useState<GarmentType | GlobalGarmentType | null>(null);
+  const [selectedGarmentType, setSelectedGarmentType] = useState<GarmentType | null>(null);
   const [isGlobalGarmentType, setIsGlobalGarmentType] = useState(false);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [historyProduct, setHistoryProduct] = useState<HistoryProductInfo | null>(null);
   const [costManagerOpen, setCostManagerOpen] = useState(false);
+  const [costBreakdownTarget, setCostBreakdownTarget] = useState<{
+    schoolId: string;
+    garmentTypeId: string;
+    garmentTypeName: string;
+    isGlobal: boolean;
+  } | null>(null);
+  // "+ Variante" from the catalog tree: pre-selects a garment type (and school)
+  // for the create-product modal. Null on every other open path.
+  const [addVariantContext, setAddVariantContext] = useState<{
+    typeId: string;
+    schoolId?: string;
+    isGlobal: boolean;
+  } | null>(null);
+  // Bumped after a catalog mutation so the tree collapses and refetches fresh
+  // variants/stats on next expand.
+  const [catalogRefreshKey, setCatalogRefreshKey] = useState(0);
+
+  const handleOpenCostBreakdown = useCallback((garmentType: GarmentType, isGlobal: boolean) => {
+    setCostBreakdownTarget({
+      schoolId: garmentType.school_id || '',
+      garmentTypeId: garmentType.id,
+      garmentTypeName: garmentType.name,
+      isGlobal,
+    });
+  }, []);
 
   // --- Product Modal handlers ---
   const handleOpenModal = useCallback((product?: Product) => {
+    setAddVariantContext(null);
     setSelectedProduct(product || null);
     setIsModalOpen(true);
   }, []);
@@ -65,11 +92,14 @@ export default function Products() {
   const handleCloseModal = useCallback(() => {
     setIsModalOpen(false);
     setSelectedProduct(null);
+    setAddVariantContext(null);
   }, []);
 
   const handleProductSuccess = useCallback(() => {
     data.loadProducts();
-  }, [data.loadProducts]);
+    data.loadGarmentTypes();   // refresh tree stats (variant count, stock, price range)
+    setCatalogRefreshKey(k => k + 1);
+  }, [data.loadProducts, data.loadGarmentTypes]);
 
   // --- Inventory Adjustment handlers ---
   const handleOpenInventoryModal = useCallback((product: Product) => {
@@ -79,16 +109,16 @@ export default function Products() {
       productName: product.name || product.code,
       currentStock: product.stock ?? product.inventory_quantity ?? 0,
       isGlobal: false,
-      schoolId: (product as any).school_id || data.currentSchool?.id,
+      schoolId: product.school_id || data.currentSchool?.id,
     });
   }, [data.currentSchool]);
 
-  const handleOpenGlobalInventoryModal = useCallback((product: GlobalProduct) => {
+  const handleOpenGlobalInventoryModal = useCallback((product: Product) => {
     setInventoryModal({
       productId: product.id,
       productCode: product.code,
       productName: product.name || product.code,
-      currentStock: product.inventory_quantity ?? 0,
+      currentStock: product.inventory_quantity ?? product.stock ?? 0,
       isGlobal: true,
     });
   }, []);
@@ -103,8 +133,10 @@ export default function Products() {
       data.loadGlobalProducts();
     } else {
       data.loadProducts();
+      data.loadGarmentTypes();   // total_stock per type changed
     }
-  }, [inventoryModal, data.loadProducts, data.loadGlobalProducts]);
+    setCatalogRefreshKey(k => k + 1);
+  }, [inventoryModal, data.loadProducts, data.loadGlobalProducts, data.loadGarmentTypes]);
 
   // --- Sale / Order handlers ---
   const handleStartSale = useCallback((product: Product) => {
@@ -140,7 +172,8 @@ export default function Products() {
   }, [data.loadProducts]);
 
   // --- Global Product Modal handlers ---
-  const handleOpenGlobalProductModal = useCallback((product?: GlobalProduct) => {
+  const handleOpenGlobalProductModal = useCallback((product?: Product) => {
+    setAddVariantContext(null);
     setSelectedGlobalProduct(product || null);
     setGlobalProductModalOpen(true);
   }, []);
@@ -148,16 +181,19 @@ export default function Products() {
   const handleCloseGlobalProductModal = useCallback(() => {
     setGlobalProductModalOpen(false);
     setSelectedGlobalProduct(null);
+    setAddVariantContext(null);
   }, []);
 
   const handleGlobalProductSuccess = useCallback(() => {
-    data.loadGlobalProducts();
+    data.loadGlobalProducts();   // global type stats derive from this list
     setGlobalProductModalOpen(false);
     setSelectedGlobalProduct(null);
+    setAddVariantContext(null);
+    setCatalogRefreshKey(k => k + 1);
   }, [data.loadGlobalProducts]);
 
   // --- Garment Type Modal handlers ---
-  const handleOpenGarmentTypeModal = useCallback((garmentType?: GarmentType | GlobalGarmentType, isGlobal: boolean = false) => {
+  const handleOpenGarmentTypeModal = useCallback((garmentType?: GarmentType, isGlobal: boolean = false) => {
     setSelectedGarmentType(garmentType || null);
     setIsGlobalGarmentType(isGlobal);
     setGarmentTypeModalOpen(true);
@@ -169,18 +205,29 @@ export default function Products() {
     setIsGlobalGarmentType(false);
   }, []);
 
-  const handleGarmentTypeSuccess = useCallback(() => {
-    // Reload both lists so counts update
+  // Refresh catalog thumbnails/stats after live image edits in the type modal
+  // (uploads hit the API immediately, before any form submit).
+  const handleGarmentTypeImagesChanged = useCallback(() => {
     data.loadProducts();
     data.loadGlobalProducts();
+    setCatalogRefreshKey(k => k + 1);
+  }, [data.loadProducts, data.loadGlobalProducts]);
+
+  const handleGarmentTypeSuccess = useCallback(() => {
+    // Reload products + the type lists so the tree rows and counts update.
+    data.loadProducts();
+    data.loadGlobalProducts();
+    data.loadGarmentTypes();
+    data.loadGlobalGarmentTypes();
     setGarmentTypeModalOpen(false);
     setSelectedGarmentType(null);
     setIsGlobalGarmentType(false);
-  }, [data.loadProducts, data.loadGlobalProducts]);
+    setCatalogRefreshKey(k => k + 1);
+  }, [data.loadProducts, data.loadGlobalProducts, data.loadGarmentTypes, data.loadGlobalGarmentTypes]);
 
   // --- Inventory History handlers ---
   const handleOpenHistoryModal = useCallback((product: Product) => {
-    const schoolId = (product as any).school_id || data.currentSchool?.id || '';
+    const schoolId = product.school_id || data.currentSchool?.id || '';
     setHistoryProduct({
       productId: product.id,
       productName: product.name || product.code,
@@ -193,7 +240,7 @@ export default function Products() {
     setHistoryModalOpen(true);
   }, [data.currentSchool]);
 
-  const handleOpenGlobalHistoryModal = useCallback((product: GlobalProduct) => {
+  const handleOpenGlobalHistoryModal = useCallback((product: Product) => {
     setHistoryProduct({
       productId: product.id,
       productName: product.name || product.code,
@@ -215,12 +262,51 @@ export default function Products() {
   const handleOpenCostManager = useCallback(() => setCostManagerOpen(true), []);
   const handleOpenNewProduct = useCallback(() => handleOpenModal(), [handleOpenModal]);
   const handleOpenNewGlobalProduct = useCallback(() => handleOpenGlobalProductModal(), [handleOpenGlobalProductModal]);
-  const handleOpenNewGarmentType = useCallback((isGlobal: boolean) => {
-    handleOpenGarmentTypeModal(undefined, isGlobal);
-  }, [handleOpenGarmentTypeModal]);
 
   // Load more
   const handleLoadMore = useCallback(() => data.loadProducts(true), [data.loadProducts]);
+
+  // --- Catalog grid handlers ---
+  const handleManageGroup = useCallback((garmentTypeId: string) => {
+    const isGlobal = data.activeTab === 'global';
+    const list = isGlobal ? data.globalGarmentTypes : data.garmentTypes;
+    const garmentType = list.find(t => t.id === garmentTypeId);
+    if (garmentType) handleOpenGarmentTypeModal(garmentType, isGlobal);
+  }, [data.activeTab, data.garmentTypes, data.globalGarmentTypes, handleOpenGarmentTypeModal]);
+
+  const handleViewVariants = useCallback((garmentTypeId: string) => {
+    if (data.activeTab === 'school') data.setGarmentTypeFilter(garmentTypeId);
+    data.setViewMode('table');
+  }, [data.activeTab, data.setGarmentTypeFilter, data.setViewMode]);
+
+  // --- Catalog tree handlers (garment type -> variants) ---
+  // "+ Variante": open the create-product modal with the type pre-selected.
+  const handleAddVariant = useCallback((garmentType: GarmentType, isGlobal: boolean) => {
+    setAddVariantContext({ typeId: garmentType.id, schoolId: garmentType.school_id || undefined, isGlobal });
+    if (isGlobal) {
+      setSelectedGlobalProduct(null);
+      setGlobalProductModalOpen(true);
+    } else {
+      setSelectedProduct(null);
+      setIsModalOpen(true);
+    }
+  }, []);
+
+  // Variant actions branch on whether the product is global (school_id IS NULL).
+  const handleEditVariant = useCallback((product: Product) => {
+    if (product.school_id) handleOpenModal(product);
+    else handleOpenGlobalProductModal(product);
+  }, [handleOpenModal, handleOpenGlobalProductModal]);
+
+  const handleAdjustVariantInventory = useCallback((product: Product) => {
+    if (product.school_id) handleOpenInventoryModal(product);
+    else handleOpenGlobalInventoryModal(product);
+  }, [handleOpenInventoryModal, handleOpenGlobalInventoryModal]);
+
+  const handleVariantHistory = useCallback((product: Product) => {
+    if (product.school_id) handleOpenHistoryModal(product);
+    else handleOpenGlobalHistoryModal(product);
+  }, [handleOpenHistoryModal, handleOpenGlobalHistoryModal]);
 
   return (
     <Layout>
@@ -229,61 +315,58 @@ export default function Products() {
         activeTab={data.activeTab}
         isLoading={data.isLoading}
         currentProductsCount={data.currentProducts.length}
-        garmentTypesDisplayCount={(data.showGlobalTypes ? data.globalGarmentTypes : data.garmentTypes).length}
         schoolFilter={data.schoolFilter}
         availableSchoolsCount={data.availableSchools.length}
-        isSuperuser={data.isSuperuser}
-        canManageGarmentTypes={data.canManageGarmentTypes}
-        showGlobalTypes={data.showGlobalTypes}
         onOpenCostManager={handleOpenCostManager}
         onOpenProductModal={handleOpenNewProduct}
         onOpenGlobalProductModal={handleOpenNewGlobalProduct}
-        onOpenGarmentTypeModal={handleOpenNewGarmentType}
       />
 
-      {/* Statistics Cards */}
-      <ProductsStatsCards
-        stats={data.stats}
-        onStockFilterChange={data.setStockFilter}
-      />
+      {/* Statistics Cards (oculto en tab Análisis de costos) */}
+      {data.activeTab !== 'cost-insights' && (
+        <ProductsStatsCards
+          stats={data.stats}
+          onStockFilterChange={data.setStockFilter}
+        />
+      )}
 
       {/* Tabs */}
       <ProductsTabs
         activeTab={data.activeTab}
         onTabChange={data.handleTabChange}
-        productsCount={data.products.length}
+        productsCount={data.totalProductsCount || data.products.length}
         globalProductsCount={data.globalProducts.length}
-        garmentTypesCount={data.garmentTypes.length}
-        globalGarmentTypesCount={data.globalGarmentTypes.length}
-        canManageGarmentTypes={data.canManageGarmentTypes}
-        currentSchoolName={data.currentSchool?.name || 'este colegio'}
+        canViewCosts={data.canViewCosts}
       />
 
-      {/* Search and Filters */}
-      <ProductsFilters
-        activeTab={data.activeTab}
-        searchTerm={data.searchTerm}
-        onSearchChange={data.setSearchTerm}
-        stockFilter={data.stockFilter}
-        onStockFilterChange={data.setStockFilter}
-        sizeFilter={data.sizeFilter}
-        onSizeFilterChange={data.setSizeFilter}
-        schoolFilter={data.schoolFilter}
-        onSchoolFilterChange={data.setSchoolFilter}
-        garmentTypeFilter={data.garmentTypeFilter}
-        onGarmentTypeFilterChange={data.setGarmentTypeFilter}
-        availableSchools={data.availableSchools}
-        garmentTypes={data.garmentTypes}
-        uniqueSizes={data.uniqueSizes}
-        hasActiveFilters={data.hasActiveFilters}
-        onClearFilters={data.clearFilters}
-      />
+      {/* Flat search & filters — hidden in cost-insights and in the tree view
+          (the tree has its own type-level filters). */}
+      {data.activeTab !== 'cost-insights' && data.viewMode !== 'tree' && (
+        <ProductsFilters
+          activeTab={data.activeTab}
+          searchTerm={data.searchTerm}
+          onSearchChange={data.setSearchTerm}
+          stockFilter={data.stockFilter}
+          onStockFilterChange={data.setStockFilter}
+          sizeFilter={data.sizeFilter}
+          onSizeFilterChange={data.setSizeFilter}
+          schoolFilter={data.schoolFilter}
+          onSchoolFilterChange={data.setSchoolFilter}
+          garmentTypeFilter={data.garmentTypeFilter}
+          onGarmentTypeFilterChange={data.setGarmentTypeFilter}
+          availableSchools={data.availableSchools}
+          garmentTypes={data.activeTab === 'global' ? data.globalGarmentTypes : data.garmentTypes}
+          uniqueSizes={data.uniqueSizes}
+          hasActiveFilters={data.hasActiveFilters}
+          onClearFilters={data.clearFilters}
+        />
+      )}
 
-      {/* Loading State */}
-      {data.isLoading && (
+      {/* Loading State (flat views only — the tree loads its own data) */}
+      {data.isLoading && data.viewMode !== 'tree' && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-          <span className="ml-3 text-gray-600">Cargando productos...</span>
+          <Loader2 className="w-8 h-8 animate-spin text-brand-600" />
+          <span className="ml-3 text-stone-600">Cargando productos...</span>
         </div>
       )}
 
@@ -306,48 +389,108 @@ export default function Products() {
         </div>
       )}
 
-      {/* Products Table */}
-      {!data.isLoading && !data.error && data.activeTab !== 'garment-types' && data.currentProducts.length > 0 && (
-        <ProductsTable
-          activeTab={data.activeTab}
-          sortConfig={data.sortConfig}
-          onSort={data.handleSort}
-          schoolProducts={data.filteredAndSortedProducts}
-          globalProducts={data.filteredGlobalProducts}
-          availableSchools={data.availableSchools}
-          isSuperuser={data.isSuperuser}
-          canAdjustGlobalInventory={data.canAdjustGlobalInventory}
-          hasMoreProducts={data.hasMoreProducts}
-          loadingMore={data.loadingMore}
-          productsCount={data.products.length}
-          onLoadMore={handleLoadMore}
-          onStartSale={handleStartSale}
-          onOpenHistoryModal={handleOpenHistoryModal}
-          onOpenGlobalHistoryModal={handleOpenGlobalHistoryModal}
-          onEditProduct={handleOpenModal}
-          onAdjustInventory={handleOpenInventoryModal}
-          onEditGlobalProduct={handleOpenGlobalProductModal}
-          onAdjustGlobalInventory={handleOpenGlobalInventoryModal}
-        />
+      {/* View mode toggle (school & global product tabs) */}
+      {!data.error && (data.activeTab === 'school' || data.activeTab === 'global') && (
+        <div className="flex items-center justify-end mb-3">
+          <div className="inline-flex p-0.5 bg-stone-100 rounded-lg text-sm" role="tablist" aria-label="Modo de vista">
+            <button
+              onClick={() => data.setViewMode('tree')}
+              className={`px-3 py-1.5 rounded-md font-medium transition ${
+                data.viewMode === 'tree' ? 'bg-white shadow-sm text-stone-800' : 'text-stone-500 hover:text-stone-700'
+              }`}
+            >
+              Árbol
+            </button>
+            <button
+              onClick={() => data.setViewMode('table')}
+              className={`px-3 py-1.5 rounded-md font-medium transition ${
+                data.viewMode === 'table' ? 'bg-white shadow-sm text-stone-800' : 'text-stone-500 hover:text-stone-700'
+              }`}
+            >
+              Tabla
+            </button>
+            <button
+              onClick={() => data.setViewMode('grid')}
+              className={`px-3 py-1.5 rounded-md font-medium transition ${
+                data.viewMode === 'grid' ? 'bg-white shadow-sm text-stone-800' : 'text-stone-500 hover:text-stone-700'
+              }`}
+            >
+              Cuadrícula
+            </button>
+          </div>
+        </div>
       )}
 
-      {/* Garment Types Table */}
-      {data.activeTab === 'garment-types' && data.canManageGarmentTypes && !data.isLoading && !data.error && (
-        <GarmentTypesTab
+      {/* Tree view: garment types -> variants (school or global scope by tab) */}
+      {!data.error && (data.activeTab === 'school' || data.activeTab === 'global') && data.viewMode === 'tree' && (
+        <SchoolCatalogTab
+          isGlobal={data.activeTab === 'global'}
           garmentTypes={data.garmentTypes}
           globalGarmentTypes={data.globalGarmentTypes}
-          showGlobalTypes={data.showGlobalTypes}
-          onToggleGlobalTypes={data.setShowGlobalTypes}
-          availableSchools={data.availableSchools}
-          isSuperuser={data.isSuperuser}
+          globalProducts={data.globalProducts}
+          schoolFilter={data.schoolFilter}
           canManageGarmentTypes={data.canManageGarmentTypes}
-          onOpenGarmentTypeModal={handleOpenGarmentTypeModal}
+          canManageGlobalGarmentTypes={data.canManageGlobalGarmentTypes}
+          canViewCosts={data.canViewCosts}
           getImageUrl={data.getImageUrl}
+          refreshKey={catalogRefreshKey}
+          onOpenGarmentTypeModal={handleOpenGarmentTypeModal}
+          onOpenCostBreakdown={handleOpenCostBreakdown}
+          onAddVariant={handleAddVariant}
+          onEditVariant={handleEditVariant}
+          onAdjustInventory={handleAdjustVariantInventory}
+          onOpenHistory={handleVariantHistory}
         />
       )}
 
-      {/* Empty State */}
-      {!data.isLoading && !data.error && data.activeTab !== 'garment-types' && data.currentProducts.length === 0 && (
+      {/* Flat Table/Grid views */}
+      {!data.isLoading && !data.error && (data.activeTab === 'school' || data.activeTab === 'global') && data.viewMode !== 'tree' && data.currentProducts.length > 0 && (
+        data.viewMode === 'grid' ? (
+          <ProductsGrid
+            rawProducts={data.activeTab === 'global' ? data.filteredGlobalProducts : data.filteredAndSortedProducts}
+            garmentTypes={data.activeTab === 'global' ? data.globalGarmentTypes : data.garmentTypes}
+            isGlobal={data.activeTab === 'global'}
+            canViewCosts={data.canViewCosts}
+            schools={data.availableSchools}
+            onManageGroup={handleManageGroup}
+            onViewVariants={handleViewVariants}
+            catalogOrder={data.catalogOrder}
+            canReorder={data.activeTab === 'school' && data.canReorderCatalog && !!data.schoolIdForCreate}
+            onReorder={data.reorderCatalog}
+          />
+        ) : (
+          <ProductsTable
+            activeTab={data.activeTab}
+            sortConfig={data.sortConfig}
+            onSort={data.handleSort}
+            schoolProducts={data.filteredAndSortedProducts}
+            globalProducts={data.filteredGlobalProducts}
+            availableSchools={data.availableSchools}
+            canAdjustGlobalInventory={data.canAdjustGlobalInventory}
+            canEditGlobalProduct={data.canEditGlobalProduct}
+            canViewCosts={data.canViewCosts}
+            hasMoreProducts={data.hasMoreProducts}
+            loadingMore={data.loadingMore}
+            productsCount={data.products.length}
+            onLoadMore={handleLoadMore}
+            onStartSale={handleStartSale}
+            onOpenHistoryModal={handleOpenHistoryModal}
+            onOpenGlobalHistoryModal={handleOpenGlobalHistoryModal}
+            onEditProduct={handleOpenModal}
+            onAdjustInventory={handleOpenInventoryModal}
+            onEditGlobalProduct={handleOpenGlobalProductModal}
+            onAdjustGlobalInventory={handleOpenGlobalInventoryModal}
+          />
+        )
+      )}
+
+      {/* Cost Insights Tab */}
+      {data.activeTab === 'cost-insights' && data.canViewCosts && (
+        <CostInsightsTab />
+      )}
+
+      {/* Empty State (flat views only — the tree renders its own empty state) */}
+      {!data.isLoading && !data.error && data.activeTab !== 'cost-insights' && data.viewMode !== 'tree' && data.currentProducts.length === 0 && (
         <ProductsEmptyState
           activeTab={data.activeTab}
           hasActiveFilters={data.hasActiveFilters}
@@ -363,12 +506,13 @@ export default function Products() {
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         onSuccess={handleProductSuccess}
-        schoolId={data.schoolIdForCreate}
+        schoolId={(addVariantContext && !addVariantContext.isGlobal && addVariantContext.schoolId) || data.schoolIdForCreate}
         schoolName={
           selectedProduct?.school_name
-          || data.availableSchools.find(s => s.id === data.schoolIdForCreate)?.name
+          || data.availableSchools.find(s => s.id === ((addVariantContext && !addVariantContext.isGlobal && addVariantContext.schoolId) || data.schoolIdForCreate))?.name
         }
         product={selectedProduct}
+        initialGarmentTypeId={addVariantContext && !addVariantContext.isGlobal ? addVariantContext.typeId : undefined}
       />
 
       {/* Inventory Adjustment Modal */}
@@ -394,7 +538,7 @@ export default function Products() {
         isOpen={orderModalOpen}
         onClose={handleCloseOrder}
         onSuccess={handleOrderSuccess}
-        initialSchoolId={initialProduct?.school_id}
+        initialSchoolId={initialProduct?.school_id || undefined}
         initialProduct={initialProduct || undefined}
       />
 
@@ -404,6 +548,7 @@ export default function Products() {
         onClose={handleCloseGlobalProductModal}
         onSuccess={handleGlobalProductSuccess}
         product={selectedGlobalProduct}
+        initialGarmentTypeId={addVariantContext?.isGlobal ? addVariantContext.typeId : undefined}
       />
 
       {/* Garment Type Modal */}
@@ -411,9 +556,10 @@ export default function Products() {
         isOpen={garmentTypeModalOpen}
         onClose={handleCloseGarmentTypeModal}
         onSuccess={handleGarmentTypeSuccess}
+        onChanged={handleGarmentTypeImagesChanged}
         garmentType={selectedGarmentType}
         isGlobal={isGlobalGarmentType}
-        schoolId={(selectedGarmentType as GarmentType)?.school_id || data.schoolIdForCreate}
+        schoolId={selectedGarmentType?.school_id || data.schoolIdForCreate}
       />
 
       {/* Inventory History Modal */}
@@ -438,6 +584,19 @@ export default function Products() {
         onSaved={() => data.loadProducts()}
         initialMode="all"
       />
+
+      {/* Desglose de costos por componentes (desde Tipos de Prenda) */}
+      {costBreakdownTarget && (
+        <CostBreakdownModal
+          isOpen={true}
+          onClose={() => setCostBreakdownTarget(null)}
+          schoolId={costBreakdownTarget.schoolId}
+          garmentTypeId={costBreakdownTarget.garmentTypeId}
+          garmentTypeName={costBreakdownTarget.garmentTypeName}
+          isGlobal={costBreakdownTarget.isGlobal}
+          onCostsSaved={() => { data.loadProducts(); data.loadGlobalProducts(); }}
+        />
+      )}
     </Layout>
   );
 }

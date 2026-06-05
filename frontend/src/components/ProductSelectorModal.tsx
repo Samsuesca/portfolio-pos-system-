@@ -16,12 +16,23 @@ import {
   Loader2,
 } from 'lucide-react';
 import { productService } from '../services/productService';
-import type { Product, GlobalProduct, GarmentType, GlobalGarmentType } from '../types/api';
+import type { Product, GarmentType } from '../types/api';
+
+/**
+ * Stock disponible para venta directa = quantity total - stock reservado a
+ * Orders pendientes/READY. Si el backend ya envia `available` lo usamos
+ * directamente; si no, lo computamos del fallback.
+ */
+const availableStockOf = (p: Product): number =>
+  p.inventory_available ??
+  p.available ??
+  ((p.inventory_quantity ?? p.stock ?? 0) -
+    (p.inventory_reserved ?? p.reserved ?? 0));
 
 interface ProductSelectorModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelect: (product: Product | GlobalProduct, quantity?: number) => void;
+  onSelect: (product: Product, quantity?: number) => void;
   schoolId: string;
 
   // Filtering configuration
@@ -62,9 +73,9 @@ export default function ProductSelectorModal({
 
   // Data
   const [products, setProducts] = useState<Product[]>([]);
-  const [globalProducts, setGlobalProducts] = useState<GlobalProduct[]>([]);
+  const [globalProducts, setGlobalProducts] = useState<Product[]>([]);
   const [garmentTypes, setGarmentTypes] = useState<GarmentType[]>([]);
-  const [globalGarmentTypes, setGlobalGarmentTypes] = useState<GlobalGarmentType[]>([]);
+  const [globalGarmentTypes, setGlobalGarmentTypes] = useState<GarmentType[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -100,8 +111,10 @@ export default function ProductSelectorModal({
       setGarmentTypes(results[1] || []);
 
       if (allowGlobalProducts) {
-        setGlobalProducts(results[2] || []);
-        setGlobalGarmentTypes(results[3] || []);
+        const gp = results[2];
+        const ggt = results[3];
+        setGlobalProducts(Array.isArray(gp) ? gp : gp?.items || []);
+        setGlobalGarmentTypes(Array.isArray(ggt) ? ggt : ggt?.items || []);
       }
     } catch (err: any) {
       console.error('Error loading products:', err);
@@ -126,7 +139,7 @@ export default function ProductSelectorModal({
 
   // Filtered products based on all filters
   const filteredProducts = useMemo(() => {
-    let filtered: (Product | GlobalProduct)[] =
+    let filtered: Product[] =
       productSource === 'school' ? products : globalProducts;
 
     // Include only specific products (if provided) - takes precedence
@@ -134,11 +147,13 @@ export default function ProductSelectorModal({
       filtered = filtered.filter(p => includeProductIds.includes(p.id));
     }
 
-    // Stock filter (based on prop)
+    // Stock filter (based on prop). Usa available = quantity - reserved
+    // para que productos con todo su stock comprometido a Orders pendientes
+    // no aparezcan como "con stock" para venta directa.
     if (filterByStock === 'with_stock') {
-      filtered = filtered.filter(p => (p.stock ?? p.inventory_quantity ?? 0) > 0);
+      filtered = filtered.filter(p => availableStockOf(p) > 0);
     } else if (filterByStock === 'without_stock') {
-      filtered = filtered.filter(p => (p.stock ?? p.inventory_quantity ?? 0) === 0);
+      filtered = filtered.filter(p => availableStockOf(p) === 0);
     }
 
     // Exclude already selected products
@@ -214,7 +229,7 @@ export default function ProductSelectorModal({
     return Array.from(colors).sort();
   }, [products, globalProducts, productSource]);
 
-  const handleSelect = (product: Product | GlobalProduct) => {
+  const handleSelect = (product: Product) => {
     const quantity = quantities[product.id] || 1;
     onSelect(product, quantity);
   };
@@ -244,42 +259,42 @@ export default function ProductSelectorModal({
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="relative bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[85vh] flex flex-col">
           {/* Header - Sticky */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-800 flex items-center">
-              <Package className="w-6 h-6 mr-2 text-blue-600" />
+          <div className="flex items-center justify-between p-6 border-b border-stone-200">
+            <h2 className="text-xl font-semibold text-stone-800 flex items-center">
+              <Package className="w-6 h-6 mr-2 text-brand-600" />
               {title}
             </h2>
             <button
               onClick={handleClose}
-              className="text-gray-400 hover:text-gray-600 transition"
+              className="text-stone-400 hover:text-stone-600 transition"
             >
               <X className="w-6 h-6" />
             </button>
           </div>
 
           {/* Search and View Toggle */}
-          <div className="p-4 border-b border-gray-200 bg-gray-50">
+          <div className="p-4 border-b border-stone-200 bg-stone-50">
             <div className="flex items-center gap-3">
               {/* Search */}
               <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
                 <input
                   type="text"
                   placeholder="Buscar por código, nombre, talla, color..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  className="w-full pl-10 pr-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
                 />
               </div>
 
               {/* View Toggle */}
-              <div className="flex items-center gap-1 bg-white border border-gray-300 rounded-lg p-1">
+              <div className="flex items-center gap-1 bg-white border border-stone-200 rounded-lg p-1">
                 <button
                   onClick={() => setViewMode('grid')}
                   className={`p-2 rounded transition ${
                     viewMode === 'grid'
-                      ? 'bg-blue-100 text-blue-600'
-                      : 'text-gray-600 hover:bg-gray-100'
+                      ? 'bg-brand-100 text-brand-600'
+                      : 'text-stone-600 hover:bg-stone-100'
                   }`}
                   title="Vista Grid"
                 >
@@ -289,8 +304,8 @@ export default function ProductSelectorModal({
                   onClick={() => setViewMode('list')}
                   className={`p-2 rounded transition ${
                     viewMode === 'list'
-                      ? 'bg-blue-100 text-blue-600'
-                      : 'text-gray-600 hover:bg-gray-100'
+                      ? 'bg-brand-100 text-brand-600'
+                      : 'text-stone-600 hover:bg-stone-100'
                   }`}
                   title="Vista Lista"
                 >
@@ -301,7 +316,7 @@ export default function ProductSelectorModal({
               {/* Filters Toggle */}
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition flex items-center gap-2"
+                className="px-4 py-2 border border-stone-200 rounded-lg hover:bg-stone-100 transition flex items-center gap-2"
               >
                 Filtros
                 <ChevronDown
@@ -312,12 +327,12 @@ export default function ProductSelectorModal({
 
             {/* Filters Panel */}
             {showFilters && (
-              <div className="mt-3 pt-3 border-t border-gray-200 grid grid-cols-3 gap-3">
+              <div className="mt-3 pt-3 border-t border-stone-200 grid grid-cols-3 gap-3">
                 {/* Garment Type Filter */}
                 <select
                   value={garmentTypeFilter}
                   onChange={e => setGarmentTypeFilter(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  className="px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 outline-none text-sm"
                 >
                   <option value="">Todos los tipos</option>
                   {currentGarmentTypes.map(gt => (
@@ -331,7 +346,7 @@ export default function ProductSelectorModal({
                 <select
                   value={sizeFilter}
                   onChange={e => setSizeFilter(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  className="px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 outline-none text-sm"
                 >
                   <option value="">Todas las tallas</option>
                   {availableSizes.map(size => (
@@ -345,7 +360,7 @@ export default function ProductSelectorModal({
                 <select
                   value={colorFilter}
                   onChange={e => setColorFilter(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  className="px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 outline-none text-sm"
                 >
                   <option value="">Todos los colores</option>
                   {availableColors.map(color => (
@@ -360,7 +375,7 @@ export default function ProductSelectorModal({
 
           {/* Tabs - Product Source */}
           {allowGlobalProducts && (
-            <div className="flex border-b border-gray-200 bg-gray-50">
+            <div className="flex border-b border-stone-200 bg-stone-50">
               <button
                 onClick={() => {
                   setProductSource('school');
@@ -368,8 +383,8 @@ export default function ProductSelectorModal({
                 }}
                 className={`flex-1 px-6 py-3 text-sm font-medium transition ${
                   productSource === 'school'
-                    ? 'border-b-2 border-blue-600 text-blue-600 bg-white'
-                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                    ? 'border-b-2 border-brand-500 text-brand-600 bg-white'
+                    : 'text-stone-600 hover:text-stone-800 hover:bg-stone-100'
                 }`}
               >
                 📦 Productos del Colegio ({products.length})
@@ -382,7 +397,7 @@ export default function ProductSelectorModal({
                 className={`flex-1 px-6 py-3 text-sm font-medium transition ${
                   productSource === 'global'
                     ? 'border-b-2 border-purple-600 text-purple-600 bg-white'
-                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                    : 'text-stone-600 hover:text-stone-800 hover:bg-stone-100'
                 }`}
               >
                 🌐 Productos Globales ({globalProducts.length})
@@ -394,8 +409,8 @@ export default function ProductSelectorModal({
           <div className="flex-1 overflow-y-auto p-6">
             {loading ? (
               <div className="flex flex-col items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-600 mb-3" />
-                <p className="text-gray-600">Cargando productos...</p>
+                <Loader2 className="w-8 h-8 animate-spin text-brand-600 mb-3" />
+                <p className="text-stone-600">Cargando productos...</p>
               </div>
             ) : error ? (
               <div className="flex flex-col items-center justify-center py-12">
@@ -403,15 +418,15 @@ export default function ProductSelectorModal({
                 <p className="text-red-700 font-medium">{error}</p>
                 <button
                   onClick={loadData}
-                  className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                  className="mt-4 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition"
                 >
                   Reintentar
                 </button>
               </div>
             ) : filteredProducts.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12">
-                <Package className="w-12 h-12 text-gray-300 mb-3" />
-                <p className="text-gray-600 font-medium">{emptyMessage}</p>
+                <Package className="w-12 h-12 text-stone-300 mb-3" />
+                <p className="text-stone-600 font-medium">{emptyMessage}</p>
                 {(searchQuery || garmentTypeFilter || sizeFilter || colorFilter) && (
                   <button
                     onClick={() => {
@@ -420,7 +435,7 @@ export default function ProductSelectorModal({
                       setSizeFilter('');
                       setColorFilter('');
                     }}
-                    className="mt-4 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                    className="mt-4 px-4 py-2 text-brand-600 hover:bg-brand-50 rounded-lg transition"
                   >
                     Limpiar filtros
                   </button>
@@ -458,7 +473,7 @@ export default function ProductSelectorModal({
           </div>
 
           {/* Footer */}
-          <div className="p-4 border-t border-gray-200 bg-gray-50 text-sm text-gray-600 text-center">
+          <div className="p-4 border-t border-stone-200 bg-stone-50 text-sm text-stone-600 text-center">
             Mostrando {filteredProducts.length} producto{filteredProducts.length !== 1 && 's'}
           </div>
         </div>
@@ -469,11 +484,11 @@ export default function ProductSelectorModal({
 
 // ===== GRID VIEW CARD =====
 interface ProductCardProps {
-  product: Product | GlobalProduct;
+  product: Product;
   garmentTypeName: string;
   quantity: number;
   onSetQuantity: (productId: string, quantity: number) => void;
-  onSelect: (product: Product | GlobalProduct) => void;
+  onSelect: (product: Product) => void;
   isGlobal: boolean;
 }
 
@@ -485,13 +500,13 @@ function ProductCardGrid({
   onSelect,
   isGlobal: _isGlobal,
 }: ProductCardProps) {
-  const stock = product.stock ?? product.inventory_quantity ?? 0;
+  const stock = availableStockOf(product);
   const minStock = (product as any).min_stock ?? (product as any).inventory_min_stock ?? 5;
 
   return (
-    <div className="group relative bg-white border-2 border-gray-200 rounded-lg p-4 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer">
+    <div className="group relative bg-white border-2 border-stone-200 rounded-lg p-4 hover:border-brand-400 hover:shadow-lg transition-all cursor-pointer">
       {/* Image Placeholder */}
-      <div className="aspect-square bg-gray-100 rounded-lg mb-3 overflow-hidden flex items-center justify-center">
+      <div className="aspect-square bg-stone-100 rounded-lg mb-3 overflow-hidden flex items-center justify-center">
         {product.image_url ? (
           <img
             src={product.image_url}
@@ -499,21 +514,21 @@ function ProductCardGrid({
             className="w-full h-full object-cover"
           />
         ) : (
-          <Package className="w-12 h-12 text-gray-300" />
+          <Package className="w-12 h-12 text-stone-300" />
         )}
       </div>
 
       {/* Code */}
-      <p className="text-xs font-mono text-gray-500 mb-1">{product.code}</p>
+      <p className="text-xs font-mono text-stone-500 mb-1">{product.code}</p>
 
       {/* Name/Type */}
-      <p className="font-semibold text-gray-900 text-sm mb-2 truncate" title={product.name || garmentTypeName}>
+      <p className="font-semibold text-stone-900 text-sm mb-2 truncate" title={product.name || garmentTypeName}>
         {product.name || garmentTypeName}
       </p>
 
       {/* Attributes */}
       <div className="flex flex-wrap gap-1 mb-2">
-        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">
+        <span className="px-2 py-0.5 bg-brand-100 text-brand-700 text-xs rounded-full">
           Talla: {product.size}
         </span>
         {product.color && (
@@ -549,7 +564,7 @@ function ProductCardGrid({
       </div>
 
       {/* Hover overlay with quantity selector */}
-      <div className="absolute inset-0 bg-blue-600 bg-opacity-95 rounded-lg p-4 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="absolute inset-0 bg-brand-500 bg-opacity-95 rounded-lg p-4 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
         <label htmlFor={`qty-${product.id}`} className="text-white text-sm mb-2">Cantidad:</label>
         <input
           id={`qty-${product.id}`}
@@ -566,7 +581,7 @@ function ProductCardGrid({
             e.stopPropagation();
             onSelect(product);
           }}
-          className="w-full px-4 py-2 bg-white text-blue-600 rounded-lg font-medium hover:bg-gray-100 flex items-center justify-center gap-2"
+          className="w-full px-4 py-2 bg-white text-brand-600 rounded-lg font-medium hover:bg-stone-100 flex items-center justify-center gap-2"
         >
           <Plus className="w-4 h-4" />
           Agregar
@@ -585,17 +600,17 @@ function ProductCardList({
   onSelect,
   isGlobal: _isGlobal,
 }: ProductCardProps) {
-  const stock = product.stock ?? product.inventory_quantity ?? 0;
+  const stock = availableStockOf(product);
   const minStock = (product as any).min_stock ?? (product as any).inventory_min_stock ?? 5;
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-4 hover:border-blue-400 hover:shadow-md transition-all flex items-center gap-4">
+    <div className="bg-white border border-stone-200 rounded-lg p-4 hover:border-brand-400 hover:shadow-md transition-all flex items-center gap-4">
       {/* Image Placeholder */}
-      <div className="w-16 h-16 bg-gray-100 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden">
+      <div className="w-16 h-16 bg-stone-100 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden">
         {product.image_url ? (
           <img src={product.image_url} alt={product.code} className="w-full h-full object-cover" />
         ) : (
-          <Package className="w-8 h-8 text-gray-300" />
+          <Package className="w-8 h-8 text-stone-300" />
         )}
       </div>
 
@@ -603,11 +618,11 @@ function ProductCardList({
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
-            <p className="text-xs font-mono text-gray-500">{product.code}</p>
-            <p className="font-semibold text-gray-900 truncate">{product.name || garmentTypeName}</p>
+            <p className="text-xs font-mono text-stone-500">{product.code}</p>
+            <p className="font-semibold text-stone-900 truncate">{product.name || garmentTypeName}</p>
             <div className="flex flex-wrap gap-2 mt-1">
-              <span className="text-xs text-gray-600">Talla: {product.size}</span>
-              {product.color && <span className="text-xs text-gray-600">• {product.color}</span>}
+              <span className="text-xs text-stone-600">Talla: {product.size}</span>
+              {product.color && <span className="text-xs text-stone-600">• {product.color}</span>}
             </div>
           </div>
 
@@ -643,11 +658,11 @@ function ProductCardList({
           min="1"
           value={quantity}
           onChange={e => onSetQuantity(product.id, parseInt(e.target.value) || 1)}
-          className="w-16 px-2 py-1 text-center border border-gray-300 rounded"
+          className="w-16 px-2 py-1 text-center border border-stone-200 rounded"
         />
         <button
           onClick={() => onSelect(product)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
+          className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
           Agregar

@@ -10,6 +10,7 @@ from calendar import monthrange
 from dateutil.relativedelta import relativedelta
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.utils.timezone import get_colombia_date
 from app.models.fixed_expense import (
@@ -85,7 +86,7 @@ class FixedExpenseService:
             # Common fields
             auto_generate=data.auto_generate,
             next_generation_date=next_date,
-            vendor=data.vendor,
+            vendor_id=data.vendor_id,
             created_by=created_by
         )
         self.db.add(fixed_expense)
@@ -96,7 +97,9 @@ class FixedExpenseService:
     async def get(self, fixed_expense_id: UUID) -> FixedExpense | None:
         """Get a fixed expense by ID"""
         result = await self.db.execute(
-            select(FixedExpense).where(FixedExpense.id == fixed_expense_id)
+            select(FixedExpense)
+            .options(selectinload(FixedExpense.vendor))
+            .where(FixedExpense.id == fixed_expense_id)
         )
         return result.scalar_one_or_none()
 
@@ -108,7 +111,7 @@ class FixedExpenseService:
         category: ExpenseCategory | None = None
     ) -> list[FixedExpense]:
         """Get multiple fixed expenses with optional filters"""
-        query = select(FixedExpense)
+        query = select(FixedExpense).options(selectinload(FixedExpense.vendor))
 
         if is_active is not None:
             query = query.where(FixedExpense.is_active == is_active)
@@ -263,7 +266,7 @@ class FixedExpenseService:
                 amount=amount,
                 expense_date=target_date,
                 due_date=due_date,
-                vendor=fe.vendor,
+                vendor_id=fe.vendor_id,
                 is_recurring=True,
                 recurring_period=recurring_period,
                 fixed_expense_id=fe.id,
@@ -334,7 +337,7 @@ class FixedExpenseService:
             amount=final_amount,
             expense_date=target_date,
             due_date=due_date,
-            vendor=fe.vendor,
+            vendor_id=fe.vendor_id,
             is_recurring=True,
             recurring_period=fe.frequency.value,
             fixed_expense_id=fe.id,

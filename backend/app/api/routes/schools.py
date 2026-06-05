@@ -8,7 +8,12 @@ from pathlib import Path
 from uuid import UUID
 from fastapi import APIRouter, HTTPException, status, Query, UploadFile, File
 
-from app.api.dependencies import DatabaseSession, CurrentSuperuser
+from sqlalchemy import select, func
+
+from app.api.dependencies import DatabaseSession, CurrentSuperuser, CurrentUser
+from app.api.error_responses import responses, AUTHENTICATED
+from app.schemas.base import PaginatedResponse, paginate
+from app.models.school import School
 
 # Constants for logo uploads
 ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
@@ -29,7 +34,8 @@ from app.services.school import SchoolService
 router = APIRouter(prefix="/schools", tags=["Schools"])
 
 
-@router.post("", response_model=SchoolResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=SchoolResponse, status_code=status.HTTP_201_CREATED, responses=responses(400),
+    operation_id="createSchool")
 async def create_school(
     school_data: SchoolCreate,
     db: DatabaseSession,
@@ -52,7 +58,8 @@ async def create_school(
         )
 
 
-@router.get("", response_model=list[SchoolListResponse])
+@router.get("", response_model=PaginatedResponse[SchoolListResponse],
+    operation_id="listSchools")
 async def list_schools(
     db: DatabaseSession,
     skip: int = Query(0, ge=0),
@@ -60,34 +67,52 @@ async def list_schools(
     active_only: bool = Query(True)
 ):
     """
-    List all schools with pagination
+    List all schools with pagination.
+
+    **Auth:** None (public — used by web portal for school selection)
+
+    Returns only school name, slug, logo, and active status.
+    Sensitive fields (email, phone, address) are excluded from the list response.
     """
     from app.utils.cache import cache_get, cache_set, TTL_MEDIUM
 
-    cache_key = f"schools:list:{skip}:{limit}:{active_only}"
+    cache_key = f"schools:list:v2:{skip}:{limit}:{active_only}"
     cached = await cache_get(cache_key)
     if cached is not None:
         return cached
 
     school_service = SchoolService(db)
 
+    count_stmt = select(func.count(School.id))
+    if active_only:
+        count_stmt = count_stmt.where(School.is_active == True)
+    total = (await db.execute(count_stmt)).scalar_one()
+
     if active_only:
         schools = await school_service.get_active_schools(skip=skip, limit=limit)
     else:
         schools = await school_service.get_multi(skip=skip, limit=limit)
 
-    result = [SchoolListResponse.model_validate(s).model_dump() for s in schools]
+    result = paginate(
+        [SchoolListResponse.model_validate(s).model_dump() for s in schools],
+        total, skip, limit,
+    )
     await cache_set(cache_key, result, TTL_MEDIUM)
     return result
 
 
-@router.get("/{school_id}", response_model=SchoolResponse)
+@router.get("/{school_id}", response_model=SchoolResponse,
+    operation_id="getSchool")
 async def get_school(
     school_id: UUID,
     db: DatabaseSession
 ):
     """
-    Get school by ID
+    Get school by ID.
+
+    **Auth:** None (public — used by web portal for catalog display)
+
+    Exposes school profile data needed for the web ordering portal.
     """
     school_service = SchoolService(db)
     school = await school_service.get(school_id)
@@ -101,13 +126,20 @@ async def get_school(
     return SchoolResponse.model_validate(school)
 
 
-@router.get("/{school_id}/summary", response_model=SchoolSummary)
+@router.get("/{school_id}/summary", response_model=SchoolSummary,
+    operation_id="getSchoolSummary")
 async def get_school_summary(
     school_id: UUID,
-    db: DatabaseSession
+    db: DatabaseSession,
+    current_user: CurrentUser,
 ):
     """
-    Get school with statistics
+    Get school with statistics (sales count, orders, clients).
+
+    **Auth:** Bearer JWT (staff)
+
+    Exposes business metrics — requires authentication to prevent
+    competitive intelligence exposure.
     """
     school_service = SchoolService(db)
     summary = await school_service.get_school_summary(school_id)
@@ -121,7 +153,8 @@ async def get_school_summary(
     return summary
 
 
-@router.get("/slug/{slug}", response_model=SchoolResponse)
+@router.get("/slug/{slug}", response_model=SchoolResponse,
+    operation_id="getSchoolBySlug")
 async def get_school_by_slug(
     slug: str,
     db: DatabaseSession
@@ -142,7 +175,8 @@ async def get_school_by_slug(
     return SchoolResponse.model_validate(school)
 
 
-@router.put("/{school_id}", response_model=SchoolResponse)
+@router.put("/{school_id}", response_model=SchoolResponse, responses=responses(404),
+    operation_id="updateSchool")
 async def update_school(
     school_id: UUID,
     school_data: SchoolUpdate,
@@ -165,7 +199,8 @@ async def update_school(
     return SchoolResponse.model_validate(school)
 
 
-@router.delete("/{school_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{school_id}", status_code=status.HTTP_204_NO_CONTENT, responses=responses(404),
+    operation_id="deleteSchool")
 async def delete_school(
     school_id: UUID,
     db: DatabaseSession,
@@ -186,7 +221,8 @@ async def delete_school(
     await db.commit()
 
 
-@router.post("/{school_id}/activate", response_model=SchoolResponse)
+@router.post("/{school_id}/activate", response_model=SchoolResponse, responses=responses(404),
+    operation_id="activateSchool")
 async def activate_school(
     school_id: UUID,
     db: DatabaseSession,
@@ -208,22 +244,33 @@ async def activate_school(
     return SchoolResponse.model_validate(school)
 
 
-@router.get("/search/by-name", response_model=list[SchoolListResponse])
+@router.get("/search/by-name", response_model=PaginatedResponse[SchoolListResponse],
+    operation_id="searchSchools")
 async def search_schools_by_name(
     name: str = Query(..., min_length=1),
     db: DatabaseSession = None,
+    skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=50)
 ):
     """
     Search schools by name (partial match)
     """
+    count_stmt = select(func.count(School.id)).where(
+        School.name.ilike(f"%{name}%")
+    )
+    total = (await db.execute(count_stmt)).scalar_one()
+
     school_service = SchoolService(db)
-    schools = await school_service.search_by_name(name, limit=limit)
+    schools = await school_service.search_by_name(name, limit=skip + limit)
 
-    return [SchoolListResponse.model_validate(s) for s in schools]
+    return paginate(
+        [SchoolListResponse.model_validate(s) for s in schools[skip:]],
+        total, skip, limit,
+    )
 
 
-@router.put("/reorder", response_model=list[SchoolListResponse])
+@router.put("/reorder", response_model=list[SchoolListResponse], responses=AUTHENTICATED,
+    operation_id="reorderSchools")
 async def reorder_schools(
     reorder_data: SchoolReorderRequest,
     db: DatabaseSession,
@@ -248,7 +295,8 @@ async def reorder_schools(
     return [SchoolListResponse.model_validate(s) for s in schools]
 
 
-@router.post("/{school_id}/logo", response_model=SchoolResponse)
+@router.post("/{school_id}/logo", response_model=SchoolResponse, responses=responses(400, 404),
+    operation_id="uploadSchoolLogo")
 async def upload_school_logo(
     school_id: UUID,
     db: DatabaseSession,
@@ -318,7 +366,8 @@ async def upload_school_logo(
     return SchoolResponse.model_validate(school)
 
 
-@router.delete("/{school_id}/logo", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{school_id}/logo", status_code=status.HTTP_204_NO_CONTENT, responses=responses(404),
+    operation_id="deleteSchoolLogo")
 async def delete_school_logo(
     school_id: UUID,
     db: DatabaseSession,

@@ -413,7 +413,7 @@ clientes.xlsx:
 
 **Documentación disponible:**
 - [PHASE1_RESULTS.md](PHASE1_RESULTS.md) - Resultados Fase 1
-- [DEPLOYMENT_ARCHITECTURE.md](DEPLOYMENT_ARCHITECTURE.md) - Roadmap completo
+- [deployment/infrastructure-architecture.md](../deployment/infrastructure-architecture.md) - Roadmap completo
 - [DATABASE.md](DATABASE.md) - Estructura de base de datos
 - [CLAUDE.md](../CLAUDE.md) - Contexto del proyecto
 

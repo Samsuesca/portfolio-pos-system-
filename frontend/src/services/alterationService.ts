@@ -13,8 +13,11 @@ import type {
   AlterationPaymentCreate,
   AlterationPayment,
   AlterationsSummary,
+  AlterationsResponseTime,
+  AlterationsTopType,
   AlterationStatus,
-  AlterationType
+  AlterationType,
+  PaginatedResponse
 } from '../types/api';
 
 const BASE_URL = '/global/alterations';
@@ -28,13 +31,14 @@ export interface AlterationFilters {
   start_date?: string;
   end_date?: string;
   is_paid?: boolean;
+  client_id?: string;
 }
 
 export const alterationService = {
   /**
    * List alterations with optional filters
    */
-  async getAll(filters?: AlterationFilters): Promise<AlterationListItem[]> {
+  async getAll(filters?: AlterationFilters): Promise<PaginatedResponse<AlterationListItem>> {
     const params = new URLSearchParams();
 
     if (filters?.skip !== undefined) params.append('skip', String(filters.skip));
@@ -45,17 +49,76 @@ export const alterationService = {
     if (filters?.start_date) params.append('start_date', filters.start_date);
     if (filters?.end_date) params.append('end_date', filters.end_date);
     if (filters?.is_paid !== undefined) params.append('is_paid', String(filters.is_paid));
+    if (filters?.client_id) params.append('client_id', filters.client_id);
 
     const url = params.toString() ? `${BASE_URL}?${params.toString()}` : BASE_URL;
-    const response = await apiClient.get<AlterationListItem[]>(url);
+    const response = await apiClient.get<PaginatedResponse<AlterationListItem>>(url);
     return response.data;
   },
 
   /**
-   * Get summary statistics for dashboard
+   * Get summary statistics.
+   *
+   * @param filters Optional date window. When omitted, hits the legacy
+   *   `/global/alterations/summary` (all-time totals — the dashboard widget
+   *   depends on this exact behavior). When provided, hits the Reports
+   *   endpoint `/global/reports/alterations/summary` which also populates
+   *   `received_in_period`, `delivered_in_period`, `revenue_in_period`.
    */
-  async getSummary(): Promise<AlterationsSummary> {
+  async getSummary(filters?: {
+    start_date?: string;
+    end_date?: string;
+  }): Promise<AlterationsSummary> {
+    if (filters?.start_date || filters?.end_date) {
+      const params = new URLSearchParams();
+      if (filters.start_date) params.append('start_date', filters.start_date);
+      if (filters.end_date) params.append('end_date', filters.end_date);
+      const response = await apiClient.get<AlterationsSummary>(
+        `/global/reports/alterations/summary?${params.toString()}`
+      );
+      return response.data;
+    }
     const response = await apiClient.get<AlterationsSummary>(`${BASE_URL}/summary`);
+    return response.data;
+  },
+
+  /**
+   * Operational KPIs for the Arreglos tab.
+   * Reports avg/median production turnaround + overdue pickup.
+   */
+  async getResponseTimeStats(filters?: {
+    start_date?: string;
+    end_date?: string;
+    overdue_pickup_threshold_days?: number;
+  }): Promise<AlterationsResponseTime> {
+    const params = new URLSearchParams();
+    if (filters?.start_date) params.append('start_date', filters.start_date);
+    if (filters?.end_date) params.append('end_date', filters.end_date);
+    if (filters?.overdue_pickup_threshold_days !== undefined) {
+      params.append('overdue_pickup_threshold_days', String(filters.overdue_pickup_threshold_days));
+    }
+    const url = params.toString()
+      ? `/global/reports/alterations/response-time?${params.toString()}`
+      : '/global/reports/alterations/response-time';
+    const response = await apiClient.get<AlterationsResponseTime>(url);
+    return response.data;
+  },
+
+  /**
+   * Top alteration types by volume in the period.
+   */
+  async getTopTypes(filters?: {
+    start_date?: string;
+    end_date?: string;
+    limit?: number;
+  }): Promise<AlterationsTopType[]> {
+    const params = new URLSearchParams();
+    if (filters?.start_date) params.append('start_date', filters.start_date);
+    if (filters?.end_date) params.append('end_date', filters.end_date);
+    params.append('limit', String(filters?.limit ?? 5));
+    const response = await apiClient.get<AlterationsTopType[]>(
+      `/global/reports/alterations/top-types?${params.toString()}`
+    );
     return response.data;
   },
 

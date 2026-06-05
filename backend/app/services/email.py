@@ -412,7 +412,7 @@ def send_order_confirmation_email(
     Args:
         email: Client email address
         name: Client name
-        order_code: Order code (e.g., ENC-2026-0001)
+        order_code: Order code (e.g., CARACAS-001-ENC-2026-0001)
         html_content: Pre-generated HTML content from ReceiptService
         order_id: Order UUID for logging
         client_id: Client UUID for logging
@@ -489,7 +489,7 @@ def send_sale_confirmation_email(
     Args:
         email: Client email address
         name: Client name
-        sale_code: Sale code (e.g., VNT-2026-0001)
+        sale_code: Sale code (e.g., CARACAS-001-VNT-2026-0001)
         html_content: Pre-generated HTML content from ReceiptService
         sale_id: Sale UUID for logging
         client_id: Client UUID for logging
@@ -674,7 +674,7 @@ def send_order_ready_email(
     Args:
         email: Client email address
         name: Client name
-        order_code: Order code (e.g., ENC-2026-0001)
+        order_code: Order code (e.g., CARACAS-001-ENC-2026-0001)
         school_name: School name for context (optional)
         order_id: Order UUID for logging
         client_id: Client UUID for logging
@@ -1144,7 +1144,7 @@ def send_order_status_update_email(
     Args:
         email: Client email address
         name: Client name
-        order_code: Order code (e.g., ENC-2026-0001)
+        order_code: Order code (e.g., CARACAS-001-ENC-2026-0001)
         school_name: School name for context
         items_summary: List of dicts with {garment_name, size, quantity, status_label, status_key}
         order_status_label: Human-readable order status

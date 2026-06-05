@@ -4,7 +4,8 @@
  * GLOBAL module - operates business-wide like accounting.
  * Base URL: /api/v1/global/alterations
  */
-import apiClient, { PaymentMethod } from '../api';
+import apiClient, { PaymentMethod, PaginatedResponse } from '../api';
+import { unwrapPaginated } from '../utils/pagination';
 
 const BASE_URL = '/global/alterations';
 
@@ -58,9 +59,7 @@ export const ALTERATION_STATUS_COLORS: Record<AlterationStatus, string> = {
 export interface Alteration {
   id: string;
   code: string;
-  client_id: string | null;
-  external_client_name: string | null;
-  external_client_phone: string | null;
+  client_id: string;
   alteration_type: AlterationType;
   garment_name: string;
   description: string;
@@ -111,9 +110,7 @@ export interface AlterationWithPayments extends Alteration {
 }
 
 export interface AlterationCreate {
-  client_id?: string;
-  external_client_name?: string;
-  external_client_phone?: string;
+  client_id: string;
   alteration_type: AlterationType;
   garment_name: string;
   description: string;
@@ -235,8 +232,8 @@ const alterationService = {
 
   // Get payment history for an alteration
   getPayments: async (id: string): Promise<AlterationPayment[]> => {
-    const response = await apiClient.get<AlterationPayment[]>(`${BASE_URL}/${id}/payments`);
-    return response.data;
+    const response = await apiClient.get<AlterationPayment[] | PaginatedResponse<AlterationPayment>>(`${BASE_URL}/${id}/payments`);
+    return unwrapPaginated(response.data).items;
   },
 
   // Cancel an alteration (only if no payments recorded)

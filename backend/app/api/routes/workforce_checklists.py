@@ -6,6 +6,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 
 from app.api.dependencies import DatabaseSession, CurrentUser, require_global_permission
+from app.api.error_responses import responses, AUTHENTICATED
 from app.services.workforce.checklists import checklist_service
 from app.schemas.workforce import (
     ChecklistTemplateCreate,
@@ -19,6 +20,7 @@ from app.schemas.workforce import (
     DailyChecklistItemResponse,
     ChecklistVerifyRequest,
 )
+from app.schemas.base import PaginatedResponse, paginate
 
 router = APIRouter(prefix="/global/workforce", tags=["Workforce - Checklists"])
 
@@ -31,6 +33,8 @@ router = APIRouter(prefix="/global/workforce", tags=["Workforce - Checklists"])
     "/checklist-templates",
     response_model=list[ChecklistTemplateResponse],
     dependencies=[Depends(require_global_permission("workforce.view_checklists"))],
+    responses=AUTHENTICATED,
+    operation_id="listChecklistTemplates",
 )
 async def list_checklist_templates(
     db: DatabaseSession,
@@ -40,7 +44,12 @@ async def list_checklist_templates(
     employee_id: UUID | None = Query(None, description="Filter by specific employee (for individual assignments)"),
     is_active: bool | None = Query(None),
 ):
-    """List checklist templates"""
+    """
+    List checklist templates with optional position, assignment, and status filters.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.view_checklists` (global)
+    """
     templates = await checklist_service.get_templates(
         db, position=position, assignment_type=assignment_type,
         employee_id=employee_id, is_active=is_active
@@ -53,13 +62,20 @@ async def list_checklist_templates(
     response_model=ChecklistTemplateResponse,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_global_permission("workforce.manage_checklists"))],
+    responses=AUTHENTICATED,
+    operation_id="createChecklistTemplate",
 )
 async def create_checklist_template(
     data: ChecklistTemplateCreate,
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Create a checklist template with items"""
+    """
+    Create a checklist template with its items.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.manage_checklists` (global)
+    """
     return await checklist_service.create_template(
         db, data, created_by=current_user.id
     )
@@ -69,13 +85,20 @@ async def create_checklist_template(
     "/checklist-templates/{template_id}",
     response_model=ChecklistTemplateResponse,
     dependencies=[Depends(require_global_permission("workforce.view_checklists"))],
+    responses=responses(404),
+    operation_id="getChecklistTemplate",
 )
 async def get_checklist_template(
     template_id: UUID,
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Get a checklist template with its items"""
+    """
+    Get a checklist template with its items.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.view_checklists` (global)
+    """
     template = await checklist_service.get_template(db, template_id)
     if not template:
         raise HTTPException(
@@ -89,6 +112,8 @@ async def get_checklist_template(
     "/checklist-templates/{template_id}",
     response_model=ChecklistTemplateResponse,
     dependencies=[Depends(require_global_permission("workforce.manage_checklists"))],
+    responses=responses(404),
+    operation_id="updateChecklistTemplate",
 )
 async def update_checklist_template(
     template_id: UUID,
@@ -96,7 +121,12 @@ async def update_checklist_template(
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Update a checklist template"""
+    """
+    Update a checklist template.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.manage_checklists` (global)
+    """
     try:
         return await checklist_service.update_template(db, template_id, data)
     except ValueError as e:
@@ -112,6 +142,8 @@ async def update_checklist_template(
     response_model=ChecklistTemplateItemResponse,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_global_permission("workforce.manage_checklists"))],
+    responses=responses(404),
+    operation_id="addChecklistTemplateItem",
 )
 async def add_template_item(
     template_id: UUID,
@@ -119,7 +151,12 @@ async def add_template_item(
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Add an item to a checklist template"""
+    """
+    Add an item to a checklist template.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.manage_checklists` (global)
+    """
     try:
         return await checklist_service.add_template_item(db, template_id, data)
     except ValueError as e:
@@ -130,6 +167,8 @@ async def add_template_item(
     "/checklist-templates/items/{item_id}",
     response_model=ChecklistTemplateItemResponse,
     dependencies=[Depends(require_global_permission("workforce.manage_checklists"))],
+    responses=responses(404),
+    operation_id="updateChecklistTemplateItem",
 )
 async def update_template_item(
     item_id: UUID,
@@ -137,7 +176,12 @@ async def update_template_item(
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Update a checklist template item"""
+    """
+    Update a checklist template item.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.manage_checklists` (global)
+    """
     try:
         return await checklist_service.update_template_item(db, item_id, data)
     except ValueError as e:
@@ -148,13 +192,20 @@ async def update_template_item(
     "/checklist-templates/items/{item_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(require_global_permission("workforce.manage_checklists"))],
+    responses=responses(404),
+    operation_id="deleteChecklistTemplateItem",
 )
 async def delete_template_item(
     item_id: UUID,
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Delete a checklist template item"""
+    """
+    Delete a checklist template item.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.manage_checklists` (global)
+    """
     if not await checklist_service.delete_template_item(db, item_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -168,20 +219,31 @@ async def delete_template_item(
 
 @router.get(
     "/checklists",
-    response_model=list[DailyChecklistResponse],
+    response_model=PaginatedResponse[DailyChecklistResponse],
     dependencies=[Depends(require_global_permission("workforce.view_checklists"))],
+    responses=AUTHENTICATED,
+    operation_id="listDailyChecklists",
 )
 async def list_daily_checklists(
     db: DatabaseSession,
     current_user: CurrentUser,
     checklist_date: date | None = Query(None),
     employee_id: UUID | None = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
 ):
-    """List daily checklists"""
+    """
+    List daily checklists with optional date and employee filters.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.view_checklists` (global)
+    """
     checklists = await checklist_service.get_checklists(
         db, checklist_date=checklist_date, employee_id=employee_id
     )
-    return [_checklist_to_response(c) for c in checklists]
+    total = len(checklists)
+    items = [_checklist_to_response(c) for c in checklists[skip:skip + limit]]
+    return PaginatedResponse[DailyChecklistResponse](**paginate(items, total, skip, limit))
 
 
 @router.post(
@@ -189,13 +251,20 @@ async def list_daily_checklists(
     response_model=list[DailyChecklistResponse],
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_global_permission("workforce.manage_checklists"))],
+    responses=AUTHENTICATED,
+    operation_id="generateDailyChecklists",
 )
 async def generate_daily_checklists(
     db: DatabaseSession,
     current_user: CurrentUser,
     target_date: date | None = Query(None),
 ):
-    """Generate daily checklists for all employees from templates"""
+    """
+    Generate daily checklists for all employees from active templates.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.manage_checklists` (global)
+    """
     checklists = await checklist_service.generate_daily_checklists(db, target_date)
     return [_checklist_to_response(c) for c in checklists]
 
@@ -204,13 +273,20 @@ async def generate_daily_checklists(
     "/checklists/{checklist_id}",
     response_model=DailyChecklistResponse,
     dependencies=[Depends(require_global_permission("workforce.view_checklists"))],
+    responses=responses(404),
+    operation_id="getDailyChecklist",
 )
 async def get_daily_checklist(
     checklist_id: UUID,
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Get a daily checklist with items"""
+    """
+    Get a daily checklist with its items.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.view_checklists` (global)
+    """
     checklist = await checklist_service.get_checklist(db, checklist_id)
     if not checklist:
         raise HTTPException(
@@ -224,6 +300,8 @@ async def get_daily_checklist(
     "/checklists/items/{item_id}",
     response_model=DailyChecklistItemResponse,
     dependencies=[Depends(require_global_permission("workforce.manage_checklists"))],
+    responses=responses(404),
+    operation_id="updateChecklistItemStatus",
 )
 async def update_checklist_item_status(
     item_id: UUID,
@@ -231,7 +309,12 @@ async def update_checklist_item_status(
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Update the status of a checklist item (mark completed/skipped)"""
+    """
+    Update the status of a checklist item (mark completed or skipped).
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.manage_checklists` (global)
+    """
     try:
         return await checklist_service.update_item_status(
             db, item_id, data, completed_by=current_user.id
@@ -244,6 +327,8 @@ async def update_checklist_item_status(
     "/checklists/{checklist_id}/verify",
     response_model=DailyChecklistResponse,
     dependencies=[Depends(require_global_permission("workforce.manage_checklists"))],
+    responses=responses(404),
+    operation_id="verifyChecklist",
 )
 async def verify_checklist(
     checklist_id: UUID,
@@ -251,7 +336,12 @@ async def verify_checklist(
     current_user: CurrentUser,
     data: ChecklistVerifyRequest | None = None,
 ):
-    """Mark a daily checklist as verified by supervisor"""
+    """
+    Mark a daily checklist as verified by supervisor.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.manage_checklists` (global)
+    """
     try:
         checklist = await checklist_service.verify_checklist(
             db,

@@ -3,21 +3,29 @@
  * Manages its own form state, loading, and error display.
  */
 import React, { useState, useEffect } from 'react';
-import { X, Loader2, Link2, Link2Off } from 'lucide-react';
+import { X, Loader2, Link2, Link2Off, Plus, Trash2 } from 'lucide-react';
 import CurrencyInput from '../../components/CurrencyInput';
-import { getColombiaDateString } from '../../utils/formatting';
+import { getColombiaDateString, formatCurrency } from '../../utils/formatting';
 import {
   createEmployee,
   updateEmployee,
   getEmployee,
+  getEmployeeBonuses,
+  createEmployeeBonus,
+  deleteEmployeeBonus,
+  getBonusTypeLabel,
   type EmployeeCreate,
   type EmployeeUpdate,
   type EmployeeResponse,
   type EmployeeListItem,
+  type EmployeeBonusResponse,
+  type EmployeeBonusCreate,
+  type BonusType,
   type PaymentFrequency,
 } from '../../services/employeeService';
 import { userService, type User } from '../../services/userService';
-import { getErrorMessage, type EmployeeFormData } from './types';
+import { catalogService, type Position } from '../../services/catalogService';
+import { getErrorMessage, type EmployeeFormData, type BonusFormData } from './types';
 
 interface PayrollEmployeeModalProps {
   isOpen: boolean;
@@ -44,6 +52,14 @@ const INITIAL_FORM: EmployeeFormData = {
   user_id: undefined,
 };
 
+const INITIAL_BONUS_FORM: BonusFormData = {
+  name: '',
+  bonus_type: 'fixed',
+  amount: 0,
+  is_recurring: true,
+  start_date: getColombiaDateString(),
+};
+
 const PayrollEmployeeModal: React.FC<PayrollEmployeeModalProps> = ({
   isOpen,
   onClose,
@@ -53,10 +69,17 @@ const PayrollEmployeeModal: React.FC<PayrollEmployeeModalProps> = ({
   const [form, setForm] = useState<EmployeeFormData>({ ...INITIAL_FORM });
   const [editingEmployee, setEditingEmployee] = useState<EmployeeResponse | null>(null);
   const [availableUsers, setAvailableUsers] = useState<User[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Bonuses
+  const [bonuses, setBonuses] = useState<EmployeeBonusResponse[]>([]);
+  const [bonusForm, setBonusForm] = useState<BonusFormData>({ ...INITIAL_BONUS_FORM });
+  const [bonusSubmitting, setBonusSubmitting] = useState(false);
+  const [bonusesDirty, setBonusesDirty] = useState(false);
 
   // Load data when modal opens
   useEffect(() => {
@@ -67,8 +90,13 @@ const PayrollEmployeeModal: React.FC<PayrollEmployeeModalProps> = ({
     const loadUsers = async () => {
       try {
         setLoadingUsers(true);
-        const users = await userService.getUsers();
-        setAvailableUsers(users.filter(u => u.is_active));
+        const usersResult = await userService.getUsers({ is_active: true, limit: 100 });
+        setAvailableUsers(usersResult.items);
+        if (usersResult.total > usersResult.items.length) {
+          console.warn(
+            `Hay ${usersResult.total} usuarios activos pero el modal cargó ${usersResult.items.length}.`
+          );
+        }
       } catch (err) {
         console.error('Error loading users:', err);
       } finally {
@@ -76,13 +104,30 @@ const PayrollEmployeeModal: React.FC<PayrollEmployeeModalProps> = ({
       }
     };
 
+    const loadPositions = async () => {
+      try {
+        const data = await catalogService.getPositions();
+        setPositions(data);
+      } catch {
+        // Fallback: positions dropdown will be empty, user can still type
+      }
+    };
+    loadPositions();
+
+    setBonusForm({ ...INITIAL_BONUS_FORM, start_date: getColombiaDateString() });
+    setBonusesDirty(false);
+
     if (editTarget) {
-      // Load full employee data for editing
+      // Load full employee data + bonuses for editing
       const loadEmployee = async () => {
         try {
           setLoading(true);
-          const fullEmployee = await getEmployee(editTarget.id);
+          const [fullEmployee, bonusesResult] = await Promise.all([
+            getEmployee(editTarget.id),
+            getEmployeeBonuses(editTarget.id),
+          ]);
           setEditingEmployee(fullEmployee);
+          setBonuses(bonusesResult.items);
           setForm({
             full_name: fullEmployee.full_name,
             document_type: fullEmployee.document_type,
@@ -108,6 +153,7 @@ const PayrollEmployeeModal: React.FC<PayrollEmployeeModalProps> = ({
       loadEmployee();
     } else {
       setEditingEmployee(null);
+      setBonuses([]);
       setForm({ ...INITIAL_FORM, hire_date: getColombiaDateString() });
     }
 
@@ -117,8 +163,48 @@ const PayrollEmployeeModal: React.FC<PayrollEmployeeModalProps> = ({
   const handleClose = () => {
     setForm({ ...INITIAL_FORM });
     setEditingEmployee(null);
+    setBonuses([]);
+    setBonusForm({ ...INITIAL_BONUS_FORM });
     setError(null);
+    // If bonuses changed but no employee field was saved, still notify parent so totals refresh
+    if (bonusesDirty) {
+      onSaved();
+    }
+    setBonusesDirty(false);
     onClose();
+  };
+
+  const handleCreateBonus = async () => {
+    if (!editingEmployee || !bonusForm.name || !bonusForm.amount) return;
+    try {
+      setBonusSubmitting(true);
+      setError(null);
+      await createEmployeeBonus(editingEmployee.id, bonusForm as EmployeeBonusCreate);
+      const updatedResult = await getEmployeeBonuses(editingEmployee.id);
+      setBonuses(updatedResult.items);
+      setBonusForm({ ...INITIAL_BONUS_FORM, start_date: getColombiaDateString() });
+      setBonusesDirty(true);
+    } catch (err: any) {
+      console.error('Error creating bonus:', err);
+      setError(getErrorMessage(err, 'Error al crear bono'));
+    } finally {
+      setBonusSubmitting(false);
+    }
+  };
+
+  const handleDeleteBonus = async (bonusId: string) => {
+    if (!editingEmployee) return;
+    if (!confirm('¿Eliminar este bono?')) return;
+    try {
+      setError(null);
+      await deleteEmployeeBonus(bonusId);
+      const updatedResult = await getEmployeeBonuses(editingEmployee.id);
+      setBonuses(updatedResult.items);
+      setBonusesDirty(true);
+    } catch (err: any) {
+      console.error('Error deleting bonus:', err);
+      setError(getErrorMessage(err, 'Error al eliminar bono'));
+    }
   };
 
   const handleSubmit = async () => {
@@ -165,8 +251,8 @@ const PayrollEmployeeModal: React.FC<PayrollEmployeeModalProps> = ({
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
         <div className="bg-white rounded-xl shadow-xl p-8">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto" />
-          <p className="mt-3 text-gray-600">Cargando empleado...</p>
+          <Loader2 className="w-8 h-8 animate-spin text-brand-600 mx-auto" />
+          <p className="mt-3 text-stone-600">Cargando empleado...</p>
         </div>
       </div>
     );
@@ -179,7 +265,7 @@ const PayrollEmployeeModal: React.FC<PayrollEmployeeModalProps> = ({
           <h3 className="text-lg font-semibold">
             {editingEmployee ? 'Editar Empleado' : 'Nuevo Empleado'}
           </h3>
-          <button onClick={handleClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={handleClose} className="text-stone-400 hover:text-stone-600">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -192,22 +278,22 @@ const PayrollEmployeeModal: React.FC<PayrollEmployeeModalProps> = ({
 
         <div className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo *</label>
+            <label className="block text-sm font-medium text-stone-700 mb-1">Nombre Completo *</label>
             <input
               type="text"
               value={form.full_name || ''}
               onChange={(e) => setForm({ ...form, full_name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tipo Doc.</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Tipo Doc.</label>
               <select
                 value={form.document_type || 'CC'}
                 onChange={(e) => setForm({ ...form, document_type: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30"
               >
                 <option value="CC">CC</option>
                 <option value="CE">CE</option>
@@ -215,30 +301,34 @@ const PayrollEmployeeModal: React.FC<PayrollEmployeeModalProps> = ({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Numero Doc. *</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Numero Doc. *</label>
               <input
                 type="text"
                 value={form.document_id || ''}
                 onChange={(e) => setForm({ ...form, document_id: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Cargo *</label>
-            <input
-              type="text"
+            <label className="block text-sm font-medium text-stone-700 mb-1">Cargo *</label>
+            <select
               value={form.position || ''}
               onChange={(e) => setForm({ ...form, position: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
+              className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30"
+            >
+              <option value="">Seleccionar cargo...</option>
+              {positions.map((pos) => (
+                <option key={pos.id} value={pos.code}>{pos.name}</option>
+              ))}
+            </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-stone-700 mb-1">
               <span className="flex items-center gap-2">
-                {form.user_id ? <Link2 className="w-4 h-4 text-green-600" /> : <Link2Off className="w-4 h-4 text-gray-400" />}
+                {form.user_id ? <Link2 className="w-4 h-4 text-green-600" /> : <Link2Off className="w-4 h-4 text-stone-400" />}
                 Usuario Vinculado
               </span>
             </label>
@@ -246,7 +336,7 @@ const PayrollEmployeeModal: React.FC<PayrollEmployeeModalProps> = ({
               value={form.user_id || ''}
               onChange={(e) => setForm({ ...form, user_id: e.target.value || undefined })}
               disabled={loadingUsers}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 disabled:bg-stone-100"
             >
               <option value="">Sin vincular (empleado sin acceso al sistema)</option>
               {availableUsers.map(user => (
@@ -256,34 +346,34 @@ const PayrollEmployeeModal: React.FC<PayrollEmployeeModalProps> = ({
                 </option>
               ))}
             </select>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-stone-500 mt-1">
               Vincular permite al empleado acceder a "Mi Perfil" y ver su informacion laboral
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Email</label>
               <input
                 type="email"
                 value={form.email || ''}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Telefono</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Telefono</label>
               <input
                 type="text"
                 value={form.phone || ''}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Salario Base *</label>
+            <label className="block text-sm font-medium text-stone-700 mb-1">Salario Base *</label>
             <CurrencyInput
               value={form.base_salary || 0}
               onChange={(value) => setForm({ ...form, base_salary: value })}
@@ -293,11 +383,11 @@ const PayrollEmployeeModal: React.FC<PayrollEmployeeModalProps> = ({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Frecuencia de Pago</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Frecuencia de Pago</label>
               <select
                 value={form.payment_frequency || 'monthly'}
                 onChange={(e) => setForm({ ...form, payment_frequency: e.target.value as PaymentFrequency })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30"
               >
                 <option value="daily">Diario</option>
                 <option value="weekly">Semanal</option>
@@ -306,11 +396,11 @@ const PayrollEmployeeModal: React.FC<PayrollEmployeeModalProps> = ({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Metodo de Pago</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Metodo de Pago</label>
               <select
                 value={form.payment_method || 'cash'}
                 onChange={(e) => setForm({ ...form, payment_method: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30"
               >
                 <option value="cash">Efectivo</option>
                 <option value="transfer">Transferencia</option>
@@ -320,10 +410,10 @@ const PayrollEmployeeModal: React.FC<PayrollEmployeeModalProps> = ({
           </div>
 
           <div className="border-t pt-4">
-            <h4 className="text-sm font-medium text-gray-700 mb-3">Deducciones Mensuales</h4>
+            <h4 className="text-sm font-medium text-stone-700 mb-3">Deducciones Mensuales</h4>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Salud</label>
+                <label className="block text-xs text-stone-500 mb-1">Salud</label>
                 <CurrencyInput
                   value={form.health_deduction || 0}
                   onChange={(value) => setForm({ ...form, health_deduction: value })}
@@ -331,7 +421,7 @@ const PayrollEmployeeModal: React.FC<PayrollEmployeeModalProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Pension</label>
+                <label className="block text-xs text-stone-500 mb-1">Pension</label>
                 <CurrencyInput
                   value={form.pension_deduction || 0}
                   onChange={(value) => setForm({ ...form, pension_deduction: value })}
@@ -339,7 +429,7 @@ const PayrollEmployeeModal: React.FC<PayrollEmployeeModalProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Otras</label>
+                <label className="block text-xs text-stone-500 mb-1">Otras</label>
                 <CurrencyInput
                   value={form.other_deductions || 0}
                   onChange={(value) => setForm({ ...form, other_deductions: value })}
@@ -348,16 +438,109 @@ const PayrollEmployeeModal: React.FC<PayrollEmployeeModalProps> = ({
               </div>
             </div>
           </div>
+
+          <div className="border-t pt-4">
+            <h4 className="text-sm font-medium text-stone-700 mb-3">
+              Bonos y Auxilios
+              {bonuses.length > 0 && (
+                <span className="ml-2 text-xs text-stone-500">({bonuses.length})</span>
+              )}
+            </h4>
+
+            {!editingEmployee ? (
+              <p className="text-xs text-stone-500 italic">
+                Guarda el empleado primero para poder agregar bonos.
+              </p>
+            ) : (
+              <>
+                {bonuses.length > 0 && (
+                  <div className="space-y-2 mb-3">
+                    {bonuses.map((bonus) => (
+                      <div
+                        key={bonus.id}
+                        className="flex items-center justify-between p-3 bg-stone-50 rounded-lg"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-stone-900 truncate">{bonus.name}</p>
+                          <p className="text-xs text-stone-500">
+                            {getBonusTypeLabel(bonus.bonus_type)} · {formatCurrency(bonus.amount)}
+                            {bonus.is_recurring && ' · Recurrente'}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteBonus(bonus.id)}
+                          className="text-red-600 hover:text-red-800 p-1 ml-2"
+                          title="Eliminar bono"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    placeholder="Nombre del bono (ej: Auxilio transporte)"
+                    value={bonusForm.name || ''}
+                    onChange={(e) => setBonusForm({ ...bonusForm, name: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={bonusForm.bonus_type || 'fixed'}
+                      onChange={(e) =>
+                        setBonusForm({ ...bonusForm, bonus_type: e.target.value as BonusType })
+                      }
+                      className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30"
+                    >
+                      <option value="fixed">Fijo</option>
+                      <option value="variable">Variable</option>
+                      <option value="one_time">Único</option>
+                    </select>
+                    <CurrencyInput
+                      value={bonusForm.amount || 0}
+                      onChange={(value) => setBonusForm({ ...bonusForm, amount: value })}
+                      className="w-full text-sm"
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 text-xs text-stone-600">
+                    <input
+                      type="checkbox"
+                      checked={bonusForm.is_recurring ?? true}
+                      onChange={(e) =>
+                        setBonusForm({ ...bonusForm, is_recurring: e.target.checked })
+                      }
+                      className="rounded border-stone-300"
+                    />
+                    Recurrente (se aplica cada periodo)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleCreateBonus}
+                    disabled={bonusSubmitting || !bonusForm.name || !bonusForm.amount}
+                    className="w-full px-4 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {bonusSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                    <Plus className="w-4 h-4" />
+                    Agregar Bono
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
-        <div className="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50 sticky bottom-0">
-          <button onClick={handleClose} className="px-4 py-2 text-gray-600 hover:text-gray-800">
+        <div className="flex justify-end gap-3 px-6 py-4 border-t bg-stone-50 sticky bottom-0">
+          <button onClick={handleClose} className="px-4 py-2 text-stone-600 hover:text-stone-800">
             Cancelar
           </button>
           <button
             onClick={handleSubmit}
             disabled={submitting || !form.full_name || !form.document_id || !form.position}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg disabled:opacity-50 flex items-center gap-2"
           >
             {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
             {editingEmployee ? 'Guardar Cambios' : 'Crear Empleado'}

@@ -61,14 +61,14 @@ function SourceBadge({ source }: { source: string | null }) {
   };
 
   const colors: Record<string, string> = {
-    'desktop_app': 'bg-blue-100 text-blue-700',
+    'desktop_app': 'bg-brand-100 text-brand-700',
     'admin_portal': 'bg-purple-100 text-purple-700',
-    'web_portal': 'bg-green-100 text-green-700',
-    'api': 'bg-gray-100 text-gray-700',
+    'web_portal': 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+    'api': 'bg-stone-100 text-stone-700',
   };
 
   const label = labels[source || ''] || source || 'Unknown';
-  const colorClass = colors[source || ''] || 'bg-gray-100 text-gray-600';
+  const colorClass = colors[source || ''] || 'bg-stone-100 text-stone-600';
 
   return (
     <span className={`text-xs px-1.5 py-0.5 rounded ${colorClass}`}>
@@ -86,7 +86,7 @@ interface QueueItemProps {
 
 function QueueItem({ item, onPrint, onSkip, isProcessing }: QueueItemProps) {
   return (
-    <div className="p-3 border-b border-gray-100 last:border-b-0 hover:bg-surface-50 transition-colors">
+    <div className="p-3 border-b border-stone-100 last:border-b-0 hover:bg-surface-50 transition-colors">
       {/* Header row */}
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex items-center gap-2">
@@ -95,14 +95,14 @@ function QueueItem({ item, onPrint, onSkip, isProcessing }: QueueItemProps) {
           </span>
           <SourceBadge source={item.source_device} />
         </div>
-        <span className="text-xs text-gray-500 flex items-center gap-1">
+        <span className="text-xs text-stone-500 flex items-center gap-1">
           <Clock className="w-3 h-3" />
           {formatTimeAgo(item.created_at)}
         </span>
       </div>
 
       {/* Info row */}
-      <div className="flex items-center gap-3 text-sm text-gray-600 mb-3">
+      <div className="flex items-center gap-3 text-sm text-stone-600 mb-3">
         {item.school_name && (
           <span className="flex items-center gap-1">
             <Store className="w-3.5 h-3.5" />
@@ -118,7 +118,7 @@ function QueueItem({ item, onPrint, onSkip, isProcessing }: QueueItemProps) {
 
       {/* Total and actions */}
       <div className="flex items-center justify-between">
-        <span className="text-lg font-bold text-gray-900 flex items-center gap-1">
+        <span className="text-lg font-bold text-stone-900 flex items-center gap-1">
           <DollarSign className="w-4 h-4 text-green-600" />
           {formatCurrency(item.sale_total)}
         </span>
@@ -127,7 +127,7 @@ function QueueItem({ item, onPrint, onSkip, isProcessing }: QueueItemProps) {
           <button
             onClick={() => onSkip(item.id)}
             disabled={isProcessing}
-            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+            className="p-2 text-stone-500 hover:text-stone-700 hover:bg-stone-100 rounded-lg transition-colors disabled:opacity-50"
             title="Omitir"
           >
             <SkipForward className="w-4 h-4" />
@@ -136,7 +136,7 @@ function QueueItem({ item, onPrint, onSkip, isProcessing }: QueueItemProps) {
           <button
             onClick={() => onPrint(item, false)}
             disabled={isProcessing}
-            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
+            className="px-3 py-1.5 text-sm bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
             title="Solo imprimir"
           >
             <Printer className="w-4 h-4" />
@@ -267,14 +267,14 @@ export function PrintQueuePanel() {
   return (
     <div
       ref={panelRef}
-      className="absolute right-0 top-full mt-2 w-96 bg-white rounded-xl shadow-xl border border-gray-200 z-50 max-h-[80vh] flex flex-col"
+      className="absolute right-0 top-full mt-2 w-96 bg-white rounded-xl shadow-xl border border-stone-200 z-50 max-h-[80vh] flex flex-col"
     >
       {/* Header */}
-      <div className="p-4 border-b border-gray-200">
+      <div className="p-4 border-b border-stone-200">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Printer className="w-5 h-5 text-primary-600" />
-            <h3 className="font-semibold text-gray-900">Cola de Impresion</h3>
+            <h3 className="font-semibold text-stone-900">Cola de Impresion</h3>
             {pendingItems.length > 0 && (
               <span className="bg-primary-100 text-primary-700 text-xs font-medium px-2 py-0.5 rounded-full">
                 {pendingItems.length}
@@ -293,9 +293,9 @@ export function PrintQueuePanel() {
             </div>
             <button
               onClick={() => setPanelOpen(false)}
-              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-1.5 hover:bg-stone-100 rounded-lg transition-colors"
             >
-              <X className="w-4 h-4 text-gray-500" />
+              <X className="w-4 h-4 text-stone-500" />
             </button>
           </div>
         </div>
@@ -307,7 +307,7 @@ export function PrintQueuePanel() {
             className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
               settings.autoMode
                 ? 'bg-primary-100 text-primary-700 border-2 border-primary-300'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border-2 border-transparent'
+                : 'bg-stone-100 text-stone-600 hover:bg-stone-200 border-2 border-transparent'
             }`}
           >
             {settings.autoMode ? <Zap className="w-4 h-4" /> : <Hand className="w-4 h-4" />}
@@ -318,8 +318,8 @@ export function PrintQueuePanel() {
             onClick={() => setSettings({ soundEnabled: !settings.soundEnabled })}
             className={`p-2 rounded-lg transition-colors ${
               settings.soundEnabled
-                ? 'bg-blue-100 text-blue-600'
-                : 'bg-gray-100 text-gray-400'
+                ? 'bg-brand-100 text-brand-600'
+                : 'bg-stone-100 text-stone-400'
             }`}
             title={settings.soundEnabled ? 'Sonido activado' : 'Sonido desactivado'}
           >
@@ -328,7 +328,7 @@ export function PrintQueuePanel() {
 
           <button
             onClick={reconnect}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-500"
+            className="p-2 hover:bg-stone-100 rounded-lg transition-colors text-stone-500"
             title="Reconectar"
           >
             <RefreshCw className="w-4 h-4" />
@@ -349,16 +349,16 @@ export function PrintQueuePanel() {
       {/* Items list */}
       <div className="flex-1 overflow-y-auto">
         {!isPrinterConfigured ? (
-          <div className="p-8 text-center text-gray-500">
-            <Printer className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+          <div className="p-8 text-center text-stone-500">
+            <Printer className="w-12 h-12 mx-auto mb-3 text-stone-300" />
             <p className="font-medium">Impresora no configurada</p>
             <p className="text-sm mt-1">
               Configura tu impresora en Ajustes para usar esta funcion.
             </p>
           </div>
         ) : pendingItems.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
-            <Printer className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+          <div className="p-8 text-center text-stone-500">
+            <Printer className="w-12 h-12 mx-auto mb-3 text-stone-300" />
             <p className="font-medium">Sin ventas pendientes</p>
             <p className="text-sm mt-1">
               Las ventas en efectivo de otros dispositivos apareceran aqui.
@@ -379,7 +379,7 @@ export function PrintQueuePanel() {
 
       {/* Footer with stats */}
       {isPrinterConfigured && pendingItems.length > 0 && (
-        <div className="p-3 border-t border-gray-200 bg-gray-50 text-xs text-gray-500 flex items-center justify-between">
+        <div className="p-3 border-t border-stone-200 bg-stone-50 text-xs text-stone-500 flex items-center justify-between">
           <span>{pendingItems.length} pendiente{pendingItems.length !== 1 ? 's' : ''}</span>
           <span>
             {settings.autoMode ? 'Modo automatico' : 'Modo manual'}

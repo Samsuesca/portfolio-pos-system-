@@ -52,12 +52,12 @@ export function AlterationsSummaryWidget({
               <div className="text-xl font-bold text-amber-800">{data.pending_count}</div>
             </div>
 
-            <div className="bg-blue-50 rounded-lg p-3">
+            <div className="bg-brand-50 rounded-lg p-3">
               <div className="flex items-center gap-2 mb-1">
-                <Package className="w-4 h-4 text-blue-600" />
-                <span className="text-xs text-blue-700 font-medium">En Proceso</span>
+                <Package className="w-4 h-4 text-brand-600" />
+                <span className="text-xs text-brand-700 font-medium">En Proceso</span>
               </div>
-              <div className="text-xl font-bold text-blue-800">{data.in_progress_count}</div>
+              <div className="text-xl font-bold text-brand-700">{data.in_progress_count}</div>
             </div>
 
             <div className="bg-green-50 rounded-lg p-3">
@@ -82,7 +82,7 @@ export function AlterationsSummaryWidget({
             <div className="text-xs text-slate-500 font-medium mb-2">Actividad de Hoy</div>
             <div className="flex justify-between text-sm">
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                <span className="w-2 h-2 rounded-full bg-brand-500"></span>
                 <span className="text-slate-600">Recibidos:</span>
                 <span className="font-medium text-slate-800">{data.today_received}</span>
               </div>
@@ -94,30 +94,35 @@ export function AlterationsSummaryWidget({
             </div>
           </div>
 
-          {/* Financial summary */}
-          <div className="border-t border-slate-100 pt-3">
-            <div className="text-xs text-slate-500 font-medium mb-2">Resumen Financiero</div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2 text-slate-600">
-                  <DollarSign className="w-4 h-4 text-green-500" />
-                  <span>Ingresos totales</span>
-                </div>
-                <span className="font-medium text-green-700">{formatCurrency(data.total_revenue)}</span>
-              </div>
-              {data.total_pending_payment > 0 && (
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2 text-slate-600">
-                    <DollarSign className="w-4 h-4 text-amber-500" />
-                    <span>Por cobrar</span>
+          {/* Financial summary — gated server-side by `alterations.view_revenue`.
+              Hide the entire block when both fields arrive null. */}
+          {(data.total_revenue !== null || data.total_pending_payment !== null) && (
+            <div className="border-t border-slate-100 pt-3">
+              <div className="text-xs text-slate-500 font-medium mb-2">Resumen Financiero</div>
+              <div className="space-y-2">
+                {data.total_revenue !== null && (
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <DollarSign className="w-4 h-4 text-green-500" />
+                      <span>Ingresos totales</span>
+                    </div>
+                    <span className="font-medium text-green-700">{formatCurrency(data.total_revenue)}</span>
                   </div>
-                  <span className="font-medium text-amber-700">
-                    {formatCurrency(data.total_pending_payment)}
-                  </span>
-                </div>
-              )}
+                )}
+                {data.total_pending_payment !== null && data.total_pending_payment > 0 && (
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <DollarSign className="w-4 h-4 text-amber-500" />
+                      <span>Por cobrar</span>
+                    </div>
+                    <span className="font-medium text-amber-700">
+                      {formatCurrency(data.total_pending_payment)}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </DashboardWidget>

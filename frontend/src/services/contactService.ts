@@ -26,8 +26,8 @@ export interface Contact {
 }
 
 export interface ContactListParams {
-  page?: number;
-  page_size?: number;
+  skip?: number;
+  limit?: number;
   school_id?: string;
   status_filter?: string;
   contact_type_filter?: string;
@@ -38,9 +38,11 @@ export interface ContactListParams {
 export interface ContactListResponse {
   items: Contact[];
   total: number;
+  skip: number;
+  limit: number;
   page: number;
-  page_size: number;
   total_pages: number;
+  has_more: boolean;
 }
 
 export interface ContactStats {

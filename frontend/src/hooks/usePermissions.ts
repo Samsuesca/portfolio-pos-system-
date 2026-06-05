@@ -1,102 +1,31 @@
 /**
  * Hook for granular permission checks
  *
- * This hook provides fine-grained permission checking for the current user
- * based on the new granular permission system. It works alongside useUserRole
- * but provides more specific permission checks.
+ * Uses backend-provided permissions from the login response as primary source.
+ * Falls back to the permission registry (fetched from /permissions/registry
+ * and cached in localStorage) for system role defaults.
  */
 import { useMemo, useCallback } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { useSchoolStore } from '../stores/schoolStore';
-import type { UserRole, PermissionConstraints } from '../types/api';
-
-// Default permissions for system roles (mirrors backend)
-const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, Set<string>> = {
-  viewer: new Set([
-    'sales.view', 'products.view', 'clients.view', 'orders.view',
-    'inventory.view', 'changes.view', 'alterations.view', 'reports.dashboard'
-  ]),
-  seller: new Set([
-    'sales.view', 'products.view', 'clients.view', 'orders.view',
-    'inventory.view', 'changes.view', 'alterations.view', 'reports.dashboard',
-    'sales.create', 'sales.apply_discount', 'sales.add_payment',
-    'clients.create', 'clients.edit',
-    'orders.create', 'orders.edit', 'orders.add_payment',
-    'changes.create', 'reports.sales',
-    // Cash micro-permissions for sellers
-    'accounting.view_caja_menor', 'accounting.open_register',
-    // Workforce micro-permissions for sellers
-    'workforce.view_shifts', 'workforce.self_checklist'
-  ]),
-  admin: new Set([
-    'sales.view', 'products.view', 'clients.view', 'orders.view',
-    'inventory.view', 'changes.view', 'alterations.view', 'reports.dashboard',
-    'sales.create', 'sales.apply_discount', 'sales.add_payment',
-    'clients.create', 'clients.edit',
-    'orders.create', 'orders.edit', 'orders.add_payment',
-    'changes.create', 'reports.sales',
-    'sales.edit', 'sales.cancel', 'sales.view_cost', 'sales.view_all_sellers',
-    'changes.approve', 'changes.reject',
-    'products.create', 'products.edit', 'products.delete', 'products.set_price', 'products.set_cost',
-    'inventory.view_cost', 'inventory.adjust', 'inventory.report',
-    'clients.delete', 'clients.view_balance',
-    'orders.cancel', 'orders.change_status', 'orders.view_all_sellers', 'orders.deliver',
-    'accounting.view_cash', 'accounting.view_expenses', 'accounting.create_expense',
-    'accounting.pay_expense', 'accounting.view_receivables', 'accounting.manage_receivables',
-    'accounting.view_payables', 'accounting.manage_payables', 'accounting.view_transactions',
-    'accounting.view_balance',
-    'alterations.create', 'alterations.edit', 'alterations.change_status', 'alterations.add_payment',
-    'reports.inventory', 'reports.financial', 'reports.export',
-    'cash_drawer.open',
-    'settings.edit_business_info',
-    // Cash micro-permissions for admins
-    'accounting.open_register', 'accounting.close_register',
-    'accounting.view_caja_menor', 'accounting.liquidate_caja_menor',
-    'accounting.view_liquidation_history', 'accounting.adjust_balance',
-    'accounting.view_daily_flow', 'accounting.view_global_balances',
-    // Workforce micro-permissions for admins
-    'workforce.view_shifts', 'workforce.manage_shifts',
-    'workforce.view_attendance', 'workforce.manage_attendance',
-    'workforce.view_absences', 'workforce.manage_absences',
-    'workforce.view_checklists', 'workforce.manage_checklists',
-    'workforce.view_performance', 'workforce.manage_performance',
-    'workforce.view_deductions'
-  ]),
-  owner: new Set<string>(), // Owner gets ALL permissions - handled specially
-};
-
-// Default max discount percentages by role
-const SYSTEM_ROLE_MAX_DISCOUNT: Record<UserRole, number> = {
-  viewer: 0,
-  seller: 10,
-  admin: 25,
-  owner: 100,
-};
+import type { PermissionConstraints } from '../types/api';
+import {
+  getSystemRolePermissions,
+  getRoleMaxDiscount,
+} from '../services/permissionRegistryService';
 
 export interface UsePermissionsResult {
-  // Check if user has a specific permission
   hasPermission: (permissionCode: string) => boolean;
-
-  // Check if user has any of the specified permissions
   hasAnyPermission: (...permissionCodes: string[]) => boolean;
-
-  // Check if user has all of the specified permissions
   hasAllPermissions: (...permissionCodes: string[]) => boolean;
-
-  // Get the set of all permissions the user has
   permissions: Set<string>;
-
-  // Get max discount percentage
   maxDiscountPercent: number;
-
-  // Get constraints for a specific permission
   getConstraints: (permissionCode: string) => PermissionConstraints | undefined;
-
-  // Is user an owner or superuser (can manage users)
   canManageSchoolUsers: boolean;
 
-  // Quick access helpers
   canViewCosts: boolean;
+  canEditCosts: boolean;
+  canManageCostTemplates: boolean;
   canCancelSales: boolean;
   canApplyDiscount: boolean;
   canAdjustInventory: boolean;
@@ -105,14 +34,12 @@ export interface UsePermissionsResult {
   canManageProducts: boolean;
   canExportReports: boolean;
 
-  // Cash micro-permission helpers
   canLiquidateCajaMenor: boolean;
   canCloseRegister: boolean;
   canAdjustBalance: boolean;
   canViewDailyFlow: boolean;
   canViewCajaMenor: boolean;
 
-  // Workforce micro-permission helpers
   canManageWorkforce: boolean;
 }
 
@@ -123,7 +50,6 @@ export function usePermissions(): UsePermissionsResult {
   return useMemo(() => {
     const noConstraints = (_code: string) => undefined;
 
-    // Default result for no user/school
     const defaultResult: UsePermissionsResult = {
       hasPermission: () => false,
       hasAnyPermission: () => false,
@@ -133,6 +59,8 @@ export function usePermissions(): UsePermissionsResult {
       getConstraints: noConstraints,
       canManageSchoolUsers: false,
       canViewCosts: false,
+      canEditCosts: false,
+      canManageCostTemplates: false,
       canCancelSales: false,
       canApplyDiscount: false,
       canAdjustInventory: false,
@@ -152,12 +80,10 @@ export function usePermissions(): UsePermissionsResult {
       return defaultResult;
     }
 
-    // Find user's role for current school
     const schoolRole = user.school_roles?.find(
       (r) => r.school_id === currentSchool.id
     );
 
-    // Constraints from backend
     const constraintsMap = schoolRole?.constraints || {};
     const getConstraints = (code: string) => constraintsMap[code];
 
@@ -167,11 +93,13 @@ export function usePermissions(): UsePermissionsResult {
         hasPermission: () => true,
         hasAnyPermission: () => true,
         hasAllPermissions: () => true,
-        permissions: new Set(['*']), // Symbolic "all"
+        permissions: new Set(['*']),
         maxDiscountPercent: 100,
-        getConstraints: () => undefined, // No constraints for superusers
+        getConstraints: () => undefined,
         canManageSchoolUsers: true,
         canViewCosts: true,
+        canEditCosts: true,
+        canManageCostTemplates: true,
         canCancelSales: true,
         canApplyDiscount: true,
         canAdjustInventory: true,
@@ -194,11 +122,13 @@ export function usePermissions(): UsePermissionsResult {
         hasPermission: () => true,
         hasAnyPermission: () => true,
         hasAllPermissions: () => true,
-        permissions: new Set(['*']), // Symbolic "all"
+        permissions: new Set(['*']),
         maxDiscountPercent: 100,
         getConstraints,
         canManageSchoolUsers: true,
         canViewCosts: true,
+        canEditCosts: true,
+        canManageCostTemplates: true,
         canCancelSales: true,
         canApplyDiscount: true,
         canAdjustInventory: true,
@@ -216,23 +146,17 @@ export function usePermissions(): UsePermissionsResult {
     }
 
     // Determine permissions: use backend-provided permissions if available,
-    // otherwise fall back to system role defaults
+    // otherwise fall back to registry-cached system role defaults
     let permissions: Set<string>;
     let maxDiscountPercent: number;
 
-    // If backend sent calculated permissions, use them directly
-    // This handles both custom roles AND system roles with backend calculations
     if (schoolRole?.permissions && schoolRole.permissions.length > 0) {
       permissions = new Set(schoolRole.permissions);
       maxDiscountPercent = schoolRole.max_discount_percent || 0;
-    }
-    // Fallback: use local system role permissions table if role exists
-    else if (schoolRole?.role) {
-      permissions = SYSTEM_ROLE_PERMISSIONS[schoolRole.role] || new Set();
-      maxDiscountPercent = SYSTEM_ROLE_MAX_DISCOUNT[schoolRole.role] || 0;
-    }
-    // No role and no permissions = no access
-    else {
+    } else if (schoolRole?.role) {
+      permissions = getSystemRolePermissions(schoolRole.role);
+      maxDiscountPercent = getRoleMaxDiscount(schoolRole.role);
+    } else {
       return defaultResult;
     }
 
@@ -247,8 +171,10 @@ export function usePermissions(): UsePermissionsResult {
       permissions,
       maxDiscountPercent,
       getConstraints,
-      canManageSchoolUsers: false, // Only owner/superuser can manage users (handled above)
+      canManageSchoolUsers: false,
       canViewCosts: hasAnyPermission('sales.view_cost', 'inventory.view_cost'),
+      canEditCosts: hasPermission('products.set_cost'),
+      canManageCostTemplates: hasPermission('costs.manage_templates'),
       canCancelSales: hasPermission('sales.cancel'),
       canApplyDiscount: hasPermission('sales.apply_discount'),
       canAdjustInventory: hasPermission('inventory.adjust'),
@@ -260,7 +186,6 @@ export function usePermissions(): UsePermissionsResult {
       canApproveChanges: hasAnyPermission('changes.approve', 'changes.reject'),
       canManageProducts: hasAnyPermission('products.create', 'products.edit', 'products.delete'),
       canExportReports: hasPermission('reports.export'),
-      // Cash micro-permission helpers
       canLiquidateCajaMenor: hasPermission('accounting.liquidate_caja_menor'),
       canCloseRegister: hasPermission('accounting.close_register'),
       canAdjustBalance: hasPermission('accounting.adjust_balance'),

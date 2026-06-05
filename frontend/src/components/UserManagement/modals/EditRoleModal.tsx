@@ -34,24 +34,24 @@ export default function EditRoleModal({
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
         <div className="flex items-center justify-between p-4 border-b">
           <h3 className="text-lg font-semibold">Editar Rol</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600">
             <X className="w-5 h-5" />
           </button>
         </div>
         <div className="p-4 space-y-4">
-          <div className="p-3 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-600">Usuario:</p>
+          <div className="p-3 bg-stone-50 rounded-lg">
+            <p className="text-sm text-stone-600">Usuario:</p>
             <p className="font-medium">{selectedUser.full_name || selectedUser.username}</p>
-            <p className="text-sm text-gray-500">{selectedUser.email}</p>
+            <p className="text-sm text-stone-500">{selectedUser.email}</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nuevo Rol</label>
+            <label className="block text-sm font-medium text-stone-700 mb-1">Nuevo Rol</label>
             <select
               value={editRoleForm.role || ''}
               onChange={(e) =>
                 setEditRoleForm({ ...editRoleForm, role: e.target.value as UserRole })
               }
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30"
             >
               <option value="viewer">Visualizador (solo lectura)</option>
               <option value="seller">Vendedor</option>
@@ -61,7 +61,7 @@ export default function EditRoleModal({
           </div>
           {customRoles.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-stone-700 mb-1">
                 Rol Personalizado (opcional)
               </label>
               <select
@@ -72,7 +72,7 @@ export default function EditRoleModal({
                     custom_role_id: e.target.value || undefined,
                   })
                 }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30"
               >
                 <option value="">Sin rol personalizado</option>
                 {customRoles.map((role) => (
@@ -93,13 +93,13 @@ export default function EditRoleModal({
               }
               className="h-4 w-4 text-indigo-600 rounded"
             />
-            <label htmlFor="edit_is_primary" className="ml-2 text-sm text-gray-700">
+            <label htmlFor="edit_is_primary" className="ml-2 text-sm text-stone-700">
               Colegio principal
             </label>
           </div>
         </div>
         <div className="flex justify-end gap-2 p-4 border-t">
-          <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:text-gray-800">
+          <button onClick={onClose} className="px-4 py-2 text-stone-600 hover:text-stone-800">
             Cancelar
           </button>
           <button

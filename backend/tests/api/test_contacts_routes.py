@@ -13,6 +13,7 @@ from uuid import uuid4
 
 from tests.fixtures.assertions import (
     assert_success_response,
+    assert_list_response,
     assert_created_response,
     assert_not_found,
     assert_bad_request,
@@ -150,72 +151,77 @@ class TestContactSubmission:
 # ============================================================================
 
 class TestContactByEmail:
-    """Tests for GET /api/v1/contacts/by-email (PUBLIC)"""
+    """Tests for GET /api/v1/contacts/by-email.
 
-    async def test_get_contacts_by_email(self, api_client, db_session):
-        """Should get contacts by email without authentication."""
+    Contract: the endpoint now requires a portal-client JWT and returns the
+    contacts belonging to the authenticated client's own email (no ``email``
+    query param). It is no longer public.
+    """
+
+    async def test_get_contacts_by_email(
+        self, api_client, db_session, test_client, portal_client_headers
+    ):
+        """Returns contacts created under the authenticated portal client's email."""
         from app.models.contact import Contact, ContactType, ContactStatus
 
-        # Create test contact
         contact = Contact(
             id=str(uuid4()),
-            name="Test User",
-            email="testuser@example.com",
+            name=test_client.name,
+            email=test_client.email,
             contact_type=ContactType.INQUIRY,
             subject="Test Subject",
             message="Test message",
-            status=ContactStatus.PENDING
+            status=ContactStatus.PENDING,
         )
         db_session.add(contact)
         await db_session.flush()
 
         response = await api_client.get(
             "/api/v1/contacts/by-email",
-            params={"email": "testuser@example.com"}
+            headers=portal_client_headers,
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
         assert isinstance(data, list)
         assert len(data) >= 1
+        for c in data:
+            assert c["email"] == test_client.email
 
-        # Verify email matches
-        for contact in data:
-            assert contact["email"] == "testuser@example.com"
-
-    async def test_get_contacts_email_not_found(self, api_client):
-        """Should return empty list for non-existent email."""
+    async def test_get_contacts_email_not_found(
+        self, api_client, portal_client_headers
+    ):
+        """Authenticated client with no contacts yet returns an empty list."""
         response = await api_client.get(
             "/api/v1/contacts/by-email",
-            params={"email": "nonexistent@example.com"}
+            headers=portal_client_headers,
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
         assert isinstance(data, list)
         assert len(data) == 0
 
-    async def test_get_contacts_multiple_by_email(self, api_client):
-        """Should return multiple contacts for same email."""
-        unique_email = f"multi_{uuid4().hex[:8]}@example.com"
-
-        # Create multiple contacts via API
+    async def test_get_contacts_multiple_by_email(
+        self, api_client, test_client, portal_client_headers
+    ):
+        """Multiple contacts for the authenticated client are all returned."""
         for i in range(3):
             await api_client.post(
                 "/api/v1/contacts/submit",
                 json={
                     "name": f"User {i}",
-                    "email": unique_email,
+                    "email": test_client.email,
                     "contact_type": "inquiry",
                     "subject": f"Subject {i}",
-                    "message": f"Message content {i} with enough characters"
-                }
+                    "message": f"Message content {i} with enough characters",
+                },
             )
 
         response = await api_client.get(
             "/api/v1/contacts/by-email",
-            params={"email": unique_email}
+            headers=portal_client_headers,
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
         assert len(data) >= 3
 
 
@@ -236,27 +242,44 @@ class TestContactListing:
         self,
         api_client,
         superuser_headers,
-        db_session
+        test_superuser,
+        test_school,
+        db_session,
     ):
-        """Should list all contacts for admin."""
-        from app.models.contact import Contact, ContactType, ContactStatus
+        """Should list all contacts for admin (must have at least one school role).
 
-        # Create test contact
+        Contract: ``list_contacts`` returns an empty list when the requesting
+        user has no school assignments (regardless of superuser status). We give
+        the superuser an OWNER role on a school and create a contact for that
+        school so the listing is non-empty.
+        """
+        from app.models.contact import Contact, ContactType, ContactStatus
+        from app.models.user import UserSchoolRole, UserRole
+
+        db_session.add(
+            UserSchoolRole(
+                id=str(uuid4()),
+                user_id=test_superuser.id,
+                school_id=test_school.id,
+                role=UserRole.OWNER,
+            )
+        )
         contact = Contact(
             id=str(uuid4()),
+            school_id=test_school.id,
             name="List Test",
             email="list@example.com",
             contact_type=ContactType.COMPLAINT,
             subject="List Subject",
             message="List message",
-            status=ContactStatus.PENDING
+            status=ContactStatus.PENDING,
         )
         db_session.add(contact)
         await db_session.flush()
 
         response = await api_client.get(
             "/api/v1/contacts",
-            headers=superuser_headers
+            headers=superuser_headers,
         )
 
         data = assert_success_response(response)

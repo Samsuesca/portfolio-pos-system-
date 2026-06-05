@@ -23,14 +23,14 @@ const StatCard: React.FC<{
   <button
     onClick={onClick}
     className={`${bgColor} rounded-xl p-5 text-left w-full transition-all hover:shadow-md ${
-      isActive ? 'ring-2 ring-brand-500 ring-offset-2' : ''
+      isActive ? 'ring-2 ring-brand-400 ring-offset-2' : ''
     } ${onClick ? 'cursor-pointer' : ''}`}
   >
     <div className={`flex items-center gap-2 ${textColor} mb-2`}>
       {icon}
       <span className="text-xs font-semibold uppercase tracking-wide">{label}</span>
     </div>
-    <p className="text-2xl font-bold text-gray-900">{value}</p>
+    <p className="text-2xl font-bold text-stone-900">{value}</p>
     {subValue && (
       <p className={`text-sm ${textColor} mt-1`}>{subValue}</p>
     )}
@@ -49,8 +49,8 @@ const ExpenseStats: React.FC<ExpenseStatsProps> = ({
         value={formatCurrency(stats.totalAmount)}
         subValue={`${stats.totalCount} gastos`}
         icon={<DollarSign className="w-5 h-5" />}
-        bgColor="bg-white border border-gray-200"
-        textColor="text-gray-600"
+        bgColor="bg-white border border-stone-200"
+        textColor="text-stone-600"
         isActive={activeFilter === 'all'}
         onClick={() => onFilterClick('all')}
       />

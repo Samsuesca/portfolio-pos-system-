@@ -7,7 +7,7 @@ OWNERs can create, edit, and delete custom roles with specific permissions.
 System roles (viewer, seller, admin, owner) cannot be modified.
 """
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy import select, func, delete as sql_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -20,13 +20,18 @@ from app.api.dependencies import (
     CurrentUser,
     DatabaseSession,
 )
+from app.api.error_responses import responses, AUTHENTICATED
+from app.models.audit_log import AuditAction
 from app.models.permission import Permission, CustomRole, RolePermission
 from app.models.user import UserSchoolRole
+from app.services.audit import audit_service
+from app.services.permission_cache import invalidate as invalidate_permission_cache
+from app.services.permission_invalidation import PermissionInvalidator
 from app.schemas.base import BaseSchema
 from pydantic import Field
 
 
-router = APIRouter(prefix="/schools/{school_id}/roles", tags=["custom-roles"])
+router = APIRouter(prefix="/schools/{school_id}/roles", tags=["Custom Roles"])
 
 
 # ============================================
@@ -117,7 +122,9 @@ class PermissionCatalogResponse(BaseSchema):
     "/permissions",
     response_model=PermissionCatalogResponse,
     summary="Get permission catalog",
-    description="Get all available permissions grouped by category."
+    description="Get all available permissions grouped by category.",
+    responses=AUTHENTICATED,
+    operation_id="getPermissionCatalog",
 )
 async def get_permission_catalog(
     school_id: UUID,
@@ -156,7 +163,9 @@ async def get_permission_catalog(
     "",
     response_model=CustomRoleListResponse,
     summary="List roles",
-    description="Get all roles available for this school (system + custom)."
+    description="Get all roles available for this school (system + custom).",
+    responses=AUTHENTICATED,
+    operation_id="listCustomRoles",
 )
 async def list_roles(
     school_id: UUID,
@@ -243,13 +252,16 @@ async def list_roles(
     response_model=CustomRoleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create custom role",
-    description="Create a new custom role for this school. OWNER or superuser required."
+    description="Create a new custom role for this school. OWNER or superuser required.",
+    responses=responses(400, 409),
+    operation_id="createCustomRole",
 )
 async def create_custom_role(
     school_id: UUID,
     request: CreateCustomRoleRequest,
     db: DatabaseSession,
     current_user: CurrentUser,
+    http_request: Request,
     _: None = Depends(require_owner_or_superuser()),
 ):
     """Create a new custom role."""
@@ -287,6 +299,22 @@ async def create_custom_role(
     if request.permissions:
         await _update_role_permissions(db, role.id, request.permissions)
 
+    await audit_service.log(
+        db=db,
+        actor_id=current_user.id,
+        action=AuditAction.PERMISSION_CHANGE,
+        resource_type="custom_role",
+        resource_id=str(role.id),
+        school_id=school_id,
+        description=f"Custom role '{role.name}' ({role.code}) created",
+        data_after={
+            "code": role.code,
+            "name": role.name,
+            "permissions": [p.code for p in (request.permissions or [])],
+        },
+        request=http_request,
+    )
+
     await db.commit()
     await db.refresh(role, ["permissions"])
 
@@ -322,7 +350,9 @@ async def create_custom_role(
     "/{role_id}",
     response_model=CustomRoleResponse,
     summary="Get role details",
-    description="Get details of a specific role."
+    description="Get details of a specific role.",
+    responses=responses(404),
+    operation_id="getCustomRole",
 )
 async def get_role(
     school_id: UUID,
@@ -389,7 +419,9 @@ async def get_role(
     "/{role_id}",
     response_model=CustomRoleResponse,
     summary="Update custom role",
-    description="Update a custom role. System roles cannot be modified."
+    description="Update a custom role. System roles cannot be modified.",
+    responses=responses(404),
+    operation_id="updateCustomRole",
 )
 async def update_custom_role(
     school_id: UUID,
@@ -437,11 +469,29 @@ async def update_custom_role(
     if request.is_active is not None:
         role.is_active = request.is_active
 
+    old_permission_codes = [rp.permission.code for rp in role.permissions if rp.permission]
+
     # Update permissions if provided
     if request.permissions is not None:
         await _update_role_permissions(db, role.id, request.permissions)
 
+    await audit_service.log(
+        db=db,
+        actor_id=current_user.id,
+        action="permission_change",
+        resource_type="custom_role",
+        resource_id=str(role_id),
+        school_id=school_id,
+        description=f"Custom role '{role.name}' updated",
+        data_before={"permissions": old_permission_codes},
+        data_after={"permissions": [p.model_dump() for p in request.permissions]} if request.permissions is not None else None,
+    )
+
+    invalidator = PermissionInvalidator(db)
+    await invalidator.bump_users_by_custom_role(role_id)
+
     await db.commit()
+    invalidator.flush_cache_after_commit()
     await db.refresh(role, ["permissions"])
 
     # Get user count
@@ -485,13 +535,16 @@ async def update_custom_role(
     "/{role_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete custom role",
-    description="Delete a custom role. System roles and roles with users cannot be deleted."
+    description="Delete a custom role. System roles and roles with users cannot be deleted.",
+    responses=responses(404),
+    operation_id="deleteCustomRole",
 )
 async def delete_custom_role(
     school_id: UUID,
     role_id: UUID,
     db: DatabaseSession,
     current_user: CurrentUser,
+    http_request: Request,
     _: None = Depends(require_owner_or_superuser()),
 ):
     """Delete a custom role."""
@@ -532,9 +585,31 @@ async def delete_custom_role(
             detail=f"Cannot delete role with {user_count} assigned user(s). Reassign users first."
         )
 
+    await audit_service.log(
+        db=db,
+        actor_id=current_user.id,
+        action=AuditAction.PERMISSION_CHANGE,
+        resource_type="custom_role",
+        resource_id=str(role_id),
+        school_id=school_id,
+        description=f"Custom role '{role.name}' ({role.code}) deleted",
+        data_before={
+            "code": role.code,
+            "name": role.name,
+            "is_system": role.is_system,
+            "is_active": role.is_active,
+        },
+        request=http_request,
+    )
+
+    # Defense in depth: bumpear cualquier user remanente (deberia ser 0 por el guard).
+    invalidator = PermissionInvalidator(db)
+    await invalidator.bump_users_by_custom_role(role_id)
+
     # Delete role (permissions cascade)
     await db.delete(role)
     await db.commit()
+    invalidator.flush_cache_after_commit()
 
 
 # ============================================
@@ -546,7 +621,11 @@ async def _update_role_permissions(
     role_id: UUID,
     permissions: list[PermissionWithConstraints]
 ) -> None:
-    """Update role permissions (replace all)."""
+    """Update role permissions (replace all).
+
+    Raises HTTPException 400 if any code is unknown — previously the loop
+    silently dropped unknown codes, hiding typos in role configuration.
+    """
     from decimal import Decimal
 
     # Delete existing permissions
@@ -564,11 +643,15 @@ async def _update_role_permissions(
     )
     perm_map = {p.code: p.id for p in result.scalars().all()}
 
+    unknown = [p.code for p in permissions if p.code not in perm_map]
+    if unknown:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Codigos de permiso desconocidos: {unknown}"
+        )
+
     # Create new permissions
     for perm in permissions:
-        if perm.code not in perm_map:
-            continue  # Skip invalid permission codes
-
         rp = RolePermission(
             role_id=role_id,
             permission_id=perm_map[perm.code],

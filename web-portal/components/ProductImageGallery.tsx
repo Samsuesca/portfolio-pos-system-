@@ -46,7 +46,6 @@ export default function ProductImageGallery({
             fill
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
             className="object-cover"
-            unoptimized
             onError={(e) => {
               const target = e.target as HTMLImageElement;
               target.style.display = 'none';

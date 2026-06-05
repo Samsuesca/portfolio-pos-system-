@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 26" role="img" aria-label="Bancolombia">
+  <title>Bancolombia</title>
+  <!-- Cuadrado amarillo iconico (a 45deg) de la marca, version para fondo claro -->
+  <rect x="2" y="6" width="12" height="12" fill="#FDDA24" transform="rotate(45 8 12)"/>
+  <text x="22" y="20" font-family="Helvetica Neue, Arial, sans-serif"
+        font-size="17" font-weight="800" letter-spacing="-0.4" fill="#2D2926">bancolombia</text>
+</svg>

@@ -118,6 +118,80 @@ class TestGarmentTypeCreation:
         assert data["name"] == "Camisa Updated"
 
 
+class TestGarmentTypeStats:
+    """Tests for the multi-school garment-types listing (/api/v1/garment-types)."""
+
+    async def test_list_with_stats_aggregates_variants(
+        self,
+        api_client,
+        superuser_headers,
+        test_garment_type,
+        test_product,      # price 45000, belongs to test_garment_type
+        test_inventory,    # quantity 100 for test_product
+    ):
+        """with_stats=true returns variant count, total stock and price range per type."""
+        response = await api_client.get(
+            "/api/v1/garment-types?with_stats=true",
+            headers=superuser_headers,
+        )
+
+        data = assert_success_response(response)
+        items = data.get("items", data) if isinstance(data, dict) else data
+        target = next((t for t in items if t["id"] == str(test_garment_type.id)), None)
+        assert target is not None
+        assert target["product_count"] == 1
+        assert target["total_stock"] == 100
+        assert normalize_price(target["min_price"]) == 45000.0
+        assert normalize_price(target["max_price"]) == 45000.0
+        assert target["has_images"] is False
+
+    async def test_list_without_stats_keeps_zero_defaults(
+        self,
+        api_client,
+        superuser_headers,
+        test_garment_type,
+        test_product,
+        test_inventory,
+    ):
+        """Without with_stats the aggregated fields stay at their zero defaults (non-breaking)."""
+        response = await api_client.get(
+            "/api/v1/garment-types",
+            headers=superuser_headers,
+        )
+
+        data = assert_success_response(response)
+        items = data.get("items", data) if isinstance(data, dict) else data
+        target = next((t for t in items if t["id"] == str(test_garment_type.id)), None)
+        assert target is not None
+        assert target["product_count"] == 0
+        assert target["total_stock"] == 0
+
+    async def test_multi_school_list_reflects_cost_type(
+        self,
+        api_client,
+        superuser_headers,
+        test_school,
+    ):
+        """The multi-school listing reflects the stored cost_type, not a hardcoded default."""
+        create = await api_client.post(
+            f"/api/v1/schools/{test_school.id}/garment-types",
+            headers=superuser_headers,
+            json=build_garment_type_request(name="Zapato Compra", cost_type="purchased"),
+        )
+        created = assert_created_response(create)
+        assert created["cost_type"] == "purchased"
+
+        response = await api_client.get(
+            "/api/v1/garment-types",
+            headers=superuser_headers,
+        )
+        data = assert_success_response(response)
+        items = data.get("items", data) if isinstance(data, dict) else data
+        target = next((t for t in items if t["id"] == created["id"]), None)
+        assert target is not None
+        assert target["cost_type"] == "purchased"
+
+
 # ============================================================================
 # PRODUCT CREATION TESTS
 # ============================================================================
@@ -230,6 +304,28 @@ class TestProductRetrieval:
         data = assert_success_response(response)
         items = data if isinstance(data, list) else data.get("items", data)
         assert len(items) >= 1
+
+    async def test_multi_school_list_exposes_cost_for_privileged_user(
+        self,
+        api_client,
+        superuser_headers,
+        test_product,
+    ):
+        """El endpoint multi-school /products debe incluir cost y cost_type
+        para un usuario con permiso (superuser). cost_type refleja la prenda."""
+        response = await api_client.get(
+            "/api/v1/products?active_only=true",
+            headers=superuser_headers
+        )
+        data = assert_success_response(response)
+        items = data.get("items", data) if isinstance(data, dict) else data
+        target = next((p for p in items if p["id"] == str(test_product.id)), None)
+        assert target is not None, "El producto de prueba debe estar en la lista"
+        # Campos de costo presentes (cost puede ser None si no se ha asignado)
+        assert "cost" in target
+        assert "cost_type" in target
+        # cost_type derivado del garment_type (manufactured por defecto)
+        assert target["cost_type"] == "manufactured"
 
     async def test_get_single_product(
         self,

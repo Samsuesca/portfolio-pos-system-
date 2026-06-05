@@ -22,17 +22,17 @@ const ProductsEmptyState: React.FC<ProductsEmptyStateProps> = ({
 }) => {
   return (
     <div className={`border rounded-lg p-12 text-center ${
-      activeTab === 'global' ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'
+      activeTab === 'global' ? 'bg-green-50 border-green-200' : 'bg-brand-50 border-brand-200'
     }`}>
       <Package className={`w-16 h-16 mx-auto mb-4 ${
-        activeTab === 'global' ? 'text-green-400' : 'text-blue-400'
+        activeTab === 'global' ? 'text-green-400' : 'text-brand-400'
       }`} />
       <h3 className={`text-lg font-medium mb-2 ${
-        activeTab === 'global' ? 'text-green-900' : 'text-blue-900'
+        activeTab === 'global' ? 'text-green-900' : 'text-brand-700'
       }`}>
         {hasActiveFilters ? 'No se encontraron productos' : 'No hay productos'}
       </h3>
-      <p className={activeTab === 'global' ? 'text-green-700 mb-4' : 'text-blue-700 mb-4'}>
+      <p className={activeTab === 'global' ? 'text-green-700 mb-4' : 'text-brand-700 mb-4'}>
         {hasActiveFilters
           ? 'Intenta ajustar los filtros de busqueda'
           : activeTab === 'global'
@@ -43,7 +43,7 @@ const ProductsEmptyState: React.FC<ProductsEmptyStateProps> = ({
       {hasActiveFilters && (
         <button
           onClick={onClearFilters}
-          className="text-blue-600 hover:text-blue-700 underline mr-4"
+          className="text-brand-600 hover:text-brand-700 underline mr-4"
         >
           Limpiar filtros
         </button>
@@ -52,7 +52,7 @@ const ProductsEmptyState: React.FC<ProductsEmptyStateProps> = ({
         <RequirePermission permission="products.create">
           <button
             onClick={onAddProduct}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg inline-flex items-center"
+            className="bg-brand-500 hover:bg-brand-600 text-white px-6 py-2 rounded-lg inline-flex items-center"
           >
             <Plus className="w-5 h-5 mr-2" />
             Agregar Producto

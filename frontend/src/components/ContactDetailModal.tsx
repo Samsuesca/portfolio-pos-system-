@@ -138,49 +138,49 @@ export default function ContactDetailModal({
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
           {/* Contact Info */}
-          <div className="bg-gray-50 rounded-lg p-4 mb-6">
+          <div className="bg-stone-50 rounded-lg p-4 mb-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="flex items-start gap-2">
-                <User className="w-5 h-5 text-gray-400 mt-0.5" />
+                <User className="w-5 h-5 text-stone-400 mt-0.5" />
                 <div>
-                  <p className="text-sm text-gray-500">Nombre</p>
-                  <p className="text-gray-900 font-medium">{contact.name}</p>
+                  <p className="text-sm text-stone-500">Nombre</p>
+                  <p className="text-stone-900 font-medium">{contact.name}</p>
                 </div>
               </div>
 
               <div className="flex items-start gap-2">
-                <Mail className="w-5 h-5 text-gray-400 mt-0.5" />
+                <Mail className="w-5 h-5 text-stone-400 mt-0.5" />
                 <div>
-                  <p className="text-sm text-gray-500">Email</p>
-                  <p className="text-gray-900 font-medium">{contact.email}</p>
+                  <p className="text-sm text-stone-500">Email</p>
+                  <p className="text-stone-900 font-medium">{contact.email}</p>
                 </div>
               </div>
 
               {contact.phone && (
                 <div className="flex items-start gap-2">
-                  <Phone className="w-5 h-5 text-gray-400 mt-0.5" />
+                  <Phone className="w-5 h-5 text-stone-400 mt-0.5" />
                   <div>
-                    <p className="text-sm text-gray-500">Teléfono</p>
-                    <p className="text-gray-900 font-medium">{contact.phone}</p>
+                    <p className="text-sm text-stone-500">Teléfono</p>
+                    <p className="text-stone-900 font-medium">{contact.phone}</p>
                   </div>
                 </div>
               )}
 
               <div className="flex items-start gap-2">
-                <Calendar className="w-5 h-5 text-gray-400 mt-0.5" />
+                <Calendar className="w-5 h-5 text-stone-400 mt-0.5" />
                 <div>
-                  <p className="text-sm text-gray-500">Fecha</p>
-                  <p className="text-gray-900 font-medium">
+                  <p className="text-sm text-stone-500">Fecha</p>
+                  <p className="text-stone-900 font-medium">
                     {formatDateTimeSpanish(new Date(contact.created_at))}
                   </p>
                 </div>
               </div>
 
               <div className="flex items-start gap-2">
-                <Building2 className="w-5 h-5 text-gray-400 mt-0.5" />
+                <Building2 className="w-5 h-5 text-stone-400 mt-0.5" />
                 <div>
-                  <p className="text-sm text-gray-500">Colegio</p>
-                  <p className="text-gray-900 font-medium">
+                  <p className="text-sm text-stone-500">Colegio</p>
+                  <p className="text-stone-900 font-medium">
                     {contact.school_id ? 'Ver colegio' : 'General'}
                   </p>
                 </div>
@@ -190,11 +190,11 @@ export default function ContactDetailModal({
                 {contact.is_read ? (
                   <MailOpen className="w-5 h-5 text-green-500 mt-0.5" />
                 ) : (
-                  <Mail className="w-5 h-5 text-blue-500 mt-0.5" />
+                  <Mail className="w-5 h-5 text-brand-500 mt-0.5" />
                 )}
                 <div>
-                  <p className="text-sm text-gray-500">Estado de Lectura</p>
-                  <p className="text-gray-900 font-medium">
+                  <p className="text-sm text-stone-500">Estado de Lectura</p>
+                  <p className="text-stone-900 font-medium">
                     {contact.is_read ? 'Leído' : 'No leído'}
                   </p>
                 </div>
@@ -204,49 +204,49 @@ export default function ContactDetailModal({
 
           {/* Subject */}
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-stone-700 mb-2">
               Asunto
             </label>
-            <div className="bg-gray-50 rounded-lg p-3 text-gray-900">
+            <div className="bg-stone-50 rounded-lg p-3 text-stone-900">
               {contact.subject}
             </div>
           </div>
 
           {/* Message */}
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-stone-700 mb-2">
               Mensaje del Cliente
             </label>
-            <div className="bg-gray-50 rounded-lg p-4 text-gray-900 whitespace-pre-wrap">
+            <div className="bg-stone-50 rounded-lg p-4 text-stone-900 whitespace-pre-wrap">
               {contact.message}
             </div>
           </div>
 
           {/* Previous Admin Response (if exists) */}
           {contact.admin_response && (
-            <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="mb-6 bg-brand-50 border border-brand-200 rounded-lg p-4">
               <div className="flex items-center gap-2 mb-2">
-                <CheckCircle className="w-5 h-5 text-blue-600" />
-                <span className="font-medium text-blue-900">Respuesta Enviada</span>
+                <CheckCircle className="w-5 h-5 text-brand-600" />
+                <span className="font-medium text-brand-700">Respuesta Enviada</span>
                 {contact.admin_response_date && (
-                  <span className="text-sm text-blue-600">
+                  <span className="text-sm text-brand-600">
                     - {formatDateTimeSpanish(new Date(contact.admin_response_date))}
                   </span>
                 )}
               </div>
-              <p className="text-gray-700 whitespace-pre-wrap">{contact.admin_response}</p>
+              <p className="text-stone-700 whitespace-pre-wrap">{contact.admin_response}</p>
             </div>
           )}
 
           {/* Status Selector */}
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-stone-700 mb-2">
               Estado del Mensaje
             </label>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as any)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-stone-200 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-400/30"
             >
               {STATUS_OPTIONS.map(option => (
                 <option key={option.value} value={option.value}>
@@ -258,7 +258,7 @@ export default function ContactDetailModal({
 
           {/* Admin Response Textarea */}
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-stone-700 mb-2">
               Respuesta Administrativa
             </label>
             <textarea
@@ -266,9 +266,9 @@ export default function ContactDetailModal({
               onChange={(e) => setAdminResponse(e.target.value)}
               rows={6}
               placeholder="Escribe tu respuesta al cliente aquí..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-stone-200 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-400/30"
             />
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-stone-500 mt-1">
               Esta respuesta será visible para el equipo administrativo. Para contactar al cliente,
               usa su email: <span className="font-medium">{contact.email}</span>
             </p>
@@ -291,13 +291,13 @@ export default function ContactDetailModal({
         </div>
 
         {/* Footer */}
-        <div className="border-t border-gray-200 px-6 py-4 bg-gray-50 flex items-center justify-between">
+        <div className="border-t border-stone-200 px-6 py-4 bg-stone-50 flex items-center justify-between">
           <div>
             {!contact.is_read && (
               <button
                 onClick={handleMarkAsRead}
                 disabled={saving}
-                className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
+                className="text-brand-600 hover:text-brand-700 text-sm font-medium flex items-center gap-1"
               >
                 <MailOpen className="w-4 h-4" />
                 Marcar como leído
@@ -308,14 +308,14 @@ export default function ContactDetailModal({
             <button
               onClick={onClose}
               disabled={saving}
-              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 font-medium transition"
+              className="px-4 py-2 border border-stone-200 rounded-md text-stone-700 hover:bg-stone-50 font-medium transition"
             >
               Cancelar
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600 font-medium transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? (
                 <>

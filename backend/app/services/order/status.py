@@ -44,11 +44,19 @@ class OrderStatusMixin:
         current_order = await self.get(order_id, school_id)
         old_status = current_order.status.value if current_order else None
 
-        order = await self.update(
-            order_id,
-            school_id,
-            {"status": new_status}
-        )
+        update_payload: dict = {"status": new_status}
+        # Stamp the actual delivery moment on first transition into DELIVERED
+        # so reports compute lead time and on-time delivery against a stable
+        # timestamp (not `updated_at`, which any later edit overwrites).
+        if (
+            new_status == OrderStatus.DELIVERED
+            and current_order is not None
+            and current_order.delivered_at is None
+        ):
+            from app.utils.timezone import get_colombia_now_naive
+            update_payload["delivered_at"] = get_colombia_now_naive()
+
+        order = await self.update(order_id, school_id, update_payload)
 
         # Sync item statuses when order is marked as DELIVERED
         if order and new_status == OrderStatus.DELIVERED:
@@ -96,7 +104,9 @@ class OrderStatusMixin:
                     new_status=new_status.value,
                     school_name=school_name,
                 )
-                fire_and_forget_routed_alert("order_status_changed", msg)
+                fire_and_forget_routed_alert(
+                    "order_status_changed", msg, school_id=order.school_id
+                )
             except Exception as e:
                 import logging
                 logging.getLogger(__name__).error(f"Telegram alert failed for order status change: {e}")
@@ -151,6 +161,11 @@ class OrderStatusMixin:
         item.status_updated_at = get_colombia_now_naive()
 
         await self.db.flush()
+
+        # Si el item paso a DELIVERED y tenia stock reservado, consumir
+        # la reserva (decrementar quantity y reserved_quantity juntos).
+        if new_status == OrderItemStatus.DELIVERED:
+            await self._consume_item_reserved_stock(item, user_id)
 
         # Auto-sync order status based on items
         # Returns True if order status changed to READY (so we avoid duplicate notifications)
@@ -268,10 +283,65 @@ class OrderStatusMixin:
         if not order:
             return
 
+        items_to_consume = []
         for item in order.items:
             # Only update items that are not already finalized
             if item.item_status not in [OrderItemStatus.DELIVERED, OrderItemStatus.CANCELLED]:
                 item.item_status = OrderItemStatus.DELIVERED
                 item.status_updated_at = get_colombia_now_naive()
+                items_to_consume.append(item)
 
         await self.db.flush()
+
+        for item in items_to_consume:
+            await self._consume_item_reserved_stock(item, user_id=None)
+
+    async def _consume_item_reserved_stock(
+        self,
+        item: OrderItem,
+        user_id: UUID | None
+    ) -> None:
+        """Consume la reserva de un OrderItem que paso a DELIVERED.
+
+        Idempotencia: opera solo si `item.reserved_from_stock=True` y
+        `item.quantity_reserved > 0`. Despues del consumo marca
+        `item.quantity_reserved=0` para evitar doble-consumo si por
+        algun motivo este metodo se invocara de nuevo sobre el mismo item.
+
+        Errores se loggean pero NO abortan el cambio de estado del item:
+        el cliente fisicamente ya recibio la prenda. Si el inventario digital
+        no refleja el consumo, queda como gap auditable en logs (a remediar
+        manualmente con el endpoint de adjust).
+        """
+        if not item.reserved_from_stock or item.quantity_reserved <= 0:
+            return
+
+        from app.services.inventory import InventoryService
+        from app.models.product import Product
+        from app.models.inventory_log import InventoryMovementType
+        from sqlalchemy import select
+
+        product_result = await self.db.execute(
+            select(Product).where(Product.id == item.product_id)
+        )
+        product = product_result.scalar_one_or_none()
+        product_school_id = product.school_id if product else item.school_id
+
+        inv_service = InventoryService(self.db)
+        try:
+            await inv_service.consume_reserved_stock(
+                product_id=item.product_id,
+                school_id=product_school_id,
+                quantity=item.quantity_reserved,
+                movement_type=InventoryMovementType.ORDER_DELIVER,
+                reference=f"DEL-{item.order_id}",
+                order_id=item.order_id,
+                created_by=user_id,
+            )
+            item.quantity_reserved = 0
+            await self.db.flush()
+        except Exception as e:
+            logger.error(
+                f"Failed to consume reserved stock for item {item.id} "
+                f"(product {item.product_id}, qty {item.quantity_reserved}): {e}"
+            )

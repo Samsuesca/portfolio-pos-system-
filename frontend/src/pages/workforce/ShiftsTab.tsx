@@ -60,8 +60,8 @@ export default function ShiftsTab({ employees }: { employees: EmployeeListItem[]
   const loadSchedules = useCallback(async () => {
     setLoadingSchedules(true);
     try {
-      const data = await workforceService.getSchedules({ date_from: dateFrom, date_to: dateTo });
-      setSchedules(data);
+      const result = await workforceService.getSchedules({ date_from: dateFrom, date_to: dateTo });
+      setSchedules(result.items);
     } catch (err) {
       console.error('Error loading schedules:', err);
     } finally {
@@ -218,12 +218,12 @@ export default function ShiftsTab({ employees }: { employees: EmployeeListItem[]
   return (
     <div className="space-y-4">
       {/* Sub-tabs */}
-      <div className="flex gap-4 border-b border-gray-200">
+      <div className="flex gap-4 border-b border-stone-200">
         <button
           className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${
             subTab === 'templates'
               ? 'border-brand-600 text-brand-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
+              : 'border-transparent text-stone-500 hover:text-stone-700'
           }`}
           onClick={() => setSubTab('templates')}
         >
@@ -233,7 +233,7 @@ export default function ShiftsTab({ employees }: { employees: EmployeeListItem[]
           className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${
             subTab === 'schedules'
               ? 'border-brand-600 text-brand-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
+              : 'border-transparent text-stone-500 hover:text-stone-700'
           }`}
           onClick={() => setSubTab('schedules')}
         >
@@ -245,7 +245,7 @@ export default function ShiftsTab({ employees }: { employees: EmployeeListItem[]
       {subTab === 'templates' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">Plantillas de Turno</h3>
+            <h3 className="text-lg font-semibold text-stone-900">Plantillas de Turno</h3>
             <RequirePermission permission="workforce.manage_shifts">
               <button
                 className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm font-medium"
@@ -260,8 +260,8 @@ export default function ShiftsTab({ employees }: { employees: EmployeeListItem[]
           </div>
 
           {showTemplateForm && (
-            <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
-              <h4 className="font-semibold text-gray-900">
+            <div className="bg-white rounded-lg border border-stone-200 p-4 space-y-4">
+              <h4 className="font-semibold text-stone-900">
                 {editingTemplate ? 'Editar Plantilla' : 'Nueva Plantilla'}
               </h4>
               {templateError && (
@@ -271,17 +271,17 @@ export default function ShiftsTab({ employees }: { employees: EmployeeListItem[]
               )}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Nombre</label>
                   <input
                     type="text"
                     value={templateForm.name}
                     onChange={(e) => setTemplateForm((p) => ({ ...p, name: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                     placeholder="Turno manana"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Tipo</label>
                   <select
                     value={templateForm.shift_type}
                     onChange={(e) =>
@@ -290,7 +290,7 @@ export default function ShiftsTab({ employees }: { employees: EmployeeListItem[]
                         shift_type: e.target.value as ShiftTemplateCreate['shift_type'],
                       }))
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                   >
                     {Object.entries(SHIFT_TYPE_LABELS).map(([val, label]) => (
                       <option key={val} value={val}>
@@ -300,33 +300,33 @@ export default function ShiftsTab({ employees }: { employees: EmployeeListItem[]
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Descanso (min)</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Descanso (min)</label>
                   <input
                     type="number"
                     value={templateForm.break_minutes || 0}
                     onChange={(e) =>
                       setTemplateForm((p) => ({ ...p, break_minutes: parseInt(e.target.value) || 0 }))
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                     min={0}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Hora Inicio</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Hora Inicio</label>
                   <input
                     type="time"
                     value={templateForm.start_time}
                     onChange={(e) => setTemplateForm((p) => ({ ...p, start_time: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Hora Fin</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Hora Fin</label>
                   <input
                     type="time"
                     value={templateForm.end_time}
                     onChange={(e) => setTemplateForm((p) => ({ ...p, end_time: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                   />
                 </div>
                 {editingTemplate && (
@@ -336,9 +336,9 @@ export default function ShiftsTab({ employees }: { employees: EmployeeListItem[]
                       id="template-active"
                       checked={templateForm.is_active !== false}
                       onChange={(e) => setTemplateForm((p) => ({ ...p, is_active: e.target.checked }))}
-                      className="rounded border-gray-300"
+                      className="rounded border-stone-200"
                     />
-                    <label htmlFor="template-active" className="text-sm text-gray-700">
+                    <label htmlFor="template-active" className="text-sm text-stone-700">
                       Activo
                     </label>
                   </div>
@@ -352,7 +352,7 @@ export default function ShiftsTab({ employees }: { employees: EmployeeListItem[]
                   {editingTemplate ? 'Actualizar' : 'Crear'}
                 </button>
                 <button
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm font-medium"
+                  className="px-4 py-2 bg-stone-200 text-stone-700 rounded-lg hover:bg-stone-300 text-sm font-medium"
                   onClick={resetTemplateForm}
                 >
                   Cancelar
@@ -362,39 +362,39 @@ export default function ShiftsTab({ employees }: { employees: EmployeeListItem[]
           )}
 
           {loadingTemplates ? (
-            <div className="text-center py-8 text-gray-500">Cargando plantillas...</div>
+            <div className="text-center py-8 text-stone-500">Cargando plantillas...</div>
           ) : templates.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">No hay plantillas de turno creadas.</div>
+            <div className="text-center py-8 text-stone-500">No hay plantillas de turno creadas.</div>
           ) : (
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
+                <thead className="bg-stone-50 border-b border-stone-200">
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Nombre</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Tipo</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Horario</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Descanso</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Estado</th>
-                    <th className="text-right px-4 py-3 font-medium text-gray-600">Acciones</th>
+                    <th className="text-left px-4 py-3 font-medium text-stone-600">Nombre</th>
+                    <th className="text-left px-4 py-3 font-medium text-stone-600">Tipo</th>
+                    <th className="text-left px-4 py-3 font-medium text-stone-600">Horario</th>
+                    <th className="text-left px-4 py-3 font-medium text-stone-600">Descanso</th>
+                    <th className="text-left px-4 py-3 font-medium text-stone-600">Estado</th>
+                    <th className="text-right px-4 py-3 font-medium text-stone-600">Acciones</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-stone-100">
                   {templates.map((t) => (
-                    <tr key={t.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-900">{t.name}</td>
-                      <td className="px-4 py-3 text-gray-600">
+                    <tr key={t.id} className="hover:bg-stone-50">
+                      <td className="px-4 py-3 font-medium text-stone-900">{t.name}</td>
+                      <td className="px-4 py-3 text-stone-600">
                         {SHIFT_TYPE_LABELS[t.shift_type] || t.shift_type}
                       </td>
-                      <td className="px-4 py-3 text-gray-600">
+                      <td className="px-4 py-3 text-stone-600">
                         {t.start_time} - {t.end_time}
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{t.break_minutes} min</td>
+                      <td className="px-4 py-3 text-stone-600">{t.break_minutes} min</td>
                       <td className="px-4 py-3">
                         <span
                           className={`px-2 py-1 rounded-full text-xs font-medium ${
                             t.is_active
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-gray-100 text-gray-600'
+                              ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+                              : 'bg-stone-100 text-stone-600'
                           }`}
                         >
                           {t.is_active ? 'Activo' : 'Inactivo'}
@@ -404,14 +404,14 @@ export default function ShiftsTab({ employees }: { employees: EmployeeListItem[]
                         <RequirePermission permission="workforce.manage_shifts">
                           <div className="flex items-center justify-end gap-2">
                             <button
-                              className="p-1.5 text-gray-500 hover:text-brand-600 hover:bg-gray-100 rounded"
+                              className="p-1.5 text-stone-500 hover:text-brand-600 hover:bg-stone-100 rounded"
                               onClick={() => handleEditTemplate(t)}
                               title="Editar"
                             >
                               <Pencil size={15} />
                             </button>
                             <button
-                              className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-gray-100 rounded"
+                              className="p-1.5 text-stone-500 hover:text-red-600 hover:bg-stone-100 rounded"
                               onClick={() => handleDeleteTemplate(t.id)}
                               title="Eliminar"
                             >
@@ -435,25 +435,25 @@ export default function ShiftsTab({ employees }: { employees: EmployeeListItem[]
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Desde</label>
+                <label className="block text-xs font-medium text-stone-500 mb-1">Desde</label>
                 <input
                   type="date"
                   value={dateFrom}
                   onChange={(e) => setDateFrom(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  className="px-3 py-2 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Hasta</label>
+                <label className="block text-xs font-medium text-stone-500 mb-1">Hasta</label>
                 <input
                   type="date"
                   value={dateTo}
                   onChange={(e) => setDateTo(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  className="px-3 py-2 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                 />
               </div>
               <button
-                className="mt-5 px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
+                className="mt-5 px-3 py-2 bg-stone-200 text-stone-700 rounded-lg hover:bg-stone-300 text-sm"
                 onClick={loadSchedules}
               >
                 Buscar
@@ -473,8 +473,8 @@ export default function ShiftsTab({ employees }: { employees: EmployeeListItem[]
           </div>
 
           {showScheduleForm && (
-            <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
-              <h4 className="font-semibold text-gray-900">Asignar Horario</h4>
+            <div className="bg-white rounded-lg border border-stone-200 p-4 space-y-4">
+              <h4 className="font-semibold text-stone-900">Asignar Horario</h4>
               {scheduleError && (
                 <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 p-3 rounded-lg">
                   <AlertCircle size={16} /> {scheduleError}
@@ -482,11 +482,11 @@ export default function ShiftsTab({ employees }: { employees: EmployeeListItem[]
               )}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Empleado</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Empleado</label>
                   <select
                     value={scheduleForm.employee_id}
                     onChange={(e) => setScheduleForm((p) => ({ ...p, employee_id: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                   >
                     <option value="">Seleccionar...</option>
                     {employees.map((emp) => (
@@ -497,7 +497,7 @@ export default function ShiftsTab({ employees }: { employees: EmployeeListItem[]
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-stone-700 mb-1">
                     Plantilla (opcional)
                   </label>
                   <select
@@ -506,7 +506,7 @@ export default function ShiftsTab({ employees }: { employees: EmployeeListItem[]
                         .shift_template_id || ''
                     }
                     onChange={(e) => handleTemplateSelect(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                   >
                     <option value="">Sin plantilla</option>
                     {templates.filter((t) => t.is_active).map((t) => (
@@ -517,41 +517,41 @@ export default function ShiftsTab({ employees }: { employees: EmployeeListItem[]
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Fecha</label>
                   <input
                     type="date"
                     value={scheduleForm.schedule_date}
                     onChange={(e) =>
                       setScheduleForm((p) => ({ ...p, schedule_date: e.target.value }))
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Hora Inicio</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Hora Inicio</label>
                   <input
                     type="time"
                     value={scheduleForm.start_time}
                     onChange={(e) => setScheduleForm((p) => ({ ...p, start_time: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Hora Fin</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Hora Fin</label>
                   <input
                     type="time"
                     value={scheduleForm.end_time}
                     onChange={(e) => setScheduleForm((p) => ({ ...p, end_time: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Notas</label>
                   <input
                     type="text"
                     value={scheduleForm.notes || ''}
                     onChange={(e) => setScheduleForm((p) => ({ ...p, notes: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                     placeholder="Opcional"
                   />
                 </div>
@@ -564,7 +564,7 @@ export default function ShiftsTab({ employees }: { employees: EmployeeListItem[]
                   Guardar
                 </button>
                 <button
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm font-medium"
+                  className="px-4 py-2 bg-stone-200 text-stone-700 rounded-lg hover:bg-stone-300 text-sm font-medium"
                   onClick={resetScheduleForm}
                 >
                   Cancelar
@@ -574,38 +574,38 @@ export default function ShiftsTab({ employees }: { employees: EmployeeListItem[]
           )}
 
           {loadingSchedules ? (
-            <div className="text-center py-8 text-gray-500">Cargando horarios...</div>
+            <div className="text-center py-8 text-stone-500">Cargando horarios...</div>
           ) : schedules.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-stone-500">
               No hay horarios para el rango seleccionado.
             </div>
           ) : (
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
+                <thead className="bg-stone-50 border-b border-stone-200">
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Fecha</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Empleado</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Turno</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Horario</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Notas</th>
-                    <th className="text-right px-4 py-3 font-medium text-gray-600">Acciones</th>
+                    <th className="text-left px-4 py-3 font-medium text-stone-600">Fecha</th>
+                    <th className="text-left px-4 py-3 font-medium text-stone-600">Empleado</th>
+                    <th className="text-left px-4 py-3 font-medium text-stone-600">Turno</th>
+                    <th className="text-left px-4 py-3 font-medium text-stone-600">Horario</th>
+                    <th className="text-left px-4 py-3 font-medium text-stone-600">Notas</th>
+                    <th className="text-right px-4 py-3 font-medium text-stone-600">Acciones</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-stone-100">
                   {schedules.map((s) => (
-                    <tr key={s.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-900">{s.schedule_date}</td>
-                      <td className="px-4 py-3 text-gray-900">{s.employee_name || '-'}</td>
-                      <td className="px-4 py-3 text-gray-600">{s.shift_template_name || '-'}</td>
-                      <td className="px-4 py-3 text-gray-600">
+                    <tr key={s.id} className="hover:bg-stone-50">
+                      <td className="px-4 py-3 text-stone-900">{s.schedule_date}</td>
+                      <td className="px-4 py-3 text-stone-900">{s.employee_name || '-'}</td>
+                      <td className="px-4 py-3 text-stone-600">{s.shift_template_name || '-'}</td>
+                      <td className="px-4 py-3 text-stone-600">
                         {s.start_time} - {s.end_time}
                       </td>
-                      <td className="px-4 py-3 text-gray-500">{s.notes || '-'}</td>
+                      <td className="px-4 py-3 text-stone-500">{s.notes || '-'}</td>
                       <td className="px-4 py-3 text-right">
                         <RequirePermission permission="workforce.manage_shifts">
                           <button
-                            className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-gray-100 rounded"
+                            className="p-1.5 text-stone-500 hover:text-red-600 hover:bg-stone-100 rounded"
                             onClick={() => handleDeleteSchedule(s.id)}
                             title="Eliminar"
                           >

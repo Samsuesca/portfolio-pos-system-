@@ -13,6 +13,7 @@ from uuid import uuid4
 
 from tests.fixtures.assertions import (
     assert_success_response,
+    assert_list_response,
     assert_created_response,
     assert_not_found,
     assert_order_valid,
@@ -200,9 +201,10 @@ class TestOrderRetrieval:
         )
 
         data = assert_success_response(response)
-        # Response is a list
-        assert isinstance(data, list)
-        assert len(data) >= 1
+        assert "items" in data
+        assert "total" in data
+        assert isinstance(data["items"], list)
+        assert len(data["items"]) >= 1
 
     async def test_list_school_orders(
         self,
@@ -217,7 +219,7 @@ class TestOrderRetrieval:
             headers=superuser_headers
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
         assert isinstance(data, list)
 
     async def test_get_single_order(
@@ -264,7 +266,7 @@ class TestOrderRetrieval:
             params={"status": "pending"}
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
         assert isinstance(data, list)
         for order in data:
             assert order["status"] == "pending"
@@ -378,17 +380,21 @@ class TestOrderStatus:
 class TestWebOrders:
     """Tests for web portal order endpoints."""
 
-    async def test_create_web_order_public(
+    async def test_create_web_order_authenticated_client(
         self,
         api_client,
         test_school,
-        test_garment_type
+        test_garment_type,
+        test_client,
+        portal_client_headers,
     ):
-        """Should create order from web portal without auth."""
+        """Web portal orders now require a portal-client JWT and the order's
+        client_id must match the authenticated client (no longer public)."""
         response = await api_client.post(
             f"/api/v1/portal/orders",
             json={
                 "school_id": str(test_school.id),
+                "client_id": str(test_client.id),
                 "client_name": "Web Client",
                 "client_phone": "3001234567",
                 "client_email": "webclient@example.com",
@@ -404,10 +410,12 @@ class TestWebOrders:
                     }
                 ],
                 "source": "web_portal"
-            }
+            },
+            headers=portal_client_headers,
         )
 
-        # Web order endpoint may require different format or not exist
+        # Authenticated + matching client_id: must NOT be 403. Accept created or
+        # validation errors (body shape may not fully satisfy OrderCreate).
         assert response.status_code in [200, 201, 400, 404, 422]
 
 
@@ -431,7 +439,7 @@ class TestOrdersMultiTenancy:
         )
 
         data = assert_success_response(response)
-        assert isinstance(data, list)
+        assert isinstance(data["items"], list)
 
 
 # ============================================================================
@@ -455,9 +463,8 @@ class TestOrderClientFilter:
         )
 
         data = assert_success_response(response)
-        assert isinstance(data, list)
-        # All returned orders should belong to the test client
-        for order in data:
+        assert isinstance(data["items"], list)
+        for order in data["items"]:
             assert order["client_name"] is not None
 
     async def test_filter_by_nonexistent_client_returns_empty(
@@ -473,8 +480,8 @@ class TestOrderClientFilter:
         )
 
         data = assert_success_response(response)
-        assert isinstance(data, list)
-        assert len(data) == 0
+        assert isinstance(data["items"], list)
+        assert len(data["items"]) == 0
 
 
 # ============================================================================

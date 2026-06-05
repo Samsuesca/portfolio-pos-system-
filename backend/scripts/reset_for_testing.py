@@ -105,10 +105,6 @@ async def reset_database():
             print("  📧 Eliminando mensajes de contacto (PQRS)...")
             await db.execute(text("DELETE FROM contacts"))
 
-            # 3.2. Eliminar cuentas de pago (QR, cuentas bancarias)
-            print("  💳 Eliminando cuentas de pago (QR, cuentas bancarias)...")
-            await db.execute(text("DELETE FROM payment_accounts"))
-
             # === PASO 4: RESETEAR BALANCES ===
             print("\n🏦 PASO 4: Reseteando balances de Caja y Banco...\n")
 

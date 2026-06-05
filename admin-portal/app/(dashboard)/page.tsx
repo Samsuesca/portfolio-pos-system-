@@ -6,7 +6,6 @@ import {
   School,
   Users,
   Package,
-  CreditCard,
   Truck,
   RefreshCw,
   ShoppingCart,
@@ -132,15 +131,6 @@ export default function DashboardPage() {
       icon: Users,
       href: '/users',
       color: 'text-stone-700 bg-stone-200',
-    });
-  }
-
-  if (config.quickAccess.paymentAccounts) {
-    quickLinks.push({
-      label: 'Cuentas de Pago',
-      icon: CreditCard,
-      href: '/payment-accounts',
-      color: 'text-brand-700 bg-brand-100',
     });
   }
 

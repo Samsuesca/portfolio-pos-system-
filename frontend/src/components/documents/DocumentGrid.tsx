@@ -27,12 +27,12 @@ function getDocumentIcon(mimeType: string) {
     return <FileText className="w-12 h-12 text-red-500" />;
   }
   if (isImageMimeType(mimeType)) {
-    return <Image className="w-12 h-12 text-blue-500" />;
+    return <Image className="w-12 h-12 text-brand-500" />;
   }
   if (mimeType.includes('spreadsheet') || mimeType.includes('excel')) {
     return <Table2 className="w-12 h-12 text-green-500" />;
   }
-  return <FileText className="w-12 h-12 text-gray-500" />;
+  return <FileText className="w-12 h-12 text-stone-500" />;
 }
 
 function DocumentCard({
@@ -59,16 +59,16 @@ function DocumentCard({
 
       {/* Document info */}
       <div className="text-center">
-        <h4 className="font-medium text-gray-900 truncate" title={document.name}>
+        <h4 className="font-medium text-stone-900 truncate" title={document.name}>
           {document.name}
         </h4>
-        <p className="text-xs text-gray-500 truncate" title={document.original_filename}>
+        <p className="text-xs text-stone-500 truncate" title={document.original_filename}>
           {document.original_filename}
         </p>
         <div className="flex items-center justify-center gap-2 mt-1">
-          <span className="text-xs text-gray-400">{formatFileSize(document.file_size)}</span>
-          <span className="text-xs text-gray-300">|</span>
-          <span className="text-xs text-gray-400">{getFileTypeName(document.mime_type)}</span>
+          <span className="text-xs text-stone-400">{formatFileSize(document.file_size)}</span>
+          <span className="text-xs text-stone-300">|</span>
+          <span className="text-xs text-stone-400">{getFileTypeName(document.mime_type)}</span>
         </div>
       </div>
 
@@ -76,26 +76,26 @@ function DocumentCard({
       <div className="absolute top-2 right-2 hidden group-hover:flex items-center gap-1 bg-white/90 rounded p-1 shadow">
         {canPreview && (
           <button
-            className="p-1.5 hover:bg-gray-100 rounded"
+            className="p-1.5 hover:bg-stone-100 rounded"
             onClick={onPreview}
             title="Vista previa"
           >
-            <Eye className="w-4 h-4 text-gray-600" />
+            <Eye className="w-4 h-4 text-stone-600" />
           </button>
         )}
         <button
-          className="p-1.5 hover:bg-gray-100 rounded"
+          className="p-1.5 hover:bg-stone-100 rounded"
           onClick={onDownload}
           title="Descargar"
         >
-          <Download className="w-4 h-4 text-blue-600" />
+          <Download className="w-4 h-4 text-brand-600" />
         </button>
         <button
-          className="p-1.5 hover:bg-gray-100 rounded"
+          className="p-1.5 hover:bg-stone-100 rounded"
           onClick={onEdit}
           title="Editar"
         >
-          <Pencil className="w-4 h-4 text-gray-600" />
+          <Pencil className="w-4 h-4 text-stone-600" />
         </button>
         <button
           className="p-1.5 hover:bg-red-50 rounded"
@@ -121,7 +121,7 @@ export default function DocumentGrid({
     return (
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
         {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="bg-gray-100 rounded-lg h-40 animate-pulse" />
+          <div key={i} className="bg-stone-100 rounded-lg h-40 animate-pulse" />
         ))}
       </div>
     );
@@ -129,8 +129,8 @@ export default function DocumentGrid({
 
   if (documents.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-gray-500">
-        <FileText className="w-16 h-16 mb-4 text-gray-300" />
+      <div className="flex flex-col items-center justify-center py-16 text-stone-500">
+        <FileText className="w-16 h-16 mb-4 text-stone-300" />
         <p className="text-lg font-medium">No hay documentos</p>
         <p className="text-sm">Sube un archivo para comenzar</p>
       </div>

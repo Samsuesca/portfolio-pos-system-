@@ -1,0 +1,7 @@
+allowBuilds:
+  # core-js postinstall solo printea banner de donacion (no afecta funcionalidad).
+  # Lo dejamos en false para no ejecutar codigo innecesario.
+  core-js: false
+  esbuild: true
+  sharp: true
+  unrs-resolver: true

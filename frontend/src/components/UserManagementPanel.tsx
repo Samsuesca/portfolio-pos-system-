@@ -69,8 +69,8 @@ export default function UserManagementPanel({
   const loadSchools = async () => {
     setSchoolsLoading(true);
     try {
-      const data = await schoolService.getSchools(false);
-      setSchools(data.filter((s) => s.is_active));
+      const response = await schoolService.getSchools(false);
+      setSchools(response.items.filter((s) => s.is_active));
     } catch (err: any) {
       console.error('Error loading schools:', err);
       setError('Error al cargar colegios');
@@ -121,12 +121,12 @@ export default function UserManagementPanel({
               <Users className="w-6 h-6 text-indigo-600" />
               Gestion de Usuarios y Roles
             </h2>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-stone-500 mt-1">
               Administra usuarios, permisos y roles personalizados
             </p>
           </div>
           {!embedded && (
-            <button onClick={handleClose} className="text-gray-400 hover:text-gray-600">
+            <button onClick={handleClose} className="text-stone-400 hover:text-stone-600">
               <X className="w-6 h-6" />
             </button>
           )}
@@ -159,7 +159,7 @@ export default function UserManagementPanel({
             className={`px-4 py-3 font-medium text-sm border-b-2 transition ${
               activeTab === 'users'
                 ? 'border-indigo-600 text-indigo-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                : 'border-transparent text-stone-500 hover:text-stone-700'
             }`}
           >
             <Users className="w-4 h-4 inline-block mr-2" />
@@ -170,7 +170,7 @@ export default function UserManagementPanel({
             className={`px-4 py-3 font-medium text-sm border-b-2 transition ${
               activeTab === 'roles'
                 ? 'border-indigo-600 text-indigo-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                : 'border-transparent text-stone-500 hover:text-stone-700'
             }`}
           >
             <Shield className="w-4 h-4 inline-block mr-2" />

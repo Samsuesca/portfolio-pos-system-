@@ -9,3 +9,4 @@ export { default as BudgetPanel } from './BudgetPanel';
 export { default as CashForecastPanel } from './CashForecastPanel';
 export { default as AlertsPanel } from './AlertsPanel';
 export { default as ExecutiveSummaryPanel } from './ExecutiveSummaryPanel';
+export { default as ProjectionsPanel } from './projections/ProjectionsPanel';

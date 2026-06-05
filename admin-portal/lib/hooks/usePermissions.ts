@@ -14,77 +14,12 @@
 import { useMemo, useCallback } from 'react';
 import { useAdminAuth } from '../adminAuth';
 import { useSchoolStore } from '../stores/schoolStore';
+import {
+  getSystemRolePermissions,
+  getRoleMaxDiscount,
+} from '../services/permissionRegistryService';
 
 export type UserRole = 'owner' | 'admin' | 'seller' | 'viewer';
-
-// Default permissions for system roles (mirrors backend)
-const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, Set<string>> = {
-  viewer: new Set([
-    'sales.view', 'products.view', 'clients.view', 'orders.view',
-    'inventory.view', 'changes.view', 'alterations.view', 'reports.dashboard'
-  ]),
-  seller: new Set([
-    'sales.view', 'products.view', 'clients.view', 'orders.view',
-    'inventory.view', 'changes.view', 'alterations.view', 'reports.dashboard',
-    'sales.create', 'sales.apply_discount', 'sales.add_payment',
-    'clients.create', 'clients.edit',
-    'orders.create', 'orders.edit', 'orders.add_payment',
-    'changes.create', 'reports.sales',
-    // Accounting micro-permissions for sellers
-    'accounting.view_caja_menor', 'accounting.open_register',
-    // Workforce micro-permissions for sellers
-    'workforce.view_shifts', 'workforce.self_checklist'
-  ]),
-  admin: new Set([
-    'sales.view', 'products.view', 'clients.view', 'orders.view',
-    'inventory.view', 'changes.view', 'alterations.view', 'reports.dashboard',
-    'sales.create', 'sales.apply_discount', 'sales.add_payment',
-    'clients.create', 'clients.edit',
-    'orders.create', 'orders.edit', 'orders.add_payment',
-    'changes.create', 'reports.sales',
-    'sales.edit', 'sales.cancel', 'sales.view_cost', 'sales.view_all_sellers',
-    'changes.approve', 'changes.reject',
-    'products.create', 'products.edit', 'products.delete', 'products.set_price', 'products.set_cost',
-    'inventory.view_cost', 'inventory.adjust', 'inventory.report',
-    'global_inventory.adjust',
-    'clients.delete', 'clients.view_balance',
-    'orders.cancel', 'orders.change_status', 'orders.view_all_sellers', 'orders.deliver',
-    // Accounting micro-permissions for admins
-    'accounting.view_cash', 'accounting.view_expenses', 'accounting.create_expense',
-    'accounting.pay_expense', 'accounting.view_receivables', 'accounting.manage_receivables',
-    'accounting.view_payables', 'accounting.manage_payables', 'accounting.view_transactions',
-    'accounting.view_balance', 'accounting.view_bank',
-    'accounting.open_register', 'accounting.close_register',
-    'accounting.view_caja_menor', 'accounting.liquidate_caja_menor',
-    'accounting.view_liquidation_history', 'accounting.adjust_balance',
-    'accounting.view_daily_flow', 'accounting.view_global_balances',
-    'accounting.edit_caja_menor_config',
-    'accounting.transfer_between_accounts', 'accounting.view_transfers',
-    // Alterations
-    'alterations.create', 'alterations.edit', 'alterations.change_status', 'alterations.add_payment',
-    'reports.inventory', 'reports.financial', 'reports.export',
-    // Cash drawer
-    'cash_drawer.open',
-    // Settings
-    'settings.edit_business_info',
-    // Workforce micro-permissions for admins
-    'workforce.view_shifts', 'workforce.manage_shifts',
-    'workforce.view_attendance', 'workforce.manage_attendance',
-    'workforce.view_absences', 'workforce.manage_absences',
-    'workforce.view_checklists', 'workforce.manage_checklists',
-    'workforce.view_performance', 'workforce.manage_performance',
-    'workforce.view_deductions'
-  ]),
-  owner: new Set<string>(), // Owner gets ALL permissions - handled specially
-};
-
-// Default max discount percentages by role
-const SYSTEM_ROLE_MAX_DISCOUNT: Record<UserRole, number> = {
-  viewer: 0,
-  seller: 10,
-  admin: 25,
-  owner: 100,
-};
 
 export interface UsePermissionsResult {
   // Check if user has a specific permission
@@ -299,12 +234,12 @@ export function usePermissions(): UsePermissionsResult {
       // Use backend-provided permissions if available
       if (schoolRole.permissions && Array.isArray(schoolRole.permissions) && schoolRole.permissions.length > 0) {
         permissions = new Set(schoolRole.permissions);
-        maxDiscountPercent = schoolRole.max_discount_percent ?? SYSTEM_ROLE_MAX_DISCOUNT[schoolRole.role as UserRole] ?? 0;
+        maxDiscountPercent = schoolRole.max_discount_percent ?? getRoleMaxDiscount(schoolRole.role as string) ?? 0;
       }
-      // Fallback to local system role defaults
+      // Fallback to registry-cached system role defaults
       else if (schoolRole.role) {
-        permissions = SYSTEM_ROLE_PERMISSIONS[schoolRole.role as UserRole] || new Set();
-        maxDiscountPercent = SYSTEM_ROLE_MAX_DISCOUNT[schoolRole.role as UserRole] || 0;
+        permissions = getSystemRolePermissions(schoolRole.role as string);
+        maxDiscountPercent = getRoleMaxDiscount(schoolRole.role as string);
       } else {
         return defaultResult;
       }
@@ -328,16 +263,14 @@ export function usePermissions(): UsePermissionsResult {
         // Add backend-provided permissions
         if (role.permissions && Array.isArray(role.permissions) && role.permissions.length > 0) {
           role.permissions.forEach((p: string) => permissions.add(p));
-          const roleDiscount = role.max_discount_percent ?? SYSTEM_ROLE_MAX_DISCOUNT[role.role as UserRole] ?? 0;
+          const roleDiscount = role.max_discount_percent ?? getRoleMaxDiscount(role.role as string) ?? 0;
           maxDiscountPercent = Math.max(maxDiscountPercent, roleDiscount);
         }
-        // Fallback to system role defaults
+        // Fallback to registry-cached system role defaults
         else if (role.role) {
-          const systemPerms = SYSTEM_ROLE_PERMISSIONS[role.role as UserRole];
-          if (systemPerms) {
-            systemPerms.forEach((p: string) => permissions.add(p));
-          }
-          const roleDiscount = SYSTEM_ROLE_MAX_DISCOUNT[role.role as UserRole] || 0;
+          const systemPerms = getSystemRolePermissions(role.role as string);
+          systemPerms.forEach((p: string) => permissions.add(p));
+          const roleDiscount = getRoleMaxDiscount(role.role as string);
           maxDiscountPercent = Math.max(maxDiscountPercent, roleDiscount);
         }
       }

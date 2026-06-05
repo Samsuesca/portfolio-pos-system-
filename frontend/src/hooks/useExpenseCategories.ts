@@ -133,12 +133,11 @@ export function useExpenseCategories(
       setLoading(true);
       setError(null);
 
-      const data = await globalAccountingService.getExpenseCategories(includeInactive);
-      setCategories(data);
+      const result = await globalAccountingService.getExpenseCategories(includeInactive);
+      setCategories(result.items);
 
-      // Update cache only for active categories
       if (!includeInactive) {
-        cachedCategories = data;
+        cachedCategories = result.items;
         cacheTimestamp = Date.now();
       }
     } catch (err) {

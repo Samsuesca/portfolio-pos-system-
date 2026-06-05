@@ -77,8 +77,8 @@ const TransferModal: React.FC<TransferModalProps> = ({
     const loadAccounts = async () => {
       setLoadingAccounts(true);
       try {
-        const data = await getGlobalBalanceAccounts('asset_current', true);
-        setAccounts(data);
+        const result = await getGlobalBalanceAccounts('asset_current', true);
+        setAccounts(result.items);
       } catch (err) {
         console.error('Error loading accounts:', err);
         setError('Error al cargar las cuentas');
@@ -206,36 +206,36 @@ const TransferModal: React.FC<TransferModalProps> = ({
             <div className="flex justify-center">
               <CheckCircle2 className="w-16 h-16 text-green-500" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900">Transferencia Exitosa</h3>
-            <p className="text-gray-600">{successResult.message}</p>
+            <h3 className="text-xl font-bold text-stone-900">Transferencia Exitosa</h3>
+            <p className="text-stone-600">{successResult.message}</p>
 
-            <div className="bg-gray-50 rounded-xl p-4 space-y-3 text-left">
+            <div className="bg-stone-50 rounded-xl p-4 space-y-3 text-left">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Monto transferido</span>
+                <span className="text-sm text-stone-500">Monto transferido</span>
                 <span className="font-bold text-green-700">
                   {formatCurrency(successResult.amount)}
                 </span>
               </div>
               <hr />
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-stone-500">
                   {successResult.from_account.name}
                 </span>
-                <span className="font-semibold text-gray-900">
+                <span className="font-semibold text-stone-900">
                   {formatCurrency(successResult.from_account.new_balance)}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-stone-500">
                   {successResult.to_account.name}
                 </span>
-                <span className="font-semibold text-gray-900">
+                <span className="font-semibold text-stone-900">
                   {formatCurrency(successResult.to_account.new_balance)}
                 </span>
               </div>
             </div>
 
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-stone-400">
               Ref: {successResult.reference} | Se cerrara automaticamente...
             </p>
 
@@ -265,13 +265,13 @@ const TransferModal: React.FC<TransferModalProps> = ({
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b bg-gradient-to-r from-emerald-50 to-teal-50 rounded-t-2xl">
-          <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          <h2 className="text-xl font-bold text-stone-900 flex items-center gap-2">
             <ArrowRightLeft className="w-6 h-6 text-emerald-600" />
             Transferir entre Cuentas
           </h2>
           <button
             onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-white/50 transition"
+            className="text-stone-400 hover:text-stone-600 p-1 rounded-lg hover:bg-white/50 transition"
           >
             <X className="w-6 h-6" />
           </button>
@@ -280,7 +280,7 @@ const TransferModal: React.FC<TransferModalProps> = ({
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
           {loadingAccounts ? (
-            <div className="flex items-center justify-center gap-2 text-gray-500 py-8">
+            <div className="flex items-center justify-center gap-2 text-stone-500 py-8">
               <Loader2 className="w-5 h-5 animate-spin" />
               Cargando cuentas...
             </div>
@@ -288,13 +288,13 @@ const TransferModal: React.FC<TransferModalProps> = ({
             <>
               {/* Source Account */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-stone-700 mb-2">
                   <span className="text-red-500">*</span> Cuenta Origen
                 </label>
                 <select
                   value={fromAccountId}
                   onChange={(e) => setFromAccountId(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
+                  className="w-full px-4 py-2.5 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
                 >
                   <option value="">Seleccionar cuenta origen...</option>
                   {accounts.map((account) => (
@@ -304,7 +304,7 @@ const TransferModal: React.FC<TransferModalProps> = ({
                   ))}
                 </select>
                 {fromAccount && (
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-stone-500">
                     Saldo disponible: {formatCurrency(fromAccount.balance)}
                   </p>
                 )}
@@ -312,13 +312,13 @@ const TransferModal: React.FC<TransferModalProps> = ({
 
               {/* Destination Account */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-stone-700 mb-2">
                   <span className="text-red-500">*</span> Cuenta Destino
                 </label>
                 <select
                   value={toAccountId}
                   onChange={(e) => setToAccountId(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
+                  className="w-full px-4 py-2.5 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
                   disabled={!fromAccountId}
                 >
                   <option value="">Seleccionar cuenta destino...</option>
@@ -329,7 +329,7 @@ const TransferModal: React.FC<TransferModalProps> = ({
                   ))}
                 </select>
                 {!fromAccountId && (
-                  <p className="mt-1 text-xs text-gray-400">
+                  <p className="mt-1 text-xs text-stone-400">
                     Primero selecciona la cuenta origen
                   </p>
                 )}
@@ -337,11 +337,11 @@ const TransferModal: React.FC<TransferModalProps> = ({
 
               {/* Amount */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-stone-700 mb-2">
                   <span className="text-red-500">*</span> Monto
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 font-medium">
                     $
                   </span>
                   <input
@@ -350,7 +350,7 @@ const TransferModal: React.FC<TransferModalProps> = ({
                     value={amountInput}
                     onChange={handleAmountChange}
                     placeholder="0"
-                    className="w-full pl-8 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    className="w-full pl-8 pr-4 py-2.5 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                   />
                 </div>
                 {fromAccount && amount > 0 && (
@@ -362,7 +362,7 @@ const TransferModal: React.FC<TransferModalProps> = ({
                         {formatCurrency(fromAccount.balance)})
                       </p>
                     ) : (
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-stone-500">
                         Saldo restante en origen:{' '}
                         {formatCurrency(fromAccount.balance - amount)}
                       </p>
@@ -373,7 +373,7 @@ const TransferModal: React.FC<TransferModalProps> = ({
 
               {/* Reason */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-stone-700 mb-2">
                   <span className="text-red-500">*</span> Motivo
                 </label>
                 <textarea
@@ -381,7 +381,7 @@ const TransferModal: React.FC<TransferModalProps> = ({
                   onChange={(e) => setReason(e.target.value)}
                   placeholder="Ej: Consignacion a banco, Retiro para gastos..."
                   rows={2}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 resize-none"
+                  className="w-full px-4 py-2.5 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 resize-none"
                 />
               </div>
 
@@ -392,8 +392,8 @@ const TransferModal: React.FC<TransferModalProps> = ({
                     Vista previa de la transferencia
                   </h4>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Origen: {fromAccount.name}</span>
-                    <span className="text-gray-900">
+                    <span className="text-stone-600">Origen: {fromAccount.name}</span>
+                    <span className="text-stone-900">
                       {formatCurrency(fromAccount.balance)}{' '}
                       <span className="text-red-600 font-medium">
                         &rarr; {formatCurrency(Number(fromAccount.balance) - amount)}
@@ -401,8 +401,8 @@ const TransferModal: React.FC<TransferModalProps> = ({
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Destino: {toAccount.name}</span>
-                    <span className="text-gray-900">
+                    <span className="text-stone-600">Destino: {toAccount.name}</span>
+                    <span className="text-stone-900">
                       {formatCurrency(toAccount.balance)}{' '}
                       <span className="text-green-600 font-medium">
                         &rarr; {formatCurrency(Number(toAccount.balance) + amount)}
@@ -424,11 +424,11 @@ const TransferModal: React.FC<TransferModalProps> = ({
         </form>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50 rounded-b-2xl">
+        <div className="flex justify-end gap-3 px-6 py-4 border-t bg-stone-50 rounded-b-2xl">
           <button
             type="button"
             onClick={handleClose}
-            className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
+            className="px-4 py-2 text-stone-600 hover:text-stone-800 font-medium"
           >
             Cancelar
           </button>

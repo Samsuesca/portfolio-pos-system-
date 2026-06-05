@@ -3,11 +3,11 @@
  * Supports both school products and global products
  * Adapted from SaleChangeModal for order-specific flows
  */
-import { useState, useEffect } from 'react';
-import { X, Loader2, RefreshCw, AlertCircle, Globe, AlertTriangle } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Loader2, RefreshCw, AlertCircle, AlertTriangle } from 'lucide-react';
 import { orderChangeService } from '../services/orderChangeService';
 import { productService } from '../services/productService';
-import type { OrderItem, Product, GlobalProduct, ChangeType, OrderChangeCreate } from '../types/api';
+import type { OrderItem, Product, ChangeType, OrderChangeCreate, OriginalItemDisposal } from '../types/api';
 
 interface OrderChangeModalProps {
   isOpen: boolean;
@@ -16,6 +16,18 @@ interface OrderChangeModalProps {
   schoolId: string;
   orderId: string;
   orderItems: OrderItem[];
+}
+
+// Prioriza el detail del backend sobre el mensaje genérico de axios para que
+// los errores como "El item original no vino de stock..." sean visibles.
+function extractErrorMessage(err: unknown): string | null {
+  if (typeof err === 'object' && err !== null) {
+    const e = err as { response?: { data?: { detail?: unknown } }; message?: unknown };
+    const detail = e.response?.data?.detail;
+    if (typeof detail === 'string') return detail;
+    if (typeof e.message === 'string') return e.message;
+  }
+  return null;
 }
 
 export default function OrderChangeModal({
@@ -28,14 +40,14 @@ export default function OrderChangeModal({
 }: OrderChangeModalProps) {
   const [loading, setLoading] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
-  const [globalProducts, setGlobalProducts] = useState<GlobalProduct[]>([]);
+  const [globalProducts, setGlobalProducts] = useState<Product[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const errorBannerRef = useRef<HTMLDivElement | null>(null);
 
   const [formData, setFormData] = useState({
     original_item_id: '',
     change_type: 'size_change' as ChangeType,
     new_product_id: '',
-    is_new_global_product: false,
     returned_quantity: 1,
     new_quantity: 1,
     reason: '',
@@ -43,8 +55,18 @@ export default function OrderChangeModal({
     new_size: '',
     new_color: '',
     new_embroidery_text: '',
-    new_custom_measurements: '' as string, // JSON string for custom measurements
+    new_custom_measurements: '' as string,
+    original_item_disposal: '' as '' | OriginalItemDisposal,
   });
+
+  // Banner de error visible y con scroll automático para evitar silencio cuando
+  // el usuario está abajo del formulario.
+  const reportError = (message: string) => {
+    setError(message);
+    requestAnimationFrame(() => {
+      errorBannerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  };
 
   // Filter out CANCELLED items - they cannot be changed
   const availableItems = orderItems.filter(
@@ -63,7 +85,6 @@ export default function OrderChangeModal({
       original_item_id: '',
       change_type: 'size_change',
       new_product_id: '',
-      is_new_global_product: false,
       returned_quantity: 1,
       new_quantity: 1,
       reason: '',
@@ -72,19 +93,20 @@ export default function OrderChangeModal({
       new_color: '',
       new_embroidery_text: '',
       new_custom_measurements: '',
+      original_item_disposal: '',
     });
     setError(null);
   };
 
   const loadProducts = async () => {
     try {
-      const [schoolData, globalData] = await Promise.all([
+      const [schoolData, globalResult] = await Promise.all([
         productService.getProducts(schoolId),
         productService.getGlobalProducts(true, 500),
       ]);
       setProducts(schoolData);
-      setGlobalProducts(globalData);
-    } catch (err: any) {
+      setGlobalProducts(globalResult.items);
+    } catch (err: unknown) {
       console.error('Error loading products:', err);
       setError('Error al cargar productos');
     }
@@ -112,31 +134,28 @@ export default function OrderChangeModal({
 
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'in_production': return 'bg-blue-100 text-blue-800';
-      case 'ready': return 'bg-green-100 text-green-800';
+      case 'pending': return 'bg-amber-50 text-amber-700 ring-1 ring-amber-200';
+      case 'in_production': return 'bg-brand-100 text-brand-700';
+      case 'ready': return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200';
       case 'delivered': return 'bg-purple-100 text-purple-800';
-      default: return 'bg-gray-100 text-gray-800';
+      default: return 'bg-stone-100 text-stone-800';
     }
   };
 
   // Handle product selection (parse the value to extract ID and isGlobal flag)
   const handleNewProductChange = (value: string) => {
     if (!value) {
-      setFormData({ ...formData, new_product_id: '', is_new_global_product: false });
+      setFormData({ ...formData, new_product_id: '' });
       return;
     }
-    const [type, id] = value.split(':');
-    setFormData({
-      ...formData,
-      new_product_id: id,
-      is_new_global_product: type === 'global',
-    });
+    const [, id] = value.split(':');
+    setFormData({ ...formData, new_product_id: id });
   };
 
   const getSelectedProductValue = () => {
     if (!formData.new_product_id) return '';
-    return formData.is_new_global_product
+    const isGlobal = globalProducts.some(p => p.id === formData.new_product_id);
+    return isGlobal
       ? `global:${formData.new_product_id}`
       : `school:${formData.new_product_id}`;
   };
@@ -171,6 +190,20 @@ export default function OrderChangeModal({
   // Show order-specific fields for size/product changes
   const showOrderFields = isNonReturnType;
 
+  // Disposal del item físico original — sólo aplica cuando el item NO vino de stock
+  // (estaba en producción o terminado made-to-order). Si vino de stock, el backend
+  // libera el inventario automáticamente.
+  const itemCameFromStock = !!selectedItem?.reserved_from_stock;
+  const requiresDisposal = !!selectedItem && !itemCameFromStock;
+  const itemIsPersonalized = !!(
+    selectedItem &&
+    ((selectedItem.embroidery_text && selectedItem.embroidery_text.trim().length > 0) ||
+      selectedItem.custom_measurements)
+  );
+  const itemIsReadyOrDelivered = selectedItem
+    ? selectedItem.item_status === 'ready' || selectedItem.item_status === 'delivered'
+    : false;
+
   const getChangeTypeLabel = (type: ChangeType) => {
     switch (type) {
       case 'size_change': return 'Cambio de Talla';
@@ -185,17 +218,45 @@ export default function OrderChangeModal({
     e.preventDefault();
 
     if (!formData.original_item_id) {
-      setError('Selecciona el item del encargo a cambiar/devolver');
+      reportError('Selecciona el item del encargo a cambiar/devolver');
       return;
     }
 
     if (formData.reason.trim().length < 3) {
-      setError('El motivo debe tener al menos 3 caracteres');
+      reportError('El motivo debe tener al menos 3 caracteres');
       return;
     }
 
     if (isNonReturnType && !formData.new_product_id) {
-      setError('Selecciona el producto nuevo');
+      reportError('Selecciona el producto nuevo');
+      return;
+    }
+
+    // Disposal obligatorio cuando el item original NO vino de stock.
+    if (requiresDisposal && !formData.original_item_disposal) {
+      reportError(
+        'Selecciona el destino del item original: cancelar producción, devolver al inventario o registrar como pérdida.',
+      );
+      return;
+    }
+
+    if (
+      formData.original_item_disposal === 'return_to_inventory' &&
+      itemIsPersonalized
+    ) {
+      reportError(
+        'No se puede devolver al inventario una prenda personalizada (con bordado o medidas custom). Usa "registrar como pérdida".',
+      );
+      return;
+    }
+
+    if (
+      formData.original_item_disposal === 'cancel_production' &&
+      itemIsReadyOrDelivered
+    ) {
+      reportError(
+        'El item ya está listo o entregado; no aplica "cancelar producción". Usa "devolver al inventario" (si no es personalizada) o "registrar como pérdida".',
+      );
       return;
     }
 
@@ -210,10 +271,13 @@ export default function OrderChangeModal({
       new_quantity: isNonReturnType ? formData.new_quantity : 0,
     };
 
+    if (formData.original_item_disposal) {
+      changeData.original_item_disposal = formData.original_item_disposal;
+    }
+
     // Only include new_product_id for non-return changes
     if (isNonReturnType && formData.new_product_id) {
       changeData.new_product_id = formData.new_product_id;
-      changeData.is_new_global_product = formData.is_new_global_product;
     }
 
     // Include payment method for price adjustments
@@ -238,7 +302,7 @@ export default function OrderChangeModal({
             formData.new_custom_measurements.trim()
           );
         } catch {
-          setError(
+          reportError(
             'Las medidas personalizadas deben estar en formato JSON valido, ej: {"pecho": 90, "cintura": 70}'
           );
           setLoading(false);
@@ -251,13 +315,10 @@ export default function OrderChangeModal({
       await orderChangeService.createChange(schoolId, orderId, changeData);
       onSuccess();
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error creating order change:', err);
-      const errorMessage =
-        err.message ||
-        err.response?.data?.detail ||
-        'Error al crear la solicitud de cambio';
-      setError(errorMessage);
+      const errorMessage = extractErrorMessage(err) ?? 'Error al crear la solicitud de cambio';
+      reportError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -277,14 +338,14 @@ export default function OrderChangeModal({
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
-            <h2 className="text-xl font-semibold text-gray-800 flex items-center">
+          <div className="flex items-center justify-between p-6 border-b border-stone-200 sticky top-0 bg-white z-10">
+            <h2 className="text-xl font-semibold text-stone-800 flex items-center">
               <RefreshCw className="w-6 h-6 mr-2" />
               Cambio o Devolucion de Encargo
             </h2>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition"
+              className="text-stone-400 hover:text-stone-600 transition"
             >
               <X className="w-6 h-6" />
             </button>
@@ -294,15 +355,20 @@ export default function OrderChangeModal({
           <form onSubmit={handleSubmit} className="p-6">
             {/* Error Message */}
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start">
+              <div
+                ref={errorBannerRef}
+                role="alert"
+                aria-live="assertive"
+                className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start"
+              >
                 <AlertCircle className="w-5 h-5 text-red-600 mr-2 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-red-700">{error}</p>
+                <p className="text-sm text-red-700 whitespace-pre-line">{error}</p>
               </div>
             )}
 
             {/* Change Type */}
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-stone-700 mb-2">
                 Tipo de Cambio *
               </label>
               <select
@@ -314,7 +380,7 @@ export default function OrderChangeModal({
                   })
                 }
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
               >
                 <option value="size_change">
                   {getChangeTypeLabel('size_change')}
@@ -329,7 +395,7 @@ export default function OrderChangeModal({
                   {getChangeTypeLabel('defect')}
                 </option>
               </select>
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-xs text-stone-500">
                 {formData.change_type === 'return'
                   ? 'El cliente recibira un reembolso por el item del encargo'
                   : 'Se generara un nuevo item de encargo con las especificaciones indicadas'}
@@ -338,7 +404,7 @@ export default function OrderChangeModal({
 
             {/* Original Item */}
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-stone-700 mb-2">
                 Item del Encargo a Cambiar *
               </label>
               <select
@@ -348,11 +414,10 @@ export default function OrderChangeModal({
                     ...formData,
                     original_item_id: e.target.value,
                     new_product_id: '',
-                    is_new_global_product: false,
                   })
                 }
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
               >
                 <option value="">Selecciona un item</option>
                 {availableItems.map((item) => (
@@ -382,13 +447,13 @@ export default function OrderChangeModal({
 
             {/* Warning for READY items */}
             {selectedItem && selectedItem.item_status === 'ready' && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 flex items-start">
-                <AlertTriangle className="w-5 h-5 text-blue-600 mr-2 flex-shrink-0 mt-0.5" />
+              <div className="bg-brand-50 border border-brand-200 rounded-lg p-3 mb-4 flex items-start">
+                <AlertTriangle className="w-5 h-5 text-brand-600 mr-2 flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-blue-800">
+                  <p className="text-sm font-medium text-brand-700">
                     Item listo para entrega
                   </p>
-                  <p className="text-sm text-blue-700">
+                  <p className="text-sm text-brand-700">
                     Este item esta marcado como listo. Al aprobar el cambio se
                     liberara el stock reservado.
                   </p>
@@ -399,7 +464,7 @@ export default function OrderChangeModal({
             {/* Selected item status badge */}
             {selectedItem && (
               <div className="mb-4">
-                <span className="text-xs text-gray-500 mr-2">Estado actual:</span>
+                <span className="text-xs text-stone-500 mr-2">Estado actual:</span>
                 <span
                   className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeClass(selectedItem.item_status)}`}
                 >
@@ -413,9 +478,95 @@ export default function OrderChangeModal({
               </div>
             )}
 
+            {/* Disposal del item original (solo si NO vino de stock) */}
+            {requiresDisposal && (
+              <div className="mb-6 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <label className="block text-sm font-medium text-amber-900 mb-2">
+                  Destino del item original *
+                </label>
+                <p className="text-xs text-amber-800 mb-3">
+                  Este item no vino del inventario (estaba en producción o terminado a la
+                  medida). Indica qué hacer con la prenda física original al aprobar el cambio.
+                </p>
+                <div className="space-y-2">
+                  <label className="flex items-start cursor-pointer">
+                    <input
+                      type="radio"
+                      name="disposal"
+                      value="cancel_production"
+                      checked={formData.original_item_disposal === 'cancel_production'}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          original_item_disposal: e.target.value as OriginalItemDisposal,
+                        })
+                      }
+                      disabled={itemIsReadyOrDelivered}
+                      className="mt-1 mr-2"
+                    />
+                    <span className="text-sm">
+                      <span className="font-medium text-stone-800">Cancelar producción</span>
+                      <span className="block text-xs text-stone-600">
+                        El item está en producción y se cancela. No se contabiliza el trabajo
+                        abandonado.
+                        {itemIsReadyOrDelivered &&
+                          ' (No aplica: el item ya está listo o entregado.)'}
+                      </span>
+                    </span>
+                  </label>
+                  <label className="flex items-start cursor-pointer">
+                    <input
+                      type="radio"
+                      name="disposal"
+                      value="return_to_inventory"
+                      checked={formData.original_item_disposal === 'return_to_inventory'}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          original_item_disposal: e.target.value as OriginalItemDisposal,
+                        })
+                      }
+                      disabled={itemIsPersonalized}
+                      className="mt-1 mr-2"
+                    />
+                    <span className="text-sm">
+                      <span className="font-medium text-stone-800">Devolver al inventario</span>
+                      <span className="block text-xs text-stone-600">
+                        Prenda terminada no personalizada; vuelve al stock regular.
+                        {itemIsPersonalized &&
+                          ' (No aplica: el item tiene bordado o medidas custom.)'}
+                      </span>
+                    </span>
+                  </label>
+                  <label className="flex items-start cursor-pointer">
+                    <input
+                      type="radio"
+                      name="disposal"
+                      value="register_loss"
+                      checked={formData.original_item_disposal === 'register_loss'}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          original_item_disposal: e.target.value as OriginalItemDisposal,
+                        })
+                      }
+                      className="mt-1 mr-2"
+                    />
+                    <span className="text-sm">
+                      <span className="font-medium text-stone-800">Registrar como pérdida</span>
+                      <span className="block text-xs text-stone-600">
+                        Prenda terminada personalizada (con bordado o medidas) que no se puede
+                        revender. Queda como pérdida explícita.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+            )}
+
             {/* Returned Quantity */}
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-stone-700 mb-2">
                 Cantidad a Cambiar/Devolver *
               </label>
               <input
@@ -430,10 +581,10 @@ export default function OrderChangeModal({
                   })
                 }
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
               />
               {selectedItem && (
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-stone-500">
                   Maximo: {maxReturnQty} unidades
                 </p>
               )}
@@ -443,13 +594,13 @@ export default function OrderChangeModal({
             {isNonReturnType && (
               <>
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-stone-700 mb-2">
                     Producto Nuevo *
                   </label>
                   {shouldFilterByGarmentType &&
                     (filteredProducts.length > 0 ||
                       filteredGlobalProducts.length > 0) && (
-                      <p className="mb-2 text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                      <p className="mb-2 text-xs text-brand-600 bg-brand-50 p-2 rounded">
                         Mostrando solo productos del mismo tipo de prenda (cambio
                         de talla)
                       </p>
@@ -471,7 +622,7 @@ export default function OrderChangeModal({
                       filteredProducts.length === 0 &&
                       filteredGlobalProducts.length === 0
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none disabled:bg-stone-100 disabled:cursor-not-allowed"
                   >
                     <option value="">Selecciona un producto</option>
 
@@ -519,17 +670,10 @@ export default function OrderChangeModal({
                       </optgroup>
                     )}
                   </select>
-                  {formData.is_new_global_product && (
-                    <p className="mt-1 text-xs text-blue-600 flex items-center">
-                      <Globe className="w-3 h-3 mr-1" />
-                      Producto global seleccionado - inventario compartido entre
-                      colegios
-                    </p>
-                  )}
                 </div>
 
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-stone-700 mb-2">
                     Cantidad Nueva *
                   </label>
                   <input
@@ -543,7 +687,7 @@ export default function OrderChangeModal({
                       })
                     }
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
                   />
                 </div>
               </>
@@ -551,18 +695,18 @@ export default function OrderChangeModal({
 
             {/* Order-specific fields (size, color, embroidery, measurements) */}
             {showOrderFields && (
-              <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">
+              <div className="mb-6 p-4 bg-stone-50 rounded-lg border border-stone-200">
+                <h3 className="text-sm font-semibold text-stone-700 mb-3">
                   Especificaciones del nuevo item
                 </h3>
-                <p className="text-xs text-gray-500 mb-3">
+                <p className="text-xs text-stone-500 mb-3">
                   Estos campos son opcionales. Si se dejan vacios, se mantendran
                   las especificaciones del item original.
                 </p>
 
                 {/* New Size */}
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-stone-700 mb-1">
                     Nueva Talla
                   </label>
                   <input
@@ -576,13 +720,13 @@ export default function OrderChangeModal({
                         ? `Actual: ${selectedItem.size}`
                         : 'Ej: M, L, XL, 10, 12...'
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
                   />
                 </div>
 
                 {/* New Color */}
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-stone-700 mb-1">
                     Nuevo Color
                   </label>
                   <input
@@ -596,13 +740,13 @@ export default function OrderChangeModal({
                         ? `Actual: ${selectedItem.color}`
                         : 'Ej: Azul, Blanco...'
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
                   />
                 </div>
 
                 {/* New Embroidery Text */}
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-stone-700 mb-1">
                     Nuevo Texto de Bordado
                   </label>
                   <input
@@ -619,14 +763,14 @@ export default function OrderChangeModal({
                         ? `Actual: ${selectedItem.embroidery_text}`
                         : 'Texto para bordado (si aplica)'
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
                   />
                 </div>
 
                 {/* New Custom Measurements (JSON) */}
                 {selectedItem?.has_custom_measurements && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-stone-700 mb-1">
                       Nuevas Medidas Personalizadas (JSON)
                     </label>
                     <textarea
@@ -643,9 +787,9 @@ export default function OrderChangeModal({
                           ? `Actuales: ${JSON.stringify(selectedItem.custom_measurements)}`
                           : '{"pecho": 90, "cintura": 70, "cadera": 95}'
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none font-mono text-sm"
+                      className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none resize-none font-mono text-sm"
                     />
-                    <p className="mt-1 text-xs text-gray-500">
+                    <p className="mt-1 text-xs text-stone-500">
                       Formato JSON. Ejemplo: {`{"pecho": 90, "cintura": 70}`}
                     </p>
                   </div>
@@ -655,7 +799,7 @@ export default function OrderChangeModal({
 
             {/* Reason (required, min 3 chars) */}
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-stone-700 mb-2">
                 Motivo *
               </label>
               <textarea
@@ -667,16 +811,16 @@ export default function OrderChangeModal({
                 required
                 minLength={3}
                 placeholder="Describe el motivo del cambio o devolucion (minimo 3 caracteres)..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none resize-none"
               />
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-xs text-stone-500">
                 {formData.reason.trim().length}/3 caracteres minimos
               </p>
             </div>
 
             {/* Info Box */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-              <p className="text-sm text-blue-800">
+            <div className="bg-brand-50 border border-brand-200 rounded-lg p-4 mb-6">
+              <p className="text-sm text-brand-700">
                 <strong>Nota:</strong> La solicitud quedara en estado PENDIENTE y
                 debera ser aprobada por un administrador. Al tratarse de un
                 encargo, el nuevo item se procesara como parte del pedido existente.
@@ -686,7 +830,7 @@ export default function OrderChangeModal({
             {/* Payment Method (for price adjustments) */}
             {isNonReturnType && (
               <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-stone-700 mb-2">
                   Metodo de Pago (para diferencia de precio)
                 </label>
                 <select
@@ -697,33 +841,33 @@ export default function OrderChangeModal({
                       payment_method: e.target.value as any,
                     })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none"
                 >
                   <option value="cash">Efectivo</option>
                   <option value="nequi">Nequi</option>
                   <option value="transfer">Transferencia</option>
                   <option value="card">Tarjeta</option>
                 </select>
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-stone-500">
                   Se usara si hay diferencia de precio entre los productos
                 </p>
               </div>
             )}
 
             {/* Actions */}
-            <div className="flex gap-3 pt-4 border-t border-gray-200">
+            <div className="flex gap-3 pt-4 border-t border-stone-200">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={loading}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+                className="flex-1 px-4 py-2 border border-stone-200 text-stone-700 rounded-lg hover:bg-stone-50 transition disabled:opacity-50"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 flex items-center justify-center"
+                className="flex-1 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition disabled:opacity-50 flex items-center justify-center"
               >
                 {loading ? (
                   <>

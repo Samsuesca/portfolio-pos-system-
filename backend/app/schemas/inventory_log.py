@@ -33,7 +33,6 @@ class InventoryLogFilter(BaseSchema):
 class InventoryLogResponse(IDModelSchema):
     """Inventory log for API responses"""
     inventory_id: UUID | None = None
-    global_inventory_id: UUID | None = None
     school_id: UUID | None = None
     movement_type: InventoryMovementType
     movement_date: date
@@ -49,11 +48,10 @@ class InventoryLogResponse(IDModelSchema):
 
 
 class InventoryLogWithProduct(InventoryLogResponse):
-    """Inventory log with product details for richer responses"""
     product_code: str | None = None
     product_name: str | None = None
     product_size: str | None = None
-    is_global_product: bool = False
+    is_global: bool = False
     created_by_name: str | None = None
 
 
@@ -62,9 +60,7 @@ class InventoryLogWithProduct(InventoryLogResponse):
 # ============================================
 
 class InventoryLogCreate(BaseSchema):
-    """Schema for creating inventory log (internal use by services)"""
     inventory_id: UUID | None = None
-    global_inventory_id: UUID | None = None
     school_id: UUID | None = None
     movement_type: InventoryMovementType
     movement_date: date
@@ -82,9 +78,6 @@ class InventoryLogCreate(BaseSchema):
 # List Response Schemas
 # ============================================
 
-class InventoryLogListResponse(BaseSchema):
-    """Paginated list of inventory logs"""
-    items: list[InventoryLogWithProduct]
-    total: int
-    skip: int
-    limit: int
+from app.schemas.base import PaginatedResponse
+
+InventoryLogListResponse = PaginatedResponse[InventoryLogWithProduct]

@@ -213,22 +213,15 @@ interface SaleApiResponse {
     quantity: number;
     unit_price: number;
     subtotal: number;
-    is_global_product?: boolean;
-    // School product fields
     product_name?: string;
     product_size?: string;
     product_code?: string;
-    // Global product fields
-    global_product_name?: string;
-    global_product_size?: string;
-    global_product_code?: string;
   }>;
   discount?: number;
   total: number;
   paid_amount?: number;
   payment_method?: string;
   notes?: string;
-  // Payments array with cash change tracking
   payments?: Array<{
     amount: number;
     payment_method: string;
@@ -279,33 +272,18 @@ async function fetchSaleData(schoolId: string, saleId: string, schoolName?: stri
   const response = await apiClient.get<SaleApiResponse>(`/schools/${schoolId}/sales/${saleId}/items`);
   const sale = response.data;
 
-  // Determinar si mostrar el colegio (solo si hay productos especificos del colegio)
-  const hasSchoolProducts = sale.items.some((item) => !item.is_global_product && item.product_name);
-
   return {
     code: sale.code || "SIN-CODIGO",
     sale_date: sale.sale_date || new Date().toISOString(),
     client_name: sale.client_name,
-    school_name: hasSchoolProducts ? (sale.school_name || schoolName) : undefined,
-    items: sale.items.map((item) => {
-      // Get product name: prefer school product, fallback to global
-      const productName = item.is_global_product
-        ? (item.global_product_name || "Producto")
-        : (item.product_name || item.global_product_name || "Producto");
-
-      // Get size: prefer school product size, fallback to global
-      const productSize = item.is_global_product
-        ? item.global_product_size
-        : (item.product_size || item.global_product_size);
-
-      return {
-        quantity: Number(item.quantity) || 1,
-        product_name: productName,
-        product_size: productSize,
-        unit_price: Number(item.unit_price) || 0,
-        subtotal: Number(item.subtotal) || 0,
-      };
-    }),
+    school_name: sale.school_name || schoolName,
+    items: sale.items.map((item) => ({
+      quantity: Number(item.quantity) || 1,
+      product_name: item.product_name || "Producto",
+      product_size: item.product_size,
+      unit_price: Number(item.unit_price) || 0,
+      subtotal: Number(item.subtotal) || 0,
+    })),
     subtotal: sale.items.reduce((sum, item) => sum + (Number(item.subtotal) || 0), 0),
     discount: Number(sale.discount) || 0,
     total: Number(sale.total) || 0,
@@ -563,9 +541,7 @@ export async function handlePostOrderPrint(
 interface AlterationApiResponse {
   id: string;
   code: string;
-  client_id: string | null;
-  external_client_name: string | null;
-  external_client_phone: string | null;
+  client_id: string;
   alteration_type: string;
   garment_name: string;
   description: string;
@@ -594,8 +570,8 @@ async function fetchAlterationData(alterationId: string): Promise<AlterationData
     code: alteration.code || "SIN-CODIGO",
     received_date: alteration.received_date || new Date().toISOString(),
     status: alteration.status || "pending",
-    client_name: alteration.client_display_name || alteration.external_client_name || "Sin nombre",
-    client_phone: alteration.external_client_phone || undefined,
+    client_name: alteration.client_display_name || "Sin nombre",
+    client_phone: undefined,
     alteration_type: alteration.alteration_type || "other",
     garment_name: alteration.garment_name || "Prenda",
     description: alteration.description || "",

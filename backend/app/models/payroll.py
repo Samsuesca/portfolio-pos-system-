@@ -304,3 +304,33 @@ class PayrollItem(Base):
     # Relationships
     payroll_run = relationship("PayrollRun", back_populates="items")
     employee = relationship("Employee", back_populates="payroll_items", lazy="joined")
+
+
+class Position(Base):
+    """Standardized position catalog for employees"""
+    __tablename__ = "positions"
+
+    id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4
+    )
+    code: Mapped[str] = mapped_column(
+        String(50),
+        unique=True,
+        nullable=False,
+        index=True
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=get_colombia_now_naive, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=get_colombia_now_naive, onupdate=get_colombia_now_naive, nullable=False
+    )
+
+    def __repr__(self) -> str:
+        return f"<Position(code='{self.code}', name='{self.name}')>"

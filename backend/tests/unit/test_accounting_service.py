@@ -415,7 +415,7 @@ class TestBusinessScenarios:
         """
         Scenario: Sale automatically creates income transaction
 
-        Sale: VNT-2025-0001
+        Sale: CARACAS-001-VNT-2025-0001
         Amount: $150,000
         Payment: Cash
 
@@ -423,10 +423,10 @@ class TestBusinessScenarios:
            - Type: INCOME
            - Amount: $150,000
            - Method: CASH
-           - Reference: VNT-2025-0001
+           - Reference: CARACAS-001-VNT-2025-0001
         """
         sale = {
-            "code": "VNT-2025-0001",
+            "code": "CARACAS-001-VNT-2025-0001",
             "paid_amount": Decimal("150000"),
             "payment_method": "cash"
         }

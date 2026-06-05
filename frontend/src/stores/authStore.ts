@@ -5,6 +5,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import apiClient, { getErrorMessage } from '../utils/api-client';
 import type { User, LoginRequest, LoginResponse } from '../types/api';
+import { refreshRegistryIfStale } from '../services/permissionRegistryService';
 
 interface AuthState {
   // State
@@ -16,6 +17,7 @@ interface AuthState {
 
   // Actions
   login: (credentials: LoginRequest) => Promise<void>;
+  googleLogin: (idToken: string) => Promise<void>;
   logout: () => void;
   clearError: () => void;
   getCurrentUser: () => Promise<void>;
@@ -50,6 +52,42 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false,
             error: null,
           });
+
+          refreshRegistryIfStale().catch(() => {});
+        } catch (error) {
+          const errorMessage = getErrorMessage(error);
+          set({
+            user: null,
+            token: null,
+            isAuthenticated: false,
+            isLoading: false,
+            error: errorMessage,
+          });
+          throw error;
+        }
+      },
+
+      // Google Login action
+      googleLogin: async (idToken: string) => {
+        set({ isLoading: true, error: null });
+
+        try {
+          const response = await apiClient.post<LoginResponse>('/auth/google-login', {
+            id_token: idToken,
+          });
+          const { token, user } = response.data;
+
+          localStorage.setItem('access_token', token.access_token);
+
+          set({
+            user,
+            token: token.access_token,
+            isAuthenticated: true,
+            isLoading: false,
+            error: null,
+          });
+
+          refreshRegistryIfStale().catch(() => {});
         } catch (error) {
           const errorMessage = getErrorMessage(error);
           set({

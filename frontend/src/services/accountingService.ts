@@ -2,6 +2,8 @@
  * Accounting Service - API calls for accounting, transactions, and expenses
  */
 import apiClient from '../utils/api-client';
+import type { PaginatedResponse } from '../types/api';
+import { unwrapPaginated } from '../utils/pagination';
 import type {
   AccountingDashboard,
   TransactionListItem,
@@ -73,8 +75,8 @@ export async function getTransactions(
     skip?: number;
     limit?: number;
   }
-): Promise<TransactionListItem[]> {
-  const response = await apiClient.get<TransactionListItem[]>(
+): Promise<PaginatedResponse<TransactionListItem>> {
+  const response = await apiClient.get<PaginatedResponse<TransactionListItem> | TransactionListItem[]>(
     `${BASE_URL}/${schoolId}/accounting/transactions`,
     {
       params: {
@@ -86,7 +88,7 @@ export async function getTransactions(
       }
     }
   );
-  return response.data;
+  return unwrapPaginated(response.data);
 }
 
 export async function getTransaction(schoolId: string, transactionId: string): Promise<Transaction> {
@@ -113,8 +115,8 @@ export async function getExpenses(
     skip?: number;
     limit?: number;
   }
-): Promise<ExpenseListItem[]> {
-  const response = await apiClient.get<ExpenseListItem[]>(
+): Promise<PaginatedResponse<ExpenseListItem>> {
+  const response = await apiClient.get<PaginatedResponse<ExpenseListItem> | ExpenseListItem[]>(
     `${BASE_URL}/${schoolId}/accounting/expenses`,
     {
       params: {
@@ -125,14 +127,14 @@ export async function getExpenses(
       }
     }
   );
-  return response.data;
+  return unwrapPaginated(response.data);
 }
 
-export async function getPendingExpenses(schoolId: string): Promise<ExpenseListItem[]> {
-  const response = await apiClient.get<ExpenseListItem[]>(
+export async function getPendingExpenses(schoolId: string): Promise<PaginatedResponse<ExpenseListItem>> {
+  const response = await apiClient.get<PaginatedResponse<ExpenseListItem> | ExpenseListItem[]>(
     `${BASE_URL}/${schoolId}/accounting/expenses/pending`
   );
-  return response.data;
+  return unwrapPaginated(response.data);
 }
 
 export async function getExpensesByCategory(
@@ -260,18 +262,18 @@ export function getExpenseCategoryLabel(category: ExpenseCategory): string {
 export function getExpenseCategoryColor(category: ExpenseCategory): string {
   const colors: Record<ExpenseCategory, string> = {
     rent: 'bg-purple-100 text-purple-800',
-    utilities: 'bg-blue-100 text-blue-800',
-    payroll: 'bg-green-100 text-green-800',
-    supplies: 'bg-yellow-100 text-yellow-800',
+    utilities: 'bg-brand-100 text-brand-700',
+    payroll: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+    supplies: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
     inventory: 'bg-orange-100 text-orange-800',
     transport: 'bg-cyan-100 text-cyan-800',
-    maintenance: 'bg-red-100 text-red-800',
+    maintenance: 'bg-red-50 text-red-700 ring-1 ring-red-200',
     marketing: 'bg-pink-100 text-pink-800',
-    taxes: 'bg-gray-100 text-gray-800',
+    taxes: 'bg-stone-100 text-stone-800',
     bank_fees: 'bg-indigo-100 text-indigo-800',
     other: 'bg-slate-100 text-slate-800'
   };
-  return colors[category] || 'bg-gray-100 text-gray-800';
+  return colors[category] || 'bg-stone-100 text-stone-800';
 }
 
 export function getPaymentMethodLabel(method: string): string {
@@ -364,12 +366,12 @@ export async function getBalanceEntries(
   accountId: string,
   startDate?: string,
   endDate?: string
-): Promise<BalanceEntry[]> {
-  const response = await apiClient.get<BalanceEntry[]>(
+): Promise<PaginatedResponse<BalanceEntry>> {
+  const response = await apiClient.get<PaginatedResponse<BalanceEntry> | BalanceEntry[]>(
     `${BASE_URL}/${schoolId}/accounting/balance-accounts/${accountId}/entries`,
     { params: { start_date: startDate, end_date: endDate } }
   );
-  return response.data;
+  return unwrapPaginated(response.data);
 }
 
 export async function createBalanceEntry(
@@ -388,12 +390,12 @@ export async function createBalanceEntry(
 export async function getAccountsReceivable(
   schoolId: string,
   options?: { isPaid?: boolean; isOverdue?: boolean; clientId?: string }
-): Promise<AccountsReceivableListItem[]> {
-  const response = await apiClient.get<AccountsReceivableListItem[]>(
+): Promise<PaginatedResponse<AccountsReceivableListItem>> {
+  const response = await apiClient.get<PaginatedResponse<AccountsReceivableListItem> | AccountsReceivableListItem[]>(
     `${BASE_URL}/${schoolId}/accounting/receivables`,
     { params: { is_paid: options?.isPaid, is_overdue: options?.isOverdue, client_id: options?.clientId } }
   );
-  return response.data;
+  return unwrapPaginated(response.data);
 }
 
 export async function getAccountReceivable(schoolId: string, receivableId: string): Promise<AccountsReceivable> {
@@ -434,12 +436,12 @@ export async function deleteAccountReceivable(schoolId: string, receivableId: st
 export async function getAccountsPayable(
   schoolId: string,
   options?: { isPaid?: boolean; isOverdue?: boolean; vendor?: string }
-): Promise<AccountsPayableListItem[]> {
-  const response = await apiClient.get<AccountsPayableListItem[]>(
+): Promise<PaginatedResponse<AccountsPayableListItem>> {
+  const response = await apiClient.get<PaginatedResponse<AccountsPayableListItem> | AccountsPayableListItem[]>(
     `${BASE_URL}/${schoolId}/accounting/payables`,
     { params: { is_paid: options?.isPaid, is_overdue: options?.isOverdue, vendor: options?.vendor } }
   );
-  return response.data;
+  return unwrapPaginated(response.data);
 }
 
 export async function getAccountPayable(schoolId: string, payableId: string): Promise<AccountsPayable> {
@@ -495,18 +497,18 @@ export function getAccountTypeLabel(accountType: AccountType): string {
 
 export function getAccountTypeColor(accountType: AccountType): string {
   const colors: Record<AccountType, string> = {
-    asset_current: 'bg-green-100 text-green-800',
+    asset_current: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
     asset_fixed: 'bg-emerald-100 text-emerald-800',
     asset_intangible: 'bg-violet-100 text-violet-800',
     asset_other: 'bg-teal-100 text-teal-800',
-    liability_current: 'bg-red-100 text-red-800',
+    liability_current: 'bg-red-50 text-red-700 ring-1 ring-red-200',
     liability_long: 'bg-rose-100 text-rose-800',
     liability_other: 'bg-pink-100 text-pink-800',
-    equity_capital: 'bg-blue-100 text-blue-800',
+    equity_capital: 'bg-brand-100 text-brand-700',
     equity_retained: 'bg-indigo-100 text-indigo-800',
     equity_other: 'bg-purple-100 text-purple-800'
   };
-  return colors[accountType] || 'bg-gray-100 text-gray-800';
+  return colors[accountType] || 'bg-stone-100 text-stone-800';
 }
 
 export function getAccountTypeCategory(accountType: AccountType): 'assets' | 'liabilities' | 'equity' {

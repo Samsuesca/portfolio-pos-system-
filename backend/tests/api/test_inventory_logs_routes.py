@@ -13,6 +13,7 @@ from uuid import uuid4
 from datetime import date, timedelta
 
 from tests.fixtures.assertions import assert_success_response
+from tests.fixtures.assertions import assert_list_response
 
 
 pytestmark = pytest.mark.api
@@ -37,7 +38,7 @@ class TestProductInventoryLogs:
         )
 
         assert response.status_code == 200
-        data = response.json()
+        data = assert_list_response(response)
         assert isinstance(data, list)
 
     async def test_get_product_logs_with_pagination(
@@ -54,7 +55,7 @@ class TestProductInventoryLogs:
         )
 
         assert response.status_code == 200
-        data = response.json()
+        data = assert_list_response(response)
         assert isinstance(data, list)
         assert len(data) <= 10
 
@@ -87,7 +88,9 @@ class TestProductInventoryLogs:
         # Returns 200 with empty list or 404
         assert response.status_code in [200, 404]
         if response.status_code == 200:
-            assert response.json() == []
+            body = response.json()
+            items = body["items"] if isinstance(body, dict) and "items" in body else body
+            assert items == []
 
 
 class TestSchoolInventoryLogs:

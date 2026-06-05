@@ -12,11 +12,15 @@
 import { useEffect, useState, useCallback } from 'react';
 import Layout from '../components/Layout';
 import { BarChart3, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { usePermissions } from '../hooks/usePermissions';
 
 // Import report components
 import {
   ReportHeader,
+  REPORT_TAB_PERMISSIONS,
   SalesReport,
+  OrdersReport,
+  OverviewReport,
   FinancialReport,
   MovementsLog,
   AlterationsReport,
@@ -37,23 +41,77 @@ import {
 } from '../components/reports';
 
 // Services
-import { reportsService, type GlobalSalesSummary, type GlobalTopProduct, type GlobalTopClient, type MonthlySalesReport, type ProfitabilityBySchoolResponse } from '../services/reportsService';
+import {
+  reportsService,
+  type GlobalSalesSummary,
+  type GlobalTopProduct,
+  type GlobalTopClient,
+  type MonthlySalesReport,
+  type ProfitabilityBySchoolResponse,
+  type OrdersSummary,
+  type OrdersStatusFunnel,
+  type OrdersOnTimeDelivery,
+  type OrdersTopProduct,
+  type OrdersTopClient,
+  type StreamSummary,
+  type StreamsBreakdownBySchool,
+  type RevenueBasis,
+} from '../services/reportsService';
+
+// Persist last-visited tab so muscle memory wins after the first visit.
+// Default = 'overview' (the new executive Resumen 360).
+const REPORTS_TAB_STORAGE_KEY = 'reports.activeTab';
+const VALID_TABS: ReportTab[] = [
+  'overview', 'sales', 'orders', 'profitability', 'financial',
+  'movements', 'alterations', 'inventory', 'analysis',
+];
+const getInitialTab = (): ReportTab => {
+  if (typeof window === 'undefined') return 'overview';
+  const stored = window.localStorage.getItem(REPORTS_TAB_STORAGE_KEY);
+  if (stored && VALID_TABS.includes(stored as ReportTab)) return stored as ReportTab;
+  return 'overview';
+};
 import { schoolService, type School } from '../services/schoolService';
 import { globalAccountingService } from '../services/globalAccountingService';
 import { alterationService } from '../services/alterationService';
 import { inventoryLogService, type InventoryLog } from '../services/inventoryLogService';
-import type { AlterationsSummary, AlterationListItem } from '../types/api';
+import type {
+  AlterationsSummary,
+  AlterationListItem,
+  AlterationsResponseTime,
+  AlterationsTopType,
+} from '../types/api';
 
 // Stores
 import { useSchoolStore } from '../stores/schoolStore';
 
 export default function Reports() {
   const { availableSchools, loadSchools } = useSchoolStore();
+  const { hasPermission } = usePermissions();
 
   // Core state
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<ReportTab>('sales');
+  // Default = Resumen 360 (Fase 3); persists last-visited tab in localStorage.
+  const [activeTab, setActiveTabState] = useState<ReportTab>(getInitialTab);
+  const setActiveTab = useCallback((tab: ReportTab) => {
+    setActiveTabState(tab);
+    try {
+      window.localStorage.setItem(REPORTS_TAB_STORAGE_KEY, tab);
+    } catch {
+      // localStorage unavailable (Safari private mode); silent ignore
+    }
+  }, []);
+
+  // Keep activeTab on a tab the user can actually load. Sellers (and other
+  // non-admin roles) lack reports.financial — the default Resumen tab — so fall
+  // back to the first tab their permissions allow instead of 403-ing on mount.
+  useEffect(() => {
+    if (!hasPermission(REPORT_TAB_PERMISSIONS[activeTab])) {
+      const firstAllowed = VALID_TABS.find((t) => hasPermission(REPORT_TAB_PERMISSIONS[t]));
+      if (firstAllowed) setActiveTab(firstAllowed);
+    }
+  }, [hasPermission, activeTab, setActiveTab]);
 
   // Date filter state
   const [datePreset, setDatePreset] = useState<DatePreset>('month');
@@ -91,6 +149,9 @@ export default function Reports() {
   const [alterationsError, setAlterationsError] = useState<string | null>(null);
   const [alterationsSummary, setAlterationsSummary] = useState<AlterationsSummary | null>(null);
   const [alterationsList, setAlterationsList] = useState<AlterationListItem[]>([]);
+  // Fase 2 (Reports Coverage) — operational KPIs for Arreglos tab
+  const [alterationsResponseTime, setAlterationsResponseTime] = useState<AlterationsResponseTime | null>(null);
+  const [alterationsTopTypes, setAlterationsTopTypes] = useState<AlterationsTopType[]>([]);
 
   // Inventory data
   const [inventoryLogsLoading, setInventoryLogsLoading] = useState(false);
@@ -111,6 +172,23 @@ export default function Reports() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_profitabilityError, setProfitabilityError] = useState<string | null>(null);
   const [profitabilityData, setProfitabilityData] = useState<ProfitabilityBySchoolResponse | null>(null);
+
+  // Orders (Encargos) data — Fase 1 del plan Reports Coverage
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [ordersSummary, setOrdersSummary] = useState<OrdersSummary | null>(null);
+  const [ordersFunnel, setOrdersFunnel] = useState<OrdersStatusFunnel | null>(null);
+  const [ordersOnTime, setOrdersOnTime] = useState<OrdersOnTimeDelivery | null>(null);
+  const [ordersTopProducts, setOrdersTopProducts] = useState<OrdersTopProduct[]>([]);
+  const [ordersTopClients, setOrdersTopClients] = useState<OrdersTopClient[]>([]);
+  const [ordersSchoolFilter, setOrdersSchoolFilter] = useState<string>('');
+
+  // Overview (Resumen 360) data — Fase 3 del plan Reports Coverage
+  const [overviewLoading, setOverviewLoading] = useState(false);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
+  const [overviewSummary, setOverviewSummary] = useState<StreamSummary | null>(null);
+  const [overviewBySchool, setOverviewBySchool] = useState<StreamsBreakdownBySchool | null>(null);
+  const [overviewBasis, setOverviewBasis] = useState<RevenueBasis>('accrual');
 
   // ============= DATA LOADING =============
 
@@ -173,8 +251,8 @@ export default function Reports() {
           : Promise.resolve(null)
       ]);
 
-      setTransactions(transactionsData);
-      setExpensesByCategory(expensesData);
+      setTransactions(transactionsData.items);
+      setExpensesByCategory(expensesData.items);
       setCashFlow(cashFlowData);
     } catch (err: any) {
       const parsedError = parseApiError(err);
@@ -194,8 +272,8 @@ export default function Reports() {
 
       // Load balance accounts for filter dropdown (only once)
       if (balanceAccounts.length === 0) {
-        const accounts = await globalAccountingService.getGlobalBalanceAccounts();
-        const currentAssets = accounts.filter((a: any) => a.account_type === 'asset_current');
+        const accountsResult = await globalAccountingService.getGlobalBalanceAccounts();
+        const currentAssets = accountsResult.items.filter((a: any) => a.account_type === 'asset_current');
         setBalanceAccounts(currentAssets);
       }
 
@@ -206,8 +284,8 @@ export default function Reports() {
         limit: 100
       });
 
-      setBalanceEntries(response.items);
-      setEntriesTotal(response.total);
+      setBalanceEntries(response.items ?? []);
+      setEntriesTotal(response.total ?? 0);
     } catch (err: any) {
       const parsedError = parseApiError(err);
       console.error('[MovementsLogError]', parsedError);
@@ -224,17 +302,35 @@ export default function Reports() {
 
       const { startDate, endDate } = activeFilters;
 
-      const [summaryData, listData] = await Promise.all([
-        alterationService.getSummary(),
+      // Fase 2 — Reports Coverage: getSummary now respects date filters so
+      // the KPI cards stay in sync with the list (Bug 9 of the audit).
+      // The new response-time + top-types endpoints power the new widgets
+      // below the existing summary cards.
+      const [summaryData, listData, responseTimeData, topTypesData] = await Promise.all([
+        alterationService.getSummary({
+          start_date: startDate,
+          end_date: endDate,
+        }),
         alterationService.getAll({
           start_date: startDate,
           end_date: endDate,
           limit: 50
-        })
+        }),
+        alterationService.getResponseTimeStats({
+          start_date: startDate,
+          end_date: endDate,
+        }),
+        alterationService.getTopTypes({
+          start_date: startDate,
+          end_date: endDate,
+          limit: 5,
+        }),
       ]);
 
       setAlterationsSummary(summaryData);
-      setAlterationsList(listData);
+      setAlterationsList(listData.items);
+      setAlterationsResponseTime(responseTimeData);
+      setAlterationsTopTypes(topTypesData);
     } catch (err: any) {
       const parsedError = parseApiError(err);
       console.error('[AlterationsReportError]', parsedError);
@@ -264,8 +360,8 @@ export default function Reports() {
         limit: 100
       });
 
-      setInventoryLogs(response.items);
-      setInventoryLogsTotal(response.total);
+      setInventoryLogs(response.items ?? []);
+      setInventoryLogsTotal(response.total ?? 0);
     } catch (err: any) {
       const parsedError = parseApiError(err);
       console.error('[InventoryLogsError]', parsedError);
@@ -310,13 +406,65 @@ export default function Reports() {
     }
   }, [activeFilters]);
 
+  const loadOverviewReport = useCallback(async () => {
+    try {
+      setOverviewLoading(true);
+      setOverviewError(null);
+
+      const [summary, bySchool] = await Promise.all([
+        reportsService.getStreamsSummary(activeFilters, overviewBasis),
+        reportsService.getStreamsBreakdownBySchool(activeFilters, overviewBasis),
+      ]);
+      setOverviewSummary(summary);
+      setOverviewBySchool(bySchool);
+    } catch (err: any) {
+      const parsedError = parseApiError(err);
+      console.error('[OverviewReportError]', parsedError);
+      setOverviewError(parsedError.userMessage);
+    } finally {
+      setOverviewLoading(false);
+    }
+  }, [activeFilters, overviewBasis]);
+
+  const loadOrdersReport = useCallback(async () => {
+    try {
+      setOrdersLoading(true);
+      setOrdersError(null);
+
+      const filters = {
+        ...activeFilters,
+        schoolId: ordersSchoolFilter || undefined,
+      };
+
+      const [summary, funnel, onTime, topProducts, topClients] = await Promise.all([
+        reportsService.getOrdersSummary(filters),
+        reportsService.getOrdersStatusFunnel(filters),
+        reportsService.getOrdersOnTimeDelivery(filters),
+        reportsService.getOrdersTopProducts(5, filters),
+        reportsService.getOrdersTopClients(5, filters),
+      ]);
+
+      setOrdersSummary(summary);
+      setOrdersFunnel(funnel);
+      setOrdersOnTime(onTime);
+      setOrdersTopProducts(topProducts);
+      setOrdersTopClients(topClients);
+    } catch (err: any) {
+      const parsedError = parseApiError(err);
+      console.error('[OrdersReportError]', parsedError);
+      setOrdersError(parsedError.userMessage);
+    } finally {
+      setOrdersLoading(false);
+    }
+  }, [activeFilters, ordersSchoolFilter]);
+
   // ============= EFFECTS =============
 
   useEffect(() => {
     const loadAllSchools = async () => {
       try {
-        const schools = await schoolService.getSchools(false);
-        setAllSchools(schools);
+        const schoolsResult = await schoolService.getSchools(false);
+        setAllSchools(schoolsResult.items);
       } catch (err) {
         console.error('Error loading all schools:', err);
       }
@@ -336,11 +484,20 @@ export default function Reports() {
 
   useEffect(() => {
     if (!filtersReady) return;
+    // Don't fetch a tab the user can't load (would 403). The effect above
+    // redirects activeTab to an accessible one.
+    if (!hasPermission(REPORT_TAB_PERMISSIONS[activeTab])) return;
 
     if (Object.keys(activeFilters).length > 0 || datePreset === 'all') {
       switch (activeTab) {
+        case 'overview':
+          loadOverviewReport();
+          break;
         case 'sales':
           loadGlobalSalesReports();
+          break;
+        case 'orders':
+          loadOrdersReport();
           break;
         case 'financial':
           loadFinancialReports();
@@ -366,9 +523,12 @@ export default function Reports() {
     }
   }, [
     activeFilters, activeTab, filtersReady, selectedAccountId,
-    salesSchoolFilter, inventorySchoolFilter, inventoryTypeFilter, selectedMonth,
-    loadGlobalSalesReports, loadFinancialReports, loadMovementsLog,
-    loadAlterationsReport, loadInventoryLogs, loadAnalysisData, loadProfitabilityData
+    salesSchoolFilter, ordersSchoolFilter, overviewBasis,
+    inventorySchoolFilter, inventoryTypeFilter, selectedMonth,
+    loadOverviewReport, loadGlobalSalesReports, loadOrdersReport,
+    loadFinancialReports, loadMovementsLog,
+    loadAlterationsReport, loadInventoryLogs, loadAnalysisData, loadProfitabilityData,
+    hasPermission
   ]);
 
   // ============= HANDLERS =============
@@ -401,8 +561,14 @@ export default function Reports() {
 
   const handleRefresh = () => {
     switch (activeTab) {
+      case 'overview':
+        loadOverviewReport();
+        break;
       case 'sales':
         loadGlobalSalesReports();
+        break;
+      case 'orders':
+        loadOrdersReport();
         break;
       case 'financial':
         loadFinancialReports();
@@ -431,8 +597,8 @@ export default function Reports() {
     return (
       <Layout>
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-          <span className="ml-3 text-gray-600">Cargando reportes...</span>
+          <Loader2 className="w-8 h-8 animate-spin text-brand-600" />
+          <span className="ml-3 text-stone-600">Cargando reportes...</span>
         </div>
       </Layout>
     );
@@ -467,15 +633,15 @@ export default function Reports() {
       {/* Header */}
       <div className="mb-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800 flex items-center">
-            <BarChart3 className="w-8 h-8 mr-3 text-blue-600" />
+          <h1 className="text-2xl font-bold text-stone-800 flex items-center">
+            <BarChart3 className="w-8 h-8 mr-3 text-brand-600" />
             Reportes
           </h1>
-          <p className="text-gray-600 mt-1">Resumen de metricas del negocio</p>
+          <p className="text-stone-600 mt-1">Resumen de metricas del negocio</p>
         </div>
         <button
           onClick={handleRefresh}
-          className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg flex items-center hover:bg-gray-50 transition self-start"
+          className="bg-white border border-stone-200 text-stone-700 px-4 py-2 rounded-lg flex items-center hover:bg-stone-50 transition self-start"
         >
           <RefreshCw className="w-5 h-5 mr-2" />
           Actualizar
@@ -497,6 +663,19 @@ export default function Reports() {
       />
 
       {/* Tab Content */}
+      {activeTab === 'overview' && (
+        <OverviewReport
+          loading={overviewLoading}
+          error={overviewError}
+          onRetry={loadOverviewReport}
+          summary={overviewSummary}
+          bySchool={overviewBySchool}
+          basis={overviewBasis}
+          onBasisChange={setOverviewBasis}
+          dateRangeLabel={getDateRangeLabel()}
+        />
+      )}
+
       {activeTab === 'sales' && (
         <SalesReport
           globalSalesSummary={globalSalesSummary}
@@ -504,6 +683,23 @@ export default function Reports() {
           globalTopClients={globalTopClients}
           salesSchoolFilter={salesSchoolFilter}
           onSchoolFilterChange={setSalesSchoolFilter}
+          allSchools={allSchools}
+          dateRangeLabel={getDateRangeLabel()}
+        />
+      )}
+
+      {activeTab === 'orders' && (
+        <OrdersReport
+          loading={ordersLoading}
+          error={ordersError}
+          onRetry={loadOrdersReport}
+          summary={ordersSummary}
+          funnel={ordersFunnel}
+          onTime={ordersOnTime}
+          topProducts={ordersTopProducts}
+          topClients={ordersTopClients}
+          schoolFilter={ordersSchoolFilter}
+          onSchoolFilterChange={setOrdersSchoolFilter}
           allSchools={allSchools}
           dateRangeLabel={getDateRangeLabel()}
         />
@@ -542,6 +738,8 @@ export default function Reports() {
           onRetry={loadAlterationsReport}
           alterationsSummary={alterationsSummary}
           alterationsList={alterationsList}
+          responseTime={alterationsResponseTime}
+          topTypes={alterationsTopTypes}
           dateRangeLabel={getDateRangeLabel()}
         />
       )}

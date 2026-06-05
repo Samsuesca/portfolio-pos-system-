@@ -18,14 +18,14 @@ export default function ProductSourceTabs({
   globalProductCount,
 }: ProductSourceTabsProps) {
   return (
-    <div className="flex space-x-1 mb-4 bg-gray-100 p-1 rounded-lg">
+    <div className="flex space-x-1 mb-4 bg-stone-100 p-1 rounded-lg">
       <button
         type="button"
         onClick={() => onSourceChange('school')}
         className={`flex-1 flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium transition ${
           productSource === 'school'
-            ? 'bg-white text-blue-600 shadow-sm'
-            : 'text-gray-600 hover:text-gray-900'
+            ? 'bg-white text-brand-600 shadow-sm'
+            : 'text-stone-600 hover:text-stone-900'
         }`}
       >
         <Building className="w-4 h-4 mr-2" />
@@ -37,7 +37,7 @@ export default function ProductSourceTabs({
         className={`flex-1 flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium transition ${
           productSource === 'global'
             ? 'bg-white text-purple-600 shadow-sm'
-            : 'text-gray-600 hover:text-gray-900'
+            : 'text-stone-600 hover:text-stone-900'
         }`}
       >
         <Globe className="w-4 h-4 mr-2" />

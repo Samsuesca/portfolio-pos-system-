@@ -432,7 +432,7 @@ class TestAuthSecurity:
         token = data["token"]["access_token"]
 
         # Decode token to verify claims
-        from jose import jwt
+        import jwt
         from app.core.config import settings
 
         payload = jwt.decode(

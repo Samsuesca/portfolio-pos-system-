@@ -15,6 +15,7 @@ from app.api.dependencies import (
     CurrentUser,
     require_superuser,
 )
+from app.api.error_responses import responses, AUTHENTICATED
 from app.models.delivery_zone import DeliveryZone
 from app.schemas.delivery_zone import (
     DeliveryZoneCreate,
@@ -35,6 +36,7 @@ router = APIRouter(prefix="/delivery-zones", tags=["Delivery Zones"])
     "/public",
     response_model=list[DeliveryZonePublic],
     summary="List active delivery zones (public)",
+    operation_id="listPublicDeliveryZones",
 )
 async def list_public_zones(db: DatabaseSession):
     """
@@ -60,6 +62,8 @@ async def list_public_zones(db: DatabaseSession):
     "",
     response_model=list[DeliveryZoneResponse],
     summary="List all delivery zones",
+    responses=AUTHENTICATED,
+    operation_id="listDeliveryZones",
 )
 async def list_zones(
     db: DatabaseSession,
@@ -87,6 +91,8 @@ async def list_zones(
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_superuser)],
     summary="Create delivery zone",
+    responses=AUTHENTICATED,
+    operation_id="createDeliveryZone",
 )
 async def create_zone(
     zone_data: DeliveryZoneCreate,
@@ -108,6 +114,8 @@ async def create_zone(
     "/{zone_id}",
     response_model=DeliveryZoneResponse,
     summary="Get delivery zone",
+    responses=responses(404),
+    operation_id="getDeliveryZone",
 )
 async def get_zone(
     zone_id: UUID,
@@ -118,6 +126,8 @@ async def get_zone(
     Get delivery zone by ID.
 
     Requires authentication.
+
+    **Tenant isolation:** Delivery zones are global entities; access requires authenticated user.
     """
     result = await db.execute(
         select(DeliveryZone).where(DeliveryZone.id == zone_id)
@@ -138,6 +148,8 @@ async def get_zone(
     response_model=DeliveryZoneResponse,
     dependencies=[Depends(require_superuser)],
     summary="Update delivery zone",
+    responses=responses(404),
+    operation_id="updateDeliveryZone",
 )
 async def update_zone(
     zone_id: UUID,
@@ -148,6 +160,8 @@ async def update_zone(
     Update delivery zone.
 
     Requires superuser access.
+
+    **Tenant isolation:** Delivery zones are global entities; mutation requires superuser.
     """
     result = await db.execute(
         select(DeliveryZone).where(DeliveryZone.id == zone_id)
@@ -174,6 +188,8 @@ async def update_zone(
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(require_superuser)],
     summary="Deactivate delivery zone",
+    responses=responses(404),
+    operation_id="deleteDeliveryZone",
 )
 async def delete_zone(
     zone_id: UUID,
@@ -185,6 +201,8 @@ async def delete_zone(
     Requires superuser access.
     Sets is_active=False instead of deleting to preserve
     historical order references.
+
+    **Tenant isolation:** Delivery zones are global entities; mutation requires superuser.
     """
     result = await db.execute(
         select(DeliveryZone).where(DeliveryZone.id == zone_id)

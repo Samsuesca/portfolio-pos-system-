@@ -19,7 +19,10 @@ from app.models.accounting import (
     DebtPaymentSchedule,
     DebtPaymentStatus,
     BalanceAccount,
+    BalanceEntry,
     AccountType,
+    Expense,
+    ExpenseCategory,
 )
 from app.models.sale import Sale
 from app.models.fixed_expense import FixedExpense
@@ -175,9 +178,26 @@ class PlanningService:
         paid_date: date,
         paid_amount: Decimal,
         payment_method: str,
-        payment_account_id: UUID
+        payment_account_id: UUID,
+        capital_amount: Decimal | None = None,
+        interest_amount: Decimal | None = None,
+        created_by: UUID | None = None,
     ) -> DebtPaymentSchedule | None:
-        """Mark a debt payment as paid."""
+        """
+        Mark a debt payment as paid AND post the corresponding accounting entries.
+
+        Three side-effects beyond updating the schedule row:
+        1. Reduce the cash/bank account by `paid_amount` (BalanceEntry).
+        2. Reduce the linked liability account by `capital_amount` (BalanceEntry),
+           if `payment.balance_account_id` is set.
+        3. Register `interest_amount` as an Expense
+           (category=intereses_financieros), if > 0.
+
+        Capital/interest split:
+        - If neither is given, all of `paid_amount` is treated as capital.
+        - If only one is given, the other is derived as `paid_amount - given`.
+        - The two must sum to `paid_amount` and be non-negative.
+        """
         result = await self.db.execute(
             select(DebtPaymentSchedule).where(DebtPaymentSchedule.id == payment_id)
         )
@@ -186,6 +206,89 @@ class PlanningService:
         if not payment:
             return None
 
+        # Resolve the capital/interest split
+        if capital_amount is None and interest_amount is None:
+            capital_amount = paid_amount
+            interest_amount = Decimal("0")
+        elif capital_amount is None:
+            capital_amount = paid_amount - interest_amount
+        elif interest_amount is None:
+            interest_amount = paid_amount - capital_amount
+
+        if capital_amount < Decimal("0") or interest_amount < Decimal("0"):
+            raise ValueError(
+                "capital_amount y interest_amount deben ser >= 0"
+            )
+        if capital_amount + interest_amount != paid_amount:
+            raise ValueError(
+                f"capital ({capital_amount}) + interes ({interest_amount}) "
+                f"debe igualar paid_amount ({paid_amount})"
+            )
+
+        # 1. Reduce the cash/bank account (with row-level lock)
+        pay_account_result = await self.db.execute(
+            select(BalanceAccount)
+            .where(BalanceAccount.id == payment_account_id)
+            .with_for_update()
+        )
+        pay_account = pay_account_result.scalar_one_or_none()
+        if not pay_account:
+            raise ValueError(
+                f"Cuenta de pago {payment_account_id} no encontrada"
+            )
+
+        new_pay_balance = pay_account.balance - paid_amount
+        pay_account.balance = new_pay_balance
+        self.db.add(BalanceEntry(
+            account_id=payment_account_id,
+            school_id=None,
+            entry_date=paid_date,
+            amount=-paid_amount,
+            balance_after=new_pay_balance,
+            description=f"Pago deuda: {payment.description}",
+            reference=f"PAGO-DEUDA-{payment.id}",
+            created_by=created_by,
+        ))
+
+        # 2. Reduce the linked liability (capital portion only, if linked)
+        if payment.balance_account_id and capital_amount > Decimal("0"):
+            liability_result = await self.db.execute(
+                select(BalanceAccount)
+                .where(BalanceAccount.id == payment.balance_account_id)
+                .with_for_update()
+            )
+            liability_account = liability_result.scalar_one_or_none()
+            if liability_account:
+                new_liab_balance = liability_account.balance - capital_amount
+                liability_account.balance = new_liab_balance
+                self.db.add(BalanceEntry(
+                    account_id=payment.balance_account_id,
+                    school_id=None,
+                    entry_date=paid_date,
+                    amount=-capital_amount,
+                    balance_after=new_liab_balance,
+                    description=f"Abono capital deuda: {payment.description}",
+                    reference=f"PAGO-DEUDA-{payment.id}",
+                    created_by=created_by,
+                ))
+
+        # 3. Register interest as an Expense (category: intereses_financieros)
+        if interest_amount > Decimal("0"):
+            self.db.add(Expense(
+                school_id=None,
+                category=ExpenseCategory.INTERESES_FINANCIEROS.value,
+                description=f"Intereses deuda: {payment.description}",
+                amount=interest_amount,
+                amount_paid=interest_amount,
+                is_paid=True,
+                expense_date=paid_date,
+                payment_method=payment_method,
+                payment_account_id=payment_account_id,
+                paid_at=get_colombia_now_naive(),
+                created_by=created_by,
+            ))
+
+        # 4. Update the schedule row
         payment.status = DebtPaymentStatus.PAID
         payment.paid_date = paid_date
         payment.paid_amount = paid_amount

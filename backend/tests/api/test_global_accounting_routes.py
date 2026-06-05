@@ -21,6 +21,7 @@ from datetime import date, timedelta
 
 from tests.fixtures.assertions import (
     assert_success_response,
+    assert_list_response,
     assert_created_response,
     assert_no_content_response,
     assert_not_found,
@@ -83,7 +84,6 @@ async def global_expense(db_session, test_superuser):
         amount=Decimal("150000"),
         expense_date=date.today(),
         due_date=date.today() + timedelta(days=30),
-        vendor="EPM",
         is_paid=False,
         is_active=True,
         created_by=test_superuser.id
@@ -94,14 +94,14 @@ async def global_expense(db_session, test_superuser):
 
 
 @pytest.fixture
-async def global_payable(db_session, test_superuser):
+async def global_payable(db_session, test_superuser, test_vendor):
     """Create a global accounts payable for testing."""
     from app.models.accounting import AccountsPayable
 
     payable = AccountsPayable(
         id=str(uuid4()),
         school_id=None,  # Global
-        vendor="Proveedor Telas",
+        vendor_id=test_vendor.id,
         amount=Decimal("500000"),
         description="Compra de telas",
         invoice_number="FAC-001",
@@ -274,7 +274,7 @@ class TestGlobalBalanceAccounts:
             headers=superuser_headers
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
 
         assert isinstance(data, list)
         assert len(data) >= 2  # At least Caja and Banco
@@ -292,7 +292,7 @@ class TestGlobalBalanceAccounts:
             params={"account_type": "asset_current"}
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
 
         assert isinstance(data, list)
         for account in data:
@@ -383,17 +383,17 @@ class TestGlobalBalanceAccounts:
         superuser_headers,
         db_session
     ):
-        """Should soft delete balance account."""
+        """Should soft delete balance account when balance is zero."""
         from app.models.accounting import BalanceAccount, AccountType
 
-        # Create a deletable account (not Caja or Banco)
+        # Create a deletable account (not Caja or Banco) with zero balance
         account = BalanceAccount(
             id=str(uuid4()),
             school_id=None,
             account_type=AccountType.ASSET_FIXED,
             name="Equipo de Prueba",
             code="1299",
-            balance=Decimal("100000"),
+            balance=Decimal("0"),
             is_active=True
         )
         db_session.add(account)
@@ -405,6 +405,47 @@ class TestGlobalBalanceAccounts:
         )
 
         assert_no_content_response(response)
+
+    async def test_delete_balance_account_with_balance_rejected(
+        self,
+        api_client,
+        superuser_headers,
+        db_session
+    ):
+        """
+        Bug 3 regression: archiving a balance_account with balance != 0 must
+        be rejected so liabilities/assets cannot be silently removed from
+        active reports without compensating accounting movements.
+        """
+        from app.models.accounting import BalanceAccount, AccountType
+
+        account = BalanceAccount(
+            id=str(uuid4()),
+            school_id=None,
+            account_type=AccountType.LIABILITY_LONG,
+            name="Prestamo Pendiente",
+            code="2199",
+            balance=Decimal("5000000"),  # significant outstanding balance
+            is_active=True,
+        )
+        db_session.add(account)
+        await db_session.flush()
+
+        response = await api_client.delete(
+            f"/api/v1/global/accounting/balance-accounts/{account.id}",
+            headers=superuser_headers,
+        )
+
+        assert response.status_code == 400
+        body = response.json()
+        # FastAPI nests the structured detail under "detail"
+        detail = body["detail"] if isinstance(body, dict) else body
+        if isinstance(detail, dict):
+            assert detail.get("code") == "ACCOUNT_HAS_BALANCE"
+            assert detail.get("current_balance") == 5000000.0
+        # Account remains active (was not soft-deleted)
+        await db_session.refresh(account)
+        assert account.is_active is True
 
     async def test_delete_caja_not_allowed(
         self,
@@ -440,7 +481,7 @@ class TestBalanceEntries:
             headers=superuser_headers
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
 
         assert isinstance(data, list)
 
@@ -525,7 +566,7 @@ class TestGlobalExpenses:
             headers=superuser_headers
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
 
         assert isinstance(data, list)
         assert len(data) >= 1
@@ -543,7 +584,7 @@ class TestGlobalExpenses:
             params={"category": "utilities"}
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
 
         assert isinstance(data, list)
         for expense in data:
@@ -561,7 +602,7 @@ class TestGlobalExpenses:
             headers=superuser_headers
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
 
         assert isinstance(data, list)
         for expense in data:
@@ -579,7 +620,7 @@ class TestGlobalExpenses:
             headers=superuser_headers
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
 
         assert isinstance(data, list)
 
@@ -726,7 +767,7 @@ class TestGlobalAccountsPayable:
             headers=superuser_headers
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
 
         assert isinstance(data, list)
 
@@ -742,7 +783,7 @@ class TestGlobalAccountsPayable:
             headers=superuser_headers
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
 
         assert isinstance(data, list)
         for payable in data:
@@ -751,14 +792,15 @@ class TestGlobalAccountsPayable:
     async def test_create_payable_success(
         self,
         api_client,
-        superuser_headers
+        superuser_headers,
+        test_vendor,
     ):
         """Should create global payable."""
         response = await api_client.post(
             "/api/v1/global/accounting/payables",
             headers=superuser_headers,
             json={
-                "vendor": "Proveedor Hilos",
+                "vendor_id": str(test_vendor.id),
                 "amount": 300000,
                 "description": "Compra de hilos",
                 "invoice_number": "FAC-002",
@@ -769,7 +811,7 @@ class TestGlobalAccountsPayable:
 
         data = assert_created_response(response)
 
-        assert data["vendor"] == "Proveedor Hilos"
+        assert data["vendor_id"] == str(test_vendor.id)
         assert float(data["amount"]) == 300000
 
     async def test_get_payable_success(
@@ -830,7 +872,7 @@ class TestGlobalAccountsReceivable:
             headers=superuser_headers
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
 
         assert isinstance(data, list)
 
@@ -846,7 +888,7 @@ class TestGlobalAccountsReceivable:
             headers=superuser_headers
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
 
         assert isinstance(data, list)
         for receivable in data:
@@ -957,7 +999,7 @@ class TestGlobalTransactions:
             headers=superuser_headers
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
 
         assert isinstance(data, list)
 
@@ -977,7 +1019,7 @@ class TestGlobalTransactions:
             }
         )
 
-        data = assert_success_response(response)
+        data = assert_list_response(response)
 
         assert isinstance(data, list)
 

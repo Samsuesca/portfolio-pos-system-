@@ -37,7 +37,7 @@ class PaymentTransaction(Base):
         default=uuid.uuid4
     )
 
-    # Our unique reference sent to Wompi (e.g., WP-ENC-2026-0042-1710345600)
+    # Our unique reference sent to Wompi (e.g., WP-CARACAS-001-ENC-2026-0042-1710345600)
     reference: Mapped[str] = mapped_column(
         String(100),
         unique=True,

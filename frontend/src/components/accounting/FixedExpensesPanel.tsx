@@ -8,6 +8,7 @@ import {
   Pencil, Trash2, Loader2, X, Users, ExternalLink
 } from 'lucide-react';
 import CurrencyInput from '../CurrencyInput';
+import VendorCombobox from './VendorCombobox';
 import {
   getExpenseTypeLabel,
   getFrequencyLabel,
@@ -69,7 +70,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
     frequency: 'monthly',
     day_of_month: 1,
     auto_generate: true,
-    vendor: '',
+    vendor_id: undefined,
     recurrence_frequency: undefined,
     recurrence_interval: 1,
     recurrence_weekdays: [],
@@ -87,7 +88,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
       frequency: 'monthly',
       day_of_month: 1,
       auto_generate: true,
-      vendor: '',
+      vendor_id: undefined,
       recurrence_frequency: undefined,
       recurrence_interval: 1,
       recurrence_weekdays: [],
@@ -124,7 +125,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
       recurrence_month_days: item.recurrence_month_days ?? [],
       recurrence_month_day_type: item.recurrence_month_day_type ?? undefined,
       auto_generate: item.auto_generate,
-      vendor: item.vendor || ''
+      vendor_id: item.vendor_id || undefined
     });
     setModalError(null);
     setShowModal(true);
@@ -190,8 +191,8 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
         <div className="bg-white rounded-xl shadow-sm border p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Gastos Fijos Activos</p>
-              <p className="text-2xl font-bold text-gray-800">
+              <p className="text-sm text-stone-500">Gastos Fijos Activos</p>
+              <p className="text-2xl font-bold text-stone-800">
                 {fixedExpensesList.filter(e => e.is_active).length}
               </p>
             </div>
@@ -204,7 +205,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
         <div className="bg-white rounded-xl shadow-sm border p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Total Mensual Estimado</p>
+              <p className="text-sm text-stone-500">Total Mensual Estimado</p>
               <p className="text-2xl font-bold text-green-600">
                 ${monthlyEstimate.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
@@ -218,7 +219,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
         <div className="bg-white rounded-xl shadow-sm border p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Pendientes de Generar</p>
+              <p className="text-sm text-stone-500">Pendientes de Generar</p>
               <p className="text-2xl font-bold text-amber-600">
                 {pendingGeneration?.pending_count || 0}
               </p>
@@ -267,13 +268,13 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4 text-brand-600" />
-              <span className="text-sm text-brand-800">
+              <span className="text-sm text-brand-700">
                 Gestiona la nomina desde el modulo dedicado para integrarla automaticamente aqui.
               </span>
             </div>
             <Link
               to="/payroll"
-              className="flex items-center gap-1 text-sm text-brand-700 hover:text-brand-800 font-medium"
+              className="flex items-center gap-1 text-sm text-brand-700 hover:text-brand-700 font-medium"
             >
               Ir a Nomina <ExternalLink className="w-3 h-3" />
             </Link>
@@ -305,23 +306,23 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
 
       {/* Fixed Expenses Table */}
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+        <table className="min-w-full divide-y divide-stone-100">
+          <thead className="bg-stone-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoria</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Monto</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Frecuencia</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prox. Generacion</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase">Nombre</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase">Categoria</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase">Tipo</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase">Monto</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase">Frecuencia</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase">Prox. Generacion</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase">Estado</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-stone-500 uppercase">Acciones</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-stone-100">
             {fixedExpensesList.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                <td colSpan={8} className="px-6 py-12 text-center text-stone-500">
                   No hay gastos fijos configurados
                 </td>
               </tr>
@@ -329,17 +330,17 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
               fixedExpensesList.map((item) => {
                 const isPayrollManaged = item.category === 'payroll' && item.name === 'Nómina Mensual';
                 return (
-                <tr key={item.id} className={`${!item.is_active ? 'bg-gray-50 opacity-60' : ''} ${isPayrollManaged ? 'bg-green-50/50' : ''}`}>
+                <tr key={item.id} className={`${!item.is_active ? 'bg-stone-50 opacity-60' : ''} ${isPayrollManaged ? 'bg-green-50/50' : ''}`}>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-900">{item.name}</span>
+                      <span className="font-medium text-stone-900">{item.name}</span>
                       {isPayrollManaged && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 rounded">
                           <Users className="w-3 h-3" /> Auto
                         </span>
                       )}
                     </div>
-                    {item.vendor && <div className="text-sm text-gray-500">{item.vendor}</div>}
+                    {item.vendor_name && <div className="text-sm text-stone-500">{item.vendor_name}</div>}
                   </td>
                   <td className="px-6 py-4">
                     <span
@@ -361,7 +362,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                       `$${item.amount.toLocaleString('es-CO')}`
                     )}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
+                  <td className="px-6 py-4 text-sm text-stone-600">
                     {item.uses_new_recurrence || item.recurrence_frequency ? (
                       <>
                         {item.recurrence_frequency === 'daily' && `Diario`}
@@ -395,18 +396,18 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                         today.setHours(0, 0, 0, 0);
                         const isPastDue = nextDate <= today;
                         return (
-                          <span className={`inline-flex items-center gap-1 ${isPastDue ? 'text-amber-600 font-medium' : 'text-gray-600'}`}>
+                          <span className={`inline-flex items-center gap-1 ${isPastDue ? 'text-amber-600 font-medium' : 'text-stone-600'}`}>
                             {isPastDue && <Clock className="w-3 h-3" />}
                             {nextDate.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}
                           </span>
                         );
                       })()
                     ) : (
-                      <span className="text-gray-400">-</span>
+                      <span className="text-stone-400">-</span>
                     )}
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${item.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                    <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${item.is_active ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-stone-100 text-stone-800'}`}>
                       {item.is_active ? 'Activo' : 'Inactivo'}
                     </span>
                   </td>
@@ -414,14 +415,14 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                     <div className="flex items-center justify-end gap-2">
                       <button
                         onClick={() => openEditModal(item)}
-                        className="p-2 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"
+                        className="p-2 text-stone-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"
                         title="Editar"
                       >
                         <Pencil className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDelete(item.id)}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                         title="Eliminar"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -449,7 +450,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                   setEditingExpense(null);
                   setModalError(null);
                 }}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-stone-400 hover:text-stone-600"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -463,34 +464,30 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1">Nombre *</label>
                 <input
                   type="text"
                   value={form.name || ''}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-400/30"
                   placeholder="Ej: Internet Claro"
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
-                <input
-                  type="text"
-                  value={form.vendor || ''}
-                  onChange={(e) => setForm({ ...form, vendor: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500"
-                  placeholder="Ej: Claro Colombia"
-                />
-              </div>
+              <VendorCombobox
+                value={form.vendor_id || null}
+                onChange={(id) => setForm({ ...form, vendor_id: id || undefined })}
+                label="Proveedor"
+                placeholder="Buscar proveedor..."
+              />
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Categoria</label>
                   <select
                     value={form.category || 'other'}
                     onChange={(e) => setForm({ ...form, category: e.target.value as ExpenseCategory })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500"
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-400/30"
                   >
                     {activeCategories.map(cat => (
                       <option key={cat.code} value={cat.code}>{cat.name}</option>
@@ -499,11 +496,11 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Tipo</label>
                   <select
                     value={form.expense_type || 'exact'}
                     onChange={(e) => setForm({ ...form, expense_type: e.target.value as FixedExpenseType })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500"
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-400/30"
                   >
                     <option value="exact">Valor Exacto</option>
                     <option value="variable">Valor Variable</option>
@@ -513,7 +510,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
 
               {form.expense_type === 'exact' ? (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Monto *</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Monto *</label>
                   <CurrencyInput
                     value={form.amount || 0}
                     onChange={(val) => setForm({ ...form, amount: val })}
@@ -522,21 +519,21 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
               ) : (
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Monto Base</label>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Monto Base</label>
                     <CurrencyInput
                       value={form.amount || 0}
                       onChange={(val) => setForm({ ...form, amount: val })}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Minimo</label>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Minimo</label>
                     <CurrencyInput
                       value={form.min_amount || 0}
                       onChange={(val) => setForm({ ...form, min_amount: val })}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Maximo</label>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Maximo</label>
                     <CurrencyInput
                       value={form.max_amount || 0}
                       onChange={(val) => setForm({ ...form, max_amount: val })}
@@ -570,9 +567,9 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                       });
                     }
                   }}
-                  className="rounded border-gray-300"
+                  className="rounded border-stone-200"
                 />
-                <label htmlFor="use_advanced_recurrence" className="text-sm text-gray-600">
+                <label htmlFor="use_advanced_recurrence" className="text-sm text-stone-600">
                   Periodicidad avanzada (estilo calendario)
                 </label>
               </div>
@@ -581,11 +578,11 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                 /* Legacy simple frequency */
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Frecuencia</label>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Frecuencia</label>
                     <select
                       value={form.frequency || 'monthly'}
                       onChange={(e) => setForm({ ...form, frequency: e.target.value as ExpenseFrequency })}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500"
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-400/30"
                     >
                       <option value="weekly">Semanal</option>
                       <option value="biweekly">Quincenal</option>
@@ -596,14 +593,14 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Dia del Mes</label>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Dia del Mes</label>
                     <input
                       type="number"
                       min={1}
                       max={31}
                       value={form.day_of_month || 1}
                       onChange={(e) => setForm({ ...form, day_of_month: parseInt(e.target.value) || 1 })}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500"
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-400/30"
                     />
                   </div>
                 </div>
@@ -612,7 +609,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                 <div className="space-y-4 bg-brand-50 p-4 rounded-lg border border-brand-200">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Frecuencia Base</label>
+                      <label className="block text-sm font-medium text-stone-700 mb-1">Frecuencia Base</label>
                       <select
                         value={form.recurrence_frequency || 'monthly'}
                         onChange={(e) => setForm({
@@ -621,7 +618,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                           recurrence_weekdays: [],
                           recurrence_month_days: [],
                         })}
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500 bg-white"
+                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-400/30 bg-white"
                       >
                         <option value="daily">Diario</option>
                         <option value="weekly">Semanal</option>
@@ -631,7 +628,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Cada</label>
+                      <label className="block text-sm font-medium text-stone-700 mb-1">Cada</label>
                       <div className="flex items-center gap-2">
                         <input
                           type="number"
@@ -639,9 +636,9 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                           max={12}
                           value={form.recurrence_interval || 1}
                           onChange={(e) => setForm({ ...form, recurrence_interval: parseInt(e.target.value) || 1 })}
-                          className="w-20 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500 bg-white"
+                          className="w-20 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-400/30 bg-white"
                         />
-                        <span className="text-sm text-gray-600">
+                        <span className="text-sm text-stone-600">
                           {form.recurrence_frequency === 'daily' ? 'dia(s)' :
                            form.recurrence_frequency === 'weekly' ? 'semana(s)' :
                            form.recurrence_frequency === 'monthly' ? 'mes(es)' : 'anio(s)'}
@@ -653,7 +650,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                   {/* Weekly: Day selection */}
                   {form.recurrence_frequency === 'weekly' && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Dias de la Semana</label>
+                      <label className="block text-sm font-medium text-stone-700 mb-2">Dias de la Semana</label>
                       <div className="flex flex-wrap gap-2">
                         {[
                           { value: 'monday', label: 'Lun' },
@@ -677,7 +674,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                               (form.recurrence_weekdays || []).includes(day.value as any)
                                 ? 'bg-brand-500 text-white'
-                                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                                : 'bg-white border border-stone-200 text-stone-700 hover:bg-stone-50'
                             }`}
                           >
                             {day.label}
@@ -691,7 +688,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                   {form.recurrence_frequency === 'monthly' && (
                     <div className="space-y-3">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Dia</label>
+                        <label className="block text-sm font-medium text-stone-700 mb-1">Tipo de Dia</label>
                         <select
                           value={form.recurrence_month_day_type || 'specific'}
                           onChange={(e) => setForm({
@@ -699,7 +696,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                             recurrence_month_day_type: e.target.value === 'specific' ? undefined : e.target.value as any,
                             recurrence_month_days: e.target.value === 'specific' ? [1] : [],
                           })}
-                          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500 bg-white"
+                          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-400/30 bg-white"
                         >
                           <option value="specific">Dia especifico</option>
                           <option value="last_day">Ultimo dia del mes</option>
@@ -710,7 +707,7 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
 
                       {(!form.recurrence_month_day_type || form.recurrence_month_day_type === 'specific') && (
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Dias del Mes (click para seleccionar)</label>
+                          <label className="block text-sm font-medium text-stone-700 mb-2">Dias del Mes (click para seleccionar)</label>
                           <div className="flex flex-wrap gap-1.5">
                             {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
                               <button
@@ -726,14 +723,14 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                                 className={`w-8 h-8 rounded text-sm font-medium transition-colors ${
                                   (form.recurrence_month_days || []).includes(day)
                                     ? 'bg-brand-500 text-white'
-                                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                                    : 'bg-white border border-stone-200 text-stone-700 hover:bg-stone-50'
                                 }`}
                               >
                                 {day}
                               </button>
                             ))}
                           </div>
-                          <p className="text-xs text-gray-500 mt-1">
+                          <p className="text-xs text-stone-500 mt-1">
                             Seleccionados: {(form.recurrence_month_days || []).join(', ') || 'Ninguno'}
                           </p>
                         </div>
@@ -744,11 +741,11 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Descripcion</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1">Descripcion</label>
                 <textarea
                   value={form.description || ''}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-400/30"
                   rows={2}
                   placeholder="Descripcion adicional..."
                 />
@@ -760,22 +757,22 @@ const FixedExpensesPanel: React.FC<FixedExpensesPanelProps> = ({
                   id="auto_generate"
                   checked={form.auto_generate ?? true}
                   onChange={(e) => setForm({ ...form, auto_generate: e.target.checked })}
-                  className="rounded border-gray-300"
+                  className="rounded border-stone-200"
                 />
-                <label htmlFor="auto_generate" className="text-sm text-gray-700">
+                <label htmlFor="auto_generate" className="text-sm text-stone-700">
                   Generar gastos automaticamente
                 </label>
               </div>
             </div>
 
-            <div className="px-6 py-4 border-t bg-gray-50 flex justify-end gap-3">
+            <div className="px-6 py-4 border-t bg-stone-50 flex justify-end gap-3">
               <button
                 onClick={() => {
                   setShowModal(false);
                   setEditingExpense(null);
                   setModalError(null);
                 }}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                className="px-4 py-2 text-stone-700 hover:bg-stone-100 rounded-lg transition-colors"
               >
                 Cancelar
               </button>

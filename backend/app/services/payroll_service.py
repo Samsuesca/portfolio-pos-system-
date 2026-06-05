@@ -28,7 +28,7 @@ from app.services.employee_service import employee_service
 from app.services.workforce.attendance import attendance_service
 
 # Constants for payroll fixed expenses
-PAYROLL_FIXED_EXPENSE_VENDOR = "Empleados - Nómina Consolidada"
+PAYROLL_FIXED_EXPENSE_VENDOR = "Empleados - Nómina Consolidada"  # Used for vendor lookup
 
 # Mapping of PaymentFrequency to FixedExpense names
 PAYROLL_FREQUENCY_NAMES = {
@@ -41,6 +41,17 @@ PAYROLL_FREQUENCY_NAMES = {
 
 class PayrollService:
     """Service for payroll operations"""
+
+    async def _resolve_payroll_vendor_id(self, db) -> UUID:
+        from app.services.accounting.vendors import VendorService
+        from app.models.vendor import VendorType
+        vendor_svc = VendorService(db)
+        vendor = await vendor_svc.get_or_create(
+            PAYROLL_FIXED_EXPENSE_VENDOR,
+            vendor_type=VendorType.INTERNAL,
+            is_system=True,
+        )
+        return vendor.id
 
     # ============================================
     # Payroll Run CRUD
@@ -273,7 +284,7 @@ class PayrollService:
             description=f"Nómina {payroll.period_start.strftime('%d/%m/%Y')} - {payroll.period_end.strftime('%d/%m/%Y')}",
             amount=payroll.total_net,
             expense_date=payroll.payment_date or get_colombia_date(),
-            vendor=PAYROLL_FIXED_EXPENSE_VENDOR,
+            vendor_id=await self._resolve_payroll_vendor_id(db),
             notes=f"Detalle por empleado:\n{notes_text}",
             is_paid=False,
             created_by=approved_by,
@@ -385,7 +396,7 @@ class PayrollService:
                 frequency=expense_freq,
                 day_of_month=30 if frequency == PaymentFrequency.MONTHLY else None,
                 auto_generate=False,  # Payroll module creates expenses, not auto-generation
-                vendor=PAYROLL_FIXED_EXPENSE_VENDOR,
+                vendor_id=await self._resolve_payroll_vendor_id(db),
                 is_active=True,
                 created_by=updated_by,
             )

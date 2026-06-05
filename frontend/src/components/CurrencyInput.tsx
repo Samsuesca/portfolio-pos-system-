@@ -73,14 +73,14 @@ export default function CurrencyInput({
     onChange(numValue);
   };
 
-  const baseClass = `w-full py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none ${
-    disabled ? 'bg-gray-100 cursor-not-allowed' : ''
+  const baseClass = `w-full py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-transparent outline-none ${
+    disabled ? 'bg-stone-100 cursor-not-allowed' : ''
   }`;
 
   return (
     <div className="relative">
       {showIcon && (
-        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
       )}
       <input
         ref={inputRef}

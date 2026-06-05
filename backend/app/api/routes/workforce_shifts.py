@@ -6,6 +6,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 
 from app.api.dependencies import DatabaseSession, CurrentUser, require_global_permission
+from app.api.error_responses import responses, AUTHENTICATED
 from app.services.workforce.shifts import shift_service
 from app.schemas.workforce import (
     ShiftTemplateCreate,
@@ -16,6 +17,7 @@ from app.schemas.workforce import (
     ScheduleUpdate,
     ScheduleResponse,
 )
+from app.schemas.base import PaginatedResponse, paginate
 
 router = APIRouter(prefix="/global/workforce", tags=["Workforce - Shifts"])
 
@@ -28,13 +30,20 @@ router = APIRouter(prefix="/global/workforce", tags=["Workforce - Shifts"])
     "/shift-templates",
     response_model=list[ShiftTemplateResponse],
     dependencies=[Depends(require_global_permission("workforce.view_shifts"))],
+    responses=AUTHENTICATED,
+    operation_id="listShiftTemplates",
 )
 async def list_shift_templates(
     db: DatabaseSession,
     current_user: CurrentUser,
     is_active: bool | None = Query(None),
 ):
-    """List all shift templates"""
+    """
+    List all shift templates, optionally filtered by active status.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.view_shifts` (global)
+    """
     return await shift_service.get_shift_templates(db, is_active=is_active)
 
 
@@ -43,13 +52,20 @@ async def list_shift_templates(
     response_model=ShiftTemplateResponse,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_global_permission("workforce.manage_shifts"))],
+    responses=AUTHENTICATED,
+    operation_id="createShiftTemplate",
 )
 async def create_shift_template(
     data: ShiftTemplateCreate,
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Create a new shift template"""
+    """
+    Create a new shift template.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.manage_shifts` (global)
+    """
     return await shift_service.create_shift_template(
         db, data, created_by=current_user.id
     )
@@ -59,6 +75,8 @@ async def create_shift_template(
     "/shift-templates/{template_id}",
     response_model=ShiftTemplateResponse,
     dependencies=[Depends(require_global_permission("workforce.manage_shifts"))],
+    responses=responses(404),
+    operation_id="updateShiftTemplate",
 )
 async def update_shift_template(
     template_id: UUID,
@@ -66,7 +84,12 @@ async def update_shift_template(
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Update a shift template"""
+    """
+    Update a shift template.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.manage_shifts` (global)
+    """
     try:
         return await shift_service.update_shift_template(db, template_id, data)
     except ValueError as e:
@@ -77,13 +100,20 @@ async def update_shift_template(
     "/shift-templates/{template_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(require_global_permission("workforce.manage_shifts"))],
+    responses=responses(404),
+    operation_id="deleteShiftTemplate",
 )
 async def delete_shift_template(
     template_id: UUID,
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Soft delete a shift template"""
+    """
+    Soft-delete a shift template.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.manage_shifts` (global)
+    """
     if not await shift_service.delete_shift_template(db, template_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -97,8 +127,10 @@ async def delete_shift_template(
 
 @router.get(
     "/schedules",
-    response_model=list[ScheduleResponse],
+    response_model=PaginatedResponse[ScheduleResponse],
     dependencies=[Depends(require_global_permission("workforce.view_shifts"))],
+    responses=AUTHENTICATED,
+    operation_id="listSchedules",
 )
 async def list_schedules(
     db: DatabaseSession,
@@ -106,12 +138,21 @@ async def list_schedules(
     date_from: date | None = Query(None),
     date_to: date | None = Query(None),
     employee_id: UUID | None = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
 ):
-    """List schedules with optional filters"""
+    """
+    List schedules with optional date, employee filters.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.view_shifts` (global)
+    """
     schedules = await shift_service.get_schedules(
         db, date_from=date_from, date_to=date_to, employee_id=employee_id
     )
-    return [_schedule_to_response(s) for s in schedules]
+    total = len(schedules)
+    items = [_schedule_to_response(s) for s in schedules[skip:skip + limit]]
+    return PaginatedResponse[ScheduleResponse](**paginate(items, total, skip, limit))
 
 
 @router.post(
@@ -119,13 +160,20 @@ async def list_schedules(
     response_model=ScheduleResponse,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_global_permission("workforce.manage_shifts"))],
+    responses=responses(400),
+    operation_id="createSchedule",
 )
 async def create_schedule(
     data: ScheduleCreate,
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Create a single schedule entry"""
+    """
+    Create a single schedule entry for an employee.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.manage_shifts` (global)
+    """
     try:
         schedule = await shift_service.create_schedule(
             db, data, created_by=current_user.id
@@ -140,13 +188,20 @@ async def create_schedule(
     response_model=list[ScheduleResponse],
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_global_permission("workforce.manage_shifts"))],
+    responses=AUTHENTICATED,
+    operation_id="createBulkSchedules",
 )
 async def create_bulk_schedules(
     data: BulkScheduleCreate,
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Create multiple schedule entries (skips conflicts)"""
+    """
+    Create multiple schedule entries in bulk, skipping conflicts.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.manage_shifts` (global)
+    """
     schedules = await shift_service.create_bulk_schedules(
         db, data.schedules, created_by=current_user.id
     )
@@ -157,6 +212,8 @@ async def create_bulk_schedules(
     "/schedules/{schedule_id}",
     response_model=ScheduleResponse,
     dependencies=[Depends(require_global_permission("workforce.manage_shifts"))],
+    responses=responses(404),
+    operation_id="updateSchedule",
 )
 async def update_schedule(
     schedule_id: UUID,
@@ -164,7 +221,12 @@ async def update_schedule(
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Update a schedule entry"""
+    """
+    Update a schedule entry.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.manage_shifts` (global)
+    """
     try:
         schedule = await shift_service.update_schedule(db, schedule_id, data)
         return _schedule_to_response(schedule)
@@ -176,13 +238,20 @@ async def update_schedule(
     "/schedules/{schedule_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(require_global_permission("workforce.manage_shifts"))],
+    responses=responses(404),
+    operation_id="deleteSchedule",
 )
 async def delete_schedule(
     schedule_id: UUID,
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
-    """Delete a schedule entry"""
+    """
+    Delete a schedule entry.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.manage_shifts` (global)
+    """
     if not await shift_service.delete_schedule(db, schedule_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -192,8 +261,10 @@ async def delete_schedule(
 
 @router.get(
     "/schedules/employee/{employee_id}",
-    response_model=list[ScheduleResponse],
+    response_model=PaginatedResponse[ScheduleResponse],
     dependencies=[Depends(require_global_permission("workforce.view_shifts"))],
+    responses=AUTHENTICATED,
+    operation_id="getEmployeeSchedule",
 )
 async def get_employee_schedule(
     employee_id: UUID,
@@ -201,12 +272,21 @@ async def get_employee_schedule(
     current_user: CurrentUser,
     date_from: date = Query(...),
     date_to: date = Query(...),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
 ):
-    """Get schedule for a specific employee in a date range"""
+    """
+    Get schedule for a specific employee within a date range.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `workforce.view_shifts` (global)
+    """
     schedules = await shift_service.get_employee_schedule(
         db, employee_id, date_from=date_from, date_to=date_to
     )
-    return [_schedule_to_response(s) for s in schedules]
+    total = len(schedules)
+    items = [_schedule_to_response(s) for s in schedules[skip:skip + limit]]
+    return PaginatedResponse[ScheduleResponse](**paginate(items, total, skip, limit))
 
 
 # ============================================

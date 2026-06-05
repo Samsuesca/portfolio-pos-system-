@@ -2,7 +2,8 @@
  * Order Change Service - API calls for order changes/returns (encargos)
  */
 import apiClient from '../utils/api-client';
-import type { OrderChange, OrderChangeCreate, OrderChangeListItem } from '../types/api';
+import type { OrderChange, OrderChangeCreate, OrderChangeListItem, PaginatedResponse } from '../types/api';
+import { unwrapPaginated } from '../utils/pagination';
 
 export interface OrderChangeFilters {
   status?: 'pending' | 'pending_stock' | 'approved' | 'rejected';
@@ -14,7 +15,7 @@ export const orderChangeService = {
   /**
    * Get all order changes from all schools (global endpoint)
    */
-  async getAllChanges(filters?: OrderChangeFilters): Promise<OrderChangeListItem[]> {
+  async getAllChanges(filters?: OrderChangeFilters): Promise<PaginatedResponse<OrderChangeListItem>> {
     const params = new URLSearchParams();
     if (filters?.status) params.append('status', filters.status);
     if (filters?.change_type) params.append('change_type', filters.change_type);
@@ -22,8 +23,8 @@ export const orderChangeService = {
 
     const queryString = params.toString();
     const url = queryString ? `/order-changes?${queryString}` : '/order-changes';
-    const response = await apiClient.get<OrderChangeListItem[]>(url);
-    return response.data;
+    const response = await apiClient.get<PaginatedResponse<OrderChangeListItem> | OrderChangeListItem[]>(url);
+    return unwrapPaginated(response.data);
   },
 
   /**
@@ -45,10 +46,12 @@ export const orderChangeService = {
    * Get all changes for a specific order
    */
   async getOrderChanges(schoolId: string, orderId: string): Promise<OrderChange[]> {
-    const response = await apiClient.get<OrderChange[]>(
+    const response = await apiClient.get<PaginatedResponse<OrderChange> | OrderChange[]>(
       `/schools/${schoolId}/orders/${orderId}/changes`
     );
-    return response.data;
+    const data = response.data;
+    if (Array.isArray(data)) return data;
+    return data.items;
   },
 
   /**

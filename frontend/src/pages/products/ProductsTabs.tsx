@@ -1,9 +1,10 @@
 /**
  * Tab bar for switching between School Products, Global Products,
- * and Garment Types views.
+ * and Cost Insights. Garment types are now managed inside the product tabs
+ * via the "Árbol" view mode (type → variants), so they no longer have a tab.
  */
 import React from 'react';
-import { Building2, Globe, Tag } from 'lucide-react';
+import { Building2, Globe, BarChart3 } from 'lucide-react';
 import type { TabType } from './types';
 
 interface ProductsTabsProps {
@@ -11,10 +12,7 @@ interface ProductsTabsProps {
   onTabChange: (tab: TabType) => void;
   productsCount: number;
   globalProductsCount: number;
-  garmentTypesCount: number;
-  globalGarmentTypesCount: number;
-  canManageGarmentTypes: boolean;
-  currentSchoolName: string;
+  canViewCosts: boolean;
 }
 
 const ProductsTabs: React.FC<ProductsTabsProps> = ({
@@ -22,25 +20,22 @@ const ProductsTabs: React.FC<ProductsTabsProps> = ({
   onTabChange,
   productsCount,
   globalProductsCount,
-  garmentTypesCount,
-  globalGarmentTypesCount,
-  canManageGarmentTypes,
-  currentSchoolName,
+  canViewCosts,
 }) => {
   return (
     <div className="bg-white rounded-lg shadow-sm mb-6">
-      <div className="flex border-b border-gray-200">
+      <div className="flex border-b border-stone-200">
         <button
           onClick={() => onTabChange('school')}
           className={`flex items-center px-6 py-4 text-sm font-medium border-b-2 transition ${
             activeTab === 'school'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-brand-600 text-brand-600'
+              : 'border-transparent text-stone-500 hover:text-stone-700 hover:border-stone-200'
           }`}
         >
           <Building2 className="w-5 h-5 mr-2" />
-          Productos del Colegio
-          <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-gray-100">
+          Productos por Colegio
+          <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-stone-100">
             {productsCount}
           </span>
         </button>
@@ -49,46 +44,43 @@ const ProductsTabs: React.FC<ProductsTabsProps> = ({
           className={`flex items-center px-6 py-4 text-sm font-medium border-b-2 transition ${
             activeTab === 'global'
               ? 'border-green-600 text-green-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              : 'border-transparent text-stone-500 hover:text-stone-700 hover:border-stone-200'
           }`}
         >
           <Globe className="w-5 h-5 mr-2" />
           Productos Compartidos
-          <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-gray-100">
+          <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-stone-100">
             {globalProductsCount}
           </span>
         </button>
-        {canManageGarmentTypes && (
+        {canViewCosts && (
           <button
-            onClick={() => onTabChange('garment-types')}
+            onClick={() => onTabChange('cost-insights')}
             className={`flex items-center px-6 py-4 text-sm font-medium border-b-2 transition ${
-              activeTab === 'garment-types'
-                ? 'border-purple-600 text-purple-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              activeTab === 'cost-insights'
+                ? 'border-amber-600 text-amber-600'
+                : 'border-transparent text-stone-500 hover:text-stone-700 hover:border-stone-200'
             }`}
           >
-            <Tag className="w-5 h-5 mr-2" />
-            Tipos de Prenda
-            <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-gray-100">
-              {garmentTypesCount + globalGarmentTypesCount}
-            </span>
+            <BarChart3 className="w-5 h-5 mr-2" />
+            Análisis de costos
           </button>
         )}
       </div>
 
       {/* Tab description */}
-      <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
+      <div className="px-6 py-3 bg-stone-50 border-b border-stone-200">
         {activeTab === 'school' ? (
-          <p className="text-sm text-gray-600">
-            Uniformes especificos de <strong>{currentSchoolName}</strong> (camisetas, pantalones, etc.)
+          <p className="text-sm text-stone-600">
+            Uniformes <strong>específicos por colegio</strong>. Cambia a la vista <strong>Árbol</strong> para gestionar tipos de prenda y sus variantes.
           </p>
         ) : activeTab === 'global' ? (
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-stone-600">
             Productos compartidos entre todos los colegios: <strong>Tennis, Zapatos, Medias, Jean, Blusa</strong>
           </p>
         ) : (
-          <p className="text-sm text-gray-600">
-            Gestiona los <strong>tipos de prenda</strong> (Camisa, Pantalon, Zapatos, etc.) que se pueden usar para crear productos
+          <p className="text-sm text-stone-600">
+            Vista agregada: <strong>cobertura de costos, márgenes por colegio</strong> y distribución por componente.
           </p>
         )}
       </div>

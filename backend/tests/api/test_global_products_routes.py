@@ -9,6 +9,7 @@ Tests for global products management:
 """
 import pytest
 from uuid import uuid4
+from tests.fixtures.assertions import assert_list_response
 
 pytestmark = pytest.mark.api
 
@@ -18,17 +19,17 @@ NEEDS_ISOLATION_FIX = pytest.mark.skip(reason="DB isolation issue")
 class TestGlobalGarmentTypeRoutes:
     """Tests for global garment type endpoints."""
 
-    async def test_list_global_garment_types(self, api_client, auth_headers):
+    async def test_list_global_garment_types(self, api_client, superuser_headers):
         """Test listing global garment types."""
         from tests.fixtures.assertions import assert_success_response
 
         response = await api_client.get(
             "/api/v1/global/garment-types",
-            headers=auth_headers
+            headers=superuser_headers
         )
 
         assert_success_response(response)
-        data = response.json()
+        data = assert_list_response(response)
         assert isinstance(data, list)
 
     async def test_create_global_garment_type_superuser(
@@ -126,26 +127,26 @@ class TestGlobalGarmentTypeRoutes:
 class TestGlobalProductRoutes:
     """Tests for global product endpoints."""
 
-    async def test_list_global_products(self, api_client, auth_headers):
+    async def test_list_global_products(self, api_client, superuser_headers):
         """Test listing global products."""
         from tests.fixtures.assertions import assert_success_response
 
         response = await api_client.get(
             "/api/v1/global/products",
-            headers=auth_headers
+            headers=superuser_headers
         )
 
         assert_success_response(response)
-        data = response.json()
+        data = assert_list_response(response)
         assert isinstance(data, list)
 
     async def test_list_global_products_with_pagination(
-        self, api_client, auth_headers
+        self, api_client, superuser_headers
     ):
         """Test listing global products with pagination."""
         response = await api_client.get(
             "/api/v1/global/products?skip=0&limit=10",
-            headers=auth_headers
+            headers=superuser_headers
         )
 
         assert response.status_code == 200
@@ -270,7 +271,7 @@ class TestGlobalProductRoutes:
         )
 
         assert response.status_code == 200
-        data = response.json()
+        data = assert_list_response(response)
         assert isinstance(data, list)
 
     @NEEDS_ISOLATION_FIX
@@ -474,16 +475,16 @@ class TestGlobalInventoryRoutes:
                 assert_bad_request(response)
 
     async def test_get_low_stock_global(
-        self, api_client, auth_headers
+        self, api_client, superuser_headers
     ):
         """Test getting global products with low stock."""
         response = await api_client.get(
             "/api/v1/global/inventory/low-stock",
-            headers=auth_headers
+            headers=superuser_headers
         )
 
         assert response.status_code == 200
-        data = response.json()
+        data = assert_list_response(response)
         assert isinstance(data, list)
 
     async def test_update_global_inventory(
@@ -547,7 +548,7 @@ class TestGlobalGarmentTypeImages:
             )
 
             assert response.status_code == 200
-            data = response.json()
+            data = assert_list_response(response)
             assert isinstance(data, list)
 
     async def test_list_images_not_found_garment_type(
@@ -624,3 +625,102 @@ class TestGlobalProductsValidation:
         )
 
         assert_bad_request(response)
+
+
+class TestGlobalGarmentTypeVisibility:
+    """Visibilidad de productos globales por colegio (modelo de exclusion)."""
+
+    async def _create_gt_with_product(self, api_client, superuser_headers, name: str):
+        gt = await api_client.post(
+            "/api/v1/global/garment-types",
+            json={"name": name},
+            headers=superuser_headers,
+        )
+        assert gt.status_code == 201
+        gt_id = gt.json()["id"]
+        prod = await api_client.post(
+            "/api/v1/global/products",
+            json={"garment_type_id": gt_id, "size": "M", "price": 50000},
+            headers=superuser_headers,
+        )
+        assert prod.status_code == 201
+        return gt_id
+
+    async def test_visibility_defaults_empty(self, api_client, superuser_headers):
+        """Un garment_type nuevo no tiene exclusiones (visible en todos)."""
+        gt_id = await self._create_gt_with_product(
+            api_client, superuser_headers, "Vis Default Type"
+        )
+        resp = await api_client.get(
+            f"/api/v1/global/garment-types/{gt_id}/visibility",
+            headers=superuser_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["hidden_school_ids"] == []
+
+    async def test_set_and_get_visibility(
+        self, api_client, superuser_headers, test_school
+    ):
+        """PUT visibility oculta el global para un colegio; GET lo refleja."""
+        gt_id = await self._create_gt_with_product(
+            api_client, superuser_headers, "Vis Set Type"
+        )
+        put = await api_client.put(
+            f"/api/v1/global/garment-types/{gt_id}/visibility",
+            json={"hidden_school_ids": [str(test_school.id)]},
+            headers=superuser_headers,
+        )
+        assert put.status_code == 200
+        assert put.json()["hidden_school_ids"] == [str(test_school.id)]
+
+        get = await api_client.get(
+            f"/api/v1/global/garment-types/{gt_id}/visibility",
+            headers=superuser_headers,
+        )
+        assert get.status_code == 200
+        assert get.json()["hidden_school_ids"] == [str(test_school.id)]
+
+    async def test_filter_excludes_hidden_global_for_school(
+        self, api_client, superuser_headers, test_school
+    ):
+        """GET /global/products?school_id=X excluye los globales ocultos para X,
+        pero los sigue mostrando sin school_id (gestion interna)."""
+        gt_id = await self._create_gt_with_product(
+            api_client, superuser_headers, "Vis Filter Type"
+        )
+
+        # Ocultar para el colegio de prueba
+        await api_client.put(
+            f"/api/v1/global/garment-types/{gt_id}/visibility",
+            json={"hidden_school_ids": [str(test_school.id)]},
+            headers=superuser_headers,
+        )
+
+        # Con school_id: NO debe aparecer ese garment_type
+        scoped = await api_client.get(
+            f"/api/v1/global/products?school_id={test_school.id}&limit=500",
+            headers=superuser_headers,
+        )
+        assert scoped.status_code == 200
+        scoped_gt_ids = {p["garment_type_id"] for p in scoped.json()["items"]}
+        assert gt_id not in scoped_gt_ids
+
+        # Sin school_id (gestion interna): SÍ aparece
+        unscoped = await api_client.get(
+            "/api/v1/global/products?limit=500",
+            headers=superuser_headers,
+        )
+        assert unscoped.status_code == 200
+        unscoped_gt_ids = {p["garment_type_id"] for p in unscoped.json()["items"]}
+        assert gt_id in unscoped_gt_ids
+
+    async def test_visibility_requires_permission(self, api_client, auth_headers):
+        """Sin garment_types.manage_global no se puede leer/editar visibilidad."""
+        from tests.fixtures.assertions import assert_forbidden
+
+        fake_id = str(uuid4())
+        resp = await api_client.get(
+            f"/api/v1/global/garment-types/{fake_id}/visibility",
+            headers=auth_headers,
+        )
+        assert_forbidden(resp)

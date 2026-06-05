@@ -6,10 +6,8 @@ import uuid
 from app.db.session import get_db
 from app.models.user import User, UserSchoolRole, UserRole
 from app.models.school import School
-from passlib.context import CryptContext
+import bcrypt
 from sqlalchemy import select
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 async def create_public_viewer():
     """Create public-viewer user with VIEWER role for all schools"""
@@ -26,7 +24,7 @@ async def create_public_viewer():
                 return
 
             # Create user
-            hashed_password = pwd_context.hash("PublicView2025!")
+            hashed_password = bcrypt.hashpw("PublicView2025!".encode(), bcrypt.gensalt()).decode()
             user = User(
                 id=uuid.uuid4(),
                 username="public-viewer",

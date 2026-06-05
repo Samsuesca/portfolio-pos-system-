@@ -9,6 +9,7 @@ from uuid import UUID
 from typing import Optional
 
 from app.api.dependencies import DatabaseSession, CurrentUser, UserSchoolIds
+from app.api.error_responses import responses, AUTHENTICATED
 from app.services.notification import NotificationService
 from app.schemas.notification import (
     NotificationResponse,
@@ -24,7 +25,9 @@ router = APIRouter(prefix="/notifications", tags=["Notifications"])
 @router.get(
     "",
     response_model=NotificationListResponse,
-    summary="Get notifications for current user"
+    summary="Get notifications for current user",
+    responses=AUTHENTICATED,
+    operation_id="listNotifications",
 )
 async def get_notifications(
     db: DatabaseSession,
@@ -32,15 +35,10 @@ async def get_notifications(
     user_school_ids: UserSchoolIds,
     unread_only: bool = Query(False, description="Only return unread notifications"),
     limit: int = Query(50, ge=1, le=100, description="Max notifications to return"),
-    offset: int = Query(0, ge=0, description="Offset for pagination")
+    skip: int = Query(0, ge=0, description="Items a saltar")
 ):
     """
     Get notifications for the current authenticated user.
-
-    Returns notifications that:
-    - Are specifically for this user, OR
-    - Are broadcast notifications (user_id=None)
-    - AND belong to schools the user has access to (or are global)
     """
     service = NotificationService(db)
 
@@ -50,12 +48,14 @@ async def get_notifications(
         is_superuser=current_user.is_superuser,
         unread_only=unread_only,
         limit=limit,
-        offset=offset
+        offset=skip
     )
 
     return NotificationListResponse(
         items=[NotificationResponse.model_validate(n) for n in notifications],
         total=total,
+        skip=skip,
+        limit=limit,
         unread_count=unread_count
     )
 
@@ -63,7 +63,9 @@ async def get_notifications(
 @router.get(
     "/unread-count",
     response_model=UnreadCountResponse,
-    summary="Get unread notification count"
+    summary="Get unread notification count",
+    responses=AUTHENTICATED,
+    operation_id="getUnreadNotificationCount",
 )
 async def get_unread_count(
     db: DatabaseSession,
@@ -93,7 +95,9 @@ async def get_unread_count(
 @router.patch(
     "/{notification_id}/read",
     response_model=dict,
-    summary="Mark single notification as read"
+    summary="Mark single notification as read",
+    responses=responses(404),
+    operation_id="markNotificationRead",
 )
 async def mark_notification_read(
     notification_id: UUID,
@@ -101,7 +105,11 @@ async def mark_notification_read(
     current_user: CurrentUser,
     user_school_ids: UserSchoolIds
 ):
-    """Mark a specific notification as read."""
+    """
+    Mark a specific notification as read.
+
+    **Tenant isolation:** Service layer filters by authenticated user's accessible schools.
+    """
     service = NotificationService(db)
 
     count = await service.mark_as_read(
@@ -125,7 +133,9 @@ async def mark_notification_read(
 @router.patch(
     "/mark-all-read",
     response_model=dict,
-    summary="Mark all notifications as read"
+    summary="Mark all notifications as read",
+    responses=AUTHENTICATED,
+    operation_id="markAllNotificationsRead",
 )
 async def mark_all_read(
     db: DatabaseSession,

@@ -1,0 +1,134 @@
+name: "Bug Report"
+description: "Algo no funciona como deberia"
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Reportar un bug
+        Llena lo que puedas. Entre mas detalle, mas rapido lo arreglamos.
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: "Donde lo viste?"
+      options:
+        - App escritorio vendedoras (Tauri - Windows)
+        - App escritorio vendedoras (Tauri - Mac)
+        - Portal admin (web)
+        - Portal padres (web - computador)
+        - Portal padres (web - celular)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: section
+    attributes:
+      label: "En que seccion de la app?"
+      options:
+        - Login / Autenticacion
+        - Dashboard
+        - Ventas (crear venta)
+        - Detalle de venta
+        - Cambios y devoluciones
+        - Pedidos / Encargos
+        - Detalle de pedido
+        - Pedidos web (de padres)
+        - Clientes
+        - Productos / Catalogo
+        - Inventario / Stock
+        - Tipos de prenda
+        - Arreglos (alteraciones)
+        - Contabilidad / Caja
+        - Cuentas por cobrar / pagar
+        - Cierre de caja
+        - Gastos
+        - Cuentas de pago
+        - Reportes
+        - CFO Dashboard
+        - Alertas Telegram
+        - Email / Notificaciones
+        - Documentos
+        - Contactos / Proveedores
+        - Nomina
+        - Personal / Workforce
+        - Mi perfil
+        - Pasarela de pago Wompi (padres)
+        - Carrito / Checkout (padres)
+        - Mi cuenta (padres)
+        - Soporte (padres)
+        - Catalogo por colegio (padres)
+        - Encargos personalizados (padres)
+        - Impresion termica
+        - Otra (describir abajo)
+    validations:
+      required: true
+
+  - type: input
+    id: school
+    attributes:
+      label: "Colegio (si aplica)"
+      description: "Que colegio estabas viendo cuando paso?"
+      placeholder: "Ej: Colegio Calasanz"
+    validations:
+      required: false
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: "Que paso?"
+      description: "Describe que estabas haciendo y que salio mal."
+      placeholder: "Ej: Intente registrar una venta con pago en efectivo y al guardar me salio un error que dice 'Error 500'. La venta no se registro pero el inventario si bajo."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: "Que esperabas que pasara?"
+      placeholder: "Ej: Que la venta se registrara y se imprimiera el recibo automaticamente"
+    validations:
+      required: false
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: "Pasos para reproducirlo (si los recuerdas)"
+      placeholder: |
+        1. Abri Ventas
+        2. Selecciono un producto talla M
+        3. Elegi cliente "Maria Perez"
+        4. Marco metodo de pago "Efectivo"
+        5. Toque Guardar
+        6. Salio error
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: "Screenshot o grabacion de pantalla"
+      description: "Arrastra imagenes o videos aqui. Un pantallazo vale mas que mil palabras."
+    validations:
+      required: false
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: "Que tan grave es?"
+      options:
+        - "Bloqueante: no puedo seguir vendiendo / usando esa parte"
+        - "Critico: afecta plata, inventario o pedidos de clientes"
+        - "Molesto: funciona pero algo esta mal"
+        - "Menor: detalle visual o de texto"
+    validations:
+      required: true
+
+  - type: input
+    id: app_version
+    attributes:
+      label: "Version de la app (si la sabes)"
+      description: "La encuentras abajo a la derecha en la app de escritorio o en Configuracion"
+      placeholder: "Ej: v2.9.0"
+    validations:
+      required: false

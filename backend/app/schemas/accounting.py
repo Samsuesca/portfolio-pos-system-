@@ -5,7 +5,7 @@ from uuid import UUID
 from decimal import Decimal
 from datetime import datetime, date
 from pydantic import Field, field_validator, model_validator
-from app.schemas.base import BaseSchema, IDModelSchema, TimestampSchema, SchoolIsolatedSchema
+from app.schemas.base import BaseSchema, IDModelSchema, TimestampSchema, SchoolIsolatedSchema, PaginatedResponse
 from app.models.accounting import TransactionType, AccPaymentMethod, ExpenseCategory, AccountType, AdjustmentReason
 
 
@@ -15,27 +15,27 @@ from app.models.accounting import TransactionType, AccPaymentMethod, ExpenseCate
 
 class TransactionBase(BaseSchema):
     """Base transaction schema"""
-    type: TransactionType
-    amount: Decimal = Field(..., gt=0)
-    payment_method: AccPaymentMethod
-    description: str = Field(..., min_length=1, max_length=500)
-    category: str | None = Field(None, max_length=100)
-    reference_code: str | None = Field(None, max_length=100)
-    transaction_date: date
+    type: TransactionType = Field(..., example="income")
+    amount: Decimal = Field(..., gt=0, example=135000.00)
+    payment_method: AccPaymentMethod = Field(..., example="cash")
+    description: str = Field(..., min_length=1, max_length=500, example="Venta de uniformes Colegio San José")
+    category: str | None = Field(None, max_length=100, example="ventas")
+    reference_code: str | None = Field(None, max_length=100, example="VTA-0085")
+    transaction_date: date = Field(..., example="2026-04-12")
 
 
 class TransactionCreate(TransactionBase, SchoolIsolatedSchema):
     """Schema for creating a transaction"""
-    sale_id: UUID | None = None
-    order_id: UUID | None = None
-    expense_id: UUID | None = None
+    sale_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440000")
+    order_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440001")
+    expense_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440002")
 
 
 class TransactionUpdate(BaseSchema):
     """Schema for updating a transaction"""
-    description: str | None = Field(None, min_length=1, max_length=500)
-    category: str | None = Field(None, max_length=100)
-    reference_code: str | None = Field(None, max_length=100)
+    description: str | None = Field(None, min_length=1, max_length=500, example="Corrección: Venta de uniformes Colegio San José")
+    category: str | None = Field(None, max_length=100, example="ventas")
+    reference_code: str | None = Field(None, max_length=100, example="VTA-0085-C")
 
 
 class TransactionInDB(TransactionBase, SchoolIsolatedSchema, IDModelSchema):
@@ -85,16 +85,16 @@ class ExpenseBase(BaseSchema):
     Note: category is now a string to support dynamic categories from the database.
     The category code is validated against expense_categories table at runtime.
     """
-    category: str = Field(..., min_length=1, max_length=50, description="Category code from expense_categories table")
-    description: str = Field(..., min_length=1, max_length=500)
-    amount: Decimal = Field(..., gt=0)
-    expense_date: date
-    due_date: date | None = None
-    vendor: str | None = Field(None, max_length=255)
-    receipt_number: str | None = Field(None, max_length=100)
-    notes: str | None = None
+    category: str = Field(..., min_length=1, max_length=50, description="Category code from expense_categories table", example="materiales")
+    description: str = Field(..., min_length=1, max_length=500, example="Compra de telas para producción mensual")
+    amount: Decimal = Field(..., gt=0, example=850000.00)
+    expense_date: date = Field(..., example="2026-04-12")
+    due_date: date | None = Field(None, example="2026-04-30")
+    vendor_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440000")
+    receipt_number: str | None = Field(None, max_length=100, example="FAC-2026-00342")
+    notes: str | None = Field(None, example="Telas para producción de faldas y camisas")
     is_recurring: bool = False
-    recurring_period: str | None = Field(None, pattern=r'^(weekly|monthly|yearly)$')
+    recurring_period: str | None = Field(None, pattern=r'^(weekly|monthly|yearly)$', example="monthly")
 
 
 class ExpenseCreate(ExpenseBase, SchoolIsolatedSchema):
@@ -110,7 +110,7 @@ class ExpenseCreate(ExpenseBase, SchoolIsolatedSchema):
 
 class GlobalExpenseCreate(ExpenseBase):
     """Schema for creating a GLOBAL expense (school_id optional/null)"""
-    school_id: UUID | None = None
+    school_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440000")
 
     @model_validator(mode='after')
     def validate_recurring(self):
@@ -134,6 +134,7 @@ class GlobalExpenseInDB(ExpenseBase, IDModelSchema):
 class GlobalExpenseResponse(GlobalExpenseInDB):
     """Global expense for API responses"""
     balance: Decimal = Field(..., description="Remaining balance to pay")
+    vendor_name: str | None = None
     payment_method: str | None = None
     payment_account_name: str | None = None
     paid_at: datetime | None = None
@@ -143,23 +144,23 @@ class GlobalExpenseResponse(GlobalExpenseInDB):
 
 class ExpenseUpdate(BaseSchema):
     """Schema for updating an expense"""
-    category: str | None = Field(None, min_length=1, max_length=50, description="Category code from expense_categories table")
-    description: str | None = Field(None, min_length=1, max_length=500)
-    amount: Decimal | None = Field(None, gt=0)
-    expense_date: date | None = None
-    due_date: date | None = None
-    vendor: str | None = Field(None, max_length=255)
-    receipt_number: str | None = Field(None, max_length=100)
-    notes: str | None = None
+    category: str | None = Field(None, min_length=1, max_length=50, description="Category code from expense_categories table", example="materiales")
+    description: str | None = Field(None, min_length=1, max_length=500, example="Compra de telas actualizada")
+    amount: Decimal | None = Field(None, gt=0, example=900000.00)
+    expense_date: date | None = Field(None, example="2026-04-12")
+    due_date: date | None = Field(None, example="2026-05-01")
+    vendor_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440000")
+    receipt_number: str | None = Field(None, max_length=100, example="FAC-2026-00342")
+    notes: str | None = Field(None, example="Ajuste por factura corregida")
     is_recurring: bool | None = None
-    recurring_period: str | None = Field(None, pattern=r'^(weekly|monthly|yearly)$')
+    recurring_period: str | None = Field(None, pattern=r'^(weekly|monthly|yearly)$', example="monthly")
 
 
 class ExpensePayment(BaseSchema):
     """Schema for recording expense payment"""
-    amount: Decimal = Field(..., gt=0)
-    payment_method: AccPaymentMethod
-    notes: str | None = None
+    amount: Decimal = Field(..., gt=0, example=850000.00)
+    payment_method: AccPaymentMethod = Field(..., example="cash")
+    notes: str | None = Field(None, example="Pago total de factura de telas")
     use_fallback: bool = Field(
         default=False,
         description="Si True y pago en efectivo, usa Caja Mayor cuando Caja Menor no alcanza"
@@ -199,7 +200,8 @@ class ExpenseListResponse(BaseSchema):
     is_paid: bool
     expense_date: date
     due_date: date | None
-    vendor: str | None
+    vendor_id: UUID | None = None
+    vendor_name: str | None = None
     is_recurring: bool
     balance: Decimal
     payment_method: str | None = None
@@ -224,8 +226,8 @@ class DailyCashRegisterCreate(DailyCashRegisterBase, SchoolIsolatedSchema):
 
 class DailyCashRegisterClose(BaseSchema):
     """Schema for closing a cash register"""
-    closing_balance: Decimal
-    notes: str | None = None
+    closing_balance: Decimal = Field(..., example=1850000.00)
+    notes: str | None = Field(None, example="Cierre normal, cuadre sin diferencias")
 
 
 class DailyCashRegisterInDB(DailyCashRegisterBase, SchoolIsolatedSchema, IDModelSchema):
@@ -339,19 +341,19 @@ class AccountingDashboard(BaseSchema):
 
 class BalanceAccountBase(BaseSchema):
     """Base balance account schema"""
-    account_type: AccountType
-    name: str = Field(..., min_length=1, max_length=255)
-    description: str | None = None
-    code: str | None = Field(None, max_length=50)
-    balance: Decimal = Field(default=Decimal("0"))
+    account_type: AccountType = Field(..., example="asset_current")
+    name: str = Field(..., min_length=1, max_length=255, example="Caja Principal")
+    description: str | None = Field(None, example="Cuenta de caja para efectivo del negocio")
+    code: str | None = Field(None, max_length=50, example="1105-01")
+    balance: Decimal = Field(default=Decimal("0"), example=2500000.00)
     # For depreciable assets
-    original_value: Decimal | None = None
-    accumulated_depreciation: Decimal | None = None
-    useful_life_years: int | None = Field(None, ge=1)
+    original_value: Decimal | None = Field(None, example=15000000.00)
+    accumulated_depreciation: Decimal | None = Field(None, example=3000000.00)
+    useful_life_years: int | None = Field(None, ge=1, example=10)
     # For debts/loans
-    interest_rate: Decimal | None = Field(None, ge=0, le=100)
-    due_date: date | None = None
-    creditor: str | None = Field(None, max_length=255)
+    interest_rate: Decimal | None = Field(None, ge=0, le=100, example=1.5)
+    due_date: date | None = Field(None, example="2027-12-31")
+    creditor: str | None = Field(None, max_length=255, example="Banco de Bogotá")
 
 
 class BalanceAccountCreate(BalanceAccountBase, SchoolIsolatedSchema):
@@ -397,16 +399,16 @@ class GlobalBalanceAccountResponse(BaseSchema):
 
 class BalanceAccountUpdate(BaseSchema):
     """Schema for updating a balance account"""
-    name: str | None = Field(None, min_length=1, max_length=255)
-    description: str | None = None
-    code: str | None = Field(None, max_length=50)
-    balance: Decimal | None = None
-    original_value: Decimal | None = None
-    accumulated_depreciation: Decimal | None = None
-    useful_life_years: int | None = Field(None, ge=1)
-    interest_rate: Decimal | None = Field(None, ge=0, le=100)
-    due_date: date | None = None
-    creditor: str | None = Field(None, max_length=255)
+    name: str | None = Field(None, min_length=1, max_length=255, example="Caja Principal Actualizada")
+    description: str | None = Field(None, example="Cuenta de caja principal del negocio")
+    code: str | None = Field(None, max_length=50, example="1105-01")
+    balance: Decimal | None = Field(None, example=3000000.00)
+    original_value: Decimal | None = Field(None, example=15000000.00)
+    accumulated_depreciation: Decimal | None = Field(None, example=4500000.00)
+    useful_life_years: int | None = Field(None, ge=1, example=10)
+    interest_rate: Decimal | None = Field(None, ge=0, le=100, example=1.2)
+    due_date: date | None = Field(None, example="2028-06-30")
+    creditor: str | None = Field(None, max_length=255, example="Banco de Bogotá")
     is_active: bool | None = None
 
 
@@ -442,15 +444,15 @@ class BalanceAccountListResponse(BaseSchema):
 
 class BalanceEntryBase(BaseSchema):
     """Base balance entry schema"""
-    entry_date: date
-    amount: Decimal  # Can be positive or negative
-    description: str = Field(..., min_length=1, max_length=500)
-    reference: str | None = Field(None, max_length=100)
+    entry_date: date = Field(..., example="2026-04-12")
+    amount: Decimal = Field(..., example=135000.00)
+    description: str = Field(..., min_length=1, max_length=500, example="Ingreso por venta VTA-0085")
+    reference: str | None = Field(None, max_length=100, example="VTA-0085")
 
 
 class BalanceEntryCreate(BalanceEntryBase, SchoolIsolatedSchema):
     """Schema for creating a balance entry"""
-    account_id: UUID
+    account_id: UUID = Field(..., example="550e8400-e29b-41d4-a716-446655440000")
 
 
 class BalanceEntryInDB(BalanceEntryBase, SchoolIsolatedSchema, IDModelSchema):
@@ -479,39 +481,39 @@ class BalanceEntryWithAccount(BalanceEntryResponse):
 
 class AccountsReceivableBase(BaseSchema):
     """Base accounts receivable schema"""
-    amount: Decimal = Field(..., gt=0)
-    description: str = Field(..., min_length=1, max_length=500)
-    invoice_date: date
-    due_date: date | None = None
-    notes: str | None = None
+    amount: Decimal = Field(..., gt=0, example=120000.00)
+    description: str = Field(..., min_length=1, max_length=500, example="Venta a crédito de uniformes escolares")
+    invoice_date: date = Field(..., example="2026-04-12")
+    due_date: date | None = Field(None, example="2026-05-12")
+    notes: str | None = Field(None, example="Pago acordado a 30 días")
 
 
 class AccountsReceivableCreate(AccountsReceivableBase, SchoolIsolatedSchema):
     """Schema for creating accounts receivable"""
-    client_id: UUID | None = None
-    sale_id: UUID | None = None
-    order_id: UUID | None = None
+    client_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440000")
+    sale_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440001")
+    order_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440002")
 
 
 class GlobalAccountsReceivableCreate(AccountsReceivableBase):
     """Schema for creating global accounts receivable (no school_id required)"""
-    client_id: UUID | None = None
-    sale_id: UUID | None = None
-    order_id: UUID | None = None
+    client_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440000")
+    sale_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440001")
+    order_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440002")
 
 
 class AccountsReceivableUpdate(BaseSchema):
     """Schema for updating accounts receivable"""
-    description: str | None = Field(None, min_length=1, max_length=500)
-    due_date: date | None = None
-    notes: str | None = None
+    description: str | None = Field(None, min_length=1, max_length=500, example="Venta a crédito actualizada")
+    due_date: date | None = Field(None, example="2026-06-01")
+    notes: str | None = Field(None, example="Plazo extendido por acuerdo con cliente")
 
 
 class AccountsReceivablePayment(BaseSchema):
     """Schema for recording payment on receivable"""
-    amount: Decimal = Field(..., gt=0)
-    payment_method: AccPaymentMethod
-    notes: str | None = None
+    amount: Decimal = Field(..., gt=0, example=60000.00)
+    payment_method: AccPaymentMethod = Field(..., example="nequi")
+    notes: str | None = Field(None, example="Primer abono de cuenta por cobrar")
 
 
 class AccountsReceivableInDB(AccountsReceivableBase, SchoolIsolatedSchema, IDModelSchema):
@@ -590,14 +592,14 @@ class AccountsReceivableListResponse(BaseSchema):
 
 class AccountsPayableBase(BaseSchema):
     """Base accounts payable schema"""
-    vendor: str = Field(..., min_length=1, max_length=255)
-    amount: Decimal = Field(..., gt=0)
-    description: str = Field(..., min_length=1, max_length=500)
-    category: str | None = Field(None, max_length=100)
-    invoice_number: str | None = Field(None, max_length=100)
-    invoice_date: date
-    due_date: date | None = None
-    notes: str | None = None
+    vendor_id: UUID = Field(..., example="550e8400-e29b-41d4-a716-446655440000")
+    amount: Decimal = Field(..., gt=0, example=1200000.00)
+    description: str = Field(..., min_length=1, max_length=500, example="Compra de telas para producción trimestral")
+    category: str | None = Field(None, max_length=100, example="materiales")
+    invoice_number: str | None = Field(None, max_length=100, example="FAC-2026-00789")
+    invoice_date: date = Field(..., example="2026-04-01")
+    due_date: date | None = Field(None, example="2026-05-01")
+    notes: str | None = Field(None, example="Proveedor habitual, descuento del 5% incluido")
 
 
 class AccountsPayableCreate(AccountsPayableBase, SchoolIsolatedSchema):
@@ -612,19 +614,19 @@ class GlobalAccountsPayableCreate(AccountsPayableBase):
 
 class AccountsPayableUpdate(BaseSchema):
     """Schema for updating accounts payable"""
-    vendor: str | None = Field(None, min_length=1, max_length=255)
-    description: str | None = Field(None, min_length=1, max_length=500)
-    category: str | None = Field(None, max_length=100)
-    invoice_number: str | None = Field(None, max_length=100)
-    due_date: date | None = None
-    notes: str | None = None
+    vendor_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440000")
+    description: str | None = Field(None, min_length=1, max_length=500, example="Compra de telas actualizada")
+    category: str | None = Field(None, max_length=100, example="materiales")
+    invoice_number: str | None = Field(None, max_length=100, example="FAC-2026-00789-R")
+    due_date: date | None = Field(None, example="2026-05-15")
+    notes: str | None = Field(None, example="Plazo extendido por acuerdo con proveedor")
 
 
 class AccountsPayablePayment(BaseSchema):
     """Schema for recording payment on payable"""
-    amount: Decimal = Field(..., gt=0)
-    payment_method: AccPaymentMethod
-    notes: str | None = None
+    amount: Decimal = Field(..., gt=0, example=600000.00)
+    payment_method: AccPaymentMethod = Field(..., example="transfer")
+    notes: str | None = Field(None, example="Primer pago de factura de telas")
 
 
 class AccountsPayableInDB(AccountsPayableBase, SchoolIsolatedSchema, IDModelSchema):
@@ -661,7 +663,8 @@ class GlobalAccountsPayableResponse(AccountsPayableBase, IDModelSchema):
 class AccountsPayableListResponse(BaseSchema):
     """Simplified accounts payable for listings"""
     id: UUID
-    vendor: str
+    vendor_id: UUID
+    vendor_name: str
     amount: Decimal
     amount_paid: Decimal
     balance: Decimal
@@ -785,6 +788,17 @@ class ExpenseCategorySummary(BaseSchema):
     percentage: Decimal = Decimal("0")
 
 
+class ExpenseStatsResponse(BaseSchema):
+    """Aggregated expense totals for the global accounting dashboard."""
+    total_amount: Decimal
+    total_count: int
+    paid_amount: Decimal
+    paid_count: int
+    pending_amount: Decimal
+    pending_count: int
+    average_amount: Decimal
+
+
 class CashFlowPeriodItem(BaseSchema):
     """Cash flow for a single period (day/week/month)"""
     period: str  # "2024-01-15" or "2024-W03" or "2024-01"
@@ -835,25 +849,30 @@ class ExpenseAdjustmentRequest(BaseSchema):
     new_amount: Decimal | None = Field(
         None,
         gt=0,
-        description="New expense amount (optional, only if changing)"
+        description="New expense amount (optional, only if changing)",
+        example=900000.00
     )
     new_payment_account_id: UUID | None = Field(
         None,
-        description="New payment account ID (optional, for account corrections)"
+        description="New payment account ID (optional, for account corrections)",
+        example="550e8400-e29b-41d4-a716-446655440000"
     )
     new_payment_method: str | None = Field(
         None,
         max_length=20,
-        description="New payment method string (optional)"
+        description="New payment method string (optional)",
+        example="transfer"
     )
     reason: AdjustmentReason = Field(
         default=AdjustmentReason.AMOUNT_CORRECTION,
-        description="Reason for the adjustment"
+        description="Reason for the adjustment",
+        example="amount_correction"
     )
     description: str | None = Field(
         None,
         max_length=500,
-        description="Description of why the adjustment is being made"
+        description="Description of why the adjustment is being made",
+        example="Factura corregida por el proveedor, monto ajustado"
     )
 
     @model_validator(mode='after')
@@ -871,7 +890,8 @@ class ExpenseRevertRequest(BaseSchema):
     description: str | None = Field(
         None,
         max_length=500,
-        description="Description of why the payment is being reverted"
+        description="Description of why the payment is being reverted",
+        example="Pago realizado por error, se revierte para corregir"
     )
 
 
@@ -880,12 +900,14 @@ class PartialRefundRequest(BaseSchema):
     refund_amount: Decimal = Field(
         ...,
         gt=0,
-        description="Amount to refund (must be <= amount_paid)"
+        description="Amount to refund (must be <= amount_paid)",
+        example=200000.00
     )
     description: str | None = Field(
         None,
         max_length=500,
-        description="Description of the refund reason"
+        description="Description of the refund reason",
+        example="Devolución parcial por producto defectuoso"
     )
 
 
@@ -955,12 +977,7 @@ class ExpenseAdjustmentHistoryResponse(BaseSchema):
     total_adjustments: int
 
 
-class AdjustmentListPaginatedResponse(BaseSchema):
-    """Paginated list of adjustments"""
-    items: list[ExpenseAdjustmentListResponse]
-    total: int
-    limit: int
-    offset: int
+AdjustmentListPaginatedResponse = PaginatedResponse[ExpenseAdjustmentListResponse]
 
 
 # ============================================
@@ -1025,12 +1042,12 @@ class DailyFlowResponse(BaseSchema):
 
 class ExpenseCategoryBase(BaseSchema):
     """Base expense category schema"""
-    code: str = Field(..., min_length=1, max_length=50, pattern=r'^[a-z][a-z0-9_]*$')
-    name: str = Field(..., min_length=1, max_length=100)
-    description: str | None = Field(None, max_length=255)
-    color: str = Field(default="#9CA3AF", pattern=r'^#[0-9A-Fa-f]{6}$')
-    icon: str | None = Field(None, max_length=50)
-    display_order: int = Field(default=0, ge=0)
+    code: str = Field(..., min_length=1, max_length=50, pattern=r'^[a-z][a-z0-9_]*$', example="materiales")
+    name: str = Field(..., min_length=1, max_length=100, example="Materiales e Insumos")
+    description: str | None = Field(None, max_length=255, example="Gastos en telas, hilos y materias primas")
+    color: str = Field(default="#9CA3AF", pattern=r'^#[0-9A-Fa-f]{6}$', example="#3B82F6")
+    icon: str | None = Field(None, max_length=50, example="scissors")
+    display_order: int = Field(default=0, ge=0, example=1)
 
 
 class ExpenseCategoryCreate(ExpenseCategoryBase):
@@ -1045,11 +1062,11 @@ class ExpenseCategoryCreate(ExpenseCategoryBase):
 
 class ExpenseCategoryUpdate(BaseSchema):
     """Schema for updating an expense category"""
-    name: str | None = Field(None, min_length=1, max_length=100)
-    description: str | None = Field(None, max_length=255)
-    color: str | None = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$')
-    icon: str | None = Field(None, max_length=50)
-    display_order: int | None = Field(None, ge=0)
+    name: str | None = Field(None, min_length=1, max_length=100, example="Materiales e Insumos Actualizado")
+    description: str | None = Field(None, max_length=255, example="Gastos en telas, hilos, botones y materias primas")
+    color: str | None = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$', example="#2563EB")
+    icon: str | None = Field(None, max_length=50, example="scissors")
+    display_order: int | None = Field(None, ge=0, example=2)
     is_active: bool | None = None
 
 
@@ -1082,9 +1099,9 @@ class ExpenseCategoryListResponse(BaseSchema):
 
 class CajaMenorConfigUpdate(BaseSchema):
     """Schema for updating Caja Menor auto-close configuration"""
-    base_amount: Decimal | None = Field(None, gt=0)
+    base_amount: Decimal | None = Field(None, gt=0, example=500000.00)
     auto_close_enabled: bool | None = None
-    auto_close_time: str | None = Field(None, pattern=r'^\d{2}:\d{2}$')
+    auto_close_time: str | None = Field(None, pattern=r'^\d{2}:\d{2}$', example="18:00")
 
 
 class CajaMenorConfigResponse(BaseSchema):
@@ -1117,11 +1134,11 @@ class CajaMenorAutoCloseResult(BaseSchema):
 
 class AccountTransferCreate(BaseSchema):
     """Schema for creating an inter-account transfer"""
-    from_account_id: UUID
-    to_account_id: UUID
-    amount: Decimal = Field(..., gt=0)
-    reason: str = Field(..., min_length=1, max_length=500)
-    reference: str | None = Field(None, max_length=100)
+    from_account_id: UUID = Field(..., example="550e8400-e29b-41d4-a716-446655440000")
+    to_account_id: UUID = Field(..., example="550e8400-e29b-41d4-a716-446655440001")
+    amount: Decimal = Field(..., gt=0, example=500000.00)
+    reason: str = Field(..., min_length=1, max_length=500, example="Traslado de Caja a Banco para consignación")
+    reference: str | None = Field(None, max_length=100, example="TRANS-20260412-001")
 
     @model_validator(mode='after')
     def validate_different_accounts(self):

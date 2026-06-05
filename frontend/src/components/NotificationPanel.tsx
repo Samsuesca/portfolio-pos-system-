@@ -31,7 +31,7 @@ const TYPE_ICONS: Record<NotificationType, typeof Bell> = {
 
 // Color mapping for notification types
 const TYPE_COLORS: Record<NotificationType, string> = {
-  new_web_order: 'bg-blue-100 text-blue-600',
+  new_web_order: 'bg-brand-100 text-brand-600',
   new_web_sale: 'bg-green-100 text-green-600',
   order_status_changed: 'bg-purple-100 text-purple-600',
   pqrs_received: 'bg-orange-100 text-orange-600',
@@ -61,12 +61,12 @@ interface NotificationItemProps {
 
 function NotificationItem({ notification, onRead, onClick }: NotificationItemProps) {
   const Icon = TYPE_ICONS[notification.type] || Bell;
-  const colorClass = TYPE_COLORS[notification.type] || 'bg-gray-100 text-gray-600';
+  const colorClass = TYPE_COLORS[notification.type] || 'bg-stone-100 text-stone-600';
 
   return (
     <div
       className={`flex items-start gap-3 p-3 hover:bg-surface-50 cursor-pointer transition-colors ${
-        !notification.is_read ? 'bg-blue-50/50' : ''
+        !notification.is_read ? 'bg-brand-50/50' : ''
       }`}
       onClick={() => onClick(notification)}
     >
@@ -76,14 +76,14 @@ function NotificationItem({ notification, onRead, onClick }: NotificationItemPro
 
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
-          <p className={`text-sm ${!notification.is_read ? 'font-semibold' : 'font-medium'} text-gray-900 truncate`}>
+          <p className={`text-sm ${!notification.is_read ? 'font-semibold' : 'font-medium'} text-stone-900 truncate`}>
             {notification.title}
           </p>
-          <span className="text-xs text-gray-500 flex-shrink-0">
+          <span className="text-xs text-stone-500 flex-shrink-0">
             {formatTimeAgo(notification.created_at)}
           </span>
         </div>
-        <p className="text-sm text-gray-600 line-clamp-2 mt-0.5">
+        <p className="text-sm text-stone-600 line-clamp-2 mt-0.5">
           {notification.message}
         </p>
       </div>
@@ -94,10 +94,10 @@ function NotificationItem({ notification, onRead, onClick }: NotificationItemPro
             e.stopPropagation();
             onRead(notification.id);
           }}
-          className="p-1 hover:bg-gray-200 rounded transition-colors flex-shrink-0"
+          className="p-1 hover:bg-stone-200 rounded transition-colors flex-shrink-0"
           title="Marcar como leida"
         >
-          <Check className="w-4 h-4 text-gray-500" />
+          <Check className="w-4 h-4 text-stone-500" />
         </button>
       )}
     </div>
@@ -191,13 +191,13 @@ export function NotificationPanel() {
       {/* Panel */}
       <div
         ref={panelRef}
-        className="absolute right-0 top-12 w-96 max-h-[calc(100vh-100px)] bg-white rounded-lg shadow-xl border border-gray-200 z-50 flex flex-col"
+        className="absolute right-0 top-12 w-96 max-h-[calc(100vh-100px)] bg-white rounded-lg shadow-xl border border-stone-200 z-50 flex flex-col"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-stone-200">
           <div className="flex items-center gap-2">
-            <Bell className="w-5 h-5 text-gray-600" />
-            <h3 className="font-semibold text-gray-900">Notificaciones</h3>
+            <Bell className="w-5 h-5 text-stone-600" />
+            <h3 className="font-semibold text-stone-900">Notificaciones</h3>
             {unreadCount > 0 && (
               <span className="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-600 rounded-full">
                 {unreadCount} nuevas
@@ -206,18 +206,18 @@ export function NotificationPanel() {
           </div>
           <button
             onClick={closePanel}
-            className="p-1 hover:bg-gray-100 rounded transition-colors"
+            className="p-1 hover:bg-stone-100 rounded transition-colors"
           >
-            <X className="w-5 h-5 text-gray-500" />
+            <X className="w-5 h-5 text-stone-500" />
           </button>
         </div>
 
         {/* Mark all as read button */}
         {unreadCount > 0 && (
-          <div className="px-4 py-2 border-b border-gray-100 bg-gray-50">
+          <div className="px-4 py-2 border-b border-stone-100 bg-stone-50">
             <button
               onClick={markAllAsRead}
-              className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium"
+              className="flex items-center gap-1.5 text-sm text-brand-600 hover:text-brand-700 font-medium"
             >
               <CheckCheck className="w-4 h-4" />
               Marcar todas como leidas
@@ -229,18 +229,18 @@ export function NotificationPanel() {
         <div className="flex-1 overflow-y-auto">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" />
             </div>
           ) : notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-              <Bell className="w-12 h-12 text-gray-300 mb-3" />
-              <p className="text-gray-500 font-medium">Sin notificaciones</p>
-              <p className="text-sm text-gray-400 mt-1">
+              <Bell className="w-12 h-12 text-stone-300 mb-3" />
+              <p className="text-stone-500 font-medium">Sin notificaciones</p>
+              <p className="text-sm text-stone-400 mt-1">
                 Las notificaciones apareceran aqui
               </p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100">
+            <div className="divide-y divide-stone-100">
               {notifications.map((notification) => (
                 <NotificationItem
                   key={notification.id}

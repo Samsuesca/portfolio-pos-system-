@@ -20,7 +20,7 @@ const PayrollFixedExpenseStatus: React.FC<PayrollFixedExpenseStatusProps> = ({ i
     ? { bg: 'bg-green-50', border: 'border-green-200', icon: 'text-green-600', title: 'text-green-800', sub: 'text-green-600', btn: 'bg-green-600 hover:bg-green-700' }
     : hasIntegration
       ? { bg: 'bg-amber-50', border: 'border-amber-200', icon: 'text-amber-600', title: 'text-amber-800', sub: 'text-amber-600', btn: 'bg-amber-600 hover:bg-amber-700' }
-      : { bg: 'bg-blue-50', border: 'border-blue-200', icon: 'text-blue-600', title: 'text-blue-800', sub: 'text-blue-600', btn: 'bg-blue-600 hover:bg-blue-700' };
+      : { bg: 'bg-brand-50', border: 'border-brand-200', icon: 'text-brand-600', title: 'text-brand-700', sub: 'text-brand-600', btn: 'bg-brand-500 hover:bg-brand-600' };
 
   const IconComponent = isSynced ? Link2 : hasIntegration ? Link2Off : CalendarClock;
 

@@ -6,17 +6,18 @@ Does NOT depend on school_id - aggregates everything globally.
 """
 from datetime import datetime
 from uuid import UUID
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.utils.timezone import get_colombia_now_naive
 from sqlalchemy import select, func
 from pydantic import BaseModel
 
-from app.api.dependencies import DatabaseSession, CurrentUser, UserSchoolIds
+from app.api.dependencies import DatabaseSession, CurrentUser, UserSchoolIds, require_global_permission
+from app.api.error_responses import responses, AUTHENTICATED
 from app.models.school import School
 from app.models.product import Product
 from app.models.client import Client
-from app.models.sale import Sale
+from app.models.sale import Sale, SaleStatus
 from app.models.order import Order, OrderStatus
 
 
@@ -27,7 +28,9 @@ router = APIRouter(prefix="/global/dashboard", tags=["Dashboard"])
 
 class DashboardTotals(BaseModel):
     """Global totals across all accessible schools"""
-    total_sales: int
+    total_sales: int  # All-time count (excludes cancelled)
+    sales_amount_total: float  # All-time revenue (excludes cancelled)
+    sales_count_month: int
     sales_amount_month: float
     total_orders: int
     pending_orders: int
@@ -54,7 +57,7 @@ class GlobalDashboardStats(BaseModel):
 
 # ============= Endpoints =============
 
-@router.get("/stats", response_model=GlobalDashboardStats)
+@router.get("/stats", response_model=GlobalDashboardStats, dependencies=[Depends(require_global_permission("reports.dashboard"))], responses=AUTHENTICATED, operation_id="getGlobalDashboardStats")
 async def get_global_dashboard_stats(
     db: DatabaseSession,
     current_user: CurrentUser,
@@ -68,15 +71,15 @@ async def get_global_dashboard_stats(
     For superusers: Returns stats for all active schools.
     For regular users: Returns stats for schools where they have a role.
 
-    Returns:
-        - totals: Aggregated counts and amounts
-        - schools_summary: Breakdown by school
-        - school_count: Number of accessible schools
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.dashboard` (global)
     """
     if not user_school_ids:
         return GlobalDashboardStats(
             totals=DashboardTotals(
                 total_sales=0,
+                sales_amount_total=0,
+                sales_count_month=0,
                 sales_amount_month=0,
                 total_orders=0,
                 pending_orders=0,
@@ -93,20 +96,31 @@ async def get_global_dashboard_stats(
 
     # ======== Global Totals ========
 
-    # Total sales count
+    # All-time sales: count + amount (exclude cancelled)
     total_sales_result = await db.execute(
-        select(func.count(Sale.id))
+        select(
+            func.count(Sale.id),
+            func.coalesce(func.sum(Sale.total), 0),
+        )
         .where(Sale.school_id.in_(user_school_ids))
+        .where(Sale.status != SaleStatus.CANCELLED)
+        .where(Sale.is_historical.is_(False))
     )
-    total_sales = total_sales_result.scalar() or 0
+    total_row = total_sales_result.first()
+    total_sales = total_row[0] if total_row else 0
+    sales_amount_total = float(total_row[1]) if total_row else 0
 
-    # Sales amount this month
-    sales_amount_result = await db.execute(
-        select(func.coalesce(func.sum(Sale.total), 0))
+    # Sales this month (use sale_date for business accuracy, exclude cancelled)
+    sales_month_result = await db.execute(
+        select(func.count(Sale.id), func.coalesce(func.sum(Sale.total), 0))
         .where(Sale.school_id.in_(user_school_ids))
-        .where(Sale.created_at >= month_start)
+        .where(Sale.sale_date >= month_start)
+        .where(Sale.status != SaleStatus.CANCELLED)
+        .where(Sale.is_historical.is_(False))
     )
-    sales_amount_month = float(sales_amount_result.scalar() or 0)
+    month_row = sales_month_result.first()
+    sales_count_month = month_row[0] if month_row else 0
+    sales_amount_month = float(month_row[1]) if month_row else 0
 
     # Total orders count
     total_orders_result = await db.execute(
@@ -123,10 +137,12 @@ async def get_global_dashboard_stats(
     )
     pending_orders = pending_orders_result.scalar() or 0
 
-    # Total clients count
+    # Total clients count — Client is a global customer base by design
+    # (school_id is legacy/nullable, client_students is optional, and many
+    # clients have neither). Count all active clients — the dashboard
+    # endpoint is already gated by `reports.dashboard` permission.
     total_clients_result = await db.execute(
-        select(func.count(Client.id))
-        .where(Client.school_id.in_(user_school_ids))
+        select(func.count(Client.id)).where(Client.is_active == True)
     )
     total_clients = total_clients_result.scalar() or 0
 
@@ -150,11 +166,13 @@ async def get_global_dashboard_stats(
     schools = schools_result.scalars().all()
 
     for school in schools:
-        # Sales count this month for this school
+        # Sales count this month for this school (sale_date, exclude cancelled)
         school_sales_result = await db.execute(
             select(func.count(Sale.id), func.coalesce(func.sum(Sale.total), 0))
             .where(Sale.school_id == school.id)
-            .where(Sale.created_at >= month_start)
+            .where(Sale.sale_date >= month_start)
+            .where(Sale.status != SaleStatus.CANCELLED)
+            .where(Sale.is_historical.is_(False))
         )
         row = school_sales_result.first()
         school_sales_count = row[0] if row else 0
@@ -180,6 +198,8 @@ async def get_global_dashboard_stats(
     return GlobalDashboardStats(
         totals=DashboardTotals(
             total_sales=total_sales,
+            sales_amount_total=sales_amount_total,
+            sales_count_month=sales_count_month,
             sales_amount_month=sales_amount_month,
             total_orders=total_orders,
             pending_orders=pending_orders,

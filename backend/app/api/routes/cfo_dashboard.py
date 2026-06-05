@@ -9,7 +9,8 @@ from app.utils.timezone import get_colombia_date
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import DatabaseSession, CurrentUser, require_any_school_admin
+from app.api.dependencies import DatabaseSession, CurrentUser, require_global_permission
+from app.api.error_responses import responses, AUTHENTICATED
 from app.models.accounting import (
     BalanceAccount, AccountType, Expense
 )
@@ -25,19 +26,22 @@ router = APIRouter(prefix="/cfo-dashboard", tags=["CFO Dashboard"])
     "/health-metrics",
     summary="Get CFO financial health metrics",
     description="Returns comprehensive financial health indicators for executive decision-making",
-    dependencies=[Depends(require_any_school_admin)]
+    dependencies=[Depends(require_global_permission("reports.financial"))],
+    responses=AUTHENTICATED,
+    operation_id="getCfoHealthMetrics",
 )
 async def get_health_metrics(
     db: DatabaseSession,
     current_user: CurrentUser,
 ):
     """
-    Get comprehensive CFO dashboard metrics:
-    - Cash runway (days until cash = 0)
-    - Debt service coverage ratio
-    - Payroll coverage status
-    - Data quality score
-    - Urgent alerts count
+    Get comprehensive CFO dashboard metrics.
+
+    Includes cash runway, debt service coverage ratio, payroll coverage status,
+    data quality score, and urgent alerts count.
+
+    **Auth:** Bearer JWT (staff)
+    **Permission:** `reports.financial` (global)
     """
     today = get_colombia_date()
 

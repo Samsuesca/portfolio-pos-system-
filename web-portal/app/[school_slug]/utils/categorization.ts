@@ -14,7 +14,10 @@ export const CATEGORY_PATTERNS: Record<string, string[]> = {
   Chompas: ['chompa'],
   Pantalones: ['pantalon', 'falda'],
   Sudaderas: ['sudadera', 'buzo', 'chaqueta'],
-  Yomber: ['yomber'],
+  Jumper: ['jumper', 'yomber'],
+  Delantales: ['delantal'],
+  // 'mono' cubre 'moño' y 'mono' (con o sin accent en la data)
+  Moños: ['moño', 'mono'],
   Calzado: ['zapato', 'tennis', 'media', 'jean'],
 };
 
@@ -102,21 +105,38 @@ export function extractCategories(
  * @returns Sorted array of sizes (numbers first, then letters)
  */
 export function extractSizes(products: { size?: string }[]): string[] {
-  const uniqueSizes = new Set<string>();
+  // Normalizar case: 'pequeño', 'pequeña', 'PEQUEÑO' deben colapsar a una sola entrada.
+  // Usar el primer formato visto como canonico.
+  const canonicalByKey = new Map<string, string>();
 
   products.forEach((product) => {
     if (product.size && product.size !== 'Única') {
-      uniqueSizes.add(product.size);
+      const trimmed = product.size.trim();
+      const key = trimmed.toLowerCase();
+      if (!canonicalByKey.has(key)) {
+        // Mantener mayusculas en sizes cortos tipo letra (S, M, L, XL, XXL).
+        // Solo Title Case para palabras descriptivas (pequeño, mediano, grande).
+        const isShortAlpha = /^[A-Za-z]{1,4}$/.test(trimmed);
+        const display = isShortAlpha
+          ? trimmed.toUpperCase()
+          : trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+        canonicalByKey.set(key, display);
+      }
     }
   });
 
-  // Sort sizes: numbers first, then letters
-  return Array.from(uniqueSizes).sort((a, b) => {
+  // Sort sizes: numbers first (asc), size ranges (4-6, 6-8, ...), then letters
+  return Array.from(canonicalByKey.values()).sort((a, b) => {
     const aIsNum = /^\d+$/.test(a);
     const bIsNum = /^\d+$/.test(b);
     if (aIsNum && bIsNum) return parseInt(a) - parseInt(b);
     if (aIsNum) return -1;
     if (bIsNum) return 1;
+    const aIsRange = /^\d+-\d+$/.test(a);
+    const bIsRange = /^\d+-\d+$/.test(b);
+    if (aIsRange && bIsRange) return parseInt(a) - parseInt(b);
+    if (aIsRange) return -1;
+    if (bIsRange) return 1;
     return a.localeCompare(b);
   });
 }

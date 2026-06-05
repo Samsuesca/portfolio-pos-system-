@@ -52,14 +52,14 @@ function FolderItem({
       <div
         className={`
           group flex items-center gap-1 px-2 py-1.5 rounded-md cursor-pointer transition-colors
-          ${isSelected ? 'bg-blue-100 text-blue-800' : 'hover:bg-gray-100'}
+          ${isSelected ? 'bg-brand-100 text-brand-700' : 'hover:bg-stone-100'}
         `}
         style={{ paddingLeft: `${level * 16 + 8}px` }}
         onClick={() => onSelectFolder(folder.id)}
       >
         {/* Expand/Collapse button */}
         <button
-          className="p-0.5 hover:bg-gray-200 rounded"
+          className="p-0.5 hover:bg-stone-200 rounded"
           onClick={(e) => {
             e.stopPropagation();
             if (hasChildren) onToggleExpand(folder.id);
@@ -67,9 +67,9 @@ function FolderItem({
         >
           {hasChildren ? (
             isExpanded ? (
-              <ChevronDown className="w-4 h-4 text-gray-500" />
+              <ChevronDown className="w-4 h-4 text-stone-500" />
             ) : (
-              <ChevronRight className="w-4 h-4 text-gray-500" />
+              <ChevronRight className="w-4 h-4 text-stone-500" />
             )
           ) : (
             <span className="w-4 h-4" />
@@ -94,7 +94,7 @@ function FolderItem({
 
         {/* Document count badge */}
         {folder.documents_count > 0 && (
-          <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+          <span className="text-xs text-stone-500 bg-stone-100 px-1.5 py-0.5 rounded">
             {folder.documents_count}
           </span>
         )}
@@ -102,14 +102,14 @@ function FolderItem({
         {/* Action buttons (visible on hover) */}
         <div className="hidden group-hover:flex items-center gap-1">
           <button
-            className="p-1 hover:bg-gray-200 rounded"
+            className="p-1 hover:bg-stone-200 rounded"
             onClick={(e) => {
               e.stopPropagation();
               onEditFolder(folder);
             }}
             title="Editar carpeta"
           >
-            <Pencil className="w-3.5 h-3.5 text-gray-500" />
+            <Pencil className="w-3.5 h-3.5 text-stone-500" />
           </button>
           <button
             className="p-1 hover:bg-red-100 rounded"
@@ -170,13 +170,13 @@ export default function FolderTree({
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b">
-        <h3 className="font-semibold text-gray-700">Carpetas</h3>
+        <h3 className="font-semibold text-stone-700">Carpetas</h3>
         <button
-          className="p-1 hover:bg-gray-100 rounded"
+          className="p-1 hover:bg-stone-100 rounded"
           onClick={() => onCreateFolder(null)}
           title="Nueva carpeta"
         >
-          <Plus className="w-5 h-5 text-gray-600" />
+          <Plus className="w-5 h-5 text-stone-600" />
         </button>
       </div>
 
@@ -186,11 +186,11 @@ export default function FolderTree({
         <div
           className={`
             flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors
-            ${selectedFolderId === null ? 'bg-blue-100 text-blue-800' : 'hover:bg-gray-100'}
+            ${selectedFolderId === null ? 'bg-brand-100 text-brand-700' : 'hover:bg-stone-100'}
           `}
           onClick={() => onSelectFolder(null)}
         >
-          <Folder className="w-5 h-5 text-gray-500" />
+          <Folder className="w-5 h-5 text-stone-500" />
           <span className="text-sm font-medium">Todos los documentos</span>
         </div>
 
@@ -210,7 +210,7 @@ export default function FolderTree({
         ))}
 
         {folders.length === 0 && (
-          <div className="px-3 py-4 text-center text-gray-500 text-sm">
+          <div className="px-3 py-4 text-center text-stone-500 text-sm">
             No hay carpetas creadas
           </div>
         )}

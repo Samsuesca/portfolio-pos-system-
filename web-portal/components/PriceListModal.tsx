@@ -58,7 +58,7 @@ export default function PriceListModal({
     if (lower.includes('camiseta') || lower.includes('camisa')) return 'Camiseta';
     if (lower.includes('sudadera') || lower.includes('buzo')) return 'Sudadera';
     if (lower.includes('chompa')) return 'Chompa';
-    if (lower.includes('yomber')) return 'Yomber';
+    if (lower.includes('yomber') || lower.includes('jumper')) return 'Jumper';
     return name;
   };
 
@@ -162,7 +162,7 @@ export default function PriceListModal({
     t.name.toLowerCase().includes('chompa')
   );
   const yomber = schoolTables.filter(t =>
-    t.name.toLowerCase().includes('yomber')
+    t.name.toLowerCase().includes('yomber') || t.name.toLowerCase().includes('jumper')
   );
   const otros = schoolTables.filter(t =>
     !t.name.toLowerCase().includes('camiseta') &&
@@ -170,7 +170,7 @@ export default function PriceListModal({
     !t.name.toLowerCase().includes('sudadera') &&
     !t.name.toLowerCase().includes('buzo') &&
     !t.name.toLowerCase().includes('chompa') &&
-    !t.name.toLowerCase().includes('yomber')
+    !t.name.toLowerCase().includes('yomber') && !t.name.toLowerCase().includes('jumper')
   );
 
   // Tablas consolidadas por tipo
@@ -184,7 +184,7 @@ export default function PriceListModal({
     t.baseType.toLowerCase().includes('chompa')
   );
   const consolidatedYomber = consolidatedTables.filter(t =>
-    t.baseType.toLowerCase().includes('yomber')
+    t.baseType.toLowerCase().includes('yomber') || t.baseType.toLowerCase().includes('jumper')
   );
   const consolidatedOtros = consolidatedTables.filter(t =>
     !t.baseType.toLowerCase().includes('camiseta') &&
@@ -192,7 +192,7 @@ export default function PriceListModal({
     !t.baseType.toLowerCase().includes('sudadera') &&
     !t.baseType.toLowerCase().includes('buzo') &&
     !t.baseType.toLowerCase().includes('chompa') &&
-    !t.baseType.toLowerCase().includes('yomber')
+    !t.baseType.toLowerCase().includes('yomber') && !t.baseType.toLowerCase().includes('jumper')
   );
 
   // Generar PDF directamente con jsPDF (sin html2canvas)

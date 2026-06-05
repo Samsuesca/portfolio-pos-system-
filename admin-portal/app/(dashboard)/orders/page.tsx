@@ -122,8 +122,8 @@ export default function OrdersPage() {
       if (selectedSchool) params.school_id = selectedSchool;
       if (selectedStatus) params.status = selectedStatus;
       if (searchTerm) params.search = searchTerm;
-      const data = await ordersService.list(params);
-      setOrders(data);
+      const response = await ordersService.list(params);
+      setOrders(response.items);
     } catch (err: any) {
       setError(getErrorMessage(err, 'Error al cargar encargos'));
     } finally {

@@ -61,17 +61,17 @@ const ExpenseFilters: React.FC<ExpenseFiltersProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200">
+    <div className="bg-white rounded-xl border border-stone-200">
       {/* Toggle Button */}
       <button
         onClick={onToggle}
         className={`w-full px-5 py-4 flex items-center justify-between rounded-xl transition ${
-          visible ? 'bg-brand-50 rounded-b-none' : 'hover:bg-gray-50'
+          visible ? 'bg-brand-50 rounded-b-none' : 'hover:bg-stone-50'
         }`}
       >
         <div className="flex items-center gap-2">
-          <Filter className={`w-5 h-5 ${hasActiveFilters ? 'text-brand-600' : 'text-gray-500'}`} />
-          <span className={`font-semibold ${hasActiveFilters ? 'text-brand-700' : 'text-gray-700'}`}>
+          <Filter className={`w-5 h-5 ${hasActiveFilters ? 'text-brand-600' : 'text-stone-500'}`} />
+          <span className={`font-semibold ${hasActiveFilters ? 'text-brand-700' : 'text-stone-700'}`}>
             Filtros
           </span>
           {hasActiveFilters && (
@@ -81,9 +81,9 @@ const ExpenseFilters: React.FC<ExpenseFiltersProps> = ({
           )}
         </div>
         {visible ? (
-          <ChevronUp className="w-5 h-5 text-gray-400" />
+          <ChevronUp className="w-5 h-5 text-stone-400" />
         ) : (
-          <ChevronDown className="w-5 h-5 text-gray-400" />
+          <ChevronDown className="w-5 h-5 text-stone-400" />
         )}
       </button>
 
@@ -93,7 +93,7 @@ const ExpenseFilters: React.FC<ExpenseFiltersProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Date Range */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide">
+              <label className="block text-xs font-semibold text-stone-600 uppercase tracking-wide">
                 Rango de Fecha
               </label>
               <div className="flex gap-2">
@@ -112,7 +112,7 @@ const ExpenseFilters: React.FC<ExpenseFiltersProps> = ({
 
             {/* Category - Dynamic from database */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide">
+              <label className="block text-xs font-semibold text-stone-600 uppercase tracking-wide">
                 Categoria
               </label>
               <div className="relative">
@@ -120,7 +120,7 @@ const ExpenseFilters: React.FC<ExpenseFiltersProps> = ({
                   value={filters.category}
                   onChange={(e) => updateFilter('category', e.target.value as any)}
                   disabled={loadingCategories}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-400 text-sm bg-white disabled:opacity-50"
+                  className="w-full px-3 py-2.5 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500 text-sm bg-white disabled:opacity-50"
                 >
                   <option value="">Todas las categorias</option>
                   {activeCategories.map(cat => (
@@ -128,14 +128,14 @@ const ExpenseFilters: React.FC<ExpenseFiltersProps> = ({
                   ))}
                 </select>
                 {loadingCategories && (
-                  <Loader2 className="absolute right-8 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-gray-400" />
+                  <Loader2 className="absolute right-8 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-stone-400" />
                 )}
               </div>
             </div>
 
             {/* Amount Range */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide">
+              <label className="block text-xs font-semibold text-stone-600 uppercase tracking-wide">
                 Rango de Monto
               </label>
               <div className="flex gap-2">
@@ -154,14 +154,14 @@ const ExpenseFilters: React.FC<ExpenseFiltersProps> = ({
 
             {/* Account & Search */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide">
+              <label className="block text-xs font-semibold text-stone-600 uppercase tracking-wide">
                 Cuenta / Buscar
               </label>
               <div className="flex gap-2">
                 <select
                   value={filters.paymentAccountId}
                   onChange={(e) => updateFilter('paymentAccountId', e.target.value)}
-                  className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-400 text-sm bg-white"
+                  className="flex-1 px-3 py-2.5 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500 text-sm bg-white"
                 >
                   <option value="">Cuenta</option>
                   {cashBalances?.caja_menor?.id && (
@@ -182,7 +182,7 @@ const ExpenseFilters: React.FC<ExpenseFiltersProps> = ({
                   value={vendorSearch}
                   onChange={(e) => setVendorSearch(e.target.value)}
                   placeholder="Buscar..."
-                  className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-400 text-sm"
+                  className="flex-1 px-3 py-2.5 border border-stone-200 rounded-lg focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500 text-sm"
                 />
               </div>
             </div>
@@ -193,7 +193,7 @@ const ExpenseFilters: React.FC<ExpenseFiltersProps> = ({
             <div className="mt-4 flex justify-end">
               <button
                 onClick={onClear}
-                className="flex items-center gap-1.5 text-sm text-brand-600 hover:text-brand-800 font-medium"
+                className="flex items-center gap-1.5 text-sm text-brand-600 hover:text-brand-700 font-medium"
               >
                 <X className="w-4 h-4" />
                 Limpiar todos los filtros

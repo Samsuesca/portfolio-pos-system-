@@ -235,8 +235,8 @@ export default function Documents() {
       <Layout>
         <div className="flex flex-col items-center justify-center h-96">
           <AlertTriangle className="w-16 h-16 text-red-500 mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900">Acceso denegado</h2>
-          <p className="text-gray-500">Solo superusuarios pueden acceder a esta seccion.</p>
+          <h2 className="text-xl font-semibold text-stone-900">Acceso denegado</h2>
+          <p className="text-stone-500">Solo superusuarios pueden acceder a esta seccion.</p>
         </div>
       </Layout>
     );
@@ -248,19 +248,19 @@ export default function Documents() {
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 bg-white border-b">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Documentos Empresariales</h1>
-            <p className="text-sm text-gray-500">Gestiona documentos del negocio</p>
+            <h1 className="text-xl font-bold text-stone-900">Documentos Empresariales</h1>
+            <p className="text-sm text-stone-500">Gestiona documentos del negocio</p>
           </div>
           <div className="flex items-center gap-2">
             <button
-              className="flex items-center gap-2 px-3 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+              className="flex items-center gap-2 px-3 py-2 text-stone-700 bg-stone-100 rounded-md hover:bg-stone-200"
               onClick={() => handleCreateFolder(selectedFolderId)}
             >
               <FolderPlus className="w-5 h-5" />
               <span className="hidden sm:inline">Nueva carpeta</span>
             </button>
             <button
-              className="flex items-center gap-2 px-3 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700"
+              className="flex items-center gap-2 px-3 py-2 text-white bg-brand-500 rounded-md hover:bg-brand-600"
               onClick={() => setIsUploadModalOpen(true)}
             >
               <Upload className="w-5 h-5" />
@@ -294,13 +294,13 @@ export default function Documents() {
           </div>
 
           {/* Content area */}
-          <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
+          <div className="flex-1 flex flex-col overflow-hidden bg-stone-50">
             {/* Toolbar */}
             <div className="flex items-center gap-4 px-4 py-2 bg-white border-b">
               {/* Breadcrumb */}
               <div className="flex items-center gap-1 text-sm">
                 <button
-                  className="flex items-center gap-1 text-gray-500 hover:text-gray-700"
+                  className="flex items-center gap-1 text-stone-500 hover:text-stone-700"
                   onClick={() => setSelectedFolderId(null)}
                 >
                   <Home className="w-4 h-4" />
@@ -308,9 +308,9 @@ export default function Documents() {
                 </button>
                 {breadcrumbPath.map((folder) => (
                   <div key={folder.id} className="flex items-center">
-                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                    <ChevronRight className="w-4 h-4 text-stone-400" />
                     <button
-                      className="text-gray-500 hover:text-gray-700"
+                      className="text-stone-500 hover:text-stone-700"
                       onClick={() => setSelectedFolderId(folder.id)}
                     >
                       {folder.name}
@@ -324,13 +324,13 @@ export default function Documents() {
 
               {/* Search */}
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
                 <input
                   type="text"
                   placeholder="Buscar documentos..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 pr-3 py-1.5 border rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-48"
+                  className="pl-9 pr-3 py-1.5 border rounded-md text-sm focus:ring-2 focus:ring-brand-400/30 focus:border-brand-500 w-48"
                 />
               </div>
             </div>
@@ -373,16 +373,16 @@ export default function Documents() {
         {deleteConfirm && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              <h3 className="text-lg font-semibold text-stone-900 mb-2">
                 Eliminar {deleteConfirm.type === 'folder' ? 'carpeta' : 'documento'}
               </h3>
-              <p className="text-gray-600 mb-4">
+              <p className="text-stone-600 mb-4">
                 Estas seguro de eliminar "{deleteConfirm.name}"?
                 {deleteConfirm.type === 'document' && ' El archivo sera eliminado permanentemente.'}
               </p>
               <div className="flex justify-end gap-2">
                 <button
-                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                  className="px-4 py-2 text-stone-700 bg-stone-100 rounded-md hover:bg-stone-200"
                   onClick={() => setDeleteConfirm(null)}
                   disabled={isSubmitting}
                 >

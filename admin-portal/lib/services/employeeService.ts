@@ -1,7 +1,8 @@
 /**
  * Employee Service - API calls for employee management
  */
-import apiClient from '../api';
+import apiClient, { PaginatedResponse } from '../api';
+import { unwrapPaginated } from '../utils/pagination';
 
 const BASE_URL = '/global/employees';
 
@@ -151,8 +152,8 @@ const employeeService = {
     limit?: number;
     is_active?: boolean;
   }): Promise<EmployeeListItem[]> => {
-    const response = await apiClient.get<EmployeeListItem[]>(BASE_URL, { params });
-    return response.data;
+    const response = await apiClient.get<EmployeeListItem[] | PaginatedResponse<EmployeeListItem>>(BASE_URL, { params });
+    return unwrapPaginated(response.data).items;
   },
 
   // Get a single employee by ID
@@ -189,11 +190,11 @@ const employeeService = {
     employeeId: string,
     params?: { is_active?: boolean }
   ): Promise<EmployeeBonusResponse[]> => {
-    const response = await apiClient.get<EmployeeBonusResponse[]>(
+    const response = await apiClient.get<EmployeeBonusResponse[] | PaginatedResponse<EmployeeBonusResponse>>(
       `${BASE_URL}/${employeeId}/bonuses`,
       { params }
     );
-    return response.data;
+    return unwrapPaginated(response.data).items;
   },
 
   // Create a bonus for an employee

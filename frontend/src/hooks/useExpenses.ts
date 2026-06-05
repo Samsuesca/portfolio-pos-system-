@@ -6,6 +6,7 @@
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { globalAccountingService } from '../services/globalAccountingService';
+import type { ExpenseStatsResponse, ExpenseCategorySummary } from '../services/globalAccountingService';
 import type { ExpenseListItem, ExpenseCategory } from '../types/api';
 import type { CashBalancesResponse } from '../services/accountingService';
 import { formatCurrency } from '../utils/formatting';
@@ -142,6 +143,9 @@ export function useExpenses(options: UseExpensesOptions = {}): UseExpensesReturn
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
+  const [serverTotal, setServerTotal] = useState(0);
+  const [serverStats, setServerStats] = useState<ExpenseStatsResponse | null>(null);
+  const [serverCategorySummary, setServerCategorySummary] = useState<ExpenseCategorySummary[] | null>(null);
 
   // Filter states
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'paid'>(initialFilter);
@@ -158,18 +162,35 @@ export function useExpenses(options: UseExpensesOptions = {}): UseExpensesReturn
       setError(null);
 
       const skip = append ? expenses.length : 0;
-      const data = await globalAccountingService.getGlobalExpenses({
-        limit: pageSize,
-        skip
-      });
+      const [result, stats, categorySummary] = await Promise.all([
+        globalAccountingService.getGlobalExpenses({
+          limit: pageSize,
+          skip
+        }),
+        append
+          ? Promise.resolve(null)
+          : globalAccountingService.getGlobalExpensesStats().catch(err => {
+              console.error('Error loading expense stats:', err);
+              return null;
+            }),
+        append
+          ? Promise.resolve(null)
+          : globalAccountingService.getExpensesSummaryByCategory().catch(err => {
+              console.error('Error loading expense category summary:', err);
+              return null;
+            })
+      ]);
 
       if (append) {
-        setExpenses(prev => [...prev, ...data]);
+        setExpenses(prev => [...prev, ...result.items]);
       } else {
-        setExpenses(data);
+        setExpenses(result.items);
+        setServerTotal(result.total ?? 0);
+        if (stats) setServerStats(stats);
+        if (categorySummary) setServerCategorySummary(categorySummary.items);
       }
 
-      setHasMore(data.length === pageSize);
+      setHasMore(result.has_more ?? result.items.length === pageSize);
     } catch (err) {
       console.error('Error loading expenses:', err);
       setError(getErrorMessage(err, 'Error al cargar gastos'));
@@ -234,7 +255,7 @@ export function useExpenses(options: UseExpensesOptions = {}): UseExpensesReturn
       const searchTerm = filters.vendor.toLowerCase();
       filtered = filtered.filter(e => {
         // Search in vendor
-        if (e.vendor?.toLowerCase().includes(searchTerm)) return true;
+        if (e.vendor_name?.toLowerCase().includes(searchTerm)) return true;
         // Search in description
         if (e.description.toLowerCase().includes(searchTerm)) return true;
         // Search in category code
@@ -254,43 +275,69 @@ export function useExpenses(options: UseExpensesOptions = {}): UseExpensesReturn
     const pending = filteredExpenses.filter(e => !e.is_paid);
     const paid = filteredExpenses.filter(e => e.is_paid);
 
-    // Build category stats dynamically from actual expenses
-    const categoryMap = new Map<string, { amount: number; count: number; label: string; color: string }>();
+    // Prefer server-side category summary so the chart reflects the
+    // entire dataset rather than just the currently paginated rows.
+    const byCategory: CategoryChartData[] = serverCategorySummary
+      ? serverCategorySummary
+          .map(s => {
+            const code = s.category ?? 'other';
+            return {
+              category: code as ExpenseCategory,
+              label: getCategoryLabel(code),
+              amount: Number(s.total_amount),
+              count: s.count,
+              color: getCategoryColor(code)
+            };
+          })
+          .sort((a, b) => b.amount - a.amount)
+      : (() => {
+          const categoryMap = new Map<string, { amount: number; count: number; label: string; color: string }>();
+          for (const expense of filteredExpenses) {
+            const cat = expense.category;
+            const existing = categoryMap.get(cat);
+            if (existing) {
+              existing.amount += Number(expense.amount);
+              existing.count += 1;
+            } else {
+              categoryMap.set(cat, {
+                amount: Number(expense.amount),
+                count: 1,
+                label: getCategoryLabel(cat),
+                color: getCategoryColor(cat)
+              });
+            }
+          }
+          return Array.from(categoryMap.entries())
+            .map(([category, data]) => ({
+              category: category as ExpenseCategory,
+              label: data.label,
+              amount: data.amount,
+              count: data.count,
+              color: data.color
+            }))
+            .sort((a, b) => b.amount - a.amount);
+        })();
 
-    for (const expense of filteredExpenses) {
-      const cat = expense.category;
-      const existing = categoryMap.get(cat);
-
-      if (existing) {
-        existing.amount += Number(expense.amount);
-        existing.count += 1;
-      } else {
-        // Use dynamic category helpers from useExpenseCategories hook
-        const label = getCategoryLabel(cat);
-        const color = getCategoryColor(cat);
-
-        categoryMap.set(cat, {
-          amount: Number(expense.amount),
-          count: 1,
-          label,
-          color
-        });
-      }
+    // Top-card totals reflect the full dataset; the table below still
+    // filters locally so vendor/search filters keep working without
+    // reissuing requests.
+    if (serverStats) {
+      return {
+        totalAmount: Number(serverStats.total_amount),
+        totalCount: serverStats.total_count,
+        pendingAmount: Number(serverStats.pending_amount),
+        pendingCount: serverStats.pending_count,
+        paidAmount: Number(serverStats.paid_amount),
+        paidCount: serverStats.paid_count,
+        averageAmount: Number(serverStats.average_amount),
+        byCategory,
+        maxCategoryAmount: byCategory.length > 0 ? byCategory[0].amount : 0
+      };
     }
-
-    const byCategory: CategoryChartData[] = Array.from(categoryMap.entries())
-      .map(([category, data]) => ({
-        category: category as ExpenseCategory,
-        label: data.label,
-        amount: data.amount,
-        count: data.count,
-        color: data.color
-      }))
-      .sort((a, b) => b.amount - a.amount);
 
     return {
       totalAmount: filteredExpenses.reduce((sum, e) => sum + Number(e.amount), 0),
-      totalCount: filteredExpenses.length,
+      totalCount: serverTotal || filteredExpenses.length,
       pendingAmount: pending.reduce((sum, e) => sum + Number(e.balance), 0),
       pendingCount: pending.length,
       paidAmount: paid.reduce((sum, e) => sum + Number(e.amount), 0),
@@ -301,7 +348,7 @@ export function useExpenses(options: UseExpensesOptions = {}): UseExpensesReturn
       byCategory,
       maxCategoryAmount: byCategory.length > 0 ? byCategory[0].amount : 0
     };
-  }, [filteredExpenses, getCategoryLabel, getCategoryColor]);
+  }, [filteredExpenses, getCategoryLabel, getCategoryColor, serverTotal, serverStats, serverCategorySummary]);
 
   // Check if any filter is active
   const hasActiveFilters = useMemo(() => {
@@ -339,7 +386,7 @@ export function useExpenses(options: UseExpensesOptions = {}): UseExpensesReturn
       e.expense_date,
       getCategoryLabel(e.category),
       `"${e.description.replace(/"/g, '""')}"`,
-      e.vendor || '',
+      e.vendor_name || '',
       Number(e.amount),
       Number(e.amount_paid),
       Number(e.balance),

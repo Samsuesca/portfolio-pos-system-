@@ -345,7 +345,7 @@ class TestSendOrderReadyEmail:
             result = send_order_ready_email(
                 email="customer@example.com",
                 name="Customer",
-                order_code="ENC-2026-0001",
+                order_code="CARACAS-001-ENC-2026-0001",
                 school_name="Test School"
             )
 
@@ -363,7 +363,7 @@ class TestSendOrderReadyEmail:
             result = send_order_ready_email(
                 email="customer@example.com",
                 name="Customer Name",
-                order_code="ENC-2026-0001",
+                order_code="CARACAS-001-ENC-2026-0001",
                 school_name="Test School"
             )
 
@@ -382,12 +382,12 @@ class TestSendOrderReadyEmail:
             send_order_ready_email(
                 email="customer@example.com",
                 name="Customer",
-                order_code="ENC-2026-0001"
+                order_code="CARACAS-001-ENC-2026-0001"
             )
 
             call_args = mock_resend.Emails.send.call_args
             email_data = call_args[0][0]
-            assert "ENC-2026-0001" in email_data["subject"]
+            assert "CARACAS-001-ENC-2026-0001" in email_data["subject"]
             assert "listo" in email_data["subject"].lower()
 
     def test_includes_customer_name_in_body(self):
@@ -402,7 +402,7 @@ class TestSendOrderReadyEmail:
             send_order_ready_email(
                 email="customer@example.com",
                 name="Maria Garcia",
-                order_code="ENC-001"
+                order_code="CARACAS-001-ENC-2026-0001"
             )
 
             call_args = mock_resend.Emails.send.call_args
@@ -421,7 +421,7 @@ class TestSendOrderReadyEmail:
             send_order_ready_email(
                 email="customer@example.com",
                 name="Customer",
-                order_code="ENC-001"
+                order_code="CARACAS-001-ENC-2026-0001"
             )
 
             call_args = mock_resend.Emails.send.call_args
@@ -441,7 +441,7 @@ class TestSendOrderReadyEmail:
             send_order_ready_email(
                 email="customer@example.com",
                 name="Customer",
-                order_code="ENC-001"
+                order_code="CARACAS-001-ENC-2026-0001"
             )
 
             call_args = mock_resend.Emails.send.call_args
@@ -461,7 +461,7 @@ class TestSendOrderReadyEmail:
             send_order_ready_email(
                 email="customer@example.com",
                 name="Customer",
-                order_code="ENC-001",
+                order_code="CARACAS-001-ENC-2026-0001",
                 school_name="Colegio San Jose"
             )
 
@@ -483,7 +483,7 @@ class TestSendOrderReadyEmail:
             result = send_order_ready_email(
                 email="customer@example.com",
                 name="Customer",
-                order_code="ENC-001"
+                order_code="CARACAS-001-ENC-2026-0001"
             )
 
             assert result is False
@@ -669,7 +669,7 @@ class TestSendOrderConfirmationEmail:
             result = send_order_confirmation_email(
                 email="customer@example.com",
                 name="Customer",
-                order_code="ENC-2026-0001",
+                order_code="CARACAS-001-ENC-2026-0001",
                 html_content="<html>Order details</html>"
             )
 
@@ -689,7 +689,7 @@ class TestSendOrderConfirmationEmail:
             send_order_confirmation_email(
                 email="customer@example.com",
                 name="Customer",
-                order_code="ENC-001",
+                order_code="CARACAS-001-ENC-2026-0001",
                 html_content=custom_html
             )
 
@@ -713,7 +713,7 @@ class TestSendSaleConfirmationEmail:
             result = send_sale_confirmation_email(
                 email="buyer@example.com",
                 name="Buyer",
-                sale_code="VNT-2026-0001",
+                sale_code="CARACAS-001-VNT-2026-0001",
                 html_content="<html>Receipt</html>"
             )
 
@@ -731,13 +731,13 @@ class TestSendSaleConfirmationEmail:
             send_sale_confirmation_email(
                 email="buyer@example.com",
                 name="Buyer",
-                sale_code="VNT-2026-0001",
+                sale_code="CARACAS-001-VNT-2026-0001",
                 html_content="<html></html>"
             )
 
             call_args = mock_resend.Emails.send.call_args
             email_data = call_args[0][0]
-            assert "VNT-2026-0001" in email_data["subject"]
+            assert "CARACAS-001-VNT-2026-0001" in email_data["subject"]
             assert "Recibo" in email_data["subject"]
 
 

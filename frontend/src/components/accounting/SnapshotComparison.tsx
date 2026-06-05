@@ -51,7 +51,7 @@ function computeDelta(a: number, b: number) {
 }
 
 function getDeltaColor(delta: number, higherIsBetter: boolean): string {
-  if (Math.abs(delta) < 0.01) return 'text-gray-500';
+  if (Math.abs(delta) < 0.01) return 'text-stone-500';
   const isImprovement = higherIsBetter ? delta > 0 : delta < 0;
   return isImprovement ? 'text-green-600' : 'text-red-600';
 }
@@ -102,12 +102,12 @@ const SnapshotComparison: React.FC<SnapshotComparisonProps> = ({
   return (
     <div className="mt-4 border-t pt-4">
       <div className="flex justify-between items-center mb-4">
-        <h5 className="text-sm font-semibold text-gray-700">
+        <h5 className="text-sm font-semibold text-stone-700">
           Comparacion: {title}
         </h5>
         <button
           onClick={onClose}
-          className="p-1 text-gray-400 hover:text-gray-600 rounded"
+          className="p-1 text-stone-400 hover:text-stone-600 rounded"
           title="Cerrar comparacion"
         >
           <X className="w-4 h-4" />
@@ -117,16 +117,16 @@ const SnapshotComparison: React.FC<SnapshotComparisonProps> = ({
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b-2 border-gray-300">
-              <th className="text-left py-2 pr-4 text-gray-700 font-semibold">Metrica</th>
-              <th className="text-right py-2 px-3 text-gray-600 font-medium min-w-[120px]">
+            <tr className="border-b-2 border-stone-200">
+              <th className="text-left py-2 pr-4 text-stone-700 font-semibold">Metrica</th>
+              <th className="text-right py-2 px-3 text-stone-600 font-medium min-w-[120px]">
                 {olderLabel}
               </th>
-              <th className="text-right py-2 px-3 text-gray-600 font-medium min-w-[120px]">
+              <th className="text-right py-2 px-3 text-stone-600 font-medium min-w-[120px]">
                 {newerLabel}
               </th>
-              <th className="text-right py-2 px-3 text-gray-600 font-medium min-w-[110px]">Cambio</th>
-              <th className="text-right py-2 pl-3 text-gray-600 font-medium min-w-[80px]">%</th>
+              <th className="text-right py-2 px-3 text-stone-600 font-medium min-w-[110px]">Cambio</th>
+              <th className="text-right py-2 pl-3 text-stone-600 font-medium min-w-[80px]">%</th>
             </tr>
           </thead>
           <tbody>
@@ -142,14 +142,14 @@ const SnapshotComparison: React.FC<SnapshotComparisonProps> = ({
               const rowFont = metric.isHighlight ? 'font-bold' : '';
 
               return (
-                <tr key={metric.key} className={`border-b border-gray-100 ${rowBg}`}>
-                  <td className={`py-2 pr-4 text-gray-700 ${rowFont}`}>
+                <tr key={metric.key} className={`border-b border-stone-100 ${rowBg}`}>
+                  <td className={`py-2 pr-4 text-stone-700 ${rowFont}`}>
                     {metric.label}
                   </td>
-                  <td className={`py-2 px-3 text-right text-gray-600 ${rowFont}`}>
+                  <td className={`py-2 px-3 text-right text-stone-600 ${rowFont}`}>
                     {formatVal(valA, metric.format)}
                   </td>
-                  <td className={`py-2 px-3 text-right text-gray-800 ${rowFont}`}>
+                  <td className={`py-2 px-3 text-right text-stone-800 ${rowFont}`}>
                     {formatVal(valB, metric.format)}
                   </td>
                   <td className={`py-2 px-3 text-right ${color} ${rowFont}`}>
@@ -174,7 +174,7 @@ const SnapshotComparison: React.FC<SnapshotComparisonProps> = ({
         </table>
       </div>
 
-      <div className="mt-3 text-xs text-gray-400">
+      <div className="mt-3 text-xs text-stone-400">
         Verde = mejora, Rojo = deterioro. Para gastos/pasivos, una reduccion es positiva.
       </div>
     </div>
