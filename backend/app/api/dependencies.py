@@ -287,6 +287,53 @@ async def get_user_school_ids(
 UserSchoolIds = Annotated[list[UUID], Depends(get_user_school_ids)]
 
 
+async def get_user_branch_ids(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[UUID] | None:
+    """Branches (sucursales físicas) accesibles por el usuario.
+
+    Semántica deliberadamente distinta a get_user_school_ids: aquí ``None``
+    significa "acceso a TODAS las sucursales" (admin central), NO lista vacía.
+    Esto preserva el backward-compat absoluto: hoy ningún UserSchoolRole tiene
+    ``branch_id`` poblado, así que todos los usuarios son centrales y el caller
+    NO debe filtrar por branch (= comportamiento previo al retrofit).
+
+    - Superuser ⇒ None (acceso total, sin filtro).
+    - Usuario sin roles ⇒ None (no se restringe; mismo trato que hoy).
+    - Usuario con ≥1 rol de branch_id NULL ⇒ None (al menos un rol central).
+    - Usuario con todos sus roles restringidos a sucursales ⇒ lista de esos
+      UUIDs (sin duplicados).
+
+    El filtrado real por sucursal solo aplica cuando el negocio empiece a crear
+    roles con ``branch_id`` poblado; en esta fase nadie los crea.
+
+    NOTA: el factory análogo ``get_user_branch_ids_with_permission(code)`` (que
+    espejaría get_user_school_ids_with_permission) se difiere a una fase
+    posterior — no hay consumidor todavía y agregar superficie sin uso es deuda.
+    """
+    from app.models.user import UserSchoolRole
+
+    if current_user.is_superuser:
+        return None  # acceso total = sin filtro
+
+    rows = list((await db.execute(
+        select(UserSchoolRole.branch_id).where(
+            UserSchoolRole.user_id == current_user.id
+        )
+    )).scalars().all())
+
+    if not rows:
+        return None  # sin roles ⇒ no restringir (mismo trato que hoy)
+    if any(b is None for b in rows):
+        return None  # al menos un rol central ⇒ acceso a todas
+    return list({b for b in rows if b is not None})
+
+
+# Type alias for user's branch IDs (None = acceso central a todas)
+UserBranchIds = Annotated[list[UUID] | None, Depends(get_user_branch_ids)]
+
+
 def get_user_school_ids_with_permission(permission_code: str):
     """
     Dependency factory que retorna los school IDs donde el user tiene

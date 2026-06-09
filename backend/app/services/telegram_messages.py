@@ -75,6 +75,30 @@ class TelegramMessageBuilder:
         return "\n".join(parts)
 
     @staticmethod
+    def order_created(
+        code: str,
+        total: Decimal,
+        school_name: str,
+        client_name: str | None = None,
+        delivery_type: str | None = None,
+        seller_name: str | None = None,
+    ) -> str:
+        """Encargo creado en mostrador (origen distinto a web_order_created)."""
+        parts = [
+            f"<b>Nuevo Encargo</b>",
+            f"Codigo: <code>{_esc(code)}</code>",
+            f"Total: <b>${total:,.0f}</b>",
+            f"Colegio: {_esc(school_name)}",
+        ]
+        if client_name:
+            parts.append(f"Cliente: {_esc(client_name)}")
+        if seller_name:
+            parts.append(f"Vendedor: {_esc(seller_name)}")
+        if delivery_type:
+            parts.append(f"Entrega: {_esc(delivery_type)}")
+        return "\n".join(parts)
+
+    @staticmethod
     def order_status_changed(
         code: str,
         old_status: str,
@@ -206,6 +230,63 @@ class TelegramMessageBuilder:
         ]
         if reason:
             parts.append(f"Razon: {_esc(reason)}")
+        return "\n".join(parts)
+
+    # ── Arreglos / alterations ────────────────────────────────────
+
+    @staticmethod
+    def alteration_received(
+        code: str,
+        garment_name: str,
+        cost: Decimal,
+        client_name: str | None = None,
+        alteration_type: str | None = None,
+    ) -> str:
+        parts = [
+            f"<b>Nuevo Arreglo Recibido</b>",
+            f"Codigo: <code>{_esc(code)}</code>",
+            f"Prenda: {_esc(garment_name)}",
+            f"Costo: <b>${cost:,.0f}</b>",
+        ]
+        if alteration_type:
+            parts.append(f"Tipo: {_esc(alteration_type)}")
+        if client_name:
+            parts.append(f"Cliente: {_esc(client_name)}")
+        return "\n".join(parts)
+
+    @staticmethod
+    def alteration_delivered(
+        code: str,
+        garment_name: str,
+        client_name: str | None = None,
+    ) -> str:
+        parts = [
+            f"<b>Arreglo Entregado</b>",
+            f"Codigo: <code>{_esc(code)}</code>",
+            f"Prenda: {_esc(garment_name)}",
+        ]
+        if client_name:
+            parts.append(f"Cliente: {_esc(client_name)}")
+        return "\n".join(parts)
+
+    @staticmethod
+    def alteration_payment(
+        code: str,
+        amount: Decimal,
+        balance: Decimal,
+        payment_method: str | None = None,
+        client_name: str | None = None,
+    ) -> str:
+        parts = [
+            f"<b>Pago de Arreglo</b>",
+            f"Codigo: <code>{_esc(code)}</code>",
+            f"Monto: <b>${amount:,.0f}</b>",
+            f"Saldo pendiente: <b>${balance:,.0f}</b>",
+        ]
+        if payment_method:
+            parts.append(f"Metodo: {_esc(payment_method)}")
+        if client_name:
+            parts.append(f"Cliente: {_esc(client_name)}")
         return "\n".join(parts)
 
     # ── Digest / Reminder messages ────────────────────────────────

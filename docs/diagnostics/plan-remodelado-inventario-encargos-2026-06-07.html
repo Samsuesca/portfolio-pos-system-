@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plan de remodelado — Inventario y estados de encargos (ataque a la causa raíz)</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#171a21; --card2:#1e222b; --ink:#e8eaed; --muted:#9aa3b2;
+    --line:#2a2f3a; --accent:#5b8cff; --ok:#3fb950; --warn:#d29922; --bad:#f85149;
+    --good-bg:rgba(63,185,80,.12); --warn-bg:rgba(210,153,34,.12); --bad-bg:rgba(248,81,73,.12);
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.6;font-size:16px}
+  .wrap{max-width:1000px;margin:0 auto;padding:48px 24px 96px}
+  header.top{border-bottom:1px solid var(--line);padding-bottom:28px;margin-bottom:36px}
+  .eyebrow{color:var(--accent);font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:12px}
+  h1{font-size:30px;line-height:1.25;margin:10px 0 8px;font-weight:700}
+  h2{font-size:22px;margin:48px 0 14px;padding-top:14px;border-top:1px solid var(--line);font-weight:700}
+  h3{font-size:17px;margin:26px 0 8px;color:#cdd3dd}
+  p{margin:12px 0}
+  .meta{color:var(--muted);font-size:14px;margin-top:14px;display:flex;gap:20px;flex-wrap:wrap}
+  .meta b{color:var(--ink);font-weight:600}
+  code{font-family:var(--mono);background:var(--card2);padding:1px 6px;border-radius:5px;font-size:.86em;color:#d6deeb}
+  pre{background:#0b0d11;border:1px solid var(--line);border-radius:10px;padding:18px;overflow:auto;
+    font-family:var(--mono);font-size:13px;line-height:1.55;color:#cdd3dd}
+  pre .c{color:#6b7686}
+  .muted{color:var(--muted)}
+  .badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid}
+  .b-bad{background:var(--bad-bg);color:#ff8278;border-color:rgba(248,81,73,.4)}
+  .b-warn{background:var(--warn-bg);color:#e3b341;border-color:rgba(210,153,34,.4)}
+  .b-ok{background:var(--good-bg);color:#56d364;border-color:rgba(63,185,80,.4)}
+  .b-info{background:rgba(91,140,255,.12);color:#8aa9ff;border-color:rgba(91,140,255,.4)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin:22px 0}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px}
+  .stat .n{font-size:28px;font-weight:700;line-height:1}
+  .stat .l{color:var(--muted);font-size:13px;margin-top:6px}
+  .callout{border-radius:12px;padding:18px 20px;margin:22px 0;border:1px solid}
+  .callout h3{margin:0 0 6px}
+  .co-bad{background:var(--bad-bg);border-color:rgba(248,81,73,.35)}
+  .co-warn{background:var(--warn-bg);border-color:rgba(210,153,34,.35)}
+  .co-ok{background:var(--good-bg);border-color:rgba(63,185,80,.35)}
+  .co-info{background:rgba(91,140,255,.10);border-color:rgba(91,140,255,.35)}
+  table{width:100%;border-collapse:collapse;margin:18px 0;font-size:14px}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+  td.c{text-align:center}
+  .pill{font-family:var(--mono);font-size:12px;padding:2px 7px;border-radius:6px;background:var(--card2)}
+  .flow{font-family:var(--mono);font-size:13px;background:#0b0d11;border:1px solid var(--line);
+    border-radius:10px;padding:16px;color:#cdd3dd;white-space:pre-wrap}
+  ul{margin:12px 0;padding-left:22px}li{margin:6px 0}
+  .tag{font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;white-space:nowrap}
+  .p0{background:var(--bad-bg);color:#ff8278}.p1{background:var(--warn-bg);color:#e3b341}
+  .p2{background:rgba(91,140,255,.14);color:#8aa9ff}.p3{background:var(--card2);color:var(--muted)}
+  .ph{display:inline-block;font-family:var(--mono);font-size:12px;background:var(--card2);color:#8aa9ff;padding:2px 8px;border-radius:6px;margin-right:6px}
+  .toc{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:22px 0}
+  .toc a{color:#8aa9ff;text-decoration:none}.toc a:hover{text-decoration:underline}
+  footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="eyebrow">Plan de Remodelado · Inventario + Encargos</div>
+  <h1>Ataque a la causa raíz: por qué el modelo permite que reservas y estados deriven — y cómo cerrarlo para siempre</h1>
+  <p class="muted" style="font-size:15px;margin-top:6px">El parche de datos ya desbloqueó el conteo y cerró la sobreventa. Este documento ataca el <b>modelado</b> que produjo esos bugs (y los que la otra sesión señaló): el plan ejecutable de 13 workstreams en 6 fases seguras, con sus invariantes, decisiones de arquitectura y reglas de seguridad de notificaciones.</p>
+  <div class="meta">
+    <span><b>Fecha:</b> 7 jun 2026</span>
+    <span><b>Sistema:</b> UCR v3.1.0</span>
+    <span><b>Base:</b> diagnóstico master + 2 workflows adversariales (≈20 agentes, ~2.3M tokens)</span>
+    <span><b>Estado:</b> <span class="badge b-info">Plan aprobado-para-revisión · datos ya remediados</span></span>
+  </div>
+</header>
+
+<div class="toc">
+  <b>Contenido</b>
+  <ol>
+    <li><a href="#raiz">La causa raíz es de modelado (no de datos)</a></li>
+    <li><a href="#invariantes">Los invariantes canónicos que faltan</a></li>
+    <li><a href="#decision">La decisión de arquitectura</a></li>
+    <li><a href="#workstreams">Los 13 workstreams</a></li>
+    <li><a href="#secuencia">La secuencia segura (6 fases)</a></li>
+    <li><a href="#notif">La regla transversal: notification-safety</a></li>
+    <li><a href="#encargos">Remediar los 24+7 encargos incoherentes</a></li>
+    <li><a href="#bloqueos">Bloqueos y prerequisitos</a></li>
+  </ol>
+</div>
+
+<div class="callout co-ok">
+  <h3>Ya cerrado (no es parte del sprint, es el punto de partida)</h3>
+  <p style="margin:6px 0 0">La reconciliación de <code>reserved_quantity</code> ya corrió en prod (<code>--full</code>): 7 reservas fantasma liberadas + 6 sub-reservas globales corregidas, <b>drift 0/0/0</b>. El conteo está desbloqueado y la sobreventa cerrada <i>en los datos de hoy</i>. Pero el <b>código que las generó sigue vivo</b> — sin este plan, la deriva se reacumula.</p>
+</div>
+
+<!-- ===================== RAÍZ ===================== -->
+<h2 id="raiz">1. La causa raíz es de modelado</h2>
+<p>Cinco decisiones de modelado, no un bug puntual, hacen posible toda la familia de fallos:</p>
+<table>
+  <thead><tr><th>Defecto de modelo</th><th>Qué permite</th><th>Síntomas que produjo</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>Reserva con dueño duplicado</b><br><span class="muted">la verdad vive en <code>order_items.quantity_reserved</code> Y en <code>inventory.reserved_quantity</code> (agregado), mantenido por deltas <code>+/−</code> en 6+ call sites</span></td>
+      <td>Que el agregado y la suma real se separen ante cualquier excepción tragada, sin que nada lo vuelva a verificar</td>
+      <td>Reservas fantasma (over) · sub-reserva · 146 items stale</td>
+    </tr>
+    <tr>
+      <td><b>Dos enums independientes</b><br><span class="muted"><code>order.status</code> y <code>item_status</code> sin máquina de estados; <code>order.status</code> se setea crudo</span></td>
+      <td>Que un pedido sea <code>READY</code> mientras sus items están <code>pending</code>/<code>in_production</code>/<code>delivered</code></td>
+      <td>24 encargos <code>READY</code> falsos · 7 con entrega parcial atascada</td>
+    </tr>
+    <tr>
+      <td><b>Dos modelos de cumplimiento</b><br><span class="muted"><code>create_order</code> reserva; <code>create_web_order</code> y <code>stock.py:282</code> descuentan <code>quantity</code> directo sin reservar ni loguear</span></td>
+      <td>Fuga de stock sin rastro; reservas que nunca se crean</td>
+      <td>Sub-reserva en globales web · drift sin auditoría</td>
+    </tr>
+    <tr>
+      <td><b>Validación contra <code>quantity</code>, no <code>available</code></b><br><span class="muted"><code>create_order:96</code>, <code>create_sale:90</code></span></td>
+      <td>Vender/reservar stock ya comprometido a un encargo</td>
+      <td>Sobreventa de mostrador</td>
+    </tr>
+    <tr>
+      <td><b>Sin enforcement del invariante</b><br><span class="muted">solo hay <code>chk_reserved&lt;=quantity</code> (local de fila); nada garantiza <code>reserved == Σ items abiertos</code></span></td>
+      <td>Que la deriva persista indefinidamente sin detección</td>
+      <td>El backfill desincronizó y nadie lo notó por semanas</td>
+    </tr>
+  </tbody>
+</table>
+<p>Los <b>fail-open</b> (<code>status.py:343</code>, <code>cancellation.py:73</code>, <code>changes.py:217</code>) son el acelerante: cualquier fallo de inventario se traga y deja el dato sucio para siempre.</p>
+
+<!-- ===================== INVARIANTES ===================== -->
+<h2 id="invariantes">2. Los invariantes canónicos que faltan</h2>
+<p>Todo el plan gira en torno a hacer ciertos estados <b>imposibles</b>. Tres invariantes, hoy no enforzados:</p>
+<div class="flow"><b>I1 — Reserva canónica</b> (por fila de inventario, llaveada por <b>product.school_id</b>, NULL=global):
+   inventory.reserved_quantity == Σ order_items.quantity_reserved
+      WHERE reserved_from_stock = true
+        AND item_status IN ('pending','in_production','ready')   <span class="c"># "abiertos"</span>
+
+<b>I2 — Estado derivado</b> (salvo CANCELLED y override auditado):
+   order.status == derive_order_status(items_activos)
+      <span class="c"># all delivered → DELIVERED ; algún delivered + resto abierto → PARTIALLY_DELIVERED ;
+      # all ready/delivered → READY ; algún in_production → IN_PRODUCTION ; else PENDING</span>
+
+<b>I3 — Item terminal sin reserva</b>:
+   item_status IN ('delivered','cancelled')  ⟹  quantity_reserved = 0 AND reserved_from_stock = false</div>
+<p class="muted">Hoy se violan los tres: I1 derivó (ya reconciliado), I2 lo violan 31 encargos, I3 lo violan 146 items. El plan los enforça en runtime (servicio) y, donde es seguro, en DB (<code>CHECK</code> de I3) + un checker periódico (I1/I2).</p>
+
+<!-- ===================== DECISIÓN ===================== -->
+<h2 id="decision">3. La decisión de arquitectura</h2>
+<p>Los arquitectos propusieron caminos en conflicto. La síntesis adversarial <b>eligió</b> (no fusionó), porque dos dueños del mismo dato es la receta del bug original:</p>
+<table>
+  <thead><tr><th>Opción</th><th>Veredicto</th><th>Por qué</th></tr></thead>
+  <tbody>
+    <tr><td>Deltas atómicos lock-free + <b>checker read-only</b></td><td><span class="badge b-ok">ELEGIDA</span></td><td>Un solo escritor de <code>reserved_quantity</code>; el checker es red de seguridad, no segundo dueño. Mínimo riesgo, coherente con el código actual.</td></tr>
+    <tr><td>Trigger PL/pgSQL como dueño del agregado</td><td><span class="badge b-bad">DESCARTADA</span></td><td>Sería el 1er PL/pgSQL del repo (riesgo <code>pg_dump</code>/restore), y competiría con las primitivas → dos escritores.</td></tr>
+    <tr><td>Recalc con <code>SELECT … FOR UPDATE</code></td><td><span class="badge b-bad">DESCARTADA</span></td><td>Lock pesimista en el hot path; rompe la atomicidad lock-free actual.</td></tr>
+    <tr><td>Cola DLQ fail-open + worker</td><td><span class="badge b-bad">DESCARTADA</span></td><td>Perpetúa el fail-open que es el problema. Se reemplaza por fail-<b>closed</b> + checker.</td></tr>
+  </tbody>
+</table>
+
+<!-- ===================== WORKSTREAMS ===================== -->
+<h2 id="workstreams">4. Los 13 workstreams</h2>
+<table>
+  <thead><tr><th>WS</th><th>Pri</th><th>Objetivo</th><th class="c">Esf.</th><th class="c">Rev.</th></tr></thead>
+  <tbody>
+    <tr><td><b>WS0</b></td><td><span class="tag p0">PRE</span></td><td>Resolver la cadena alembic sin commitear (B2B/branches) y anclar el head real antes de autorar migraciones</td><td class="c">S</td><td class="c">⚠</td></tr>
+    <tr><td><b>WS1</b></td><td><span class="tag p0">PRE</span></td><td>Decisión: un solo dueño de <code>reserved_quantity</code> (deltas atómicos + checker; sin trigger/DLQ)</td><td class="c">S</td><td class="c">✓</td></tr>
+    <tr><td><b>WS2</b></td><td><span class="tag p0">P0</span></td><td><b>Notificaciones after-commit</b> — prerequisito duro de fail-closed (sin esto, fail-closed fabrica el bug)</td><td class="c">M</td><td class="c">✓</td></tr>
+    <tr><td><b>WS3</b></td><td><span class="tag p0">P0</span></td><td>Generadores validan contra <code>available</code>; school por <code>product.school_id</code>; <b>matar el modelo viejo</b> (<code>create_web_order</code> + <code>stock.py:282</code>)</td><td class="c">M</td><td class="c">✓</td></tr>
+    <tr><td><b>WS4</b></td><td><span class="tag p0">P0</span></td><td>Fuga viva: reset de <code>quantity_reserved</code> siempre alcanzable (a <code>finally</code>) en los 3 sitios <span class="badge b-ok">quick win</span></td><td class="c">S</td><td class="c">✓</td></tr>
+    <tr><td><b>WS5</b></td><td><span class="tag p1">P1</span></td><td>fail-open → <b>fail-closed</b> (gated por WS2): un estado no se persiste si el inventario falla</td><td class="c">S</td><td class="c">✓</td></tr>
+    <tr><td><b>WS6</b></td><td><span class="tag p1">P1</span></td><td><code>order.status</code> <b>derivado</b> de items + estado <code>PARTIALLY_DELIVERED</code>; <code>PATCH /status</code> deja de aceptar status libre</td><td class="c">L</td><td class="c">✓*</td></tr>
+    <tr><td><b>WS7</b></td><td><span class="tag p0">P0</span></td><td>Data-fix: sanear 146 stale + reconciliar reserved + reconciliar web-orders legacy (idempotente, ventana, conteo CERRADO)</td><td class="c">M</td><td class="c">~</td></tr>
+    <tr><td><b>WS8</b></td><td><span class="tag p1">P1</span></td><td>Re-sync de los <b>24+7 encargos</b> incoherentes vía SQL crudo (notification-safe, solo bajar de READY)</td><td class="c">M</td><td class="c">~</td></tr>
+    <tr><td><b>WS9</b></td><td><span class="tag p2">P2</span></td><td><b>Checker read-only</b> de invariantes (horario, alerta Telegram, no auto-corrige lo ambiguo)</td><td class="c">M</td><td class="c">✓</td></tr>
+    <tr><td><b>WS10</b></td><td><span class="tag p1">P1</span></td><td>Migración AUTOCOMMIT: <code>ALTER TYPE … ADD VALUE 'PARTIALLY_DELIVERED'</code> (UPPERCASE)</td><td class="c">S</td><td class="c">✗</td></tr>
+    <tr><td><b>WS11</b></td><td><span class="tag p2">P2</span></td><td><code>CHECK</code> en <code>order_items</code> (I3: item terminal ⟹ sin reserva), tras 0 violaciones</td><td class="c">S</td><td class="c">✗*</td></tr>
+    <tr><td><b>WS12</b></td><td><span class="tag p2">P2</span></td><td>UI veraz: vincular cada reserva a su encargo, contar READY, endpoint ver/liberar reserva, barrido frontend del enum</td><td class="c">L</td><td class="c">✓</td></tr>
+  </tbody>
+</table>
+<p class="muted">Rev.: ✓ reversible · ~ idempotente/parcial (backup) · ✗ irreversible-en-caliente (DDL) · * con coordinación. Esf.: S/M/L.</p>
+
+<!-- ===================== SECUENCIA ===================== -->
+<h2 id="secuencia">5. La secuencia segura (6 fases)</h2>
+<p>El orden importa: ciertas piezas son <b>prerequisitos duros</b> de otras. Desplegar fail-closed sin notificaciones-after-commit sería <i>activamente peligroso</i>.</p>
+
+<p><span class="ph">FASE 0</span><b>Prerequisitos</b> — WS0 (resolver cadena alembic) → WS1 (decisión de arquitectura) → confirmar empíricamente el casing de los enums (<code>order_status</code> UPPERCASE, <code>item_status</code> lowercase) antes de escribir cualquier SQL.</p>
+
+<p><span class="ph">FASE 1</span><b>Solo código, reversible</b> — WS2 (notificaciones after-commit) → WS3 (generadores contra <code>available</code> + matar modelo viejo) → WS4 (reset alcanzable). Desplegar y observar: <b>dejan de generarse stale y drift nuevos</b>.</p>
+
+<p><span class="ph">FASE 2</span><b>fail-closed</b> — WS5, <b>solo</b> tras WS2 desplegado. Path por path, consumir-antes-de-notificar.</p>
+
+<p><span class="ph">FASE 3</span><b>Data-fix (ventana, conteo físico CERRADO)</b> — WS7. Idempotente, toca solo <code>reserved_quantity</code> y campos de item, <b>nunca</b> <code>quantity</code> ni <code>orders.status</code>.</p>
+
+<p><span class="ph">FASE 4</span><b>Estados (ortogonal a reservas)</b> — WS10 (ADD VALUE) → WS6 (derive + PATCH) → WS8 (re-sync 24+7) → WS12 frontend en el mismo PR que WS6/WS8.</p>
+
+<p><span class="ph">FASE 5</span><b>Constraints + defensa en profundidad</b> — WS11 (<code>CHECK</code> I3, tras 0 violaciones) → WS9 (checker en <code>lifespan</code>, <code>AUTO_REMEDIATE=False</code>).</p>
+
+<div class="callout co-bad">
+  <h3>Regla crítica de no-colisión</h3>
+  <p style="margin:6px 0 0">La remediación de <b>estados</b> (WS8: los 24+7) y la del <b>modelo de reservas</b> (WS7: los 146 stale) son <b>ortogonales</b> — commits y migraciones distintos. Mezclarlas arriesga que un <code>UPDATE</code> de stock toque <code>orders.status</code> por accidente. Y <b>nada</b> de FASE 3/4/5 se corre con el <b>conteo físico abierto</b> (colisiona <code>adjust_quantity</code> vs <code>reserved≤quantity</code>).</p>
+</div>
+
+<!-- ===================== NOTIF ===================== -->
+<h2 id="notif">6. La regla transversal: notification-safety</h2>
+<p>Cambiar <code>orders.status</code> dispara email/WhatsApp al cliente. Dos consecuencias de diseño que el plan respeta:</p>
+<ul>
+  <li><b>WS2 es prerequisito de TODO fail-closed:</b> hoy las notificaciones salen <i>dentro</i> de la transacción (<code>update_status</code> 67-113). Si un fail-closed hace rollback <i>después</i> de notificar, el cliente recibe "tu pedido está listo" de un estado que no se guardó. Por eso las notificaciones se mueven a <b>after-commit</b> primero.</li>
+  <li><b>La remediación de los 24+7 (WS8) es 100% SQL crudo:</b> un <code>UPDATE orders SET status=…</code> no ejecuta el código Python que notifica. Solo se permite <b>bajar</b> de READY (nunca subir), con dry-run y cross-check contra <code>order_audit_overrides</code>. El sistema <b>no des-notifica</b> a los 24 clientes que ya recibieron "listo" por error — esa decisión (mensaje correctivo) es del owner, caso a caso.</li>
+</ul>
+
+<!-- ===================== ENCARGOS ===================== -->
+<h2 id="encargos">7. Remediar los 24+7 encargos incoherentes (la UX de las vendedoras)</h2>
+<p>El objetivo que pediste — "que los encargos tengan sentido" — se cierra en WS6+WS8+WS12:</p>
+<ul>
+  <li><b>WS8 (datos):</b> bajar los 24 <code>READY</code>-falsos a su estado real (17→PENDING, 7→IN_PRODUCTION) y los 7 atascados a <code>PARTIALLY_DELIVERED</code>. SQL crudo, notification-safe, solo bajar.</li>
+  <li><b>WS6 (código):</b> que de ahora en adelante <code>order.status</code> se <b>derive</b> de los items — imposible volver a tener un READY falso. Nuevo estado <code>PARTIALLY_DELIVERED</code> para entregas parciales (hoy se disfrazan de READY).</li>
+  <li><b>WS12 (UI):</b> la card del producto muestra "Reservado: N (a M encargos)" con el encargo que sostiene cada reserva, y un botón ver/liberar — se acaba la percepción de "fantasma" sobre reservas legítimas (el caso del layaway de Geraldine).</li>
+</ul>
+<div class="callout co-warn" style="padding:14px 18px">
+  <p style="margin:0"><b>Decisión del owner pendiente:</b> los 24 clientes ya recibieron "tu pedido está listo" por error. El re-sync corrige el sistema pero no des-notifica. ¿Mensaje correctivo a esos clientes, o se deja pasar? El sistema no decide esto.</p>
+</div>
+
+<!-- ===================== BLOQUEOS ===================== -->
+<h2 id="bloqueos">8. Bloqueos y prerequisitos (leer antes de arrancar)</h2>
+<ul>
+  <li><b>WS0 — cadena alembic sin commitear:</b> hay 5 migraciones B2B/branches + modelos sin commitear en el working tree. Las migraciones de este plan (WS10, WS11) deben encadenar sobre un head <b>real y commiteado</b>. <b>Decisión del owner:</b> ¿se commitea la cadena B2B antes, o se desacopla? El diseño no puede usar <code>down_revision='branch_retrofit_001'</code> mientras ese parent no esté commiteado.</li>
+  <li><b>Casing de enums:</b> <code>order_status</code> guarda NAMES en MAYÚSCULA, <code>item_status</code> en minúscula (<code>values_callable</code>). Todo SQL de migración debe confirmarlo con <code>SELECT DISTINCT</code> primero — mezclarlos da el peor fallo: 0 filas matcheadas, falso éxito.</li>
+  <li><b>WS10 es irreversible-en-caliente:</b> <code>ALTER TYPE … ADD VALUE</code> no se revierte sin downtime. Es el punto de no retorno del sprint de estados.</li>
+  <li><b>Ventana de despliegue:</b> FASE 3/4/5 requieren el conteo físico CERRADO.</li>
+</ul>
+
+<h2>Apéndice — invariantes del checker (WS9)</h2>
+<pre><span class="c"># I1 — reserva canónica (CRÍTICO, solo alerta, nunca auto-remedia)</span>
+SELECT count(*) FROM inventory i
+LEFT JOIN (SELECT oi.product_id, p.school_id, SUM(oi.quantity_reserved) backing
+  FROM order_items oi JOIN products p ON p.id=oi.product_id
+  WHERE oi.reserved_from_stock AND oi.item_status IN ('pending','in_production','ready')
+  GROUP BY 1,2) b ON b.product_id=i.product_id
+   AND (b.school_id=i.school_id OR (b.school_id IS NULL AND i.school_id IS NULL))
+WHERE i.reserved_quantity &lt;&gt; COALESCE(b.backing,0);          <span class="c"># debe ser 0</span>
+
+<span class="c"># I3 — item terminal con reserva colgada (auto-remediable: idempotente, no toca inventory)</span>
+SELECT count(*) FROM order_items
+WHERE item_status IN ('delivered','cancelled') AND quantity_reserved &gt; 0;   <span class="c"># debe ser 0</span></pre>
+
+<footer>
+  Plan de remodelado · 7 jun 2026 · Uniformes Consuelo Ríos (v3.1.0) · Síntesis de 2 workflows adversariales (diagnóstico + diseño, ≈20 agentes) sobre el código real + datos de producción. El parche de datos ya está aplicado; este plan ataca el modelo. Ejecución sujeta a aprobación del owner y a resolver WS0 (cadena alembic).
+</footer>
+
+</div>
+</body>
+</html>

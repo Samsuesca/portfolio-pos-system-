@@ -121,6 +121,15 @@ class UserSchoolRole(Base):
         ForeignKey("schools.id", ondelete="CASCADE"),
         nullable=False
     )
+    # Sucursal física (v3.1). NULL = acceso a TODAS las sucursales (admin
+    # central) — el estado de todos los roles hoy. Un valor poblado restringe
+    # el rol a esa sucursal (lo consume get_user_branch_ids).
+    branch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("branches.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
 
     # System role (viewer, seller, admin, owner) - can be NULL if using custom_role_id
     role: Mapped[UserRole | None] = mapped_column(
@@ -150,6 +159,7 @@ class UserSchoolRole(Base):
     # Relationships
     user: Mapped["User"] = relationship(back_populates="school_roles")
     school: Mapped["School"] = relationship(back_populates="user_roles")
+    branch: Mapped["Branch | None"] = relationship()
     custom_role: Mapped["CustomRole"] = relationship()
 
     __table_args__ = (

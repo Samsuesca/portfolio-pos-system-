@@ -39,9 +39,9 @@ export default function CFODashboard() {
       const data = await getHealthMetrics();
       setMetrics(data);
       setLastUpdated(new Date());
-    } catch (err: any) {
-      console.error('Error loading CFO metrics:', err);
-      setError(err.response?.data?.detail || 'Error al cargar metricas');
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: unknown } } }).response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : 'Error al cargar metricas');
     } finally {
       setLoading(false);
     }
@@ -102,7 +102,7 @@ export default function CFODashboard() {
               Vista ejecutiva de salud financiera
               {lastUpdated && (
                 <span className="ml-2">
-                  · Actualizado: {lastUpdated.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                  · Actualizado: {lastUpdated.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' })}
                 </span>
               )}
             </p>

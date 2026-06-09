@@ -8,9 +8,10 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.accounting import (
-    Transaction, TransactionType, Expense, BalanceAccount, AccountType,
+    Transaction, TransactionType, Expense,
     ExpenseCategoryModel
 )
+from app.services.accounting.financial_model._cash import current_cash_balance
 from app.models.school import School
 from app.utils.timezone import get_colombia_date, get_colombia_now_naive
 from app.services.accounting.financial_model.kpis import KPIService
@@ -67,12 +68,7 @@ class ExecutiveSummaryService:
         net_profit = revenue - expenses
 
         # Cash position
-        cash_stmt = select(func.coalesce(func.sum(BalanceAccount.balance), 0)).where(
-            BalanceAccount.account_type == AccountType.ASSET_CURRENT,
-            BalanceAccount.is_active == True,
-        )
-        r = await self.db.execute(cash_stmt)
-        cash_position = Decimal(str(r.scalar()))
+        cash_position = await current_cash_balance(self.db)
 
         # Previous month comparison
         prev_revenue = await self._sum_income(prev_start, prev_end)

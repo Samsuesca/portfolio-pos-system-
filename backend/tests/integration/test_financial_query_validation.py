@@ -28,13 +28,6 @@ class TestQueryValidationContracts:
     está en el QA pase 2026-05-04 (post-fix).
     """
 
-    def test_kpi_period_uses_literal(self):
-        """Documenta el invariante: /kpis acepta solo daily/weekly/monthly."""
-        from app.api.routes.financial_model import KPIPeriod
-        # Literal type debe ser exactamente estos valores
-        assert hasattr(KPIPeriod, "__args__"), "KPIPeriod debe ser un Literal"
-        assert set(KPIPeriod.__args__) == {"daily", "weekly", "monthly"}
-
     def test_trend_period_uses_literal(self):
         from app.api.routes.financial_model import TrendPeriod
         assert hasattr(TrendPeriod, "__args__"), "TrendPeriod debe ser un Literal"

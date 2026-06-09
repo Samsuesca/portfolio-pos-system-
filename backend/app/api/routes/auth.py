@@ -14,6 +14,14 @@ from app.api.dependencies import DatabaseSession, CurrentUser
 from app.api.error_responses import responses, AUTHENTICATED
 from app.schemas.base import ErrorResponse
 from app.core.limiter import limiter
+from app.core.config import settings
+from app.services.login_lockout import (
+    get_lockout_remaining,
+    register_failed_attempt,
+    clear_failed_attempts,
+)
+from slowapi.util import get_remote_address
+from app.middleware.request_context import get_client_ip
 from app.schemas.user import (
     LoginRequest, LoginResponse, UserResponse, UserWithRoles,
     PasswordChange, UserSchoolRoleResponse, GoogleLoginRequest
@@ -127,13 +135,35 @@ async def login(
             contrasena local configurada (cuenta solo Google) o la contrasena
             es incorrecta. Incluye header `WWW-Authenticate: Bearer`.
         HTTPException: 429 si se supera el rate limit de 5 intentos por minuto
-            por IP (manejado por slowapi).
+            por IP (manejado por slowapi) o si la combinacion usuario+IP supera
+            el umbral de intentos fallidos (account lockout, 10 fallos / 15 min).
 
     Side effects:
         - Actualiza `User.last_login` con la hora actual de Colombia.
         - Hace flush a la base de datos (commit lo realiza el middleware de sesion).
+        - Registra/limpia el contador de account lockout en Redis (fail-open).
     """
     user_service = UserService(db)
+
+    # Account lockout: capa adicional al rate limit por IP. Desactivada bajo
+    # TESTING (igual que el rate limiter) para no acoplar la suite a Redis.
+    lockout_active = not settings.TESTING
+    # Detras de nginx/Cloudflare, request.client es la IP del proxy; usamos la IP
+    # real que el middleware ya extrae de x-real-ip / x-forwarded-for para que el
+    # keying username+IP no colapse a una sola IP (DoS-lockout) en produccion.
+    client_ip = get_client_ip() or get_remote_address(request)
+
+    if lockout_active:
+        lock_remaining = await get_lockout_remaining(login_data.username, client_ip)
+        if lock_remaining is not None:
+            minutes = max(1, (lock_remaining + 59) // 60)
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=(
+                    "Cuenta bloqueada temporalmente por demasiados intentos "
+                    f"fallidos. Intenta de nuevo en {minutes} minuto(s)."
+                ),
+            )
 
     # Authenticate user
     user = await user_service.authenticate(
@@ -142,11 +172,16 @@ async def login(
     )
 
     if not user:
+        if lockout_active:
+            await register_failed_attempt(login_data.username, client_ip)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuario o contraseña incorrectos",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    if lockout_active:
+        await clear_failed_attempts(login_data.username, client_ip)
 
     # Create access token
     token = user_service.create_access_token(

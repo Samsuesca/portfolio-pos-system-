@@ -29,6 +29,7 @@ class InvoiceDocumentType(str, enum.Enum):
     SALE = "sale"
     ORDER = "order"
     ALTERATION = "alteration"
+    CONTRACT = "contract"  # B2B contract (dotación corporativa — grava IVA)
 
 
 class ElectronicInvoiceStatus(str, enum.Enum):
@@ -46,7 +47,8 @@ class ElectronicInvoice(Base):
         CheckConstraint(
             "(CASE WHEN sale_id IS NOT NULL THEN 1 ELSE 0 END + "
             "CASE WHEN order_id IS NOT NULL THEN 1 ELSE 0 END + "
-            "CASE WHEN alteration_id IS NOT NULL THEN 1 ELSE 0 END) = 1",
+            "CASE WHEN alteration_id IS NOT NULL THEN 1 ELSE 0 END + "
+            "CASE WHEN contract_id IS NOT NULL THEN 1 ELSE 0 END) = 1",
             name="chk_electronic_invoice_single_document",
         ),
     )
@@ -82,6 +84,12 @@ class ElectronicInvoice(Base):
     alteration_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("alterations.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    contract_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("contracts.id", ondelete="CASCADE"),
         nullable=True,
         index=True,
     )
@@ -140,6 +148,7 @@ class ElectronicInvoice(Base):
     sale: Mapped["Sale | None"] = relationship()
     order: Mapped["Order | None"] = relationship()
     alteration: Mapped["Alteration | None"] = relationship()
+    contract: Mapped["Contract | None"] = relationship()
 
     def __repr__(self) -> str:
         return (

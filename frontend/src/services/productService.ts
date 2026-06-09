@@ -7,7 +7,7 @@
  */
 import apiClient from '../utils/api-client';
 import type { Product, GarmentType, GarmentTypeImage, CatalogOrderEntry, PaginatedResponse } from '../types/api';
-import { unwrapPaginated } from '../utils/pagination';
+import { unwrapPaginated, fetchAllPages } from '../utils/pagination';
 
 export interface ProductFilters {
   school_id?: string;
@@ -74,6 +74,20 @@ export const productService = {
   },
 
   /**
+   * Get the COMPLETE multi-school catalog (every page), not a single capped
+   * page. The catalog grid groups products by garment type, so a truncated
+   * page would silently drop whole garment-type groups. No sort is applied —
+   * the grid orders cards by garment type / catalog order, not by product.
+   */
+  async getAllProductsComplete(
+    filters?: Omit<ProductFilters, 'skip' | 'limit' | 'sort_by' | 'order'>,
+  ): Promise<Product[]> {
+    return fetchAllPages(
+      (skip, limit) => this.getAllProducts({ ...filters, skip, limit }),
+    );
+  },
+
+  /**
    * Get all products for a school (backwards compatible)
    * Uses multi-school endpoint with school filter
    * with_images=true by default to show garment type images in product selectors
@@ -128,16 +142,29 @@ export const productService = {
   /**
    * Get all garment types from ALL schools (multi-school)
    */
-  async getAllGarmentTypes(filters?: { school_id?: string; active_only?: boolean; with_stats?: boolean }): Promise<PaginatedResponse<GarmentType>> {
+  async getAllGarmentTypes(filters?: { school_id?: string; active_only?: boolean; with_stats?: boolean; skip?: number; limit?: number }): Promise<PaginatedResponse<GarmentType>> {
     const params = new URLSearchParams();
     if (filters?.school_id) params.append('school_id', filters.school_id);
     if (filters?.active_only !== undefined) params.append('active_only', String(filters.active_only));
     if (filters?.with_stats) params.append('with_stats', 'true');
+    if (filters?.skip !== undefined) params.append('skip', String(filters.skip));
+    if (filters?.limit !== undefined) params.append('limit', String(filters.limit));
 
     const queryString = params.toString();
     const url = queryString ? `/garment-types?${queryString}` : '/garment-types';
     const response = await apiClient.get<PaginatedResponse<GarmentType> | GarmentType[]>(url);
     return unwrapPaginated(response.data);
+  },
+
+  /**
+   * Get ALL multi-school garment types (every page). The catalog tree, filter
+   * dropdown and grid grouping all need the full set — a capped page (default
+   * 100) would hide types and make the grid drop their products.
+   */
+  async getAllGarmentTypesComplete(filters?: { school_id?: string; active_only?: boolean; with_stats?: boolean }): Promise<GarmentType[]> {
+    return fetchAllPages(
+      (skip, limit) => this.getAllGarmentTypes({ ...filters, skip, limit }),
+    );
   },
 
   /**
@@ -165,15 +192,33 @@ export const productService = {
   /**
    * Get all global products with inventory
    */
-  async getGlobalProducts(withInventory: boolean = true, limit: number = 500, withImages: boolean = false): Promise<PaginatedResponse<Product>> {
+  async getGlobalProducts(withInventory: boolean = true, limit: number = 500, withImages: boolean = false, skip: number = 0): Promise<PaginatedResponse<Product>> {
     const response = await apiClient.get<PaginatedResponse<Product> | Product[]>('/global/products', {
-      params: { with_inventory: withInventory, limit, ...(withImages ? { with_images: true } : {}) }
+      params: { with_inventory: withInventory, limit, ...(withImages ? { with_images: true } : {}), ...(skip ? { skip } : {}) }
     });
     const result = unwrapPaginated(response.data);
     if (result.has_more) {
       console.warn(`[productService.getGlobalProducts] Catálogo global truncado en ${limit} ítems (hay más).`);
     }
     return result;
+  },
+
+  /**
+   * Get the COMPLETE global catalog (every page). The global grid groups by
+   * garment type, so a capped page would drop whole groups. Calls the endpoint
+   * directly (not getGlobalProducts) so the per-page "truncated" warning — meant
+   * for single-shot callers — doesn't fire while we deliberately paginate.
+   */
+  async getGlobalProductsComplete(withImages: boolean = false, schoolId?: string): Promise<Product[]> {
+    return fetchAllPages(async (skip, limit) => {
+      const response = await apiClient.get<PaginatedResponse<Product> | Product[]>('/global/products', {
+        // With `school_id` the backend excludes the globals hidden for that school
+        // (same exclusion the public web catalog uses), so the per-school grid only
+        // surfaces globals the school actually shows — and can reorder them safely.
+        params: { with_inventory: true, limit, ...(withImages ? { with_images: true } : {}), ...(skip ? { skip } : {}), ...(schoolId ? { school_id: schoolId } : {}) },
+      });
+      return unwrapPaginated(response.data);
+    });
   },
 
   async getGlobalProductsStats(params?: {
@@ -197,11 +242,21 @@ export const productService = {
     return response.data;
   },
 
-  async getGlobalGarmentTypes(activeOnly: boolean = true): Promise<PaginatedResponse<GarmentType>> {
+  async getGlobalGarmentTypes(activeOnly: boolean = true, skip: number = 0, limit: number = 100): Promise<PaginatedResponse<GarmentType>> {
     const response = await apiClient.get<PaginatedResponse<GarmentType> | GarmentType[]>('/global/garment-types', {
-      params: { active_only: activeOnly }
+      params: { active_only: activeOnly, ...(skip ? { skip } : {}), limit }
     });
     return unwrapPaginated(response.data);
+  },
+
+  /**
+   * Get ALL global garment types (every page; this endpoint caps at 100/page).
+   */
+  async getGlobalGarmentTypesComplete(activeOnly: boolean = true): Promise<GarmentType[]> {
+    return fetchAllPages(
+      (skip, limit) => this.getGlobalGarmentTypes(activeOnly, skip, limit),
+      100,
+    );
   },
 
   /**

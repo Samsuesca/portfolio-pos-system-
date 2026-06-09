@@ -5,6 +5,7 @@ import {
   ClipboardList,
   BarChart3,
   ShieldCheck,
+  AlertCircle,
 } from 'lucide-react';
 import Layout from '../../components/Layout';
 import employeeService, { EmployeeListItem } from '../../services/employeeService';
@@ -26,20 +27,24 @@ export default function Workforce() {
   const [activeTab, setActiveTab] = useState<string>('shifts');
   const [employees, setEmployees] = useState<EmployeeListItem[]>([]);
   const [loadingEmployees, setLoadingEmployees] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const loadEmployees = async () => {
+    setLoadingEmployees(true);
+    setLoadError(null);
+    try {
+      const result = await employeeService.getEmployees({ is_active: true });
+      setEmployees(result.items);
+    } catch (err) {
+      console.error('Error loading employees:', err);
+      setLoadError(err instanceof Error ? err.message : 'No se pudieron cargar los empleados.');
+    } finally {
+      setLoadingEmployees(false);
+    }
+  };
 
   useEffect(() => {
-    const load = async () => {
-      setLoadingEmployees(true);
-      try {
-        const result = await employeeService.getEmployees({ is_active: true });
-        setEmployees(result.items);
-      } catch (err) {
-        console.error('Error loading employees:', err);
-      } finally {
-        setLoadingEmployees(false);
-      }
-    };
-    load();
+    loadEmployees();
   }, []);
 
   return (
@@ -74,17 +79,31 @@ export default function Workforce() {
         })}
       </div>
 
+      {/* Load error banner */}
+      {loadError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start gap-2">
+          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+          <div className="text-sm text-red-700 flex-1">{loadError}</div>
+          <button
+            onClick={() => loadEmployees()}
+            className="text-sm text-red-700 underline hover:text-red-800"
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
+
       {/* Loading employees indicator */}
       {loadingEmployees && (
         <div className="text-center py-4 text-stone-500 text-sm">Cargando empleados...</div>
       )}
 
       {/* Tab Content */}
-      {!loadingEmployees && activeTab === 'shifts' && <ShiftsTab employees={employees} />}
-      {!loadingEmployees && activeTab === 'attendance' && <AttendanceTab employees={employees} />}
-      {!loadingEmployees && activeTab === 'checklists' && <ChecklistsTab employees={employees} />}
-      {!loadingEmployees && activeTab === 'performance' && <PerformanceTab employees={employees} />}
-      {!loadingEmployees && activeTab === 'responsibilities' && <ResponsibilitiesTab />}
+      {!loadingEmployees && !loadError && activeTab === 'shifts' && <ShiftsTab employees={employees} />}
+      {!loadingEmployees && !loadError && activeTab === 'attendance' && <AttendanceTab employees={employees} />}
+      {!loadingEmployees && !loadError && activeTab === 'checklists' && <ChecklistsTab employees={employees} />}
+      {!loadingEmployees && !loadError && activeTab === 'performance' && <PerformanceTab employees={employees} />}
+      {!loadingEmployees && !loadError && activeTab === 'responsibilities' && <ResponsibilitiesTab />}
     </div>
     </Layout>
   );

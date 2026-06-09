@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { AlertCircle } from 'lucide-react';
 import { RequirePermission } from '@/components/RequirePermission';
 import workforceService, {
   PerformanceSummaryItem,
@@ -32,11 +33,13 @@ function getScoreLabel(score: number): string {
 export default function PerformancePage() {
   const [summary, setSummary] = useState<PerformanceSummaryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [periodDays, setPeriodDays] = useState(30);
   const [generating, setGenerating] = useState(false);
 
   const loadSummary = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const end = new Date();
       const start = new Date();
@@ -48,8 +51,8 @@ export default function PerformancePage() {
       // Sort by overall_score descending
       data.sort((a, b) => b.overall_score - a.overall_score);
       setSummary(data);
-    } catch {
-      // No data yet
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'No se pudo cargar el rendimiento del equipo.');
     } finally {
       setLoading(false);
     }
@@ -174,6 +177,14 @@ export default function PerformancePage() {
           <div className="text-2xl font-bold text-red-600">{needsAttention}</div>
         </div>
       </div>
+
+      {loadError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start gap-2">
+          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+          <div className="text-sm text-red-700 flex-1">{loadError}</div>
+          <button onClick={() => loadSummary()} className="text-sm text-red-700 underline hover:text-red-800">Reintentar</button>
+        </div>
+      )}
 
       {/* Ranking Table */}
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">

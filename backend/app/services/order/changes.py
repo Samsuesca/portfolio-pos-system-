@@ -210,12 +210,16 @@ class OrderChangeMixin:
                         order_id=order.id,
                         created_by=approved_by,
                     )
-                    item.quantity_reserved -= quantity_to_release
-                    if item.quantity_reserved <= 0:
-                        item.reserved_from_stock = False
                     logger.info(f"Released {quantity_to_release} units for order change {change.id}")
                 except Exception as e:
                     logger.warning(f"Could not release stock for order change {change.id}: {e}")
+                finally:
+                    # WS4: el campo per-linea se decrementa SIEMPRE (release
+                    # parcial); la reconciliacion re-deriva inventory si la
+                    # liberacion fisica fallo.
+                    item.quantity_reserved -= quantity_to_release
+                    if item.quantity_reserved <= 0:
+                        item.reserved_from_stock = False
         else:
             await self._apply_original_item_disposal(
                 change=change, item=item, school_id=school_id,

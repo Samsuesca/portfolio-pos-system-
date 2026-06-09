@@ -10,6 +10,9 @@ import type { Order, OrderListItem, OrderWithItems, OrderCreate, OrderPayment, O
 
 export interface OrderFilters {
   school_id?: string;
+  // Sucursal física (v3.1). Filtro OPCIONAL: si se omite, no se envía y el
+  // backend devuelve el consolidado (comportamiento actual intacto).
+  branch_id?: string;
   status?: OrderStatus;
   search?: string;
   skip?: number;
@@ -27,6 +30,7 @@ export const orderService = {
   async getAllOrders(filters?: OrderFilters): Promise<PaginatedResponse<OrderListItem>> {
     const params = new URLSearchParams();
     if (filters?.school_id) params.append('school_id', filters.school_id);
+    if (filters?.branch_id) params.append('branch_id', filters.branch_id);
     if (filters?.status) params.append('status', filters.status);
     if (filters?.search) params.append('search', filters.search);
     if (filters?.skip) params.append('skip', String(filters.skip));
@@ -42,9 +46,10 @@ export const orderService = {
     return response.data;
   },
 
-  async getOrderStats(filters?: Pick<OrderFilters, 'school_id' | 'source_filter' | 'start_date' | 'end_date'>): Promise<Record<string, number>> {
+  async getOrderStats(filters?: Pick<OrderFilters, 'school_id' | 'branch_id' | 'source_filter' | 'start_date' | 'end_date'>): Promise<Record<string, number>> {
     const params = new URLSearchParams();
     if (filters?.school_id) params.append('school_id', filters.school_id);
+    if (filters?.branch_id) params.append('branch_id', filters.branch_id);
     if (filters?.source_filter) params.append('source_filter', filters.source_filter);
     if (filters?.start_date) params.append('start_date', filters.start_date);
     if (filters?.end_date) params.append('end_date', filters.end_date);

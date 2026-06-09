@@ -1,6 +1,7 @@
 """
 Payroll Service - Business logic for payroll management
 """
+import logging
 from uuid import UUID
 from decimal import Decimal
 from datetime import date, datetime
@@ -16,7 +17,7 @@ from app.models.payroll import (
     PayrollStatus,
     PaymentFrequency,
 )
-from app.models.accounting import Expense, ExpenseCategory
+from app.models.accounting import Expense, ExpenseCategory, TransactionType, AccPaymentMethod
 from app.models.fixed_expense import (
     FixedExpense,
     FixedExpenseType,
@@ -26,6 +27,8 @@ from app.models.fixed_expense import (
 from app.schemas.payroll import PayrollRunCreate, PayrollRunUpdate, PayrollItemUpdate
 from app.services.employee_service import employee_service
 from app.services.workforce.attendance import attendance_service
+
+logger = logging.getLogger(__name__)
 
 # Constants for payroll fixed expenses
 PAYROLL_FIXED_EXPENSE_VENDOR = "Empleados - Nómina Consolidada"  # Used for vendor lookup
@@ -311,6 +314,19 @@ class PayrollService:
 
         await db.commit()
         await db.refresh(payroll)
+        logger.info(
+            "Payroll run %s approved (%s employees, total %s)",
+            payroll.id, payroll.employee_count, payroll.total_net,
+            extra={
+                "action": "payroll_approved",
+                "payroll_run_id": str(payroll.id),
+                "employee_count": payroll.employee_count,
+                "amount": str(payroll.total_net),
+                "actor_user_id": str(approved_by) if approved_by else None,
+                "status_from": "draft",
+                "status_to": "approved",
+            },
+        )
         return payroll
 
     async def _update_payroll_fixed_expenses(
@@ -419,12 +435,81 @@ class PayrollService:
         result = await db.execute(stmt)
         return list(result.scalars().all())
 
+    async def _record_payment_transaction(
+        self,
+        db: AsyncSession,
+        item: PayrollItem,
+        *,
+        payment_method: str,
+        expense_id: UUID | None,
+        period_start: date,
+        period_end: date,
+        paid_by: UUID | None,
+    ) -> None:
+        """Record the cash/bank movement for a single paid payroll item.
+
+        Without this the pay flow only flips ``is_paid`` and the disbursement
+        never reaches Caja/Banco nor the daily close, so the GLOBAL books
+        undercount cash out. Mirrors ``ExpenseService.pay_expense``. Payroll is a
+        global expense of the employer, so ``school_id`` is intentionally None.
+        """
+        # A non-positive net moves no cash and would violate the
+        # amount > 0 constraint on transactions; just leave it marked paid.
+        if not item.net_amount or item.net_amount <= 0:
+            return
+
+        from app.services.accounting.transactions import TransactionService
+
+        try:
+            acc_pm = AccPaymentMethod(payment_method)
+        except ValueError:
+            acc_pm = AccPaymentMethod.OTHER
+
+        employee_name = item.employee.full_name if item.employee else "Empleado"
+        description = (
+            f"Pago nómina {period_start.strftime('%d/%m/%Y')}"
+            f"-{period_end.strftime('%d/%m/%Y')}: {employee_name}"
+        )
+
+        await TransactionService(db).record(
+            type=TransactionType.EXPENSE,
+            amount=item.net_amount,
+            payment_method=acc_pm,
+            description=description,
+            school_id=None,
+            category=ExpenseCategory.PAYROLL.value,
+            transaction_date=get_colombia_date(),
+            expense_id=expense_id,
+            created_by=paid_by,
+        )
+
+        try:
+            from app.services.telegram import fire_and_forget_routed_alert
+            from app.services.telegram_messages import TelegramMessageBuilder
+
+            msg = TelegramMessageBuilder.expense_paid(
+                description=description,
+                amount=item.net_amount,
+                payment_method=acc_pm.value,
+            )
+            fire_and_forget_routed_alert("expense_paid", msg)
+        except Exception:
+            pass
+
     async def mark_payroll_paid(
         self,
         db: AsyncSession,
         payroll_id: UUID,
+        *,
+        paid_by: UUID | None = None,
     ) -> PayrollRun:
         """Mark entire payroll as paid"""
+        # Lock the run row to serialize concurrent pay calls (F1.3b): without it
+        # two requests could both see items unpaid and double-debit Caja/Banco.
+        await db.execute(
+            select(PayrollRun.id).where(PayrollRun.id == payroll_id).with_for_update()
+        )
+
         payroll = await self.get_payroll_run(db, payroll_id)
         if not payroll:
             raise ValueError("Liquidación de nómina no encontrada")
@@ -432,32 +517,64 @@ class PayrollService:
         if payroll.status != PayrollStatus.APPROVED:
             raise ValueError("Solo se pueden pagar liquidaciones aprobadas")
 
-        # Mark all items as paid
+        # Each employee is paid via their own payment_method so the right account
+        # is debited; record cash only for items we newly pay so items already
+        # settled individually are not debited twice.
+        newly_paid = []
         for item in payroll.items:
             if not item.is_paid:
                 item.is_paid = True
                 item.paid_at = get_colombia_now_naive()
+                item.payment_method = (
+                    item.employee.payment_method if item.employee else "cash"
+                )
+                newly_paid.append(item)
 
         payroll.status = PayrollStatus.PAID
         payroll.paid_at = get_colombia_now_naive()
 
-        # Also mark the associated Expense as paid
+        for item in newly_paid:
+            await self._record_payment_transaction(
+                db,
+                item,
+                payment_method=item.payment_method or "cash",
+                expense_id=payroll.expense_id,
+                period_start=payroll.period_start,
+                period_end=payroll.period_end,
+                paid_by=paid_by,
+            )
+
+        # Also mark the associated Expense as fully paid
         if payroll.expense_id:
             expense_stmt = select(Expense).where(Expense.id == payroll.expense_id)
-            expense_result = await db.execute(expense_stmt)
-            expense = expense_result.scalar_one_or_none()
+            expense = (await db.execute(expense_stmt)).scalar_one_or_none()
             if expense:
                 expense.is_paid = True
                 expense.paid_at = get_colombia_now_naive()
+                expense.amount_paid = expense.amount
 
         await db.commit()
         await db.refresh(payroll)
+        logger.info(
+            "Payroll run %s paid in full (%s items, total %s)",
+            payroll.id, len(newly_paid), payroll.total_net,
+            extra={
+                "action": "payroll_paid",
+                "payroll_run_id": str(payroll.id),
+                "items_paid": len(newly_paid),
+                "amount": str(payroll.total_net),
+                "actor_user_id": str(paid_by) if paid_by else None,
+                "status_to": "paid",
+            },
+        )
         return payroll
 
     async def cancel_payroll_run(
         self,
         db: AsyncSession,
         payroll_id: UUID,
+        *,
+        cancelled_by: UUID | None = None,
     ) -> PayrollRun:
         """Cancel a payroll run"""
         payroll = await self.get_payroll_run(db, payroll_id)
@@ -482,6 +599,16 @@ class PayrollService:
 
         await db.commit()
         await db.refresh(payroll)
+        logger.info(
+            "Payroll run %s cancelled",
+            payroll.id,
+            extra={
+                "action": "payroll_cancelled",
+                "payroll_run_id": str(payroll.id),
+                "actor_user_id": str(cancelled_by) if cancelled_by else None,
+                "status_to": "cancelled",
+            },
+        )
         return payroll
 
     # ============================================
@@ -550,8 +677,16 @@ class PayrollService:
         item_id: UUID,
         payment_method: str,
         payment_reference: str | None = None,
+        *,
+        paid_by: UUID | None = None,
     ) -> PayrollItem:
         """Pay a single payroll item"""
+        # Lock the item row (F1.3b) so the is_paid guard below can't be raced
+        # into a double cash debit by concurrent requests.
+        await db.execute(
+            select(PayrollItem.id).where(PayrollItem.id == item_id).with_for_update()
+        )
+
         item = await self.get_payroll_item(db, item_id)
         if not item:
             raise ValueError("Item de nómina no encontrado")
@@ -569,14 +704,49 @@ class PayrollService:
         item.payment_method = payment_method
         item.payment_reference = payment_reference
 
+        await self._record_payment_transaction(
+            db,
+            item,
+            payment_method=payment_method,
+            expense_id=payroll.expense_id,
+            period_start=payroll.period_start,
+            period_end=payroll.period_end,
+            paid_by=paid_by,
+        )
+
+        expense = None
+        if payroll.expense_id:
+            expense = (
+                await db.execute(select(Expense).where(Expense.id == payroll.expense_id))
+            ).scalar_one_or_none()
+
         # Check if all items are paid
         all_paid = all(i.is_paid for i in payroll.items)
         if all_paid:
             payroll.status = PayrollStatus.PAID
             payroll.paid_at = get_colombia_now_naive()
+            if expense:
+                expense.is_paid = True
+                expense.paid_at = get_colombia_now_naive()
+                expense.amount_paid = expense.amount
+        elif expense:
+            new_paid = (expense.amount_paid or Decimal("0")) + item.net_amount
+            expense.amount_paid = min(new_paid, expense.amount)
 
         await db.commit()
         await db.refresh(item)
+        logger.info(
+            "Payroll item %s paid (%s via %s)",
+            item.id, item.net_amount, item.payment_method,
+            extra={
+                "action": "payroll_item_paid",
+                "payroll_run_id": str(item.payroll_run_id),
+                "item_id": str(item.id),
+                "amount": str(item.net_amount),
+                "payment_method": item.payment_method,
+                "actor_user_id": str(paid_by) if paid_by else None,
+            },
+        )
         return item
 
     # ============================================

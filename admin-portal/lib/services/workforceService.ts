@@ -1,4 +1,5 @@
-import apiClient from '../api';
+import apiClient, { PaginatedResponse } from '../api';
+import { unwrapPaginated } from '../utils/pagination';
 
 // ============================================
 // Types
@@ -372,8 +373,8 @@ const workforceService = {
 
   // --- Schedules ---
   getSchedules: async (params?: { date_from?: string; date_to?: string; employee_id?: string }): Promise<Schedule[]> => {
-    const response = await apiClient.get<Schedule[]>(`${BASE}/schedules`, { params });
-    return response.data;
+    const response = await apiClient.get<Schedule[] | PaginatedResponse<Schedule>>(`${BASE}/schedules`, { params });
+    return unwrapPaginated(response.data).items;
   },
 
   createSchedule: async (data: ScheduleCreate): Promise<Schedule> => {
@@ -405,8 +406,8 @@ const workforceService = {
     date_from?: string;
     date_to?: string;
   }): Promise<AttendanceRecord[]> => {
-    const response = await apiClient.get<AttendanceRecord[]>(`${BASE}/attendance`, { params });
-    return response.data;
+    const response = await apiClient.get<AttendanceRecord[] | PaginatedResponse<AttendanceRecord>>(`${BASE}/attendance`, { params });
+    return unwrapPaginated(response.data).items;
   },
 
   logAttendance: async (data: AttendanceCreate): Promise<AttendanceRecord> => {
@@ -434,8 +435,8 @@ const workforceService = {
     date_to?: string;
     is_deductible?: boolean;
   }): Promise<AbsenceRecord[]> => {
-    const response = await apiClient.get<AbsenceRecord[]>(`${BASE}/absences`, { params });
-    return response.data;
+    const response = await apiClient.get<AbsenceRecord[] | PaginatedResponse<AbsenceRecord>>(`${BASE}/absences`, { params });
+    return unwrapPaginated(response.data).items;
   },
 
   createAbsence: async (data: AbsenceCreate): Promise<AbsenceRecord> => {
@@ -515,8 +516,8 @@ const workforceService = {
   },
 
   getPerformanceSummary: async (params?: { period_start?: string; period_end?: string }): Promise<PerformanceSummaryItem[]> => {
-    const response = await apiClient.get<PerformanceSummaryItem[]>(`${BASE}/performance/summary`, { params });
-    return response.data;
+    const response = await apiClient.get<PerformanceSummaryItem[] | PaginatedResponse<PerformanceSummaryItem>>(`${BASE}/performance/summary`, { params });
+    return unwrapPaginated(response.data).items;
   },
 
   getPerformanceReviews: async (params?: { employee_id?: string; review_period?: string }): Promise<PerformanceReview[]> => {

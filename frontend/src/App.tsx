@@ -26,6 +26,8 @@ const SaleChanges = lazy(() => import('./pages/SaleChanges'));
 const Orders = lazy(() => import('./pages/Orders'));
 const OrderDetail = lazy(() => import('./pages/OrderDetail'));
 const WebOrders = lazy(() => import('./pages/WebOrders'));
+const B2BQuotations = lazy(() => import('./pages/B2BQuotations'));
+const B2BContracts = lazy(() => import('./pages/B2BContracts'));
 const Accounting = lazy(() => import('./pages/Accounting'));
 const Reports = lazy(() => import('./pages/Reports'));
 const Settings = lazy(() => import('./pages/settings'));
@@ -219,6 +221,22 @@ function App() {
           element={
             <ProtectedRoute permission="orders.view">
               <WebOrders />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/b2b/quotations"
+          element={
+            <ProtectedRoute permission="b2b.view">
+              <B2BQuotations />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/b2b/contracts"
+          element={
+            <ProtectedRoute permission="b2b.view">
+              <B2BContracts />
             </ProtectedRoute>
           }
         />

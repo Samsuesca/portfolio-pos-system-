@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Propuesta UX — Gestión y resolución de Cuentas por Cobrar (encargos)</title>
+<style>
+  :root{
+    --ink:#1c1917; --muted:#78716c; --line:#e7e5e4; --bg:#faf9f7; --panel:#ffffff;
+    --brand:#b8860b; --brand-soft:#fdf6e3;
+    --red:#c0392b; --red-bg:#fdecea; --orange:#c47a1a; --orange-bg:#fdf2e0;
+    --yellow:#a08217; --yellow-bg:#fbf6e0; --green:#2e7d32; --green-bg:#e9f5ea;
+    --blue:#2b6cb0; --blue-bg:#e8f0fb; --gray-bg:#f1f0ee;
+    --mono:ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.55}
+  .wrap{max-width:1060px;margin:0 auto;padding:40px 24px 90px}
+  .eyebrow{color:var(--brand);font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:12px}
+  h1{font-size:28px;margin:8px 0 6px;font-weight:800;letter-spacing:-.01em}
+  h2{font-size:20px;margin:46px 0 12px;font-weight:700}
+  h3{font-size:15px;margin:20px 0 6px;color:#44403c;font-weight:700}
+  p{margin:10px 0}.muted{color:var(--muted)}
+  code{font-family:var(--mono);background:#f3f1ee;padding:1px 5px;border-radius:4px;font-size:.86em}
+  .lead{font-size:16px;color:#44403c}
+  .sub{color:var(--muted);font-size:14px}
+  /* ---- mockup chrome ---- */
+  .app{border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.06);margin:22px 0;background:var(--panel)}
+  .app-top{background:#fff;border-bottom:1px solid var(--line);padding:14px 20px;display:flex;align-items:center;gap:10px}
+  .dot{width:10px;height:10px;border-radius:50%}
+  .app-title{font-weight:700;margin-left:6px}
+  .app-body{padding:20px;background:var(--bg)}
+  .kpi-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+  .kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;min-width:150px}
+  .kpi .n{font-size:24px;font-weight:800;color:var(--brand)}
+  .kpi .l{font-size:12px;color:var(--muted);margin-top:2px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}
+  .chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;cursor:default;display:flex;gap:8px;align-items:center}
+  .chip .c{font-size:11px;background:#f3f1ee;border-radius:6px;padding:1px 6px;font-weight:700}
+  .chip.active{border-color:var(--brand);background:var(--brand-soft)}
+  .badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid transparent;white-space:nowrap}
+  .b-susp{background:var(--orange-bg);color:var(--orange)}
+  .b-ready{background:var(--orange-bg);color:#b35309}
+  .b-cred{background:var(--yellow-bg);color:var(--yellow)}
+  .b-listo{background:var(--green-bg);color:var(--green)}
+  .b-proc{background:var(--gray-bg);color:#57534e}
+  .b-aud{background:var(--blue-bg);color:var(--blue)}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;font-size:13.5px}
+  th{background:#fbfaf8;color:var(--muted);text-transform:uppercase;font-size:11px;letter-spacing:.03em;text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
+  td{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  tr.sel td{background:var(--brand-soft)}
+  .num{font-family:var(--mono);text-align:right;font-weight:600}
+  .ghost{color:var(--muted)}
+  .mini{font-size:12px;color:var(--muted)}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 11px;font-size:12.5px;font-weight:600;cursor:default;color:#44403c}
+  .btn-primary{background:var(--brand);border-color:var(--brand);color:#fff}
+  .flag{color:var(--red);font-weight:700}
+  /* ---- slide-over ---- */
+  .layout{display:grid;grid-template-columns:1fr 360px;gap:16px;margin-top:16px}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px}
+  .panel h4{margin:0 0 2px;font-size:15px}
+  .panel .who{color:var(--muted);font-size:13px;margin-bottom:12px}
+  .kv{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px dashed var(--line)}
+  .kv b{font-weight:700}
+  .stateline{display:flex;gap:8px;align-items:center;font-size:13px;margin:10px 0;padding:8px 10px;border-radius:8px;background:var(--orange-bg)}
+  .actions{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+  .act{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:default}
+  .act:hover{border-color:var(--brand)}
+  .act .ico{font-size:18px;line-height:1}
+  .act .t{font-weight:700;font-size:13.5px}
+  .act .d{font-size:12px;color:var(--muted)}
+  .act.primary{border-color:var(--brand);background:var(--brand-soft)}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:10px}
+  .map{width:100%;border-collapse:collapse;font-size:13.5px;margin:10px 0}
+  .map th,.map td{border:1px solid var(--line);padding:8px 10px;text-align:left}
+  .map th{background:#fbfaf8}
+  .callout{border:1px solid var(--line);border-left:3px solid var(--brand);background:#fff;border-radius:10px;padding:14px 16px;margin:18px 0}
+  footer{margin-top:54px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+  ul{margin:8px 0;padding-left:20px}li{margin:5px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="eyebrow">Propuesta de diseño · Cuentas por Cobrar</div>
+<h1>De una lista pasiva a un flujo de <em>gestión y resolución</em> de CxC</h1>
+<p class="lead">Hoy las CxC de encargos son una lista que solo se mira. La propuesta: una bandeja de trabajo que <b>clasifica cada caso</b>, dice <b>qué hacer</b>, y permite <b>resolverlo en un clic</b> — apoyándose en la infraestructura de auditoría (<code>order_audit_overrides</code>) que ya existe.</p>
+<p class="sub">7 jun 2026 · $5.64M en 49 encargos abiertos · mockup con datos reales de producción</p>
+
+<!-- ===================== PROBLEMA ===================== -->
+<h2>1. Qué está mal en la UX actual</h2>
+<ul>
+  <li><b>Es pasiva:</b> lista las CxC pero no deja <b>resolverlas</b>. Para registrar un pago, castigar, o cancelar hay que ir a otra pantalla (o no se puede).</li>
+  <li><b>No distingue casos:</b> un encargo "entregado pero pagó $0" (sospechoso) se ve igual que un layaway normal. El vendedor no sabe cuál atacar.</li>
+  <li><b>Engaña:</b> muestra <code>reservado&gt;0, pendientes=0</code> (un READY que reserva pero el contador excluye READY) → parece fantasma siendo legítimo.</li>
+  <li><b>El total se suma en el cliente</b> sobre la página cargada (anti-patrón): si crecen las CxC, el número se trunca.</li>
+</ul>
+
+<!-- ===================== FLUJO ===================== -->
+<h2>2. El flujo propuesto: Triage → Caso → Resolver</h2>
+<p class="muted">Tres pasos. El sistema ya clasificó todo (misma lógica del Excel de auditoría); el humano solo decide y aplica.</p>
+
+<!-- MOCKUP -->
+<div class="app">
+  <div class="app-top">
+    <span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span>
+    <span class="app-title">Contabilidad · Cuentas por Cobrar</span>
+    <span style="margin-left:auto;font-size:12px;color:var(--muted)">Encargos · Ventas · Manuales</span>
+  </div>
+  <div class="app-body">
+
+    <!-- KPIs -->
+    <div class="kpi-row">
+      <div class="kpi"><div class="n">$5.64M</div><div class="l">CxC encargos · 49 casos</div></div>
+      <div class="kpi"><div class="n" style="color:var(--orange)">$879K</div><div class="l">Requieren acción (sospechoso + estado mal)</div></div>
+      <div class="kpi"><div class="n" style="color:var(--green)">$2.56M</div><div class="l">Por cobrar (listo + crédito)</div></div>
+      <div class="kpi"><div class="n" style="color:var(--blue)">$1.84M</div><div class="l">Ya auditados (acta GATE 0)</div></div>
+    </div>
+
+    <!-- chips de clasificación = filtros -->
+    <div class="chips">
+      <span class="chip active">Todos <span class="c">49</span></span>
+      <span class="chip"><span class="badge b-susp">Sospechoso</span> <span class="c">2 · $239K</span></span>
+      <span class="chip"><span class="badge b-ready">READY falso</span> <span class="c">5 · $640K</span></span>
+      <span class="chip"><span class="badge b-cred">Crédito/abono</span> <span class="c">5 · $369K</span></span>
+      <span class="chip"><span class="badge b-listo">Listo</span> <span class="c">13 · $1.37M</span></span>
+      <span class="chip"><span class="badge b-proc">En proceso</span> <span class="c">10 · $1.18M</span></span>
+      <span class="chip"><span class="badge b-aud">Auditado</span> <span class="c">14 · $1.84M</span></span>
+    </div>
+
+    <!-- Triage + panel de resolución -->
+    <div class="layout">
+      <table>
+        <thead><tr><th>Cliente / Encargo</th><th>Clasificación</th><th>Estado real</th><th style="text-align:right">Debe</th><th></th></tr></thead>
+        <tbody>
+          <tr class="sel">
+            <td><b>Shirly Romero</b><div class="mini">CARACAS-001-ENC-2026-0097 · 1 prenda entregada</div></td>
+            <td><span class="badge b-susp">Sospechoso</span><div class="mini">entregado, pagó $0</div></td>
+            <td>Entregado <span class="flag">⚠</span></td>
+            <td class="num">$148.000</td>
+            <td><span class="btn btn-primary">Resolver →</span></td>
+          </tr>
+          <tr>
+            <td><b>Richard Buitrago</b><div class="mini">PINAL-001-ENC-2026-0014</div></td>
+            <td><span class="badge b-susp">Sospechoso</span><div class="mini">entregado, pagó $0</div></td>
+            <td>Entregado <span class="flag">⚠</span></td>
+            <td class="num">$91.000</td>
+            <td><span class="btn">Resolver</span></td>
+          </tr>
+          <tr>
+            <td><b>Monica Álvarez</b><div class="mini">PINAL-001-ENC-2026-0026 · 3 listos</div></td>
+            <td><span class="badge b-listo">Listo</span></td>
+            <td>Listo ✓</td>
+            <td class="num">$244.000</td>
+            <td><span class="btn">Resolver</span></td>
+          </tr>
+          <tr>
+            <td><b>JUCUM</b> <span class="mini">(fundación)</span><div class="mini">CARACAS-001-ENC-2026-0118 · a crédito</div></td>
+            <td><span class="badge b-aud">Auditado</span><div class="mini">legit_receivable</div></td>
+            <td>Entregado ✓</td>
+            <td class="num">$848.000</td>
+            <td><span class="btn">Ver acta</span></td>
+          </tr>
+          <tr>
+            <td><b>Laura Orozco</b><div class="mini">CARACAS-001-ENC-2026-0093 · cambio</div></td>
+            <td><span class="badge b-ready">READY falso</span><div class="mini">muestra listo, items en producción</div></td>
+            <td>En producción <span class="flag">≠ READY</span></td>
+            <td class="num">$48.000</td>
+            <td><span class="btn">Resolver</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- PANEL DE RESOLUCIÓN del caso seleccionado -->
+      <div class="panel">
+        <h4>Shirly Romero</h4>
+        <div class="who">CARACAS-001-ENC-2026-0097 · I.E. Caracas · 📱 320 000 0000</div>
+        <div class="kv"><span>Total</span><b>$148.000</b></div>
+        <div class="kv"><span>Pagado</span><b>$0</b></div>
+        <div class="kv"><span>Debe (CxC)</span><b style="color:var(--red)">$148.000</b></div>
+        <div class="kv"><span>Entregado</span><b>18 mar 2026</b></div>
+        <div class="stateline"><span>⚠</span><span><b>Inconsistencia:</b> figura <b>entregado</b> pero con $0 pagado. Patrón "pagó sin registrar".</span></div>
+
+        <div class="mini" style="margin-top:6px;font-weight:700;color:#44403c">¿Cómo resolver?</div>
+        <div class="actions">
+          <div class="act primary"><span class="ico">↩️</span><div><div class="t">Pago retroactivo</div><div class="d">Ya pagó, no se registró → asienta la caja con fecha real y salda la CxC</div></div></div>
+          <div class="act"><span class="ico">💵</span><div><div class="t">Registrar pago ahora</div><div class="d">El cliente paga hoy → abono/total + recibo</div></div></div>
+          <div class="act"><span class="ico">🏷️</span><div><div class="t">Marcar como crédito</div><div class="d">Entregado a crédito real → fijar plan/fecha de cobro</div></div></div>
+          <div class="act"><span class="ico">✖️</span><div><div class="t">Castigar (incobrable)</div><div class="d">No se va a cobrar → baja la CxC contra pérdidas</div></div></div>
+          <div class="act"><span class="ico">📞</span><div><div class="t">Contactar cliente</div><div class="d">WhatsApp / llamada · registra el intento</div></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span>Cada acción queda <b>auditada</b> (quién, cuándo, por qué) en <code>order_audit_overrides</code>.</span>
+    </div>
+
+  </div>
+</div>
+
+<!-- ===================== MAPEO ===================== -->
+<h2>3. Cada acción mapea a lo que ya construimos</h2>
+<p class="muted">No hay que inventar backend nuevo: la resolución reutiliza la infraestructura de la auditoría de encargos (GATE 0) y el flujo de pagos.</p>
+<table class="map">
+  <thead><tr><th>Acción en la UI</th><th>Qué hace en el backend</th><th>Reusa</th></tr></thead>
+  <tbody>
+    <tr><td><b>Registrar pago ahora</b></td><td>Crea <code>Transaction(INCOME)</code> + sube <code>paid_amount</code> + marca CxC pagada</td><td><code>OrderService.add_payment</code></td></tr>
+    <tr><td><b>Pago retroactivo</b></td><td>Override <code>payment_retro</code> + materializa caja con fecha real (sin tocar estado público)</td><td><code>OrderAuditService.apply_override</code></td></tr>
+    <tr><td><b>Marcar crédito / plan</b></td><td>Override <code>legit_receivable</code> + fija <code>due_date</code>; mantiene la CxC viva</td><td><code>order_audit_overrides</code></td></tr>
+    <tr><td><b>Castigar (incobrable)</b></td><td>Override <code>write_off</code> + anula la CxC (sale del aging)</td><td><code>order_audit_overrides</code> + AR aging override-aware (ya activo)</td></tr>
+    <tr><td><b>Corregir estado</b> (READY falso)</td><td>Re-sincroniza <code>order.status</code> desde los items (notification-safe)</td><td>sprint WS6/WS8</td></tr>
+    <tr><td><b>Cancelar encargo</b></td><td>Cancela orden, libera reservas, reversa anticipos, anula CxC</td><td><code>OrderService.cancel_order</code></td></tr>
+    <tr><td><b>Contactar cliente</b></td><td>Deep-link WhatsApp con plantilla + registra el intento</td><td>notificaciones existentes</td></tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  <b>La clasificación es automática.</b> Las etiquetas (Sospechoso / READY falso / Crédito / Listo / En proceso / Auditado) salen de la misma lógica del Excel de auditoría — un servicio <code>classify_receivable(order)</code> que se calcula en el endpoint, no a mano. Así la bandeja siempre está priorizada sola.
+</div>
+
+<!-- ===================== IMPL ===================== -->
+<h2>4. Qué se construye (incremental, sobre lo existente)</h2>
+<ul>
+  <li><b>Backend (S/M):</b> endpoint <code>GET /global/accounting/receivables/triage</code> que devuelve las CxC <b>ya clasificadas y agregadas server-side</b> (mata el anti-patrón de sumar en el cliente) — una query con <code>classify</code> + totales por categoría. Endpoint <code>POST /receivables/{id}/resolve</code> que recibe la acción y delega al servicio correcto (tabla del §3).</li>
+  <li><b>Frontend (M):</b> evolucionar <code>AccountsReceivable.tsx</code> de lista a bandeja: KPIs server-side + chips-filtro por clasificación + panel de resolución (slide-over) con las acciones contextuales. Mostrar el <b>encargo que sostiene cada reserva</b> (cierra el bug de "parece fantasma").</li>
+  <li><b>Permisos:</b> ver (<code>accounting.manage_receivables</code>); resolver acciones sensibles (castigar, pago retroactivo) con permiso fuerte + todo queda en el log de auditoría.</li>
+</ul>
+<p class="muted">Orden sugerido: primero el endpoint <code>triage</code> (da el dato correcto y el foco), luego el panel de resolución acción por acción (empezando por "registrar pago" y "pago retroactivo", que cubren el 80% de los casos).</p>
+
+<h2>5. Por qué esto resuelve el problema de raíz</h2>
+<p>El $5.64M no baja con un reporte — baja cuando alguien <b>gestiona cada caso</b>. Esta UX convierte la auditoría (que hoy es un Excel manual cada vez) en una <b>operación continua</b>: el sistema clasifica, prioriza y deja resolver, y cada resolución queda auditada. Los 25 del acta dejan de ser un evento único y pasan a ser el modo normal de trabajar las CxC.</p>
+
+<footer>
+  Propuesta de diseño · 7 jun 2026 · Uniformes Consuelo Ríos · Mockup con datos reales de producción. Reutiliza <code>order_audit_overrides</code>, <code>OrderAuditService</code> y el flujo de pagos existentes. Implementación sujeta a priorización del owner.
+</footer>
+
+</div>
+</body>
+</html>

@@ -151,6 +151,11 @@ export interface GlobalTopClient {
 
 export interface GlobalReportFilters extends DateFilters {
   schoolId?: string;  // Optional school filter
+  // Sucursal física (v3.1). Filtro OPCIONAL: si se omite no se envía y el
+  // reporte queda consolidado (todas las sucursales) — igual que hoy. Solo lo
+  // consumen los endpoints de orders y revenue streams que ya lo aceptan en
+  // el backend.
+  branchId?: string;
 }
 
 // Date filter options for reports
@@ -509,6 +514,7 @@ export const reportsService = {
     if (filters?.startDate) params.start_date = filters.startDate;
     if (filters?.endDate) params.end_date = filters.endDate;
     if (filters?.schoolId) params.school_id = filters.schoolId;
+    if (filters?.branchId) params.branch_id = filters.branchId;
     const response = await apiClient.get<OrdersSummary>('/global/reports/orders/summary', { params });
     return response.data;
   },
@@ -518,6 +524,7 @@ export const reportsService = {
     if (filters?.startDate) params.start_date = filters.startDate;
     if (filters?.endDate) params.end_date = filters.endDate;
     if (filters?.schoolId) params.school_id = filters.schoolId;
+    if (filters?.branchId) params.branch_id = filters.branchId;
     const response = await apiClient.get<OrdersStatusFunnel>('/global/reports/orders/status-funnel', { params });
     return response.data;
   },
@@ -527,6 +534,7 @@ export const reportsService = {
     if (filters?.startDate) params.start_date = filters.startDate;
     if (filters?.endDate) params.end_date = filters.endDate;
     if (filters?.schoolId) params.school_id = filters.schoolId;
+    if (filters?.branchId) params.branch_id = filters.branchId;
     const response = await apiClient.get<OrdersOnTimeDelivery>('/global/reports/orders/on-time-delivery', { params });
     return response.data;
   },
@@ -537,10 +545,12 @@ export const reportsService = {
    */
   async getOrdersCumplimiento(
     schoolId?: string,
-    overdueThresholdDays: number = 0
+    overdueThresholdDays: number = 0,
+    branchId?: string
   ): Promise<OrdersCumplimientoRow[]> {
     const params: Record<string, string | number> = { overdue_threshold_days: overdueThresholdDays };
     if (schoolId) params.school_id = schoolId;
+    if (branchId) params.branch_id = branchId;
     const response = await apiClient.get<OrdersCumplimientoRow[]>('/global/reports/orders/cumplimiento', { params });
     return response.data;
   },
@@ -550,6 +560,7 @@ export const reportsService = {
     if (filters?.startDate) params.start_date = filters.startDate;
     if (filters?.endDate) params.end_date = filters.endDate;
     if (filters?.schoolId) params.school_id = filters.schoolId;
+    if (filters?.branchId) params.branch_id = filters.branchId;
     const response = await apiClient.get<OrdersTopProduct[]>('/global/reports/orders/top-products', { params });
     return response.data;
   },
@@ -559,6 +570,7 @@ export const reportsService = {
     if (filters?.startDate) params.start_date = filters.startDate;
     if (filters?.endDate) params.end_date = filters.endDate;
     if (filters?.schoolId) params.school_id = filters.schoolId;
+    if (filters?.branchId) params.branch_id = filters.branchId;
     const response = await apiClient.get<OrdersTopClient[]>('/global/reports/orders/top-clients', { params });
     return response.data;
   },
@@ -571,6 +583,7 @@ export const reportsService = {
     const params: Record<string, string> = {};
     if (filters?.startDate) params.start_date = filters.startDate;
     if (filters?.endDate) params.end_date = filters.endDate;
+    if (filters?.branchId) params.branch_id = filters.branchId;
     const response = await apiClient.get<OrdersProfitabilityResponse>('/global/reports/orders/profitability/by-school', { params });
     return response.data;
   },
@@ -589,6 +602,7 @@ export const reportsService = {
     if (filters?.startDate) params.start_date = filters.startDate;
     if (filters?.endDate) params.end_date = filters.endDate;
     if (filters?.schoolId) params.school_id = filters.schoolId;
+    if (filters?.branchId) params.branch_id = filters.branchId;
     if (streams && streams.length > 0) params.streams = streams;
     const response = await apiClient.get<StreamSummary>('/global/reports/revenue/streams-summary', { params });
     return response.data;
@@ -597,7 +611,7 @@ export const reportsService = {
   async getStreamsMonthly(
     startDate: string,
     endDate: string,
-    options?: { basis?: RevenueBasis; schoolId?: string; streams?: RevenueStreamId[] },
+    options?: { basis?: RevenueBasis; schoolId?: string; branchId?: string; streams?: RevenueStreamId[] },
   ): Promise<StreamMonthlyReport> {
     const params: Record<string, string | string[]> = {
       start_date: startDate,
@@ -605,6 +619,7 @@ export const reportsService = {
       basis: options?.basis ?? 'accrual',
     };
     if (options?.schoolId) params.school_id = options.schoolId;
+    if (options?.branchId) params.branch_id = options.branchId;
     if (options?.streams && options.streams.length > 0) params.streams = options.streams;
     const response = await apiClient.get<StreamMonthlyReport>('/global/reports/revenue/streams-monthly', { params });
     return response.data;

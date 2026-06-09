@@ -12,7 +12,6 @@ Genera proyecciones mes a mes a partir de assumptions:
 
 Persiste en `financial_projections` para auditoría y comparativa de escenarios.
 """
-from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -87,7 +86,7 @@ class ProjectionService:
             assumptions=assumptions,
             months=months_data,
             summary=summary,
-            generated_at=datetime.utcnow(),
+            generated_at=get_colombia_now_naive(),
         )
 
         if persist:
@@ -151,8 +150,15 @@ class ProjectionService:
                         * Decimal("0.6")  # conservative ramp default
                     )
 
-        # 2. COGS
-        cogs = revenue * Decimal(str(assumptions.cogs_pct))
+        # 2. COGS — retail usa cogs_pct; el B2B trae su propio margen y NO se
+        # multiplica por la estacionalidad escolar (timing contracalendario).
+        retail_revenue = revenue
+        retail_cogs = retail_revenue * Decimal(str(assumptions.cogs_pct))
+        b2b_revenue, b2b_cogs, b2b_cash_in = self._compute_b2b_month(
+            assumptions, year, month, offset
+        )
+        revenue = retail_revenue + b2b_revenue
+        cogs = retail_cogs + b2b_cogs
         gross_profit = revenue - cogs
         gross_margin_pct = float((gross_profit / revenue * 100) if revenue > 0 else Decimal("0"))
 
@@ -216,8 +222,9 @@ class ProjectionService:
         net_profit = operating_profit - interest_expense
         net_margin_pct = float((net_profit / revenue * 100) if revenue > 0 else Decimal("0"))
 
-        # 7. Cash flow
-        cash_inflow = revenue
+        # 7. Cash flow — retail cobra ~al instante; el B2B aporta su caja propia
+        # (anticipo + saldo a crédito diferido) calculada en _compute_b2b_month.
+        cash_inflow = retail_revenue + b2b_cash_in
         cash_outflow = (
             cogs + fixed_costs + payroll + formalization_one_time + formalization_recurring
             + interest_expense + debt_capital_payment
@@ -240,6 +247,7 @@ class ProjectionService:
             cogs=cogs.quantize(Decimal("0.01")),
             gross_profit=gross_profit.quantize(Decimal("0.01")),
             gross_margin_pct=round(gross_margin_pct, 2),
+            b2b_revenue=b2b_revenue.quantize(Decimal("0.01")),
             fixed_costs=fixed_costs.quantize(Decimal("0.01")),
             payroll=payroll.quantize(Decimal("0.01")),
             formalization_cost_one_time=formalization_one_time.quantize(Decimal("0.01")),
@@ -260,6 +268,82 @@ class ProjectionService:
             cash_negative=(cumulative_cash < 0),
         )
 
+    @staticmethod
+    def _is_b2b_cycle_month(first_cycle_month: int, cycles_per_year: int, month: int) -> bool:
+        """True si `month` (1-12) es un mes de ciclo del contrato recurrente."""
+        if cycles_per_year <= 0:
+            return False
+        interval = max(1, 12 // cycles_per_year)
+        return any(
+            ((first_cycle_month - 1 + k * interval) % 12) + 1 == month
+            for k in range(cycles_per_year)
+        )
+
+    def _compute_b2b_month(
+        self,
+        assumptions: "ProjectionAssumptions",
+        year: int,
+        month: int,
+        offset: int,
+    ) -> tuple[Decimal, Decimal, Decimal]:
+        """Aporte B2B del mes: (revenue, cogs, cash_in).
+
+        Reglas (del modelo de negocio B2B):
+        - Contracalendario: NO se multiplica por la estacionalidad escolar.
+        - Margen propio por contrato (no el cogs_pct retail).
+        - Ingreso (P&L) en el mes del ciclo/entrega; el saldo a crédito difiere
+          su CAJA `payment_terms_days` (≈ meses) después del ciclo.
+        - One-shots ponderados por probabilidad en el escenario base.
+        """
+        pipeline = getattr(assumptions, "b2b_pipeline", None)
+        if not pipeline:
+            return Decimal("0"), Decimal("0"), Decimal("0")
+
+        revenue = Decimal("0")
+        cogs = Decimal("0")
+        cash_in = Decimal("0")
+
+        for rc in pipeline.recurring_contracts:
+            amount = Decimal(str(rc.amount_per_cycle))
+            margin = Decimal(str(rc.gross_margin_pct))
+            deposit_pct = Decimal(str(rc.deposit_pct))
+            terms_months = max(0, round(rc.payment_terms_days / 30))
+
+            if self._is_b2b_cycle_month(rc.first_cycle_month, rc.cycles_per_year, month):
+                revenue += amount
+                cogs += amount * (Decimal("1") - margin)
+                cash_in += amount * deposit_pct  # anticipo entra al instante
+                if terms_months == 0:
+                    cash_in += amount * (Decimal("1") - deposit_pct)
+            # Saldo a crédito de un ciclo anterior que cae a caja este mes.
+            if terms_months > 0 and offset - terms_months >= 0:
+                origin_month = ((month - 1 - terms_months) % 12) + 1
+                if self._is_b2b_cycle_month(rc.first_cycle_month, rc.cycles_per_year, origin_month):
+                    cash_in += amount * (Decimal("1") - deposit_pct)
+
+        for os in pipeline.one_shot_pipeline:
+            if os.expected_month_offset == offset:
+                weighted = Decimal(str(os.amount)) * Decimal(str(os.probability))
+                margin = Decimal(str(os.gross_margin_pct))
+                revenue += weighted
+                cogs += weighted * (Decimal("1") - margin)
+                cash_in += weighted  # evento: contado a la entrega
+
+        nca = pipeline.new_client_acquisition
+        if nca and offset >= nca.ramp_start_month_offset:
+            monthly = Decimal(str(nca.contracts_per_quarter)) / Decimal("3")
+            amount = monthly * Decimal(str(nca.avg_contract_value))
+            margin = Decimal(str(nca.avg_gross_margin_pct))
+            revenue += amount
+            cogs += amount * (Decimal("1") - margin)
+            cash_in += amount
+
+        return (
+            revenue.quantize(Decimal("0.01")),
+            cogs.quantize(Decimal("0.01")),
+            cash_in.quantize(Decimal("0.01")),
+        )
+
     def _build_summary(
         self,
         months: list["ProjectionMonth"],
@@ -271,6 +355,7 @@ class ProjectionService:
         total_revenue = sum((m.revenue for m in months), Decimal("0"))
         total_cogs = sum((m.cogs for m in months), Decimal("0"))
         total_gross_profit = sum((m.gross_profit for m in months), Decimal("0"))
+        total_b2b_revenue = sum((m.b2b_revenue for m in months), Decimal("0"))
         total_opex = sum((m.total_opex for m in months), Decimal("0"))
         total_form_one_time = sum((m.formalization_cost_one_time for m in months), Decimal("0"))
         total_form_recurring = sum((m.formalization_cost_recurring for m in months), Decimal("0"))
@@ -298,6 +383,10 @@ class ProjectionService:
             total_cogs=total_cogs.quantize(Decimal("0.01")),
             total_gross_profit=total_gross_profit.quantize(Decimal("0.01")),
             avg_gross_margin_pct=round(float(avg_gm_pct), 2),
+            total_b2b_revenue=total_b2b_revenue.quantize(Decimal("0.01")),
+            b2b_revenue_pct=round(
+                float(total_b2b_revenue / total_revenue * 100) if total_revenue > 0 else 0.0, 2
+            ),
             total_opex=total_opex.quantize(Decimal("0.01")),
             total_formalization_one_time=total_form_one_time.quantize(Decimal("0.01")),
             total_formalization_recurring=total_form_recurring.quantize(Decimal("0.01")),

@@ -210,7 +210,8 @@ async def test_approve_payroll_run(
 async def test_pay_payroll_run(
     api_client: AsyncClient,
     superuser_headers: dict,
-    test_payroll_run
+    test_payroll_run,
+    db_session,
 ):
     """Test marking payroll run as paid."""
     # First approve it
@@ -218,6 +219,15 @@ async def test_pay_payroll_run(
         f"{BASE_URL}/{test_payroll_run.id}/approve",
         headers=superuser_headers
     )
+
+    # Fund Caja Mayor: paying now records a real cash Transaction that would
+    # otherwise breach the non-negative balance constraint.
+    from app.services.balance_integration import BalanceIntegrationService
+    from app.models.accounting import BalanceAccount
+    accounts = await BalanceIntegrationService(db_session).get_or_create_global_accounts()
+    caja = await db_session.get(BalanceAccount, accounts["caja_mayor"])
+    caja.balance = Decimal("5000000")
+    await db_session.flush()
 
     # Then pay it
     response = await api_client.post(

@@ -4,9 +4,9 @@ Module 1: KPI Dashboard Service
 Computes financial health indicators from existing data.
 """
 from decimal import Decimal, ROUND_HALF_UP
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from dateutil.relativedelta import relativedelta
-from sqlalchemy import select, func
+from sqlalchemy import select, func, literal_column, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 
@@ -14,8 +14,12 @@ from app.models.accounting import (
     Transaction, TransactionType, Expense, BalanceAccount, AccountType,
     AccountsReceivable, AccountsPayable, DebtPaymentSchedule, DebtPaymentStatus
 )
-from app.models.product import Product, Inventory
-from app.models.sale import Sale, SaleItem
+from app.models.b2b import (
+    Contract, ContractStatus, Quotation, QuotationStatus,
+)
+from app.models.product import Product
+from app.models.sale import Sale, SaleItem, SaleStatus
+from app.services._cogs_resolver import resolved_cost as cogs_resolved_cost
 from app.services.accounting.financial_model._math import (
     is_partial_month,
     days_elapsed_in_month,
@@ -73,22 +77,28 @@ class KPIService:
         revenue = await self._get_revenue(period_start, period_end, school_id)
         cogs = await self._get_cogs(period_start, period_end, school_id)
         operating_expenses = await self._get_operating_expenses(period_start, period_end, school_id)
-        current_assets = await self._get_account_total(
-            [AccountType.ASSET_CURRENT]
+        # Activos y pasivos desde la fuente canónica del balance — la misma
+        # que produce el Balance General de Contabilidad ($76.6M/$19.4M).
+        # Antes salían solo de BalanceAccount, ignorando inventario, CxC y
+        # CxP, lo que dejaba debt_ratio en 0.00 y acid_test inconsistente. Se
+        # REEMPLAZA la fuente (no se re-suma a mano) para no duplicar: CxC/CxP
+        # e inventario viven solo en sus tablas, nunca como BalanceAccount.
+        from app.services.patrimony import PatrimonyService
+        patrimony = await PatrimonyService(self.db).get_global_patrimony_summary()
+        p_assets = patrimony["assets"]
+        p_liab = patrimony["liabilities"]
+        current_assets = Decimal(str(p_assets["current_assets"]))
+        current_liabilities = (
+            Decimal(str(p_liab["accounts_payable"]["total"]))
+            + Decimal(str(p_liab["pending_expenses"]["total"]))
+            + Decimal(str(p_liab["debts"]["short_term"]))
         )
-        current_liabilities = await self._get_account_total(
-            [AccountType.LIABILITY_CURRENT]
-        )
-        total_assets = await self._get_account_total(
-            [AccountType.ASSET_CURRENT, AccountType.ASSET_FIXED, AccountType.ASSET_INTANGIBLE, AccountType.ASSET_OTHER]
-        )
-        total_liabilities = await self._get_account_total(
-            [AccountType.LIABILITY_CURRENT, AccountType.LIABILITY_LONG, AccountType.LIABILITY_OTHER]
-        )
+        total_assets = Decimal(str(p_assets["total"]))
+        total_liabilities = Decimal(str(p_liab["total"]))
         total_equity = await self._get_account_total(
             [AccountType.EQUITY_CAPITAL, AccountType.EQUITY_RETAINED, AccountType.EQUITY_OTHER]
         )
-        inventory_value = await self._get_inventory_value()
+        inventory_value = Decimal(str(p_assets["inventory"]["total_value"]))
         avg_receivables = await self._get_avg_receivables()
         avg_payables = await self._get_avg_payables()
         debt_payments = await self._get_debt_payments(period_start, period_end)
@@ -102,7 +112,7 @@ class KPIService:
         revenue_trend = await self._get_monthly_series(
             TransactionType.INCOME, months, school_id
         )
-        expense_trend = await self._get_monthly_expense_series(months, school_id)
+        cogs_trend = await self._get_monthly_cogs_series(months, school_id)
 
         kpis = []
 
@@ -110,7 +120,7 @@ class KPIService:
         gross_margin = (gross_profit / revenue * HUNDRED) if revenue > ZERO else ZERO
         kpis.append(self._kpi(
             "gross_margin", "Margen Bruto", gross_margin, _fmt_pct, "%",
-            self._compute_margin_trend(revenue_trend, expense_trend, cogs_ratio=cogs / revenue if revenue > ZERO else ZERO),
+            self._compute_margin_trend(revenue_trend, cogs_trend),
             "good" if gross_margin > 40 else "caution" if gross_margin > 20 else "critical",
             "Porcentaje de ingresos que queda después de descontar el costo de la mercancía"
         ))
@@ -123,12 +133,17 @@ class KPIService:
             "Porcentaje de ingresos que queda después de cubrir todos los gastos operativos"
         ))
 
-        # Margen Neto
+        # Margen Neto. Hoy net_profit == operating_profit (no se modelan
+        # impuestos ni intereses), por lo que este margen es idéntico al
+        # operativo. Se usan los MISMOS umbrales para no pintar dos tarjetas
+        # con el mismo número y distinto color (p.ej. 17% = "caution" en
+        # operativo pero "good" en neto con los umbrales antiguos).
         net_margin = (net_profit / revenue * HUNDRED) if revenue > ZERO else ZERO
         kpis.append(self._kpi(
             "net_margin", "Margen Neto", net_margin, _fmt_pct, "%",
-            [], "good" if net_margin > 15 else "caution" if net_margin > 5 else "critical",
-            "Porcentaje de ganancia neta sobre los ingresos totales"
+            [], "good" if net_margin > 20 else "caution" if net_margin > 5 else "critical",
+            "Ganancia neta sobre ingresos. Hoy coincide con el margen operativo: "
+            "el sistema aún no modela impuestos ni intereses."
         ))
 
         # Liquidez Corriente
@@ -256,13 +271,18 @@ class KPIService:
             tooltip_unavailable="Sin pagos de deuda en el período — la cobertura no aplica.",
         ))
 
-        # EBITDA (simplified)
-        depreciation = await self._get_total_depreciation()
-        ebitda = operating_profit + depreciation
+        # EBITDA. La depreciación NO se registra como gasto operativo en este
+        # sistema (no hay filas de Expense por depreciación), así que
+        # operating_profit ya está antes de D&A → EBITDA = operating_profit.
+        # Antes se sumaba `accumulated_depreciation` (saldo ACUMULADO de
+        # balance, no del período), lo que inflaba el EBITDA en cuanto
+        # existiera depreciación registrada.
+        ebitda = operating_profit
         kpis.append(self._kpi(
             "ebitda", "EBITDA", ebitda, _fmt_money, "$",
             [], "good" if ebitda > ZERO else "critical",
-            "Utilidad antes de depreciación e impuestos"
+            "Utilidad operativa antes de depreciación y amortización "
+            "(D&A no se registra por separado en este sistema)"
         ))
 
         # ROA del período (NO anualizado). Anualizar requiere validar primero
@@ -335,6 +355,13 @@ class KPIService:
             tooltip_unavailable=breakeven_unavailable,
         ))
 
+        # KPIs B2B (pilar contractual). B2B es GLOBAL: no se atribuye a un
+        # colegio puntual (ver B2BContractsStreamCalculator.breakdown). En una
+        # vista filtrada por colegio el mix B2B sería siempre 0% → ruido, no
+        # información. Por eso solo se añaden en la vista global.
+        if school_id is None:
+            await self._append_b2b_kpis(kpis, period_start, period_end, revenue)
+
         period_label = (
             f"Últimos {months} meses ({period_start.isoformat()} → "
             f"{period_end.isoformat()})"
@@ -369,12 +396,27 @@ class KPIService:
         return Decimal(str(result.scalar()))
 
     async def _get_cogs(self, start: date, end: date, school_id: UUID | None = None) -> Decimal:
-        """Get cost of goods sold from sale items with product costs"""
+        """Get cost of goods sold from sale items.
+
+        Usa el resolver compartido (`unit_cost` snapshot → `product.cost` →
+        `unit_price * 0.80`) y filtra `COMPLETED`/no-histórico, igual que
+        ProfitabilityService y FinancialStatementsService. Antes calculaba
+        `quantity * coalesce(product.cost, 0)` sin fallback ni filtro de
+        estado, lo que hacía que el Margen Bruto del dashboard de KPIs no
+        coincidiera con el de Rentabilidad ni con el Estado de Resultados.
+        """
+        sale_cost = cogs_resolved_cost(
+            item_unit_cost_col=SaleItem.unit_cost,
+            item_unit_price_col=SaleItem.unit_price,
+            product_cost_col=Product.cost,
+        )
         stmt = (
-            select(func.coalesce(func.sum(SaleItem.quantity * func.coalesce(Product.cost, 0)), 0))
+            select(func.coalesce(func.sum(SaleItem.quantity * sale_cost), 0))
             .join(Sale, SaleItem.sale_id == Sale.id)
             .join(Product, SaleItem.product_id == Product.id)
             .where(
+                Sale.status == SaleStatus.COMPLETED,
+                Sale.is_historical.is_(False),
                 Sale.sale_date >= start,
                 Sale.sale_date <= end,
             )
@@ -399,15 +441,6 @@ class KPIService:
         stmt = select(func.coalesce(func.sum(BalanceAccount.balance), 0)).where(
             BalanceAccount.account_type.in_(account_types),
             BalanceAccount.is_active == True,
-        )
-        result = await self.db.execute(stmt)
-        return Decimal(str(result.scalar()))
-
-    async def _get_inventory_value(self) -> Decimal:
-        stmt = select(
-            func.coalesce(func.sum(Inventory.quantity * func.coalesce(Product.cost, 0)), 0)
-        ).join(Product, Inventory.product_id == Product.id).where(
-            Inventory.quantity > 0
         )
         result = await self.db.execute(stmt)
         return Decimal(str(result.scalar()))
@@ -441,14 +474,6 @@ class KPIService:
         result = await self.db.execute(stmt)
         return Decimal(str(result.scalar()))
 
-    async def _get_total_depreciation(self) -> Decimal:
-        stmt = select(func.coalesce(func.sum(BalanceAccount.accumulated_depreciation), 0)).where(
-            BalanceAccount.account_type == AccountType.ASSET_FIXED,
-            BalanceAccount.is_active == True,
-        )
-        result = await self.db.execute(stmt)
-        return Decimal(str(result.scalar()))
-
     async def _get_fixed_costs(self, start: date, end: date) -> Decimal:
         stmt = select(func.coalesce(func.sum(Expense.amount), 0)).where(
             Expense.is_active == True,
@@ -459,57 +484,247 @@ class KPIService:
         result = await self.db.execute(stmt)
         return Decimal(str(result.scalar()))
 
+    # ---------- B2B KPI helpers ----------
+
+    async def _b2b_revenue_by_client(self, start: date, end: date) -> dict:
+        """Ingreso B2B devengado por cliente (contratos entregados en la ventana).
+
+        Agrupa por `b2b_client_id` (no por `legal_name`, que NO es único) para que
+        dos clientes homónimos no se fusionen al medir concentración. La métrica
+        solo usa los valores, así que la clave es el id. `delivered_at` es DateTime
+        → se acota con datetime.combine (igual que revenue_streams/alerts).
+        """
+        stmt = (
+            select(Contract.b2b_client_id, func.coalesce(func.sum(Contract.total), 0))
+            .where(
+                Contract.status == ContractStatus.DELIVERED,
+                Contract.delivered_at >= datetime.combine(start, datetime.min.time()),
+                Contract.delivered_at <= datetime.combine(end, datetime.max.time()),
+            )
+            .group_by(Contract.b2b_client_id)
+        )
+        rows = await self.db.execute(stmt)
+        return {row[0]: Decimal(str(row[1])) for row in rows}
+
+    async def _append_b2b_kpis(
+        self, kpis: list, start: date, end: date, revenue: Decimal
+    ) -> None:
+        """Añade los 5 KPIs comerciales B2B a la lista (efecto in-place).
+
+        `revenue` es el ingreso total del período en BASE CAJA (Transaction
+        INCOME) ya calculado en compute_kpis — se reutiliza como denominador del
+        mix para que numerador y denominador compartan base contable.
+        """
+        delivered_start = datetime.combine(start, datetime.min.time())
+        delivered_end = datetime.combine(end, datetime.max.time())
+
+        # --- KPI 1: Tasa de Conversión de Cotizaciones ---
+        # Denominador = cotizaciones DECIDIDAS (cerradas con desenlace):
+        # ACCEPTED + REJECTED + EXPIRED. Se EXCLUYE draft (nunca enviada) y
+        # sent/negotiation (aún abiertas: contarlas como "no convertidas"
+        # castiga el pipeline vivo). EXPIRED sí cuenta: expirar sin aceptar ES
+        # una conversión fallida. Ventana sobre created_at (no hay campo de
+        # fecha de decisión).
+        conv_row = (await self.db.execute(
+            select(
+                func.coalesce(func.sum(
+                    case((Quotation.status == QuotationStatus.ACCEPTED, 1), else_=0)
+                ), 0).label("accepted"),
+                func.count(Quotation.id).label("decided"),
+            ).where(
+                Quotation.status.in_([
+                    QuotationStatus.ACCEPTED,
+                    QuotationStatus.REJECTED,
+                    QuotationStatus.EXPIRED,
+                ]),
+                Quotation.created_at >= delivered_start,
+                Quotation.created_at <= delivered_end,
+            )
+        )).one()
+        accepted = Decimal(str(conv_row.accepted))
+        decided = Decimal(str(conv_row.decided))
+        conv_ratio = safe_ratio(accepted, decided)
+        conversion = conv_ratio * HUNDRED if conv_ratio is not None else None
+        kpis.append(self._kpi(
+            "b2b_conversion_rate", "Conversión de Cotizaciones B2B", conversion,
+            _fmt_pct, "%", [],
+            # umbral: >50 bien, >25 precaución, <=25 crítico
+            "good" if conversion is not None and conversion > 50
+            else "caution" if conversion is not None and conversion > 25
+            else "critical" if conversion is not None
+            else "neutral",
+            "Cotizaciones aceptadas sobre el total de cotizaciones ya decididas "
+            "(aceptadas, rechazadas o expiradas) en el período. Excluye borradores "
+            "y cotizaciones aún abiertas.",
+            tooltip_unavailable="Sin cotizaciones decididas en el período — la conversión no aplica.",
+        ))
+
+        # --- KPI 2: Pipeline Ponderado ---
+        # Suma de Quotation.total en estados ABIERTOS (sent + negotiation). Es un
+        # snapshot del embudo HOY, no un acumulado del período → no filtra por
+        # fecha. No es un ratio: 0 es información válida ($0), no dato faltante.
+        pipeline_row = (await self.db.execute(
+            select(func.coalesce(func.sum(Quotation.total), 0)).where(
+                Quotation.status.in_([QuotationStatus.SENT, QuotationStatus.NEGOTIATION]),
+            )
+        )).scalar()
+        weighted_pipeline = Decimal(str(pipeline_row))
+        kpis.append(self._kpi(
+            "b2b_weighted_pipeline", "Pipeline B2B", weighted_pipeline,
+            _fmt_money, "$", [], "neutral",
+            "Valor total de cotizaciones abiertas (enviadas y en negociación). "
+            "Es una foto del embudo actual, no un acumulado del período.",
+        ))
+
+        # --- KPI 3: Mix B2B vs Total (base caja) ---
+        # Numerador y denominador comparten base CAJA: el numerador es el
+        # subconjunto B2B (category='b2b') del mismo INCOME que produce `revenue`,
+        # garantizando mix <= 100% por construcción. (El ticket promedio usa base
+        # accrual — documentado en su tooltip para no comparar peras con manzanas.)
+        b2b_cash = (await self.db.execute(
+            select(func.coalesce(func.sum(Transaction.amount), 0)).where(
+                Transaction.type == TransactionType.INCOME,
+                Transaction.category == "b2b",
+                Transaction.transaction_date >= start,
+                Transaction.transaction_date <= end,
+            )
+        )).scalar()
+        b2b_revenue_cash = Decimal(str(b2b_cash))
+        mix_ratio = safe_ratio(b2b_revenue_cash, revenue)
+        mix = mix_ratio * HUNDRED if mix_ratio is not None else None
+        kpis.append(self._kpi(
+            "b2b_revenue_mix", "Mix B2B vs Total", mix, _fmt_pct, "%", [], "neutral",
+            "Participación de los ingresos B2B (contratos corporativos) sobre los "
+            "ingresos totales del período, en base caja.",
+            tooltip_unavailable="Sin ingresos en el período — el mix no aplica.",
+        ))
+
+        # --- KPI 4: Ticket Promedio B2B (base accrual) ---
+        # func.avg sobre contratos DELIVERED en la ventana (Stats Pattern: una
+        # sola query, nunca len() sobre array paginado). Postgres puede devolver
+        # avg como float → castear vía Decimal(str(...)).
+        ticket_row = (await self.db.execute(
+            select(
+                func.avg(Contract.total).label("avg"),
+                func.count(Contract.id).label("count"),
+            ).where(
+                Contract.status == ContractStatus.DELIVERED,
+                Contract.delivered_at >= delivered_start,
+                Contract.delivered_at <= delivered_end,
+            )
+        )).one()
+        avg_ticket = (
+            Decimal(str(ticket_row.avg)) if ticket_row.count and ticket_row.avg is not None
+            else None
+        )
+        kpis.append(self._kpi(
+            "b2b_avg_ticket", "Ticket Promedio B2B", avg_ticket, _fmt_money, "$",
+            [], "neutral",
+            "Valor promedio de los contratos B2B entregados en el período.",
+            tooltip_unavailable="Sin contratos B2B entregados en el período.",
+        ))
+
+        # --- KPI 5: Concentración de Cartera ---
+        # % del ingreso B2B concentrado en el cliente más grande. Riesgo
+        # INVERTIDO: más alto = peor (dependencia de un solo cliente).
+        revenue_by_client = await self._b2b_revenue_by_client(start, end)
+        total_b2b = sum(revenue_by_client.values(), ZERO)
+        top_client = max(revenue_by_client.values()) if revenue_by_client else ZERO
+        conc_ratio = safe_ratio(top_client, total_b2b)
+        concentration = conc_ratio * HUNDRED if conc_ratio is not None else None
+        kpis.append(self._kpi(
+            "b2b_portfolio_concentration", "Concentración de Cartera B2B",
+            concentration, _fmt_pct, "%", [],
+            # umbral invertido: >60 crítico, >40 precaución, <=40 bien
+            "critical" if concentration is not None and concentration > 60
+            else "caution" if concentration is not None and concentration > 40
+            else "good" if concentration is not None
+            else "neutral",
+            "Porcentaje de los ingresos B2B concentrado en el cliente más grande. "
+            "Un valor alto indica dependencia de un solo cliente.",
+            tooltip_unavailable="Sin ingresos B2B en el período.",
+        ))
+
+    def _month_buckets(self, months: int, today: date) -> list[tuple[str, date, date]]:
+        """`(clave 'YYYY-MM', inicio, fin)` para los últimos `months` meses,
+        del más antiguo al más reciente. El mes en curso termina hoy (parcial),
+        igual que el resto del módulo."""
+        buckets: list[tuple[str, date, date]] = []
+        for i in range(months - 1, -1, -1):
+            m_start = (today - relativedelta(months=i)).replace(day=1)
+            m_end = today if i == 0 else (m_start + relativedelta(months=1)) - timedelta(days=1)
+            buckets.append((m_start.strftime("%Y-%m"), m_start, m_end))
+        return buckets
+
+    @staticmethod
+    def _bucket_key(value) -> str:
+        return value.strftime("%Y-%m") if hasattr(value, "strftime") else str(value)[:7]
+
     async def _get_monthly_series(
         self, tx_type: TransactionType, months: int, school_id: UUID | None = None
     ) -> list[Decimal]:
+        """Suma mensual de transacciones por tipo, en UNA sola query agrupada
+        por mes (antes: una query por mes → hasta 24 round-trips)."""
         today = get_colombia_date()
-        result = []
-        for i in range(months - 1, -1, -1):
-            m_start = (today - relativedelta(months=i)).replace(day=1)
-            if i == 0:
-                m_end = today
-            else:
-                m_end = (m_start + relativedelta(months=1)) - timedelta(days=1)
-            stmt = select(func.coalesce(func.sum(Transaction.amount), 0)).where(
+        buckets = self._month_buckets(months, today)
+        month_trunc = func.date_trunc(literal_column("'month'"), Transaction.transaction_date)
+        stmt = (
+            select(month_trunc.label("m"), func.coalesce(func.sum(Transaction.amount), 0))
+            .where(
                 Transaction.type == tx_type,
-                Transaction.transaction_date >= m_start,
-                Transaction.transaction_date <= m_end,
+                Transaction.transaction_date >= buckets[0][1],
+                Transaction.transaction_date <= buckets[-1][2],
             )
-            if school_id:
-                stmt = stmt.where(Transaction.school_id == school_id)
-            r = await self.db.execute(stmt)
-            result.append(Decimal(str(r.scalar())))
-        return result
+            .group_by(month_trunc)
+        )
+        if school_id:
+            stmt = stmt.where(Transaction.school_id == school_id)
+        rows = await self.db.execute(stmt)
+        by_month = {self._bucket_key(row[0]): Decimal(str(row[1])) for row in rows}
+        return [by_month.get(key, ZERO) for key, _, _ in buckets]
 
-    async def _get_monthly_expense_series(self, months: int, school_id: UUID | None = None) -> list[Decimal]:
+    async def _get_monthly_cogs_series(
+        self, months: int, school_id: UUID | None = None
+    ) -> list[Decimal]:
+        """COGS mensual con el resolver compartido y filtro COMPLETED/no
+        histórico (consistente con `_get_cogs`), en UNA sola query agrupada
+        por mes. Habilita una tendencia de margen bruto REAL mes a mes."""
         today = get_colombia_date()
-        result = []
-        for i in range(months - 1, -1, -1):
-            m_start = (today - relativedelta(months=i)).replace(day=1)
-            if i == 0:
-                m_end = today
-            else:
-                m_end = (m_start + relativedelta(months=1)) - timedelta(days=1)
-            stmt = select(func.coalesce(func.sum(Expense.amount), 0)).where(
-                Expense.is_active == True,
-                Expense.expense_date >= m_start,
-                Expense.expense_date <= m_end,
+        buckets = self._month_buckets(months, today)
+        sale_cost = cogs_resolved_cost(
+            item_unit_cost_col=SaleItem.unit_cost,
+            item_unit_price_col=SaleItem.unit_price,
+            product_cost_col=Product.cost,
+        )
+        month_trunc = func.date_trunc(literal_column("'month'"), Sale.sale_date)
+        stmt = (
+            select(month_trunc.label("m"), func.coalesce(func.sum(SaleItem.quantity * sale_cost), 0))
+            .join(Sale, SaleItem.sale_id == Sale.id)
+            .join(Product, SaleItem.product_id == Product.id)
+            .where(
+                Sale.status == SaleStatus.COMPLETED,
+                Sale.is_historical.is_(False),
+                Sale.sale_date >= buckets[0][1],
+                Sale.sale_date <= buckets[-1][2],
             )
-            if school_id:
-                stmt = stmt.where(Expense.school_id == school_id)
-            r = await self.db.execute(stmt)
-            result.append(Decimal(str(r.scalar())))
-        return result
+            .group_by(month_trunc)
+        )
+        if school_id:
+            stmt = stmt.where(Sale.school_id == school_id)
+        rows = await self.db.execute(stmt)
+        by_month = {self._bucket_key(row[0]): Decimal(str(row[1])) for row in rows}
+        return [by_month.get(key, ZERO) for key, _, _ in buckets]
 
     def _compute_margin_trend(
-        self, revenue_trend: list[Decimal], expense_trend: list[Decimal], cogs_ratio: Decimal
+        self, revenue_trend: list[Decimal], cogs_trend: list[Decimal]
     ) -> list[Decimal]:
+        """Margen bruto real mes a mes = (ingresos − COGS) / ingresos. Antes
+        aplicaba un único `cogs_ratio` del período completo a todos los meses,
+        produciendo una línea SIEMPRE plana (sin información de tendencia)."""
         result = []
-        for rev, exp in zip(revenue_trend, expense_trend):
+        for rev, cogs_m in zip(revenue_trend, cogs_trend):
             if rev > ZERO:
-                cogs_est = rev * cogs_ratio
-                margin = (rev - cogs_est) / rev * HUNDRED
-                result.append(margin)
+                result.append((rev - cogs_m) / rev * HUNDRED)
             else:
                 result.append(ZERO)
         return result

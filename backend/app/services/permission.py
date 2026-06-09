@@ -25,6 +25,9 @@ SYSTEM_ROLE_PERMISSIONS = {
         "sales.view", "products.view", "clients.view", "orders.view",
         "inventory.view", "changes.view", "alterations.view", "reports.dashboard",
         "catalog.view",
+        "b2b.view",
+        # Sucursales (v3.1): ver el listado/selector de sucursales.
+        "branches.view",
     },
     UserRole.SELLER: {
         "sales.view", "products.view", "clients.view", "orders.view",
@@ -38,6 +41,10 @@ SYSTEM_ROLE_PERMISSIONS = {
         # Workforce micro-permissions for sellers
         "workforce.view_shifts", "workforce.self_checklist",
         "catalog.view",
+        # B2B: el vendedor cotiza, no contrata.
+        "b2b.view", "b2b.manage_quotations",
+        # Sucursales (v3.1): ver el listado/selector de sucursales.
+        "branches.view",
     },
     UserRole.ADMIN: {
         "sales.view", "products.view", "clients.view", "orders.view",
@@ -98,6 +105,11 @@ SYSTEM_ROLE_PERMISSIONS = {
         "garment_types.manage_global",  # Manage global garment types (parity with school-level)
         # Facturacion electronica DIAN (Alegra)
         "invoicing.emit", "invoicing.view", "invoicing.void",
+        # B2B: el admin convierte cotizaciones en contratos, registra anticipos
+        # y gestiona clientes empresariales (límites de crédito).
+        "b2b.view", "b2b.manage_quotations", "b2b.manage_contracts", "b2b.manage_clients",
+        # Sucursales (v3.1): el admin ve y gestiona (crea/edita) sucursales.
+        "branches.view", "branches.manage",
     },
     UserRole.OWNER: None  # Owner gets all permissions - handled specially
 }
@@ -202,6 +214,31 @@ EXTRA_REGISTRY_PERMISSIONS: list[dict[str, object]] = [
         ),
         "is_sensitive": True,
     },
+    # B2B — anular contratos (no asignado a ningun rol de sistema; solo OWNER
+    # o asignacion explicita a un rol custom).
+    {
+        "code": "b2b.void_contracts",
+        "category": "b2b",
+        "name": "Anular contratos B2B",
+        "description": (
+            "Cancelar un contrato B2B ya firmado/con anticipo, aplicando la "
+            "politica de retencion segun la clausula. Reversa asientos contables."
+        ),
+        "is_sensitive": True,
+    },
+    # Sucursales (v3.1). branches.view queda implicito por estar en los roles de
+    # sistema (VIEWER/SELLER/ADMIN); aqui registramos branches.manage para que
+    # sea asignable a roles custom y aparezca en el editor de roles.
+    {
+        "code": "branches.manage",
+        "category": "branches",
+        "name": "Gestionar sucursales",
+        "description": (
+            "Crear, editar y desactivar sucursales fisicas, y asignar el "
+            "ambito de sucursal a usuarios y registros."
+        ),
+        "is_sensitive": True,
+    },
 ]
 
 
@@ -220,6 +257,10 @@ SENSITIVE_PERMISSION_CODES: set[str] = {
     "accounting.edit_caja_menor_config",
     "invoicing.emit",
     "invoicing.void",
+    "b2b.manage_contracts",
+    "b2b.manage_clients",
+    "b2b.void_contracts",
+    "branches.manage",
 }
 
 # Default max discount percentages by role

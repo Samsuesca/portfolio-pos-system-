@@ -49,6 +49,7 @@ class AccountsReceivableService(SchoolIsolatedService[AccountsReceivable]):
             client_id=data.client_id,
             sale_id=data.sale_id,
             order_id=data.order_id,
+            b2b_client_id=getattr(data, "b2b_client_id", None),
             amount=data.amount,
             description=data.description,
             invoice_date=data.invoice_date,

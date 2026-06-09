@@ -44,6 +44,8 @@ interface ElectronicInvoiceButtonProps {
   disabled?: boolean;
   disabledReason?: string;
   className?: string;
+  /** Resolve invoicing perms globally (cross-school) — for global resources like B2B. */
+  global?: boolean;
 }
 
 export function ElectronicInvoiceButton({
@@ -52,9 +54,11 @@ export function ElectronicInvoiceButton({
   disabled = false,
   disabledReason,
   className,
+  global = false,
 }: ElectronicInvoiceButtonProps) {
-  const { hasPermission } = usePermissions();
-  const canView = hasPermission('invoicing.view');
+  const { hasPermission, hasGlobalPermission } = usePermissions();
+  const check = global ? hasGlobalPermission : hasPermission;
+  const canView = check('invoicing.view');
 
   const [invoice, setInvoice] = useState<ElectronicInvoice | null>(null);
   const [loading, setLoading] = useState(true);

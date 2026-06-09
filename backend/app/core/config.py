@@ -103,6 +103,10 @@ class Settings(BaseSettings):
     # Numeracion de notas credito (anulaciones). Opcional: si falta, Alegra usa la default.
     ALEGRA_CREDIT_NOTE_TEMPLATE_ID: Optional[int] = None
     ALEGRA_ISSUER_NIT: Optional[str] = None
+    # ID del impuesto IVA 19% en Alegra (la dotación corporativa B2B grava, a
+    # diferencia del uniforme escolar excluido). Se obtiene de GET /taxes en
+    # Alegra. Si es None, los items B2B se emiten sin IVA (con advertencia).
+    ALEGRA_IVA_19_TAX_ID: Optional[int] = None
 
     @property
     def alegra_base_url(self) -> str:

@@ -16,32 +16,32 @@ class TestAlreadyRan:
 
     @pytest.mark.unit
     async def test_first_call_returns_false_and_sets_redis_key(self):
-        """First call for a task+date sets a Redis key and returns False."""
+        """First call atomically claims the Redis key (SET NX) and returns False."""
         _reset_ran_today()
 
         mock_redis = AsyncMock()
-        mock_redis.exists = AsyncMock(return_value=0)
-        mock_redis.setex = AsyncMock()
+        mock_redis.set = AsyncMock(return_value=True)  # NX claim succeeded
 
         with patch.object(digest_mod, "get_redis", return_value=mock_redis):
             result = await digest_mod._already_ran("morning", "2026-04-12")
 
         assert result is False
-        mock_redis.setex.assert_called_once_with("tg_digest:morning:2026-04-12", 86400, "1")
+        mock_redis.set.assert_called_once_with(
+            "tg_digest:morning:2026-04-12", "1", ex=86400, nx=True
+        )
 
     @pytest.mark.unit
     async def test_second_call_returns_true_from_redis(self):
-        """Second call for same task+date finds the Redis key and returns True."""
+        """Second call: the NX claim fails (key exists) so it returns True."""
         _reset_ran_today()
 
         mock_redis = AsyncMock()
-        mock_redis.exists = AsyncMock(return_value=1)
+        mock_redis.set = AsyncMock(return_value=None)  # NX claim rejected
 
         with patch.object(digest_mod, "get_redis", return_value=mock_redis):
             result = await digest_mod._already_ran("morning", "2026-04-12")
 
         assert result is True
-        mock_redis.setex.assert_not_called()
 
     @pytest.mark.unit
     async def test_falls_back_to_memory_when_redis_fails(self):
@@ -61,8 +61,7 @@ class TestAlreadyRan:
         _reset_ran_today()
 
         mock_redis = AsyncMock()
-        mock_redis.exists = AsyncMock(return_value=0)
-        mock_redis.setex = AsyncMock()
+        mock_redis.set = AsyncMock(return_value=True)
 
         with patch.object(digest_mod, "get_redis", return_value=mock_redis):
             r1 = await digest_mod._already_ran("morning", "2026-04-12")
@@ -70,7 +69,7 @@ class TestAlreadyRan:
 
         assert r1 is False
         assert r2 is False
-        assert mock_redis.setex.call_count == 2
+        assert mock_redis.set.call_count == 2
 
     @pytest.mark.unit
     async def test_different_tasks_are_independent(self):
@@ -78,8 +77,7 @@ class TestAlreadyRan:
         _reset_ran_today()
 
         mock_redis = AsyncMock()
-        mock_redis.exists = AsyncMock(return_value=0)
-        mock_redis.setex = AsyncMock()
+        mock_redis.set = AsyncMock(return_value=True)
 
         with patch.object(digest_mod, "get_redis", return_value=mock_redis):
             r1 = await digest_mod._already_ran("morning", "2026-04-12")

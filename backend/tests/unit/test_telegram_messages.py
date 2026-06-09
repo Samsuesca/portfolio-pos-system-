@@ -116,6 +116,56 @@ class TestWebOrderCreated:
 
 
 # ---------------------------------------------------------------------------
+# order_created (mostrador)
+# ---------------------------------------------------------------------------
+
+
+class TestOrderCreated:
+    """Test TelegramMessageBuilder.order_created (counter orders)."""
+
+    @pytest.mark.unit
+    def test_order_created_basic(self):
+        """Uses the 'Nuevo Encargo' header, not the web one."""
+        msg = TelegramMessageBuilder.order_created(
+            code="CARACAS-001-ENC-2025-0009",
+            total=Decimal("120000"),
+            school_name="Colegio Mostrador",
+        )
+        assert "<b>Nuevo Encargo</b>" in msg
+        assert "Nuevo Pedido Web" not in msg
+        assert "<code>CARACAS-001-ENC-2025-0009</code>" in msg
+        assert "$120,000" in msg
+        assert "Colegio Mostrador" in msg
+
+    @pytest.mark.unit
+    def test_order_created_with_seller_and_client(self):
+        """Includes seller and client lines when provided."""
+        msg = TelegramMessageBuilder.order_created(
+            code="X",
+            total=Decimal("80000"),
+            school_name="S",
+            client_name="Ana Gómez",
+            seller_name="Salomé",
+            delivery_type="recoge",
+        )
+        assert "Cliente: Ana Gómez" in msg
+        assert "Vendedor: Salomé" in msg
+        assert "Entrega: recoge" in msg
+
+    @pytest.mark.unit
+    def test_order_created_without_optionals(self):
+        """Omits optional lines when None."""
+        msg = TelegramMessageBuilder.order_created(
+            code="X",
+            total=Decimal("10000"),
+            school_name="S",
+        )
+        assert "Cliente:" not in msg
+        assert "Vendedor:" not in msg
+        assert "Entrega:" not in msg
+
+
+# ---------------------------------------------------------------------------
 # order_status_changed
 # ---------------------------------------------------------------------------
 
@@ -473,6 +523,106 @@ class TestCashDrawerAccess:
             requester_name="Ana",
         )
         assert "Razon:" not in msg
+
+
+# ---------------------------------------------------------------------------
+# alterations (arreglos)
+# ---------------------------------------------------------------------------
+
+
+class TestAlterationReceived:
+    """Test TelegramMessageBuilder.alteration_received."""
+
+    @pytest.mark.unit
+    def test_alteration_received_basic(self):
+        msg = TelegramMessageBuilder.alteration_received(
+            code="ARR-2026-0001",
+            garment_name="Pantalón gris",
+            cost=Decimal("25000"),
+        )
+        assert "<b>Nuevo Arreglo Recibido</b>" in msg
+        assert "<code>ARR-2026-0001</code>" in msg
+        assert "Pantalón gris" in msg
+        assert "$25,000" in msg
+        assert "Cliente:" not in msg
+        assert "Tipo:" not in msg
+
+    @pytest.mark.unit
+    def test_alteration_received_with_optionals(self):
+        msg = TelegramMessageBuilder.alteration_received(
+            code="ARR-2026-0002",
+            garment_name="Falda",
+            cost=Decimal("18000"),
+            client_name="María Pérez",
+            alteration_type="hem",
+        )
+        assert "Cliente: María Pérez" in msg
+        assert "Tipo: hem" in msg
+
+    @pytest.mark.unit
+    def test_alteration_received_escapes_garment_injection(self):
+        """garment_name is user-controlled; anchor tags must be neutralized."""
+        msg = TelegramMessageBuilder.alteration_received(
+            code="ARR-2026-0003",
+            garment_name='<a href="http://evil">x</a>',
+            cost=Decimal("1000"),
+        )
+        assert "<a href" not in msg
+        assert "&lt;a href" in msg
+
+
+class TestAlterationDelivered:
+    """Test TelegramMessageBuilder.alteration_delivered."""
+
+    @pytest.mark.unit
+    def test_alteration_delivered_basic(self):
+        msg = TelegramMessageBuilder.alteration_delivered(
+            code="ARR-2026-0004",
+            garment_name="Camisa",
+        )
+        assert "<b>Arreglo Entregado</b>" in msg
+        assert "<code>ARR-2026-0004</code>" in msg
+        assert "Camisa" in msg
+        assert "Cliente:" not in msg
+
+    @pytest.mark.unit
+    def test_alteration_delivered_with_client(self):
+        msg = TelegramMessageBuilder.alteration_delivered(
+            code="ARR-2026-0005",
+            garment_name="Saco",
+            client_name="Juan",
+        )
+        assert "Cliente: Juan" in msg
+
+
+class TestAlterationPayment:
+    """Test TelegramMessageBuilder.alteration_payment."""
+
+    @pytest.mark.unit
+    def test_alteration_payment_basic(self):
+        msg = TelegramMessageBuilder.alteration_payment(
+            code="ARR-2026-0006",
+            amount=Decimal("10000"),
+            balance=Decimal("15000"),
+        )
+        assert "<b>Pago de Arreglo</b>" in msg
+        assert "<code>ARR-2026-0006</code>" in msg
+        assert "$10,000" in msg
+        assert "Saldo pendiente: <b>$15,000</b>" in msg
+        assert "Metodo:" not in msg
+
+    @pytest.mark.unit
+    def test_alteration_payment_with_optionals(self):
+        msg = TelegramMessageBuilder.alteration_payment(
+            code="ARR-2026-0007",
+            amount=Decimal("25000"),
+            balance=Decimal("0"),
+            payment_method="cash",
+            client_name="Ana",
+        )
+        assert "Metodo: cash" in msg
+        assert "Cliente: Ana" in msg
+        assert "Saldo pendiente: <b>$0</b>" in msg
 
 
 # ---------------------------------------------------------------------------

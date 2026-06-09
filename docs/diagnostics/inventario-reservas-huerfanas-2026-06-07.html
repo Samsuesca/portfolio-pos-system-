@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diagnóstico Master — Inventario: reservas inconsistentes (fantasma + sub-reserva + fuga viva)</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#171a21; --card2:#1e222b; --ink:#e8eaed; --muted:#9aa3b2;
+    --line:#2a2f3a; --accent:#5b8cff; --ok:#3fb950; --warn:#d29922; --bad:#f85149;
+    --good-bg:rgba(63,185,80,.12); --warn-bg:rgba(210,153,34,.12); --bad-bg:rgba(248,81,73,.12);
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.6;font-size:16px}
+  .wrap{max-width:980px;margin:0 auto;padding:48px 24px 96px}
+  header.top{border-bottom:1px solid var(--line);padding-bottom:28px;margin-bottom:36px}
+  .eyebrow{color:var(--accent);font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:12px}
+  h1{font-size:30px;line-height:1.25;margin:10px 0 8px;font-weight:700}
+  h2{font-size:22px;margin:48px 0 14px;padding-top:14px;border-top:1px solid var(--line);font-weight:700}
+  h3{font-size:17px;margin:26px 0 8px;color:#cdd3dd}
+  p{margin:12px 0}
+  .meta{color:var(--muted);font-size:14px;margin-top:14px;display:flex;gap:20px;flex-wrap:wrap}
+  .meta b{color:var(--ink);font-weight:600}
+  code{font-family:var(--mono);background:var(--card2);padding:1px 6px;border-radius:5px;font-size:.88em;color:#d6deeb}
+  pre{background:#0b0d11;border:1px solid var(--line);border-radius:10px;padding:18px;overflow:auto;
+    font-family:var(--mono);font-size:13px;line-height:1.55;color:#cdd3dd}
+  pre .c{color:#6b7686}
+  .muted{color:var(--muted)}
+  .badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid}
+  .b-bad{background:var(--bad-bg);color:#ff8278;border-color:rgba(248,81,73,.4)}
+  .b-warn{background:var(--warn-bg);color:#e3b341;border-color:rgba(210,153,34,.4)}
+  .b-ok{background:var(--good-bg);color:#56d364;border-color:rgba(63,185,80,.4)}
+  .b-info{background:rgba(91,140,255,.12);color:#8aa9ff;border-color:rgba(91,140,255,.4)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin:22px 0}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px}
+  .stat .n{font-size:30px;font-weight:700;line-height:1}
+  .stat .l{color:var(--muted);font-size:13px;margin-top:6px}
+  .callout{border-radius:12px;padding:18px 20px;margin:22px 0;border:1px solid}
+  .callout h3{margin:0 0 6px}
+  .co-bad{background:var(--bad-bg);border-color:rgba(248,81,73,.35)}
+  .co-warn{background:var(--warn-bg);border-color:rgba(210,153,34,.35)}
+  .co-ok{background:var(--good-bg);border-color:rgba(63,185,80,.35)}
+  .co-info{background:rgba(91,140,255,.10);border-color:rgba(91,140,255,.35)}
+  table{width:100%;border-collapse:collapse;margin:18px 0;font-size:14px}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+  tr.hl td{background:var(--bad-bg)}
+  tr.hlw td{background:var(--warn-bg)}
+  td.num{font-family:var(--mono);text-align:right}
+  .pill{font-family:var(--mono);font-size:12px;padding:2px 7px;border-radius:6px;background:var(--card2)}
+  .flow{font-family:var(--mono);font-size:13px;background:#0b0d11;border:1px solid var(--line);
+    border-radius:10px;padding:16px;color:#cdd3dd;white-space:pre-wrap}
+  ul{margin:12px 0;padding-left:22px}li{margin:6px 0}
+  .files{font-family:var(--mono);font-size:13px}
+  .files td{padding:6px 12px}
+  footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+  .tag{font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px}
+  .p0{background:var(--bad-bg);color:#ff8278}.p1{background:var(--warn-bg);color:#e3b341}
+  .p2{background:rgba(91,140,255,.14);color:#8aa9ff}.p3{background:var(--card2);color:var(--muted)}
+  .toc{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:22px 0}
+  .toc a{color:#8aa9ff;text-decoration:none}.toc a:hover{text-decoration:underline}
+  .toc ol{margin:6px 0;padding-left:20px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="eyebrow">Diagnóstico Master · Producción · Inventario</div>
+  <h1>Reservas de inventario inconsistentes: por qué no se puede ajustar stock (y por qué hay riesgo de sobreventa oculto)</h1>
+  <p class="muted" style="font-size:15px;margin-top:6px">Las vendedoras reportan errores consistentes al ajustar inventario durante el conteo físico: el stock existe pero el sistema lo rechaza con <code>Insufficient inventory. Available: 0</code>. La investigación reveló <b>tres</b> defectos de datos/código, no uno — y un cuarto bug de <b>percepción en la UI</b> que hizo el síntoma confuso.</p>
+  <div class="meta">
+    <span><b>Fecha:</b> 7 jun 2026</span>
+    <span><b>Sistema:</b> UCR — uniformesconsuelorios.com (v3.1.0)</span>
+    <span><b>Severidad:</b> <span class="badge b-bad">Alta — operativa + integridad</span></span>
+    <span><b>Estado:</b> <span class="badge b-info">Diagnóstico cerrado · fix de desbloqueo validado, pendiente aplicar</span></span>
+  </div>
+  <p class="muted" style="font-size:13px;margin-top:10px">Documento <b>master consolidado</b>: fusiona dos investigaciones independientes (sesión A: síntoma + catch-22 + script de reconciliación clamp-down; sesión B: verificación adversarial + cuantificación de la sub-reserva + conexión con la conciliación de encargos + causa del bug de UI). Ambas coinciden en el núcleo; este doc es la versión autoritativa.</p>
+</header>
+
+<div class="toc">
+  <b>Contenido</b>
+  <ol>
+    <li><a href="#sintoma">El síntoma</a></li>
+    <li><a href="#mecanica">La mecánica del bloqueo</a></li>
+    <li><a href="#tres">Los tres defectos (over · under · fuga viva) y su causa común</a></li>
+    <li><a href="#datos">Datos de producción: la reconciliación completa</a></li>
+    <li><a href="#ui">El misterio de la UI: "reservado pero no sale en encargos"</a></li>
+    <li><a href="#encargos">La conexión con la conciliación de encargos (los 25)</a></li>
+    <li><a href="#catch22">El catch-22</a></li>
+    <li><a href="#vivos">Generadores que siguen vivos</a></li>
+    <li><a href="#solucion">La solución y la decisión pendiente</a></li>
+    <li><a href="#verificacion">Verificación adversarial</a></li>
+    <li><a href="#roadmap">Hoja de ruta</a></li>
+  </ol>
+</div>
+
+<!-- ===================== RESUMEN ===================== -->
+<section>
+  <div class="callout co-info">
+    <h3>Resumen ejecutivo</h3>
+    <p style="margin:6px 0 0">El error <b>no es "no hay stock"</b>. El stock físico existe, pero el campo <code>reserved_quantity</code> de cada producto quedó <b>desincronizado</b> de las reservas reales de encargos abiertos. La causa madre es una <b>migración de backfill</b> (<code>inv_reserved_qty</code>, 2-may-2026) con <b>dos defectos</b>, más un <b>tercer defecto de código vivo</b> en el consumo de reservas. El resultado son dos caras del mismo problema:</p>
+    <ul style="margin:10px 0 0">
+      <li><b>Sobre-reserva (+8 uds, 7 productos):</b> reservas fantasma que <b>bloquean el ajuste</b> de inventario. Esto es lo que ven las vendedoras.</li>
+      <li><b>Sub-reserva (−9 uds, 6 productos globales):</b> reservas legítimas que <b>se perdieron</b> del inventario → <b>riesgo de sobreventa</b> (oculto hasta esta investigación).</li>
+      <li><b>Fuga viva:</b> el flujo de entrega <b>traga errores</b> y puede seguir generando huérfanos hoy.</li>
+    </ul>
+  </div>
+
+  <div class="cards">
+    <div class="stat"><div class="n" style="color:var(--bad)">+8</div><div class="l">uds sobre-reservadas (bloquean ajuste)</div></div>
+    <div class="stat"><div class="n" style="color:var(--warn)">−9</div><div class="l">uds sub-reservadas (sobreventa)</div></div>
+    <div class="stat"><div class="n">13</div><div class="l">filas a reconciliar (7 over + 6 under)</div></div>
+    <div class="stat"><div class="n" style="color:var(--ok)">0</div><div class="l">reservas legítimas que el fix de desbloqueo tocaría</div></div>
+  </div>
+</section>
+
+<!-- ===================== SÍNTOMA ===================== -->
+<h2 id="sintoma">1. El síntoma</h2>
+<p>Al hacer el conteo físico, la vendedora abre "Ajustar Inventario", elige <b>− Remover</b> y guarda. El sistema rechaza la operación en productos específicos:</p>
+<pre>Insufficient inventory. Available: 0 (quantity=1, reserved=1), Requested: 1
+Insufficient inventory. Available: 0 (quantity=2, reserved=2), Requested: 1</pre>
+<p>El recuadro muestra <b>"Stock actual: 1"</b> — la prenda existe, pero el sistema no la deja tocar. El mensaje estaba <b>en inglés</b> (contra la convención del proyecto y opaco para la operadora).</p>
+<p class="muted">En los logs de producción se ve la sesión de conteo (7 jun, 20:03–20:26): decenas de <code>POST /inventory/product/{id}/adjust</code> con <code>200</code>, y productos puntuales repitiendo <code>400</code> (uno con <b>9 fallos seguidos</b>: <code>0248d09d…</code>). El conteo avanza, salvo en los productos atascados — de ahí la sensación de "problema consistente".</p>
+
+<!-- ===================== MECÁNICA ===================== -->
+<h2 id="mecanica">2. La mecánica del bloqueo</h2>
+<p>El primitivo de ajuste (<code>InventoryService.adjust_quantity</code>) usa un <code>UPDATE</code> atómico con esta guarda:</p>
+<pre><span class="c"># backend/app/services/inventory.py:240</span>
+.where(Inventory.quantity + delta &gt;= Inventory.reserved_quantity)</pre>
+<p>Para remover 1 unidad de un producto con <code>quantity=1, reserved=1</code>:</p>
+<pre>1 + (−1) &gt;= 1   →   0 &gt;= 1   →   <span style="color:#ff8278">FALSO</span>   →   0 filas actualizadas   →   error 400</pre>
+<p>El <code>available = quantity − reserved = 0</code>. <b>La guarda es correcta</b>: no debes poder remover stock comprometido a un pedido. El problema no es la guarda — es que <code>reserved_quantity</code> está <b>mal</b>.</p>
+<div class="callout co-ok" style="padding:14px 18px">
+  <p style="margin:0"><b>✓ Ya corregido (working tree):</b> el mensaje de error del ajuste ahora es en español y explica el porqué: <code>"Stock insuficiente. Disponible: 0 (total=1, reservado=1)… Hay 1 unidad(es) reservada(s) a pedidos; libere la reserva para poder ajustar."</code> — <code>services/inventory.py</code>.</p>
+</div>
+
+<!-- ===================== TRES DEFECTOS ===================== -->
+<h2 id="tres">3. Los tres defectos y su causa común</h2>
+<p><code>reserved_quantity</code> debería cumplir, por producto, este invariante:</p>
+<div class="flow">inventory.reserved_quantity  ==  Σ order_items.quantity_reserved
+                                  WHERE reserved_from_stock
+                                    AND item_status NOT IN (delivered, cancelled)</div>
+<p>No lo cumple. La columna se creó con la migración <code>inv_reserved_qty</code> (2-may-2026) y su <b>backfill</b> tiene dos bugs; un tercer bug vive en el flujo de consumo.</p>
+
+<h3>Defecto 1 — Sobre-reserva (orphans): el backfill filtró por estado del PEDIDO, no del ITEM</h3>
+<pre><span class="c"># alembic/versions/inv_reserved_qty_add_reserved_quantity.py:41-44</span>
+WHERE oi.reserved_from_stock = true
+  AND oi.quantity_reserved &gt; 0
+  AND o.status IN ('PENDING','IN_PRODUCTION','READY')   <span class="c"># ← estado del PEDIDO</span>
+  <span class="c"># ← falta:  AND oi.item_status NOT IN ('delivered','cancelled')</span></pre>
+<p>Un encargo <b>parcialmente entregado</b> queda en <code>status=READY</code> aunque algunos de sus items ya estén <code>item_status=delivered</code> (los enums de pedido e item son independientes). El backfill, al filtrar por el estado del <i>pedido</i>, sumó la reserva de esos items <b>ya entregados</b> a <code>inventory.reserved_quantity</code>. Esas son las reservas fantasma.</p>
+<div class="flow">CONF-CHO-Ama-10  ←  CONFAMA-001-ENC-2026-0018
+                    order_status = READY   ·   item_status = <span style="color:#ff8278">delivered</span>   ·   reserva = 1  (fantasma)</div>
+<p class="muted"><b>Timeline que lo prueba:</b> los 9 items phantom se finalizaron entre el <b>26-ene y el 5-feb</b>, todos <b>antes</b> del backfill (2-may). El backfill contó items entregados meses atrás. En el modelo viejo, <code>quantity_reserved</code> nunca se limpiaba al entregar, así que casi todo item finalizado pre-backfill arrastra ese valor.</p>
+
+<h3>Defecto 2 — Sub-reserva: el backfill no tocó los productos globales</h3>
+<pre><span class="c"># misma migración, líneas 46-55</span>
+... GROUP BY oi.product_id, <b>o.school_id</b>            <span class="c"># ← colegio del PEDIDO</span>
+UPDATE inventory inv ... WHERE inv.product_id = pr.product_id
+  AND ( (inv.school_id IS NULL AND pr.school_id IS NULL)  <span class="c"># global</span>
+        OR inv.school_id = pr.school_id );</pre>
+<p>Para un <b>producto global</b> (<code>GLB-…</code>) la fila de inventario tiene <code>school_id = NULL</code>, pero el pedido tiene un <code>school_id</code> concreto. Entonces la rama <code>NULL/NULL</code> falla (<code>pr.school_id</code> no es NULL) y la rama de igualdad falla (<code>NULL = UUID</code> es <code>UNKNOWN</code> en SQL). <b>El backfill nunca actualizó la fila global.</b> Resultado: 6 productos globales quedaron con <code>reserved = 0</code> aunque tienen encargos abiertos que reservan 1–3 unidades cada uno. El sistema cree que ese stock está disponible cuando en realidad está comprometido → <b>sobreventa</b>.</p>
+
+<h3>Defecto 3 — Fuga viva: el consumo de reserva traga la excepción</h3>
+<pre><span class="c"># backend/app/services/order/status.py:331-348  (_consume_item_reserved_stock)</span>
+try:
+    await inv_service.consume_reserved_stock(...)   <span class="c"># exige reserved &gt;= amount</span>
+    item.quantity_reserved = 0                       <span class="c"># ← solo corre si NO hubo excepción</span>
+    await self.db.flush()
+except Exception as e:
+    logger.error(...)                                <span class="c"># ← traga el error, NO re-lanza, NO resetea</span></pre>
+<p>Si el consumo atómico falla (porque <code>inventory.reserved</code> ya estaba en 0, p. ej. por el Defecto 2), la línea <code>item.quantity_reserved = 0</code> queda <b>inalcanzable</b>: el item se marca <code>delivered</code> con la reserva colgada. El mismo patrón fail-open existe en <code>cancellation.py:73</code> y <code>changes.py:217</code>. <b>Evidencia viva:</b> el item <code>CONF-CAM-Azu-04</code> del encargo <code>CONFAMA-001-ENC-2026-0040</code> se entregó el <b>4-may (post-backfill)</b> y conserva <code>quantity_reserved=1</code> sin liberar. Hoy es inofensivo (la fila de inventario ya estaba en 0), pero prueba que el generador <b>sigue activo</b>.</p>
+
+<!-- ===================== DATOS ===================== -->
+<h2 id="datos">4. Datos de producción: la reconciliación completa</h2>
+<p>Consulta read-only contra <code>uniformes_db</code> comparando <code>inventory.reserved_quantity</code> contra el respaldo real de encargos abiertos. El neto global engaña (<code>Σ reserved = 35</code> vs <code>respaldo = 36</code>, solo −1): hay que mirar <b>fila por fila</b>, donde aparecen las dos caras.</p>
+
+<h3>Cara A — Sobre-reserva (bloquea el ajuste) · <span class="badge b-bad">liberar</span></h3>
+<table>
+  <thead><tr><th>Producto</th><th>Nombre</th><th class="num">Stock</th><th class="num">Reservado</th><th class="num">Encargos abiertos</th><th class="num">Objetivo</th><th class="num">Libera</th></tr></thead>
+  <tbody>
+    <tr class="hl"><td><code>PRD-0014</code></td><td>Sudadera escolar</td><td class="num">18</td><td class="num">3</td><td class="num">1</td><td class="num">1</td><td class="num"><b>2</b></td></tr>
+    <tr class="hl"><td><code>PRD-0001</code></td><td>Camiseta escolar</td><td class="num">26</td><td class="num">2</td><td class="num">1</td><td class="num">1</td><td class="num"><b>1</b></td></tr>
+    <tr class="hl"><td><code>CONF-SUD-Ama-10</code></td><td>Sudadera escolar</td><td class="num">2</td><td class="num">2</td><td class="num">1</td><td class="num">1</td><td class="num"><b>1</b></td></tr>
+    <tr class="hl"><td><code>PRD-0047</code></td><td>Chompa gris</td><td class="num">5</td><td class="num">1</td><td class="num">0</td><td class="num">0</td><td class="num"><b>1</b></td></tr>
+    <tr class="hl"><td><code>PRD-0024</code></td><td>Chompa azul</td><td class="num">4</td><td class="num">1</td><td class="num">0</td><td class="num">0</td><td class="num"><b>1</b></td></tr>
+    <tr class="hl"><td><code>PRD-0050</code></td><td>Chompa gris</td><td class="num">2</td><td class="num">1</td><td class="num">0</td><td class="num">0</td><td class="num"><b>1</b></td></tr>
+    <tr class="hl"><td><code>CONF-CHO-Ama-10</code></td><td>Chompa escolar</td><td class="num">1</td><td class="num">1</td><td class="num">0</td><td class="num">0</td><td class="num"><b>1</b></td></tr>
+  </tbody>
+</table>
+<p><span class="badge b-bad">7 filas · +8 uds</span> bloqueando el conteo. El 100% se explica por items <code>delivered/cancelled</code> en pedidos no finalizados (verificado adversarialmente: 0 unidades sin explicar).</p>
+
+<h3>Cara B — Sub-reserva (riesgo de sobreventa) · <span class="badge b-warn">decisión aparte</span></h3>
+<table>
+  <thead><tr><th>Producto (global)</th><th class="num">Stock</th><th class="num">Reservado</th><th class="num">Encargos abiertos</th><th class="num">Falta</th><th>Encargo que lo reserva</th></tr></thead>
+  <tbody>
+    <tr class="hlw"><td><code>GLB-BLU-009</code></td><td class="num">21</td><td class="num">0</td><td class="num">3</td><td class="num"><b>3</b></td><td>JUCUM (ENC-0131)</td></tr>
+    <tr class="hlw"><td><code>GLB-BLU-010</code></td><td class="num">7</td><td class="num">0</td><td class="num">2</td><td class="num"><b>2</b></td><td>JUCUM (ENC-0131)</td></tr>
+    <tr class="hlw"><td><code>GLB-BLU-006</code></td><td class="num">11</td><td class="num">0</td><td class="num">1</td><td class="num"><b>1</b></td><td>JUCUM (ENC-0131)</td></tr>
+    <tr class="hlw"><td><code>GLB-JEA-003</code></td><td class="num">7</td><td class="num">0</td><td class="num">1</td><td class="num"><b>1</b></td><td>Jennifer (ENC-0096)</td></tr>
+    <tr class="hlw"><td><code>GLB-COR-006</code></td><td class="num">4</td><td class="num">0</td><td class="num">1</td><td class="num"><b>1</b></td><td>Santi Mazo (ENC-0058)</td></tr>
+    <tr class="hlw"><td><code>GLB-JEA-008</code></td><td class="num">5</td><td class="num">0</td><td class="num">1</td><td class="num"><b>1</b></td><td>ENC-0029</td></tr>
+  </tbody>
+</table>
+<p><span class="badge b-warn">6 filas · −9 uds</span> de stock que el sistema cree libre pero está comprometido. Todos son <b>globales</b> (confirma el Defecto 2). <b>Verificación de seguridad:</b> si se corrigiera (subir <code>reserved</code> al respaldo real), <b>0 filas</b> violarían <code>reserved ≤ quantity</code> — el stock físico alcanza en todas. No se auto-corrige con el script de desbloqueo (ver §9).</p>
+
+<div class="callout co-warn">
+  <h3>Nota: 146 items con campo "stale" (inofensivo para inventario)</h3>
+  <p style="margin:6px 0 0">Aparte, 146 <code>order_items</code> ya entregados conservan <code>quantity_reserved &gt; 0</code> (166 uds). Son <b>inofensivos</b> para <code>inventory.reserved_quantity</code> (el backfill solo contó los de pedidos abiertos), pero ensucian el dato per-item y son la munición del Defecto 3. Limpiarlos es parte del hardening, <b>no</b> del desbloqueo. <b>No</b> se deben mezclar con el respaldo abierto al reconciliar — hacerlo liberaría reservas legítimas.</p>
+</div>
+
+<!-- ===================== UI ===================== -->
+<h2 id="ui">5. El misterio de la UI: "está reservado pero no aparece en encargos"</h2>
+<p>Observación del dueño: en la fila del producto se ve el badge <b>reservado &gt; 0</b>, pero al mirar los encargos <b>no aparece ningún pedido</b> reservando esas unidades. Esto hace que toda reserva parezca "fantasma", aunque algunas sean legítimas. Hay una <b>causa de código precisa</b>:</p>
+<pre><span class="c"># backend/app/api/routes/products.py:205-208</span>
+<span class="c"># READY/DELIVERED = already fulfilled, should NOT count</span>
+pending_item_statuses = [OrderItemStatus.PENDING, OrderItemStatus.IN_PRODUCTION]</pre>
+<p>El contador de "encargos pendientes" por producto <b>excluye los items <code>READY</code></b> (los considera "ya cumplidos"). <b>Pero la reserva de stock persiste durante <code>READY</code></b> — solo se libera al pasar a <code>delivered</code>/<code>cancelled</code>. Hay un desajuste de semántica: para la UI un encargo <code>READY</code> "no está pendiente", pero para el inventario <b>sigue reservando</b>.</p>
+
+<div class="callout co-info">
+  <h3>Caso real: <code>CONF-SUD-Ama-10</code> (el de tu captura)</h3>
+  <p style="margin:6px 0 0">Sus <b>2 unidades reservadas</b> son el <b>par de layaway de Geraldine Ramírez</b>:</p>
+  <div class="flow" style="margin-top:10px">CONFAMA-001-ENC-2026-0007   order=READY · item=<span style="color:#56d364">ready</span>     · reserva=1   → <b>LEGÍTIMA</b> (apartado real)
+CONFAMA-001-ENC-2026-0018   order=READY · item=<span style="color:#ff8278">delivered</span> · reserva=1   → <b>FANTASMA</b> (entregado, no liberó)</div>
+  <p style="margin:10px 0 0">La legítima (ENC-0007) <b>no aparece</b> como "pendiente" porque su item está <code>ready</code> (excluido del contador). La fantasma (ENC-0018) está entregada, así que tampoco figura como reservando. Por eso ves <code>reservado=2, pendientes=0</code> y parece todo fantasma — <b>pero solo 1 de las 2 lo es</b>. Ambos encargos son de Geraldine y ambos están en el acta de conciliación (casos 24 y 25).</p>
+</div>
+<p>Bugs de visualización hermanos (erosionan la confianza en los números): los productos <b>globales</b> también muestran <code>pending_orders=0</code> por el mismatch de <code>school_id</code>, y el método alterno <code>get_products_with_inventory</code> arma su propio <code>pending_count</code> con la misma exclusión. El vendedor ve <code>reservado&gt;0, pendientes=0</code> y asume "fantasma" aunque sea legítimo.</p>
+
+<!-- ===================== ENCARGOS ===================== -->
+<h2 id="encargos">6. La conexión con la conciliación de encargos (los 25)</h2>
+<p>El dueño sospechaba que esto se relacionaba con la conciliación de encargos del acta (GATE 0, v3.1.0). <b>Es correcto, pero con un matiz importante:</b></p>
+<ul>
+  <li>La <b>causa</b> de las reservas inconsistentes es el backfill (Defectos 1 y 2) + el fail-open (Defecto 3). <b>No</b> lo causó la auditoría contable de encargos.</li>
+  <li>Pero los productos afectados <b>son precisamente los de esos encargos</b>. La sobre-reserva viene de <code>ENC-0018</code>, <code>ENC-0068</code> y <code>ENC-0096</code>; la sub-reserva la causan <b>JUCUM (ENC-0131)</b>, <b>Santi Mazo (ENC-0058)</b> y <b>Jennifer (ENC-0096)</b>; <code>CONF-SUD-Ama-10</code> es el layaway de <b>Geraldine (ENC-0007/0018)</b>. <b>Seis de los 25 encargos del acta</b> están enredados en esto.</li>
+  <li>La auditoría del acta <b>arregló la plata</b> (CxC, caja, P&amp;L) pero, por diseño, <b>no tocó el estado operativo</b> (<code>orders.status</code>, <code>item_status</code>, inventario). Por eso "no fue suficiente para estabilizar los encargos": faltaba la dimensión de <b>inventario/reservas</b> de esos mismos pedidos parcialmente entregados.</li>
+</ul>
+<div class="callout co-info" style="padding:14px 18px">
+  <p style="margin:0">En otras palabras: los encargos huérfanos del acta y las reservas huérfanas del inventario son <b>dos síntomas del mismo desorden operativo</b> — pedidos que se entregaron físicamente pero el sistema nunca marcó como entregados a nivel de pedido. El acta cerró la cara contable; este diagnóstico cierra la cara de inventario.</p>
+</div>
+
+<!-- ===================== CATCH-22 ===================== -->
+<h2 id="catch22">7. El catch-22</h2>
+<div class="callout co-bad">
+  <h3>La válvula de escape está bloqueada por lo que debe arreglar</h3>
+  <p style="margin:6px 0 0">El propio código documenta la remediación de una reserva colgada como <i>"usar el endpoint de adjust"</i> — pero eso es <b>imposible</b> para estos productos: <code>adjust</code> exige <code>quantity + delta ≥ reserved</code>, y con <code>reserved = quantity</code> no se puede remover nada. <b>No existe ningún endpoint</b> que reduzca <code>reserved_quantity</code> sin un pedido detrás (<code>release_stock</code>/<code>consume</code> viven solo dentro del ciclo de vida del encargo). La vendedora queda sin salida desde la interfaz. Por eso se siente "consistente": son exactamente los productos que cayeron en este estado.</p>
+</div>
+
+<!-- ===================== VIVOS ===================== -->
+<h2 id="vivos">8. Generadores que siguen vivos</h2>
+<p>El alcance es mayor que limpiar 8 unidades: hay rutas de código que <b>volverían a producir</b> inconsistencias. Verificado a nivel <code>file:line</code> por dos revisiones adversariales independientes.</p>
+<table>
+  <thead><tr><th>Generador</th><th>Qué hace mal</th><th>Archivo</th></tr></thead>
+  <tbody>
+    <tr><td>Consumo fail-open</td><td>Traga la excepción y no resetea <code>quantity_reserved</code> → deja reserva colgada (Defecto 3). 3 sitios.</td><td class="files"><code>order/status.py:343</code></td></tr>
+    <tr><td>Web orders, modelo viejo</td><td><code>create_web_order</code> descuenta <code>inventory.quantity</code> directo, <b>sin</b> reservar ni escribir <code>inventory_log</code> → fuga de stock sin rastro.</td><td class="files"><code>order/creation.py:427-435</code></td></tr>
+    <tr><td>Reserva contra <code>quantity</code>, no <code>available</code></td><td><code>create_order</code> decide reservar con <code>inventory.quantity &gt; 0</code>; si está agotado físico (común en globales contra pedido) <b>no reserva</b> → segundo origen de sub-reserva.</td><td class="files"><code>order/creation.py:96</code></td></tr>
+    <tr><td>Venta directa sobre-vende</td><td><code>create_sale</code> valida contra <code>inventory.quantity</code> (total), no <code>available</code> → una venta de mostrador puede comerse stock reservado a un encargo.</td><td class="files"><code>sale/creation.py:90</code></td></tr>
+  </tbody>
+</table>
+
+<!-- ===================== SOLUCIÓN ===================== -->
+<h2 id="solucion">9. La solución y la decisión pendiente</h2>
+
+<h3>9.1 Desbloqueo inmediato (Cara A) — script validado</h3>
+<p>Script idempotente canónico <code>backend/scripts/reconcile_reserved_quantity.py</code>. Fórmula por fila:</p>
+<pre>target = min(reserved_quantity_actual, respaldo_de_encargos_abiertos)
+se aplica SOLO si  target &lt; reserved_quantity_actual     <span class="c"># clamp-DOWN: nunca sube</span></pre>
+<p>Guardas (cada una cierra un ataque adversarial verificado): aborta ante <code>product_id NULL</code> abierto · agrupa por <code>product.school_id</code> con partición NULL explícita · filtro <code>item_status</code> en minúsculas · <code>UPDATE</code> optimista (sin row lock) · log de auditoría con <code>quantity_delta = 0</code> (la reserva no mueve stock físico; meterlo ahí contaminaría COGS).</p>
+<pre>venv/bin/python -m scripts.reconcile_reserved_quantity            <span class="c"># dry-run (rollback)</span>
+venv/bin/python -m scripts.reconcile_reserved_quantity --commit   <span class="c"># persiste</span></pre>
+<p><b>Libera las 8 uds fantasma y desbloquea el conteo HOY.</b> No toca <code>quantity</code> físico (el conteo en curso es la fuente de verdad) ni ninguna reserva legítima.</p>
+<div class="callout co-bad" style="padding:14px 18px">
+  <p style="margin:0"><b>Nota de consolidación:</b> existió un segundo script (<code>reconcile_inventory_reservations.py</code>, <i>SET</i> absoluto que subía y bajaba) creado en una investigación paralela. <b>Se eliminó</b>: subir <code>reserved</code> automáticamente contradice una decisión de diseño auditada y es riesgoso. La Cara B se trata aparte y con decisión explícita (abajo).</p>
+</div>
+
+<h3>9.2 La sub-reserva (Cara B) — requiere tu decisión</h3>
+<p>Los 6 globales sub-reservados son <b>reservas legítimas perdidas</b> (encargos abiertos reales: JUCUM, Santi, Jennifer…). Dos opciones:</p>
+<ul>
+  <li><b>Recomendada — corregir (subir <code>reserved</code> al respaldo real):</b> compromete esas 9 uds a sus encargos. Reduce el disponible vendible pero <b>elimina el riesgo de sobreventa</b>. Es seguro (0 filas violan la constraint). Se haría con una corrección dirigida y explícita (no el script clamp-down), porque para JUCUM (6 uds de blusas) la sobreventa sí importa.</li>
+  <li><b>Alternativa — dejar como está:</b> mantiene el disponible alto pero un cliente o venta de mostrador podría llevarse stock prometido a JUCUM. Solo aceptable si confías en que el stock se repone a tiempo.</li>
+</ul>
+
+<h3>9.3 Hardening de código (para que no recurra)</h3>
+<p>El fix de datos es un parche sobre código aún roto. Sin esto, la deriva se reacumula. Ver §11.</p>
+
+<!-- ===================== VERIFICACIÓN ===================== -->
+<h2 id="verificacion">10. Verificación adversarial</h2>
+<p>El diagnóstico se sometió a <b>dos</b> revisiones multi-agente independientes (≈10 y 11 agentes; ~0.9M y ~1.1M tokens) que <b>atacaron</b> las hipótesis buscando refutarlas y corromper el script de escritura.</p>
+<div class="callout co-ok">
+  <h3>✓ Las tres hipótesis: CONFIRMADAS (alta confianza)</h3>
+  <p style="margin:6px 0 0">Mecánica del rechazo, backfill por <code>order.status</code> (over), backfill por <code>order.school_id</code> (under) y fail-open en consume — todas verificadas con <code>file:line</code> y consistentes con el timeline de prod. El bug está <b>VIVO</b>, no solo legado.</p>
+</div>
+<div class="callout co-bad">
+  <h3>⚠ Ataques que cambiaron el plan</h3>
+  <ul style="margin:6px 0 0">
+    <li><b>FK <code>product_id ON DELETE SET NULL</code>:</b> si un producto borrado dejó un item con reserva viva y <code>product_id NULL</code>, un <code>INNER JOIN</code> a <code>products</code> lo descartaría → el script vería respaldo 0 → liberaría una reserva legítima. → El script <b>aborta</b> si detecta esto (hoy: 0 casos).</li>
+    <li><b>Auto-subir <code>reserved</code> (Cara B):</b> el plan paralelo de <i>SET</i> absoluto habría bloqueado ventas legítimas y, en filas con poco stock, violado <code>reserved ≤ quantity</code>. → Descartado; Cara B se decide aparte.</li>
+    <li><b>Enum case-sensitivity:</b> <code>OrderItemStatus</code> guarda minúsculas, <code>OrderStatus</code> MAYÚSCULAS — mezclarlos colapsaría el respaldo y liberaría <b>todas</b> las reservas. → Filtro en minúsculas, verificado.</li>
+  </ul>
+</div>
+
+<!-- ===================== ROADMAP ===================== -->
+<h2 id="roadmap">11. Hoja de ruta de remediación</h2>
+<table>
+  <thead><tr><th>Pri.</th><th>Acción</th><th>Archivo</th></tr></thead>
+  <tbody>
+    <tr><td><span class="tag p0">DATOS</span></td><td>Reconciliar las 8 reservas fantasma (script clamp-down validado) — <b>desbloquea el conteo HOY</b></td><td class="files"><code>scripts/reconcile_reserved_quantity.py</code></td></tr>
+    <tr><td><span class="tag p0">DATOS</span></td><td>Decidir y corregir la sub-reserva de los 6 globales (§9.2) — cierra el riesgo de sobreventa de JUCUM</td><td class="files">corrección dirigida</td></tr>
+    <tr><td><span class="tag p1">P1</span></td><td>Mensaje de ajuste en español + explica el porqué <span class="badge b-ok">✓ hecho</span></td><td class="files"><code>services/inventory.py</code></td></tr>
+    <tr><td><span class="tag p0">P0</span></td><td>Consumo fail-open → reset incondicional de <code>quantity_reserved</code> (mover fuera del <code>try</code>) + cola durable/alerta, no solo <code>logger.error</code>. 3 sitios.</td><td class="files"><code>order/status.py:343</code></td></tr>
+    <tr><td><span class="tag p0">P0</span></td><td>Limpieza one-time: <code>UPDATE order_items SET quantity_reserved=0 WHERE item_status IN (delivered,cancelled)</code> (los 146 stale)</td><td class="files">script</td></tr>
+    <tr><td><span class="tag p1">P1</span></td><td>Web orders con el modelo viejo (<code>quantity -=</code> directo) → migrar a <code>reserve_stock</code> + <code>inventory_log</code></td><td class="files"><code>order/creation.py:427</code></td></tr>
+    <tr><td><span class="tag p1">P1</span></td><td>Romper el catch-22: endpoint "Liberar reserva" (permiso dedicado) + acción en el modal de ajuste</td><td class="files"><code>routes/inventory.py</code> + modal</td></tr>
+    <tr><td><span class="tag p1">P1</span></td><td>UI: contar también <code>READY</code> como "reservado vinculado a encargo", o mostrar el encargo que reserva; arreglar <code>pending_orders=0</code> en globales</td><td class="files"><code>routes/products.py:208</code></td></tr>
+    <tr><td><span class="tag p2">P2</span></td><td>Venta directa: validar contra <code>available</code>, no <code>quantity</code> (anti-sobreventa)</td><td class="files"><code>sale/creation.py:90</code></td></tr>
+    <tr><td><span class="tag p2">P2</span></td><td>Guardrail: chequeo periódico del invariante <code>reserved == Σ encargos abiertos</code> + alerta Telegram</td><td class="files"><code>services/monitoring.py</code></td></tr>
+    <tr><td><span class="tag p3">P3</span></td><td>Reserva contra <code>available</code> (no <code>quantity</code>) en creación de encargo; guarda de borrado de producto mira <code>item_status</code></td><td class="files"><code>order/creation.py:96</code></td></tr>
+  </tbody>
+</table>
+<div class="callout co-warn" style="padding:14px 18px">
+  <p style="margin:0"><b>Riesgo de downgrade:</b> el <code>downgrade</code> del backfill hace <code>quantity = quantity − reserved_quantity</code>; correrlo con huérfanos presentes encogería el stock físico por las unidades fantasma. <b>No revertir esa migración hasta reconciliar.</b></p>
+</div>
+
+<!-- ===================== ANEXO ===================== -->
+<h2>Anexo — Archivos clave</h2>
+<table class="files">
+  <tbody>
+    <tr><td><code>services/inventory.py:237-253</code></td><td>guarda de ajuste + error (origen del síntoma) — mensaje ya en español</td></tr>
+    <tr><td><code>services/inventory.py:689-715</code></td><td><code>_atomic_adjust_reserved</code> (primitivo correcto para liberar)</td></tr>
+    <tr><td><code>order/status.py:286-348</code></td><td>consumo fail-open (Defecto 3) + silent-skip</td></tr>
+    <tr><td><code>order/creation.py:96 · 427-435</code></td><td>reserva contra <code>quantity</code> + web-order modelo viejo</td></tr>
+    <tr><td><code>api/routes/products.py:205-208</code></td><td>contador "pendientes" excluye <code>READY</code> (bug de UI)</td></tr>
+    <tr><td><code>alembic/…/inv_reserved_qty_add_reserved_quantity.py:41-55</code></td><td>backfill — los dos bugs (Defectos 1 y 2)</td></tr>
+    <tr><td><code>scripts/reconcile_reserved_quantity.py</code></td><td>solución canónica (clamp-down, con guardas)</td></tr>
+  </tbody>
+</table>
+
+<footer>
+  Documento master · 7 jun 2026 · Uniformes Consuelo Ríos (v3.1.0) · Consolida dos investigaciones independientes sobre logs y base de datos de producción (read-only) + dos revisiones adversariales multi-agente. La aplicación del <code>--commit</code> a producción y la decisión sobre la sub-reserva están pendientes de tu autorización y backup previo.
+</footer>
+
+</div>
+</body>
+</html>

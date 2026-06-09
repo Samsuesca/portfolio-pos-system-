@@ -156,6 +156,13 @@ class Transaction(Base):
         nullable=True,
         index=True
     )
+    # Sucursal física (v3.1). NULL = consolidado/corporativo (global, sin sede).
+    branch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("branches.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
 
     # Transaction details
     type: Mapped[TransactionType] = mapped_column(
@@ -243,6 +250,7 @@ class Transaction(Base):
 
     # Relationships
     school: Mapped["School | None"] = relationship(back_populates="transactions")
+    branch: Mapped["Branch | None"] = relationship(foreign_keys=[branch_id])
     sale: Mapped["Sale | None"] = relationship(back_populates="transactions")
     order: Mapped["Order | None"] = relationship(back_populates="transactions")
     expense: Mapped["Expense | None"] = relationship(back_populates="transaction")
@@ -282,6 +290,13 @@ class Expense(Base):
     school_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("schools.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
+    # Sucursal física (v3.1). NULL = consolidado/corporativo (global, sin sede).
+    branch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("branches.id", ondelete="SET NULL"),
         nullable=True,
         index=True
     )
@@ -369,6 +384,7 @@ class Expense(Base):
 
     # Relationships
     school: Mapped["School | None"] = relationship(back_populates="expenses")
+    branch: Mapped["Branch | None"] = relationship(foreign_keys=[branch_id])
     transaction: Mapped["Transaction | None"] = relationship(
         back_populates="expense",
         uselist=False
@@ -415,6 +431,13 @@ class DailyCashRegister(Base):
     school_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("schools.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
+    # Sucursal física (v3.1). NULL = consolidado (comportamiento previo al retrofit).
+    branch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("branches.id", ondelete="SET NULL"),
         nullable=True,
         index=True
     )
@@ -490,6 +513,7 @@ class DailyCashRegister(Base):
 
     # Relationships
     school: Mapped["School | None"] = relationship(back_populates="cash_registers")
+    branch: Mapped["Branch | None"] = relationship()
 
     @property
     def net_flow(self) -> Decimal:
@@ -550,6 +574,13 @@ class BalanceAccount(Base):
         nullable=True,
         index=True
     )
+    # Sucursal física (v3.1). NULL = consolidado/corporativo (global, sin sede).
+    branch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("branches.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
 
     # Account details
     account_type: Mapped[AccountType] = mapped_column(
@@ -602,6 +633,7 @@ class BalanceAccount(Base):
 
     # Relationships
     school: Mapped["School | None"] = relationship()
+    branch: Mapped["Branch | None"] = relationship(foreign_keys=[branch_id])
     entries: Mapped[list["BalanceEntry"]] = relationship(
         back_populates="account",
         cascade="all, delete-orphan"
@@ -714,6 +746,13 @@ class AccountsReceivable(Base):
         nullable=True,
         index=True
     )
+    # Sucursal física (v3.1). NULL = consolidado/corporativo (global, sin sede).
+    branch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("branches.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
     client_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("clients.id", ondelete="SET NULL"),
@@ -729,6 +768,13 @@ class AccountsReceivable(Base):
     order_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("orders.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
+    # B2B: saldo a crédito de un contrato. client_id (B2C) queda NULL en ese caso.
+    b2b_client_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("b2b_clients.id", ondelete="SET NULL"),
         nullable=True,
         index=True
     )
@@ -774,9 +820,11 @@ class AccountsReceivable(Base):
 
     # Relationships
     school: Mapped["School | None"] = relationship()
+    branch: Mapped["Branch | None"] = relationship(foreign_keys=[branch_id])
     client: Mapped["Client | None"] = relationship()
     sale: Mapped["Sale | None"] = relationship()
     order: Mapped["Order | None"] = relationship()
+    b2b_client: Mapped["B2BClient | None"] = relationship()
 
     @property
     def balance(self) -> Decimal:
@@ -940,6 +988,13 @@ class AccountsPayable(Base):
         nullable=True,
         index=True
     )
+    # Sucursal física (v3.1). NULL = consolidado/corporativo (global, sin sede).
+    branch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("branches.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
 
     # Payable details
     vendor_id: Mapped[uuid.UUID] = mapped_column(
@@ -988,6 +1043,7 @@ class AccountsPayable(Base):
 
     # Relationships
     school: Mapped["School | None"] = relationship()
+    branch: Mapped["Branch | None"] = relationship(foreign_keys=[branch_id])
     vendor: Mapped["Vendor"] = relationship(foreign_keys=[vendor_id])
 
     @property

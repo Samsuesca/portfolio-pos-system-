@@ -1,6 +1,7 @@
 """
 Financial Model Schemas - KPIs, Profitability, Trends, Budgets, Forecasts, Alerts, Executive Summary
 """
+from typing import Annotated
 from uuid import UUID
 from decimal import Decimal
 from datetime import datetime, date
@@ -278,8 +279,8 @@ class ProjectionHire(BaseSchema):
         ),
     )
     role: str
-    monthly_salary: Decimal
-    parafiscales_pct: Decimal = Decimal("0.30")
+    monthly_salary: Decimal = Field(..., gt=0)
+    parafiscales_pct: Decimal = Field(default=Decimal("0.30"), ge=0)
 
     @model_validator(mode="after")
     def _validate_window(self) -> "ProjectionHire":
@@ -294,10 +295,10 @@ class ProjectionHire(BaseSchema):
 class ProjectionDebt(BaseSchema):
     """A debt instrument in the projection (existing or planned)."""
     name: str
-    capital: Decimal
-    monthly_payment: Decimal
-    interest_portion_monthly: Decimal
-    capital_portion_monthly: Decimal
+    capital: Decimal = Field(..., ge=0)
+    monthly_payment: Decimal = Field(..., ge=0)
+    interest_portion_monthly: Decimal = Field(..., ge=0)
+    capital_portion_monthly: Decimal = Field(..., ge=0)
     starts_month_offset: int = 0
     term_months: int | None = None  # None = bullet (capital al final)
 
@@ -334,6 +335,48 @@ class ProjectionFormalizationLayer(BaseSchema):
     recurring_costs: list[FormalizationRecurringCost] = Field(default_factory=list)
 
 
+class B2BRecurringContract(BaseSchema):
+    """Contrato B2B recurrente (dotación legal, renovación periódica).
+
+    Su timing es CONTRACALENDARIO: fija en `cycles_per_year` ciclos al año a
+    partir de `first_cycle_month` (1-12), sin multiplicar por la estacionalidad
+    escolar. Ese es justamente el efecto que aplana la estacionalidad de UCR.
+    """
+    client_name: str
+    segment: str = "corporate"
+    amount_per_cycle: Decimal = Field(..., gt=0)
+    cycles_per_year: int = Field(..., ge=1, le=12)
+    first_cycle_month: int = Field(..., ge=1, le=12)
+    gross_margin_pct: float = Field(default=0.40, ge=0, le=1)
+    deposit_pct: float = Field(default=0.5, ge=0, le=1)
+    payment_terms_days: int = Field(default=0, ge=0)
+
+
+class B2BOneShotContract(BaseSchema):
+    """Contrato B2B puntual (evento) — se pondera por probabilidad en el base."""
+    client_name: str
+    segment: str = "event"
+    amount: Decimal = Field(..., gt=0)
+    probability: float = Field(default=1.0, ge=0, le=1)
+    expected_month_offset: int = Field(..., ge=0)
+    gross_margin_pct: float = Field(default=0.40, ge=0, le=1)
+
+
+class B2BNewClientAcquisition(BaseSchema):
+    """Adquisición de clientes B2B nuevos a partir de `ramp_start_month_offset`."""
+    contracts_per_quarter: float = Field(default=0.0, ge=0)
+    avg_contract_value: Decimal = Field(default=Decimal("0"))
+    avg_gross_margin_pct: float = Field(default=0.40, ge=0, le=1)
+    ramp_start_month_offset: int = Field(default=0, ge=0)
+
+
+class B2BPipeline(BaseSchema):
+    """Stream B2B del motor de proyección (contracalendario, margen propio)."""
+    recurring_contracts: list[B2BRecurringContract] = Field(default_factory=list)
+    one_shot_pipeline: list[B2BOneShotContract] = Field(default_factory=list)
+    new_client_acquisition: B2BNewClientAcquisition | None = None
+
+
 class ProjectionAssumptions(BaseSchema):
     """Inputs for a financial projection."""
     name: str = Field(..., max_length=200)
@@ -343,11 +386,14 @@ class ProjectionAssumptions(BaseSchema):
 
     # Revenue
     base_revenue_monthly: Decimal = Field(..., gt=0)
-    seasonality: dict[int, float] = Field(
+    seasonality: dict[int, Annotated[float, Field(ge=0)]] = Field(
         default_factory=lambda: {m: 1.0 for m in range(1, 13)},
-        description="Multiplier per month {1..12}; 1.0 = neutral",
+        description="Multiplier per month {1..12}; 1.0 = neutral. No negativo.",
     )
-    growth_rate_monthly: float = 0.0  # ej. 0.02 = 2% MoM
+    growth_rate_monthly: float = Field(
+        default=0.0, ge=-0.5, le=1.0,
+        description="MoM, ej. 0.02 = 2%. Acotado a [-50%, 100%] para frenar tecleos absurdos.",
+    )
 
     # COGS / margin
     cogs_pct: float = Field(default=0.62, ge=0, le=1)
@@ -369,8 +415,14 @@ class ProjectionAssumptions(BaseSchema):
     formalization_layer: ProjectionFormalizationLayer | None = None
 
     # Macro
-    inflation_annual: float = 0.06
+    inflation_annual: float = Field(
+        default=0.06, ge=-0.2, le=2.0,
+        description="Anual, ej. 0.06 = 6%. Acotado a [-20%, 200%].",
+    )
     initial_cash: Decimal = Field(default=Decimal("0"))
+
+    # B2B contractual (tercer pilar) — stream contracalendario, margen propio.
+    b2b_pipeline: B2BPipeline | None = None
 
 
 class ProjectionMonth(BaseSchema):
@@ -384,6 +436,8 @@ class ProjectionMonth(BaseSchema):
     cogs: Decimal
     gross_profit: Decimal
     gross_margin_pct: float
+    # Porción del revenue que proviene del stream B2B (contracalendario).
+    b2b_revenue: Decimal = Decimal("0")
 
     # OpEx
     fixed_costs: Decimal
@@ -424,6 +478,10 @@ class ProjectionSummary(BaseSchema):
     total_cogs: Decimal
     total_gross_profit: Decimal
     avg_gross_margin_pct: float
+
+    # Mezcla B2B vs retail (objetivo del pilar: subir B2B de ~5% a ~30%).
+    total_b2b_revenue: Decimal = Decimal("0")
+    b2b_revenue_pct: float = 0.0
 
     total_opex: Decimal
     total_formalization_one_time: Decimal

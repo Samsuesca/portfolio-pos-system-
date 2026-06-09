@@ -4,14 +4,15 @@ Module 3: Trend Analysis Service
 from decimal import Decimal
 from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
-from sqlalchemy import select, func
+from sqlalchemy import select, func, literal_column
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 import statistics
 
 from app.models.accounting import (
-    Transaction, TransactionType, Expense, BalanceAccount, AccountType
+    Transaction, TransactionType, Expense
 )
+from app.services.accounting.financial_model._cash import current_cash_balance
 from app.utils.timezone import get_colombia_date
 
 ZERO = Decimal("0")
@@ -48,16 +49,20 @@ class TrendAnalysisService:
         # Generate monthly periods
         periods = self._generate_periods(start_date, end_date)
 
+        # Las series de ingresos/gastos se calculan UNA vez y se reutilizan
+        # entre las métricas revenue/expenses/profit (antes "profit" volvía a
+        # consultarlas, duplicando queries).
+        need_rev = any(m in metrics for m in ("revenue", "profit"))
+        need_exp = any(m in metrics for m in ("expenses", "profit"))
+        rev_data = await self._revenue_series(periods) if need_rev else []
+        exp_data = await self._expense_series(periods) if need_exp else []
+
         for metric in metrics:
             if metric == "revenue":
-                data = await self._revenue_series(periods)
-                series.append(self._build_series("revenue", "Ingresos", data, periods))
+                series.append(self._build_series("revenue", "Ingresos", rev_data, periods))
             elif metric == "expenses":
-                data = await self._expense_series(periods)
-                series.append(self._build_series("expenses", "Gastos", data, periods))
+                series.append(self._build_series("expenses", "Gastos", exp_data, periods))
             elif metric == "profit":
-                rev_data = await self._revenue_series(periods)
-                exp_data = await self._expense_series(periods)
                 profit_data = [r - e for r, e in zip(rev_data, exp_data)]
                 series.append(self._build_series("profit", "Utilidad Neta", profit_data, periods))
             elif metric == "cash_position":
@@ -102,39 +107,51 @@ class TrendAnalysisService:
             current = current + relativedelta(months=1)
         return periods
 
+    @staticmethod
+    def _month_key(value) -> str:
+        return value.strftime("%Y-%m") if hasattr(value, "strftime") else str(value)[:7]
+
     async def _revenue_series(self, periods) -> list[Decimal]:
-        result = []
-        for start, end, _, _ in periods:
-            stmt = select(func.coalesce(func.sum(Transaction.amount), 0)).where(
+        """Ingreso mensual en UNA query agrupada por mes (antes: una por
+        período → hasta 12+ round-trips, duplicados con la métrica profit)."""
+        if not periods:
+            return []
+        month_trunc = func.date_trunc(literal_column("'month'"), Transaction.transaction_date)
+        stmt = (
+            select(month_trunc.label("m"), func.coalesce(func.sum(Transaction.amount), 0))
+            .where(
                 Transaction.type == TransactionType.INCOME,
-                Transaction.transaction_date >= start,
-                Transaction.transaction_date <= end,
+                Transaction.transaction_date >= periods[0][0],
+                Transaction.transaction_date <= periods[-1][1],
             )
-            r = await self.db.execute(stmt)
-            result.append(Decimal(str(r.scalar())))
-        return result
+            .group_by(month_trunc)
+        )
+        rows = await self.db.execute(stmt)
+        by_month = {self._month_key(row[0]): Decimal(str(row[1])) for row in rows}
+        return [by_month.get(p[2], ZERO) for p in periods]
 
     async def _expense_series(self, periods) -> list[Decimal]:
-        result = []
-        for start, end, _, _ in periods:
-            stmt = select(func.coalesce(func.sum(Expense.amount), 0)).where(
+        """Gasto mensual en UNA query agrupada por mes."""
+        if not periods:
+            return []
+        month_trunc = func.date_trunc(literal_column("'month'"), Expense.expense_date)
+        stmt = (
+            select(month_trunc.label("m"), func.coalesce(func.sum(Expense.amount), 0))
+            .where(
                 Expense.is_active == True,
-                Expense.expense_date >= start,
-                Expense.expense_date <= end,
+                Expense.expense_date >= periods[0][0],
+                Expense.expense_date <= periods[-1][1],
             )
-            r = await self.db.execute(stmt)
-            result.append(Decimal(str(r.scalar())))
-        return result
+            .group_by(month_trunc)
+        )
+        rows = await self.db.execute(stmt)
+        by_month = {self._month_key(row[0]): Decimal(str(row[1])) for row in rows}
+        return [by_month.get(p[2], ZERO) for p in periods]
 
     async def _cash_position_series(self, periods) -> list[Decimal]:
         """Get cash balance at end of each period using transaction sums."""
         # Current balance
-        stmt = select(func.coalesce(func.sum(BalanceAccount.balance), 0)).where(
-            BalanceAccount.account_type == AccountType.ASSET_CURRENT,
-            BalanceAccount.is_active == True,
-        )
-        r = await self.db.execute(stmt)
-        current_balance = Decimal(str(r.scalar()))
+        current_balance = await current_cash_balance(self.db)
 
         today = get_colombia_date()
         # Work backward from current balance

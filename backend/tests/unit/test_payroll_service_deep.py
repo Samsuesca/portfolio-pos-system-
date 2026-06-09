@@ -442,54 +442,9 @@ class TestMarkPayrollPaid:
         with pytest.raises(ValueError, match="aprobadas"):
             await svc.mark_payroll_paid(db, run.id)
 
-    @patch("app.services.payroll_service.get_colombia_now_naive", return_value=datetime(2026, 4, 14, 15, 0))
-    async def test_marks_expense_as_paid(self, mock_now, db, svc):
-        expense_id = uuid4()
-        item = MagicMock(spec=PayrollItem)
-        item.is_paid = False
-        run = _make_payroll_run(status=PayrollStatus.APPROVED, items=[item], expense_id=expense_id)
-
-        expense = MagicMock(spec=Expense)
-        expense.is_paid = False
-
-        run_result = MagicMock()
-        run_result.scalar_one_or_none.return_value = run
-        expense_result = MagicMock()
-        expense_result.scalar_one_or_none.return_value = expense
-
-        db.execute.side_effect = [run_result, expense_result]
-
-        await svc.mark_payroll_paid(db, run.id)
-
-        assert run.status == PayrollStatus.PAID
-        assert expense.is_paid is True
-
-    @patch("app.services.payroll_service.get_colombia_now_naive", return_value=datetime(2026, 4, 14, 15, 0))
-    async def test_skips_already_paid_items(self, mock_now, db, svc):
-        item_paid = MagicMock(spec=PayrollItem)
-        item_paid.is_paid = True
-        item_paid.paid_at = datetime(2026, 4, 13)
-
-        item_unpaid = MagicMock(spec=PayrollItem)
-        item_unpaid.is_paid = False
-
-        run = _make_payroll_run(status=PayrollStatus.APPROVED, items=[item_paid, item_unpaid])
-        run.expense_id = None
-        _mock_db_returns(db, run)
-
-        await svc.mark_payroll_paid(db, run.id)
-
-        assert item_paid.paid_at == datetime(2026, 4, 13)
-        assert item_unpaid.is_paid is True
-
-    @patch("app.services.payroll_service.get_colombia_now_naive", return_value=datetime(2026, 4, 14, 15, 0))
-    async def test_no_expense_id_skips_expense_update(self, mock_now, db, svc):
-        run = _make_payroll_run(status=PayrollStatus.APPROVED, expense_id=None)
-        _mock_db_returns(db, run)
-
-        await svc.mark_payroll_paid(db, run.id)
-        assert run.status == PayrollStatus.PAID
-        db.execute.assert_called_once()
+    # Happy-path coverage (marks items/expense paid, skips already-paid, records
+    # the cash Transaction) moved to tests/integration/test_payroll_payment.py —
+    # it now hits balance integration and locks rows, so mocking db.execute is moot.
 
 
 # ============================================
@@ -664,85 +619,10 @@ class TestPayPayrollItem:
         with pytest.raises(ValueError, match="no encontrado"):
             await svc.pay_payroll_item(db, uuid4(), "cash")
 
-    async def test_already_paid_raises(self, db, svc):
-        item = MagicMock(spec=PayrollItem)
-        item.id = uuid4()
-        item.is_paid = True
-        item.payroll_run_id = uuid4()
-
-        run = _make_payroll_run(status=PayrollStatus.APPROVED, items=[item])
-        _mock_db_returns_sequence(db, [item, run])
-
-        with pytest.raises(ValueError, match="ya fue pagado"):
-            await svc.pay_payroll_item(db, item.id, "cash")
-
-    async def test_draft_payroll_raises(self, db, svc):
-        item = MagicMock(spec=PayrollItem)
-        item.id = uuid4()
-        item.is_paid = False
-        item.payroll_run_id = uuid4()
-
-        run = _make_payroll_run(status=PayrollStatus.DRAFT, items=[item])
-        _mock_db_returns_sequence(db, [item, run])
-
-        with pytest.raises(ValueError, match="aprobadas"):
-            await svc.pay_payroll_item(db, item.id, "cash")
-
-    @patch("app.services.payroll_service.get_colombia_now_naive", return_value=datetime(2026, 4, 14, 12, 0))
-    async def test_happy_path_sets_fields(self, mock_now, db, svc):
-        item = MagicMock(spec=PayrollItem)
-        item.id = uuid4()
-        item.is_paid = False
-        item.payroll_run_id = uuid4()
-
-        run = _make_payroll_run(status=PayrollStatus.APPROVED, items=[item])
-        _mock_db_returns_sequence(db, [item, run])
-
-        await svc.pay_payroll_item(db, item.id, "nequi", payment_reference="REF-001")
-
-        assert item.is_paid is True
-        assert item.payment_method == "nequi"
-        assert item.payment_reference == "REF-001"
-
-    @patch("app.services.payroll_service.get_colombia_now_naive", return_value=datetime(2026, 4, 14, 12, 0))
-    async def test_all_items_paid_triggers_payroll_paid(self, mock_now, db, svc):
-        item1 = MagicMock(spec=PayrollItem)
-        item1.id = uuid4()
-        item1.is_paid = True
-        item1.payroll_run_id = uuid4()
-
-        item2 = MagicMock(spec=PayrollItem)
-        item2.id = uuid4()
-        item2.is_paid = False
-        item2.payroll_run_id = item1.payroll_run_id
-
-        run = _make_payroll_run(status=PayrollStatus.APPROVED, items=[item1, item2])
-        _mock_db_returns_sequence(db, [item2, run])
-
-        await svc.pay_payroll_item(db, item2.id, "transfer")
-
-        assert item2.is_paid is True
-        assert run.status == PayrollStatus.PAID
-
-    @patch("app.services.payroll_service.get_colombia_now_naive", return_value=datetime(2026, 4, 14, 12, 0))
-    async def test_partial_payment_keeps_approved(self, mock_now, db, svc):
-        item1 = MagicMock(spec=PayrollItem)
-        item1.id = uuid4()
-        item1.is_paid = False
-        item1.payroll_run_id = uuid4()
-
-        item2 = MagicMock(spec=PayrollItem)
-        item2.id = uuid4()
-        item2.is_paid = False
-        item2.payroll_run_id = item1.payroll_run_id
-
-        run = _make_payroll_run(status=PayrollStatus.APPROVED, items=[item1, item2])
-        _mock_db_returns_sequence(db, [item1, run])
-
-        await svc.pay_payroll_item(db, item1.id, "cash")
-
-        assert item1.is_paid is True
-        assert run.status == PayrollStatus.APPROVED
+    # Happy-path / state-transition coverage (sets fields, all-items-paid flips the
+    # run to PAID, partial keeps APPROVED, already-paid/draft guards) moved to
+    # tests/integration/test_payroll_payment.py: the pay flow now records a real
+    # cash Transaction and locks the item FOR UPDATE.
 
 
 # ============================================

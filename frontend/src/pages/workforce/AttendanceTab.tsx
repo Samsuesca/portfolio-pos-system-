@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Pencil, X, Calendar, AlertCircle } from 'lucide-react';
 import { RequirePermission } from '../../components/RequirePermission';
+import CurrencyInput from '../../components/CurrencyInput';
 import workforceService, {
   AttendanceRecord,
   AttendanceCreate,
@@ -53,6 +54,7 @@ export default function AttendanceTab({ employees }: { employees: EmployeeListIt
 
   const loadAttendance = useCallback(async () => {
     setLoadingAttendance(true);
+    setAttendanceError('');
     try {
       const [recsResult, sum] = await Promise.all([
         workforceService.getAttendanceRecords({ record_date: selectedDate }),
@@ -62,6 +64,7 @@ export default function AttendanceTab({ employees }: { employees: EmployeeListIt
       setSummary(sum);
     } catch (err) {
       console.error('Error loading attendance:', err);
+      setAttendanceError(extractErrorMessage(err));
     } finally {
       setLoadingAttendance(false);
     }
@@ -69,11 +72,13 @@ export default function AttendanceTab({ employees }: { employees: EmployeeListIt
 
   const loadAbsences = useCallback(async () => {
     setLoadingAbsences(true);
+    setAbsenceError('');
     try {
       const absencesResult = await workforceService.getAbsences({ date_from: selectedDate, date_to: selectedDate });
       setAbsences(absencesResult.items);
     } catch (err) {
       console.error('Error loading absences:', err);
+      setAbsenceError(extractErrorMessage(err));
     } finally {
       setLoadingAbsences(false);
     }
@@ -386,6 +391,19 @@ export default function AttendanceTab({ employees }: { employees: EmployeeListIt
             </div>
           )}
 
+          {attendanceError && !showAttendanceModal && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start gap-2">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+              <div className="text-sm text-red-700 flex-1">{attendanceError}</div>
+              <button
+                onClick={() => loadAttendance()}
+                className="text-sm text-red-700 underline hover:text-red-800"
+              >
+                Reintentar
+              </button>
+            </div>
+          )}
+
           {loadingAttendance ? (
             <div className="text-center py-8 text-stone-500">Cargando asistencia...</div>
           ) : records.length === 0 ? (
@@ -570,18 +588,12 @@ export default function AttendanceTab({ employees }: { employees: EmployeeListIt
                       <label className="block text-sm font-medium text-stone-700 mb-1">
                         Monto Deduccion ($)
                       </label>
-                      <input
-                        type="number"
+                      <CurrencyInput
                         value={absenceForm.deduction_amount || 0}
-                        onChange={(e) =>
-                          setAbsenceForm((p) => ({
-                            ...p,
-                            deduction_amount: parseFloat(e.target.value) || 0,
-                          }))
+                        onChange={(value) =>
+                          setAbsenceForm((p) => ({ ...p, deduction_amount: value }))
                         }
-                        className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                        min={0}
-                        step={1000}
+                        className="w-full text-sm"
                       />
                     </div>
                   )}
@@ -601,6 +613,19 @@ export default function AttendanceTab({ employees }: { employees: EmployeeListIt
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {absenceError && !showAbsenceModal && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start gap-2">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+              <div className="text-sm text-red-700 flex-1">{absenceError}</div>
+              <button
+                onClick={() => loadAbsences()}
+                className="text-sm text-red-700 underline hover:text-red-800"
+              >
+                Reintentar
+              </button>
             </div>
           )}
 

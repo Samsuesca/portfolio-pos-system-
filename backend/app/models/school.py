@@ -2,7 +2,7 @@
 School (Tenant) Models
 """
 from datetime import datetime
-from sqlalchemy import String, Boolean, DateTime, Text, Integer
+from sqlalchemy import String, Boolean, DateTime, Text, Integer, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 import uuid
@@ -49,6 +49,22 @@ class School(Base):
     # }
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Sucursales (v3.1 — Fase 0b). Ambos nullable y aditivos.
+    # branch_id NULL = consolidado/corporativo (sin sucursal asignada).
+    # school_identity_id agrupa sedes del mismo colegio para reportes consolidados.
+    branch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("branches.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
+    school_identity_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("school_identities.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
 
     # Display order for web portal (lower = first)
     display_order: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
@@ -108,6 +124,10 @@ class School(Base):
         back_populates="school",
         cascade="all, delete-orphan"
     )
+
+    # Sucursales (v3.1). relationship() simple, sin reverso en Branch/SchoolIdentity.
+    branch: Mapped["Branch | None"] = relationship()
+    school_identity: Mapped["SchoolIdentity | None"] = relationship()
 
     # Custom roles for this school
     custom_roles: Mapped[list["CustomRole"]] = relationship(

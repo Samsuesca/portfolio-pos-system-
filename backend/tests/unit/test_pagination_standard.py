@@ -34,6 +34,11 @@ ALLOWLIST = {
     # Bounded catalog endpoints (positions, vendor search)
     "catalog.py:list[PositionResponse]",
     "vendors.py:list[VendorSearchResult]",
+    # Per-school catalog card order (GET + PUT /reorder return the full ordered
+    # set of garment-type cards — bounded by garment types per school, ~10-30)
+    "products.py:list[CatalogOrderEntry]",
+    # Forensic encargos audit (GATE 0) — bounded one-time acta (~25 rows)
+    "global_accounting.py:list[OrderAuditOverrideResponse]",
     # Aggregation endpoints (GROUP BY, not individual records)
     "accounting.py:list[ExpensesByCategory]",
     "global_accounting.py:list[ExpenseCategorySummary]",

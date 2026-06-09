@@ -268,16 +268,26 @@ export default function Products() {
 
   // --- Catalog grid handlers ---
   const handleManageGroup = useCallback((garmentTypeId: string) => {
-    const isGlobal = data.activeTab === 'global';
-    const list = isGlobal ? data.globalGarmentTypes : data.garmentTypes;
-    const garmentType = list.find(t => t.id === garmentTypeId);
-    if (garmentType) handleOpenGarmentTypeModal(garmentType, isGlobal);
-  }, [data.activeTab, data.garmentTypes, data.globalGarmentTypes, handleOpenGarmentTypeModal]);
+    // Resolve across both lists so a global card injected into the school grid
+    // still opens its (global) garment-type modal, not a no-op.
+    const schoolType = data.garmentTypes.find(t => t.id === garmentTypeId);
+    if (schoolType) { handleOpenGarmentTypeModal(schoolType, false); return; }
+    const globalType = data.globalGarmentTypes.find(t => t.id === garmentTypeId);
+    if (globalType) handleOpenGarmentTypeModal(globalType, true);
+  }, [data.garmentTypes, data.globalGarmentTypes, handleOpenGarmentTypeModal]);
 
   const handleViewVariants = useCallback((garmentTypeId: string) => {
-    if (data.activeTab === 'school') data.setGarmentTypeFilter(garmentTypeId);
+    if (data.activeTab === 'school') {
+      // A global card injected into the school grid: its variants live in the global
+      // tab, so jump there and filter — filtering the school table by a global type
+      // id would show an empty table.
+      if (data.globalGarmentTypes.some(t => t.id === garmentTypeId)) {
+        data.handleTabChange('global');
+      }
+      data.setGarmentTypeFilter(garmentTypeId);
+    }
     data.setViewMode('table');
-  }, [data.activeTab, data.setGarmentTypeFilter, data.setViewMode]);
+  }, [data.activeTab, data.globalGarmentTypes, data.handleTabChange, data.setGarmentTypeFilter, data.setViewMode]);
 
   // --- Catalog tree handlers (garment type -> variants) ---
   // "+ Variante": open the create-product modal with the type pre-selected.
@@ -455,8 +465,10 @@ export default function Products() {
             onManageGroup={handleManageGroup}
             onViewVariants={handleViewVariants}
             catalogOrder={data.catalogOrder}
-            canReorder={data.activeTab === 'school' && data.canReorderCatalog && !!data.schoolIdForCreate}
+            canReorder={data.activeTab === 'school' && data.canReorderCatalog && !!data.reorderSchoolId}
             onReorder={data.reorderCatalog}
+            globalProductsForSchool={data.schoolVisibleGlobals}
+            globalGarmentTypes={data.globalGarmentTypes}
           />
         ) : (
           <ProductsTable

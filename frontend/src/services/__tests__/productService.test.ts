@@ -96,6 +96,62 @@ describe('productService', () => {
     });
   });
 
+  describe('complete (paginated-loop) fetchers', () => {
+    function page<T>(items: T[], has_more: boolean, skip: number): PaginatedResponse<T> {
+      return { items, total: 999, skip, limit: 500, page: 1, total_pages: 9, has_more };
+    }
+
+    it('getAllProductsComplete walks every page until has_more is false', async () => {
+      const p1 = { ...mockProduct, id: 'a' };
+      const p2 = { ...mockProduct, id: 'b' };
+      const p3 = { ...mockProduct, id: 'c' };
+      (apiMock.get as Mock)
+        .mockResolvedValueOnce({ data: page([p1, p2], true, 0) })
+        .mockResolvedValueOnce({ data: page([p3], false, 500) });
+
+      const items = await productService.getAllProductsComplete({ school_id: 'school-1' });
+
+      expect(apiMock.get).toHaveBeenCalledTimes(2);
+      expect(items.map(i => i.id)).toEqual(['a', 'b', 'c']);
+      // Page size is 500, advancing skip by 500 each round.
+      expect(apiMock.get).toHaveBeenNthCalledWith(1, expect.stringContaining('skip=0&limit=500'));
+      expect(apiMock.get).toHaveBeenNthCalledWith(2, expect.stringContaining('skip=500&limit=500'));
+    });
+
+    it('getAllProductsComplete stops after a single page when has_more is false', async () => {
+      (apiMock.get as Mock).mockResolvedValueOnce({ data: page([mockProduct], false, 0) });
+
+      const items = await productService.getAllProductsComplete();
+
+      expect(apiMock.get).toHaveBeenCalledTimes(1);
+      expect(items).toHaveLength(1);
+    });
+
+    it('getAllGarmentTypesComplete concatenates all pages', async () => {
+      const g2 = { ...mockGarmentType, id: 'gt-2' };
+      (apiMock.get as Mock)
+        .mockResolvedValueOnce({ data: page([mockGarmentType], true, 0) })
+        .mockResolvedValueOnce({ data: page([g2], false, 500) });
+
+      const items = await productService.getAllGarmentTypesComplete({ with_stats: true });
+
+      expect(apiMock.get).toHaveBeenCalledTimes(2);
+      expect(items.map(i => i.id)).toEqual(['gt-1', 'gt-2']);
+    });
+
+    it('getGlobalProductsComplete walks every page', async () => {
+      const gp2 = { ...mockGlobalProduct, id: 'gp-2' };
+      (apiMock.get as Mock)
+        .mockResolvedValueOnce({ data: page([mockGlobalProduct], true, 0) })
+        .mockResolvedValueOnce({ data: page([gp2], false, 500) });
+
+      const items = await productService.getGlobalProductsComplete();
+
+      expect(apiMock.get).toHaveBeenCalledTimes(2);
+      expect(items.map(i => i.id)).toEqual(['gp-1', 'gp-2']);
+    });
+  });
+
   describe('getProducts', () => {
     it('returns items array for a school', async () => {
       (apiMock.get as Mock).mockResolvedValueOnce({ data: paginatedOf([mockProduct]) });

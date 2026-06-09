@@ -625,14 +625,14 @@ class TestDefaultSubscriptionsByRole:
         assert set(DEFAULT_SUBSCRIPTIONS_BY_ROLE["superuser"]) == set(TelegramAlertType)
 
     @pytest.mark.unit
-    def test_admin_has_15_types(self):
-        """Admin role subscribes to 15 alert types."""
-        assert len(DEFAULT_SUBSCRIPTIONS_BY_ROLE["admin"]) == 15
+    def test_admin_has_19_types(self):
+        """Admin role subscribes to 19 alert types (incl. order + alterations)."""
+        assert len(DEFAULT_SUBSCRIPTIONS_BY_ROLE["admin"]) == 19
 
     @pytest.mark.unit
-    def test_seller_has_6_types(self):
-        """Seller role subscribes to 6 alert types."""
-        assert len(DEFAULT_SUBSCRIPTIONS_BY_ROLE["seller"]) == 6
+    def test_seller_has_7_types(self):
+        """Seller role subscribes to 7 alert types (incl. order_created)."""
+        assert len(DEFAULT_SUBSCRIPTIONS_BY_ROLE["seller"]) == 7
 
     @pytest.mark.unit
     def test_viewer_has_only_seller_digest(self):
@@ -721,8 +721,8 @@ class TestCreateDefaultSubscriptions:
 
         await svc._create_default_subscriptions(user)
 
-        # Should add 6 subscriptions for seller
-        assert db.add.call_count == 6
+        # Should add 7 subscriptions for seller
+        assert db.add.call_count == 7
 
     @pytest.mark.unit
     async def test_skips_already_existing_subscriptions(self):
@@ -731,7 +731,7 @@ class TestCreateDefaultSubscriptions:
         db = AsyncMock()
         db.add = MagicMock()
 
-        # Simulate 2 existing subscriptions out of 6 seller defaults
+        # Simulate 2 existing subscriptions out of 7 seller defaults
         mock_existing = MagicMock()
         mock_existing.all.return_value = [
             (TelegramAlertType.sale_created,),
@@ -744,8 +744,8 @@ class TestCreateDefaultSubscriptions:
 
         await svc._create_default_subscriptions(user)
 
-        # Should only add 4 new subscriptions (6 seller - 2 existing)
-        assert db.add.call_count == 4
+        # Should only add 5 new subscriptions (7 seller - 2 existing)
+        assert db.add.call_count == 5
 
 
 # ---------------------------------------------------------------------------

@@ -2,6 +2,7 @@
 Create public-viewer user for web portal catalog access
 """
 import asyncio
+import os
 import uuid
 from app.db.session import get_db
 from app.models.user import User, UserSchoolRole, UserRole
@@ -24,7 +25,8 @@ async def create_public_viewer():
                 return
 
             # Create user
-            hashed_password = bcrypt.hashpw("PublicView2025!".encode(), bcrypt.gensalt()).decode()
+            public_password = os.environ.get("PORTAL_PUBLIC_PASSWORD", "PublicView2025!")
+            hashed_password = bcrypt.hashpw(public_password.encode(), bcrypt.gensalt()).decode()
             user = User(
                 id=uuid.uuid4(),
                 username="public-viewer",
@@ -54,7 +56,7 @@ async def create_public_viewer():
             await db.commit()
             print(f"✅ Created public-viewer user with VIEWER role for {len(schools)} schools")
             print(f"   Username: public-viewer")
-            print(f"   Password: PublicView2025!")
+            print(f"   Password: {public_password}")
 
         except Exception as e:
             await db.rollback()

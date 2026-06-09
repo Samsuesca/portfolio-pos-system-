@@ -112,8 +112,17 @@ class TelegramService:
             logger.info("Telegram alert sent: %s", alert_type)
             return True
 
+        except httpx.HTTPStatusError as e:
+            # str(e) embeds the full request URL — which carries the bot token.
+            # Log only the status code so the token never reaches journald.
+            logger.error(
+                "Telegram alert failed (%s): HTTP %d",
+                alert_type,
+                e.response.status_code,
+            )
+            return False
         except httpx.HTTPError as e:
-            logger.error("Telegram alert failed (%s): %s", alert_type, e)
+            logger.error("Telegram alert failed (%s): %s", alert_type, type(e).__name__)
             return False
 
     async def send_to_chat(
@@ -138,9 +147,44 @@ class TelegramService:
             )
             resp.raise_for_status()
             return True
-        except httpx.HTTPError as e:
-            logger.error("Telegram send_to_chat(%s) failed: %s", chat_id, e)
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                "Telegram send_to_chat(%s) failed: HTTP %d",
+                chat_id,
+                e.response.status_code,
+            )
             return False
+        except httpx.HTTPError as e:
+            logger.error(
+                "Telegram send_to_chat(%s) failed: %s", chat_id, type(e).__name__
+            )
+            return False
+
+    def send_sync_fallback(self, message: str, alert_type: str) -> None:
+        """Blocking send for callers without a running event loop.
+
+        Used by fire_and_forget_* when invoked from a sync SQLAlchemy event
+        listener thread. Updates the cooldown on a successful send. No-ops
+        when the service is disabled.
+        """
+        if not self._enabled:
+            return
+        try:
+            httpx.post(
+                self._url,
+                json={
+                    "chat_id": self._chat_id,
+                    "text": message,
+                    "parse_mode": "HTML",
+                    "disable_web_page_preview": True,
+                },
+                timeout=5.0,
+            )
+            _cooldowns[alert_type] = time.monotonic()
+        except httpx.HTTPError as e:
+            logger.error(
+                "Telegram sync fallback failed (%s): %s", alert_type, type(e).__name__
+            )
 
 
 # ── Singleton ────────────────────────────────────────────────────
@@ -159,23 +203,7 @@ def get_telegram_service() -> TelegramService:
 
 def _send_sync(message: str, alert_type: str) -> None:
     """Synchronous fallback for threads without an event loop."""
-    svc = get_telegram_service()
-    if not svc.enabled:
-        return
-    try:
-        httpx.post(
-            svc._url,
-            json={
-                "chat_id": svc._chat_id,
-                "text": message,
-                "parse_mode": "HTML",
-                "disable_web_page_preview": True,
-            },
-            timeout=5.0,
-        )
-        _cooldowns[alert_type] = time.monotonic()
-    except httpx.HTTPError as e:
-        logger.error("Telegram sync fallback failed (%s): %s", alert_type, e)
+    get_telegram_service().send_sync_fallback(message, alert_type)
 
 
 def _task_done_callback(task: asyncio.Task) -> None:

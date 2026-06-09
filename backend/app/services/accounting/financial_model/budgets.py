@@ -62,7 +62,7 @@ class BudgetService:
             if budget.created_by != requesting_user.id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Only the budget creator or a superuser can delete this budget"
+                    detail="Solo el creador del presupuesto o un superusuario puede eliminarlo"
                 )
         await self.db.delete(budget)
         await self.db.flush()

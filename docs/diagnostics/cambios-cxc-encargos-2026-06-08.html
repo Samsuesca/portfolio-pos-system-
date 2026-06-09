@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reporte — Cambios y devoluciones ↔ CxC de encargos</title>
+<style>
+  :root{
+    --bg:#0f1115;--card:#171a21;--card2:#1e222b;--ink:#e8eaed;--muted:#9aa3b2;--line:#2a2f3a;
+    --accent:#5b8cff;--ok:#3fb950;--warn:#d29922;--bad:#f85149;--purple:#a371f7;
+    --good-bg:rgba(63,185,80,.12);--warn-bg:rgba(210,153,34,.12);--bad-bg:rgba(248,81,73,.12);--pur-bg:rgba(163,113,247,.12);
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.6;font-size:16px}
+  .wrap{max-width:980px;margin:0 auto;padding:48px 24px 96px}
+  header.top{border-bottom:1px solid var(--line);padding-bottom:28px;margin-bottom:36px}
+  .eyebrow{color:var(--accent);font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:12px}
+  h1{font-size:29px;line-height:1.25;margin:10px 0 8px;font-weight:700}
+  h2{font-size:21px;margin:46px 0 14px;padding-top:14px;border-top:1px solid var(--line);font-weight:700}
+  h3{font-size:16px;margin:24px 0 8px;color:#cdd3dd}
+  p{margin:11px 0}.muted{color:var(--muted)}
+  .meta{color:var(--muted);font-size:14px;margin-top:14px;display:flex;gap:20px;flex-wrap:wrap}
+  .meta b{color:var(--ink)}
+  code{font-family:var(--mono);background:var(--card2);padding:1px 6px;border-radius:5px;font-size:.86em;color:#d6deeb}
+  pre{background:#0b0d11;border:1px solid var(--line);border-radius:10px;padding:18px;overflow:auto;font-family:var(--mono);font-size:12.5px;line-height:1.6;color:#cdd3dd}
+  pre .c{color:#6b7686}pre .k{color:#ff8278}pre .g{color:#56d364}
+  .badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid}
+  .b-bad{background:var(--bad-bg);color:#ff8278;border-color:rgba(248,81,73,.4)}
+  .b-warn{background:var(--warn-bg);color:#e3b341;border-color:rgba(210,153,34,.4)}
+  .b-ok{background:var(--good-bg);color:#56d364;border-color:rgba(63,185,80,.4)}
+  .b-info{background:rgba(91,140,255,.12);color:#8aa9ff;border-color:rgba(91,140,255,.4)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin:22px 0}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px}
+  .stat .n{font-size:27px;font-weight:700;line-height:1}.stat .l{color:var(--muted);font-size:13px;margin-top:6px}
+  .callout{border-radius:12px;padding:18px 20px;margin:22px 0;border:1px solid}
+  .co-bad{background:var(--bad-bg);border-color:rgba(248,81,73,.35)}
+  .co-warn{background:var(--warn-bg);border-color:rgba(210,153,34,.35)}
+  .co-ok{background:var(--good-bg);border-color:rgba(63,185,80,.35)}
+  .co-info{background:rgba(91,140,255,.10);border-color:rgba(91,140,255,.35)}
+  table{width:100%;border-collapse:collapse;margin:18px 0;font-size:13.5px}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em}
+  td.num{font-family:var(--mono);text-align:right}
+  tr.hl td{background:var(--bad-bg)}
+  .flow{font-family:var(--mono);font-size:13px;background:#0b0d11;border:1px solid var(--line);border-radius:10px;padding:16px;color:#cdd3dd;white-space:pre-wrap}
+  ul{margin:10px 0;padding-left:22px}li{margin:6px 0}
+  .sev{font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;white-space:nowrap}
+  .s-crit{background:var(--bad-bg);color:#ff8278}.s-high{background:var(--warn-bg);color:#e3b341}.s-med{background:rgba(91,140,255,.14);color:#8aa9ff}.s-low{background:var(--card2);color:var(--muted)}
+  .files{font-family:var(--mono);font-size:12.5px}
+  footer{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="eyebrow">Reporte de inspección · Cambios y devoluciones</div>
+  <h1>Cómo los cambios y devoluciones inflan la CxC de los encargos — y qué falta para que las vendedoras los cierren</h1>
+  <p class="muted" style="font-size:15px;margin-top:6px">Un cambio de venta sin stock <b>crea un encargo</b> cuya cuenta por cobrar nace por el <b>precio completo</b> de la prenda nueva, no por la diferencia. El cliente ya pagó el original → la CxC queda inflada (fantasma). Más 5 inconsistencias relacionadas y un cuello de botella de UI con 25 cambios sin resolver.</p>
+  <div class="meta">
+    <span><b>Fecha:</b> 8 jun 2026</span>
+    <span><b>Sistema:</b> UCR v3.1.0</span>
+    <span><b>Base:</b> datos de prod + análisis de código (4 agentes, verificación adversarial)</span>
+    <span><b>Veredicto:</b> <span class="badge b-bad">Bug de modelado confirmado línea por línea</span></span>
+  </div>
+</header>
+
+<div class="callout co-info">
+  <h3 style="margin:0 0 6px">Resumen ejecutivo</h3>
+  <p style="margin:0">Hay <b>dos rutas</b> para un cambio/devolución de venta. La que <b>sí tiene stock</b> es contablemente correcta (ajusta solo la diferencia sobre la venta). La que <b>no tiene stock</b> genera un encargo y ahí está el bug: el encargo abre una CxC por el <b>precio entero</b> de la prenda nueva, con <code>paid_amount = 0</code>, ignorando que el cliente ya pagó la prenda original y que la diferencia ya se cobró aparte en caja. El resultado es <b>CxC fantasma sistémica</b> — no un dato sucio puntual.</p>
+</div>
+
+<div class="cards">
+  <div class="stat"><div class="n" style="color:var(--bad)">$91K</div><div class="l">CxC fantasma detectada (2 casos visibles)</div></div>
+  <div class="stat"><div class="n" style="color:var(--warn)">25</div><div class="l">cambios/devoluciones sin resolver</div></div>
+  <div class="stat"><div class="n">3</div><div class="l">encargos abiertos nacidos de un cambio</div></div>
+  <div class="stat"><div class="n" style="color:var(--purple)">6</div><div class="l">inconsistencias de código (1 crítica)</div></div>
+</div>
+
+<!-- ===================== CONEXIÓN ===================== -->
+<h2>1. Cómo se conectan Encargo ↔ CxC ↔ Cambio</h2>
+<p>El vínculo es el campo <code>sale_changes.order_id</code>: cuando un cambio de venta genera un encargo, ese campo apunta al encargo. Así se rastrea qué CxC de encargo nació de un cambio.</p>
+<div class="flow">VENTA (pagada)  ──cambio/devolución sin stock──▶  SaleChange (status=pending_stock)
+                                                          │ order_id
+                                                          ▼
+                                                    ENCARGO nuevo  ──▶  AccountsReceivable
+                                                    total = prenda completa     = total (¡fantasma!)
+                                                    paid_amount = 0</div>
+
+<!-- ===================== DOS RUTAS ===================== -->
+<h2>2. Dos rutas, comportamiento divergente</h2>
+<table>
+  <thead><tr><th>Ruta</th><th>Qué hace con la CxC</th><th>Veredicto</th></tr></thead>
+  <tbody>
+    <tr><td><b>CON stock</b> (cambio aprobado normal)</td><td><code>_settle_sale_change_finance</code> aplica <b>solo el <code>price_adjustment</code></b> sobre la CxC de la <b>venta</b> y hace <code>sale.total += adj</code> (<code>sale/changes.py:441,368</code>)</td><td><span class="badge b-ok">Correcto</span></td></tr>
+    <tr class="hl"><td><b>SIN stock</b> (genera encargo)</td><td>NO pasa por ese liquidador. El encargo abre un <code>AccountsReceivable</code> <b>independiente por el total completo</b> de la prenda nueva, ligado a <code>order_id</code> (no a la venta)</td><td><span class="badge b-bad">CxC fantasma</span></td></tr>
+  </tbody>
+</table>
+
+<!-- ===================== MECANISMO ===================== -->
+<h2>3. El mecanismo exacto (traza de código)</h2>
+<p>Confirmado línea por línea por el análisis y la verificación adversarial:</p>
+<pre><span class="c"># sale/changes.py:135 — la ÚNICA plata real del cambio</span>
+price_adjustment = (new_unit_price * new_quantity) − (original_item.unit_price * returned_quantity)
+
+<span class="c"># sale/changes.py:205-213 — la prenda original VUELVE a inventario (ok)</span>
+<span class="c"># sale/changes.py:215-239 — si adj≠0 y NO es crédito, la diferencia se cobra/devuelve en CAJA ya</span>
+if price_adjustment != 0 and payment_method != 'credit':
+    Transaction(INCOME si adj&gt;0, EXPENSE si adj&lt;0)   <span class="c"># ← acá se movió el dinero real</span>
+
+<span class="c"># sale/changes.py:243-259 — se crea el encargo SIN advance_payment</span>
+order_data = OrderCreate(items=[item(producto_nuevo, new_unit_price, new_quantity)], ...)
+                          <span class="k"># ← falta advance_payment</span>
+order = create_order(order_data)
+
+<span class="c"># order/creation.py:170 — sin advance_payment ⇒ paid_amount = 0</span>
+paid_amount = order_data.advance_payment or Decimal("0")   <span class="k"># = 0</span>
+<span class="c"># order/creation.py:264-278 — balance = total − 0 = total ⇒ AR por el TOTAL</span>
+AccountsReceivable(amount = balance = total)               <span class="k"># ← CxC FANTASMA</span></pre>
+<div class="callout co-bad" style="padding:14px 18px">
+  <p style="margin:0">La prenda original ya volvió a inventario y la diferencia ya se saldó en caja. Pero el encargo nace como si el cliente no hubiera pagado nada: <b>CxC = precio completo</b>. La parte fantasma = <code>precio_completo − price_adjustment</code>.</p>
+</div>
+
+<!-- ===================== EVIDENCIA ===================== -->
+<h2>4. Evidencia en producción</h2>
+<table>
+  <thead><tr><th>Encargo</th><th>Cliente</th><th class="num">CxC muestra</th><th class="num">Debe real (ajuste)</th><th>Venta origen</th><th class="num">Pagó ahí</th><th class="num">Fantasma</th></tr></thead>
+  <tbody>
+    <tr class="hl"><td><code>ENC-2026-0093</code></td><td>Laura Orozco</td><td class="num">$48.000</td><td class="num">$1.000</td><td><code>VNT-0673</code></td><td class="num">$47.000</td><td class="num"><b>$47.000</b></td></tr>
+    <tr class="hl"><td><code>ENC-2026-0072</code></td><td>Sebastian Guzman</td><td class="num">$45.000</td><td class="num">$1.000</td><td><code>VNT-0688</code></td><td class="num">$88.000</td><td class="num"><b>$44.000</b></td></tr>
+  </tbody>
+</table>
+<p class="muted">Coincide exactamente con el cálculo. Ambos están marcados <code>phantom_exchange</code> en el acta GATE 0 — el override es el parche de datos; este reporte explica <b>por qué</b> ocurre y cómo evitarlo de raíz.</p>
+
+<!-- ===================== INCONSISTENCIAS ===================== -->
+<h2>5. Las inconsistencias (verificadas en código)</h2>
+<table>
+  <thead><tr><th>Sev.</th><th>Problema</th><th>Ubicación</th></tr></thead>
+  <tbody>
+    <tr><td><span class="sev s-crit">CRÍTICO</span></td><td><b>CxC fantasma:</b> el encargo de un cambio sin stock abre AR por el total completo, no por el ajuste pendiente.</td><td class="files">sale/changes.py:243-261 · creation.py:170,264-278</td></tr>
+    <tr><td><span class="sev s-high">ALTO</span></td><td><b><code>paid_amount=0</code> económicamente falso:</b> contamina aging, revenue accrual y los reportes de saldos que ven las vendedoras.</td><td class="files">order/creation.py:170</td></tr>
+    <tr><td><span class="sev s-high">ALTO</span></td><td><b>Diferencia cobrada al CREAR el cambio</b> (en <code>pending_stock</code>, antes de aprobar/entregar nada), divergente de la ruta con-stock que la liquida al aprobar.</td><td class="files">sale/changes.py:215-239</td></tr>
+    <tr><td><span class="sev s-med">MEDIO</span></td><td><b>Doble-conteo en reportes:</b> el <code>price_adjustment</code> entra como INCOME a caja <i>y</i> queda embebido dentro del precio completo del AR del encargo. Sumar "ingreso de cambios" + "CxC de encargos" lo cuenta dos veces (hasta que se audite).</td><td class="files">sale/changes.py:226-239</td></tr>
+    <tr><td><span class="sev s-med">MEDIO</span></td><td><b><code>sale.total</code> nunca se ajusta</b> en la ruta sin stock (el <code>+= adj</code> solo corre al aprobar, que esta ruta evita). La venta original conserva su total pre-cambio para siempre.</td><td class="files">sale/changes.py:368 (no se ejecuta)</td></tr>
+    <tr><td><span class="sev s-med">MEDIO</span></td><td><b>Riesgo de <code>MultipleResultsFound</code>:</b> el liquidador busca el AR abierto con <code>scalar_one_or_none()</code>. Si coexisten dos AR sin pagar para el mismo encargo/venta (p.ej. la AR fantasma + una AR de un cambio a crédito posterior), la próxima aprobación <b>aborta toda la transacción</b>.</td><td class="files">order/changes.py:470 · sale/changes.py:455</td></tr>
+  </tbody>
+</table>
+
+<!-- ===================== PENDIENTES ===================== -->
+<h2>6. Lo que falta a las vendedoras: 25 cambios sin resolver</h2>
+<p>Hay <b>25 cambios/devoluciones en estado pendiente</b> (15 de ventas + 10 de encargos). El vendedor describió qué debía pasar — pero nunca se aprobó/rechazó, así que el saldo del cliente queda ambiguo:</p>
+<div class="flow">ENC-0096 (Jennifer) · return pendiente · ajuste −$48.000
+   "abonó 96mil de 192mil, ya no lleva el pantalón → total 144mil"
+
+ENC-0091 (Johana) · return pendiente · ajuste −$47.000
+   "se va a cambiar por prendas de la Félix Henao"</div>
+<p>El <b>motivo escrito por la vendedora ya está en la data</b> — el input para decidir existe. Lo que falta es <b>cerrar el ciclo</b>. Y ahí hay cuellos de botella de UI:</p>
+<ul>
+  <li><span class="sev s-crit">UI</span> <b>Estado <code>pending_stock</code> sin botón:</b> la tabla de cambios solo muestra Aprobar/Rechazar cuando <code>status==='pending'</code>; para <code>pending_stock</code> no hay <b>ninguna</b> acción (<code>SaleChanges.tsx:965,1055</code>). <span class="muted">(Matiz: se auto-resuelve cuando el encargo se entrega, vía <code>_complete_pending_sale_changes</code> — pero eso <b>no</b> arregla la CxC fantasma, solo cambia el estado del cambio.)</span></li>
+  <li><span class="sev s-high">UI</span> <b>OrderChange pendiente sin acción</b> desde el detalle del encargo: la única vía de aprobación es la página de Cambios (<code>OrderDetail.tsx:1147</code>).</li>
+  <li><span class="sev s-med">UI</span> <b>No hay cola/dashboard de cambios pendientes</b> ni alerta de antigüedad. Los 25 son invisibles como trabajo a hacer (la tabla carga con <code>limit=100</code> y cuenta client-side).</li>
+</ul>
+
+<!-- ===================== FIX ===================== -->
+<h2>7. Cómo se resuelve (de raíz)</h2>
+<p>El parche de datos (los <code>order_audit_overrides</code> del acta) ya neutraliza los 2 fantasmas visibles. El <b>fix de raíz</b> está en cómo nace el encargo — y debe <b>ramificar por método de pago</b> (la verificación adversarial corrigió la versión simple, que borraría CxC de crédito legítimas):</p>
+<table>
+  <thead><tr><th>Caso del cambio</th><th>Cómo debe nacer el encargo</th></tr></thead>
+  <tbody>
+    <tr><td><b>No-crédito</b> (cash/transfer/nequi) — la diferencia ya se cobró en caja</td><td><code>paid_amount = total</code>, <b>SIN</b> AR (el cliente no debe nada del encargo)</td></tr>
+    <tr><td><b>Crédito con <code>adj &gt; 0</code></b> — debe la diferencia</td><td>AR = <b>solo <code>price_adjustment</code></b> (no el total)</td></tr>
+    <tr><td><b><code>adj &lt; 0</code></b> (devolución/downgrade) — se le devuelve</td><td><code>paid_amount = total</code>; el reembolso ya se manejó</td></tr>
+  </tbody>
+</table>
+<div class="callout co-warn" style="padding:14px 18px">
+  <p style="margin:0"><b>Cuidado:</b> un <code>advance_payment = total</code> a ciegas borraría las CxC de crédito legítimas. Por eso el fix se ramifica: en la rama de crédito (<code>sale/changes.py:219</code> no registra Transaction) el encargo SÍ debe cargar una AR igual al <code>price_adjustment</code> positivo.</p>
+</div>
+<h3>Las tres capas de la solución</h3>
+<ol>
+  <li><b>Datos (ya hecho):</b> overrides del acta neutralizan los 2 fantasmas. Para nuevos, se barren con la misma lógica del Excel de track.</li>
+  <li><b>Código (workstream del sprint):</b> arreglar <code>_create_change_with_order</code> para que el encargo nazca con el saldo real (tabla de arriba). Cierra la generación de fantasmas y el doble-conteo. Añadir guarda contra dos AR abiertas (evita el <code>MultipleResultsFound</code>).</li>
+  <li><b>UI:</b> botón de salida para <code>pending_stock</code>; acción de aprobar/rechazar OrderChange desde el detalle; <b>cola de cambios pendientes</b> con antigüedad. Y en la CxC, mostrar "viene del cambio de VNT-X · ya pagó $Y · debe solo el ajuste $Z" (la propuesta de UX de resolución).</li>
+</ol>
+
+<h2>8. La lección de fondo</h2>
+<p>Los cambios y devoluciones son una <b>fuente sistemática</b> de dos males: CxC fantasma (cuando generan encargos) y saldos ambiguos (cuando quedan pendientes). No es limpiar casos uno por uno — es (a) arreglar el modelado del encargo-desde-cambio para que nazca con el saldo correcto, y (b) darle a las vendedoras un flujo para <b>cerrar los cambios pendientes</b> como operación normal. Mientras eso no exista, cada cambio sin stock o sin resolver vuelve a inflar la cartera.</p>
+
+<footer>
+  Reporte · 8 jun 2026 · Uniformes Consuelo Ríos (v3.1.0) · Datos de producción (read-only) + análisis de código con verificación adversarial multi-agente. Acompaña al Excel <code>encargos-cxc-track-2026-06-08.xlsx</code> (track + cambios pendientes) y a la propuesta <code>cxc-resolution-flow-2026-06-08.html</code>.
+</footer>
+
+</div>
+</body>
+</html>

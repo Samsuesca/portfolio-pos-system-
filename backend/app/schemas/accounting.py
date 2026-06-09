@@ -493,6 +493,8 @@ class AccountsReceivableCreate(AccountsReceivableBase, SchoolIsolatedSchema):
     client_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440000")
     sale_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440001")
     order_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440002")
+    # B2B: saldo a crédito de un contrato (client_id queda NULL en ese caso).
+    b2b_client_id: UUID | None = Field(None, example="550e8400-e29b-41d4-a716-446655440003")
 
 
 class GlobalAccountsReceivableCreate(AccountsReceivableBase):

@@ -227,9 +227,10 @@ export const getPayrollStatusColor = (status: PayrollStatus): string => {
  * Format period range
  */
 export const formatPeriodRange = (start: string, end: string): string => {
-  const startDate = new Date(start);
-  const endDate = new Date(end);
-  const options: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short' };
+  // Anchor at noon so the UTC->Colombia (UTC-5) shift never rolls back a day
+  const startDate = new Date(`${start}T12:00:00`);
+  const endDate = new Date(`${end}T12:00:00`);
+  const options: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short', timeZone: 'America/Bogota' };
   return `${startDate.toLocaleDateString('es-CO', options)} - ${endDate.toLocaleDateString('es-CO', options)}`;
 };
 

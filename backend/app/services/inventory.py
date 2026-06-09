@@ -247,9 +247,11 @@ class InventoryService(SchoolIsolatedService[Inventory]):
             await self.db.refresh(inventory)
             available = inventory.quantity - inventory.reserved_quantity
             raise ValueError(
-                f"Insufficient inventory. Available: {available} "
-                f"(quantity={inventory.quantity}, reserved={inventory.reserved_quantity}), "
-                f"Requested: {abs(delta)}"
+                f"Stock insuficiente. Disponible: {available} "
+                f"(total={inventory.quantity}, reservado={inventory.reserved_quantity}). "
+                f"Solicitado: {abs(delta)}. "
+                f"Hay {inventory.reserved_quantity} unidad(es) reservada(s) a pedidos; "
+                f"libere la reserva para poder ajustar."
             )
         new_quantity = new_qty_row[0]
         await self.db.refresh(inventory)

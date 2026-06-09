@@ -77,7 +77,6 @@ class PerformanceService:
         # Overall score
         overall_score = self._calculate_overall_score(
             attendance_rate, punctuality_rate, checklist_rate,
-            has_sales=employee.user_id is not None,
         )
 
         return EmployeePerformanceMetrics(
@@ -124,7 +123,6 @@ class PerformanceService:
             )
             overall = self._calculate_overall_score(
                 attendance_rate, punctuality_rate, checklist_rate,
-                has_sales=emp.user_id is not None,
             )
 
             summaries.append(PerformanceSummaryItem(
@@ -278,30 +276,22 @@ class PerformanceService:
         attendance_rate: Decimal,
         punctuality_rate: Decimal,
         checklist_rate: Decimal,
-        *,
-        has_sales: bool = False,
     ) -> Decimal:
-        """Calculate weighted overall score"""
-        if has_sales:
-            # Standard weights: 30/20/30/20
-            score = (
-                attendance_rate * WEIGHT_ATTENDANCE +
-                punctuality_rate * WEIGHT_PUNCTUALITY +
-                checklist_rate * WEIGHT_CHECKLISTS
-            ) / (WEIGHT_ATTENDANCE + WEIGHT_PUNCTUALITY + WEIGHT_CHECKLISTS + WEIGHT_SALES)
-            # Note: sales weight is included in denominator but sales metric
-            # would need normalization - for now, score is based on non-sales metrics
-            # weighted proportionally
-        else:
-            # Without sales: redistribute equally among 3 metrics
-            total_weight = WEIGHT_ATTENDANCE + WEIGHT_PUNCTUALITY + WEIGHT_CHECKLISTS
-            score = (
-                attendance_rate * WEIGHT_ATTENDANCE +
-                punctuality_rate * WEIGHT_PUNCTUALITY +
-                checklist_rate * WEIGHT_CHECKLISTS
-            ) / total_weight
+        """Calculate weighted overall score.
 
-        return Decimal(str(round(float(score), 2)))
+        WEIGHT_SALES is intentionally excluded from the denominator: sales are
+        not yet normalized into a 0-100 score, so they never enter the
+        numerator. Including the sales weight in the denominator alone capped
+        sellers at 80/100. Re-add it here once a normalized sales score exists.
+        """
+        total_weight = WEIGHT_ATTENDANCE + WEIGHT_PUNCTUALITY + WEIGHT_CHECKLISTS
+        score = (
+            attendance_rate * WEIGHT_ATTENDANCE +
+            punctuality_rate * WEIGHT_PUNCTUALITY +
+            checklist_rate * WEIGHT_CHECKLISTS
+        ) / total_weight
+
+        return score.quantize(Decimal("0.01"))
 
 
 # Singleton

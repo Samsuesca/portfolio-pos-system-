@@ -75,6 +75,7 @@ const PayrollDetailModal: React.FC<PayrollDetailModalProps> = ({
 
   const handleApprove = async () => {
     if (!detail) return;
+    if (!confirm('Al aprobar esta liquidacion se creara un gasto en contabilidad y ya no podra editarse. Confirmas?')) return;
     try {
       setSubmitting(true);
       setError(null);
@@ -90,6 +91,7 @@ const PayrollDetailModal: React.FC<PayrollDetailModalProps> = ({
 
   const handlePayAll = async () => {
     if (!detail) return;
+    if (!confirm(`Vas a pagar ${formatCurrency(detail.total_net)} en nomina. Esto descuenta el efectivo de Caja/Banco y no se puede deshacer. Confirmas?`)) return;
     try {
       setSubmitting(true);
       setError(null);
@@ -120,6 +122,10 @@ const PayrollDetailModal: React.FC<PayrollDetailModalProps> = ({
 
   const handlePayItem = async (itemId: string) => {
     if (!detail) return;
+    const item = detail.items.find((i) => i.id === itemId);
+    const who = item?.employee_name ? ` a ${item.employee_name}` : '';
+    const howMuch = item ? formatCurrency(item.net_amount) : 'este pago';
+    if (!confirm(`Vas a pagar ${howMuch}${who}. Esto descuenta el efectivo de Caja/Banco. Confirmas?`)) return;
     try {
       setError(null);
       await payPayrollItem(detail.id, itemId, { payment_method: 'cash' });

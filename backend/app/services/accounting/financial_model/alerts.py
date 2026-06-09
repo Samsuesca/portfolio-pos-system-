@@ -11,6 +11,9 @@ from app.models.accounting import (
     Transaction, TransactionType, Expense, BalanceAccount, AccountType,
     AccountsReceivable, AccountsPayable
 )
+from app.models.b2b import (
+    Quotation, QuotationStatus, Contract, ContractStatus, B2BClient
+)
 from app.utils.timezone import get_colombia_date, get_colombia_now_naive
 
 ZERO = Decimal("0")
@@ -132,6 +135,45 @@ class HealthAlertService:
                 "Pague las cuentas vencidas para evitar recargos e intereses."
             ))
 
+        # 8. Cotizaciones B2B por vencer (oportunidad de seguimiento comercial)
+        expiring = await self._b2b_expiring_quotations_count(today)
+        if expiring > 0:
+            alerts.append(self._alert(
+                "b2b_quotation_expiring", "Cotizaciones B2B por vencer",
+                f"Hay {expiring} cotización(es) enviada(s) que vencen en los próximos 7 días "
+                "sin respuesta del cliente.",
+                "info", str(expiring), "≤ 7 días",
+                "Haga seguimiento comercial para cerrarlas antes de que expiren."
+            ))
+
+        # 9. Concentración de cartera B2B (riesgo de dependencia de un cliente)
+        b2b_rev = await self._b2b_revenue_by_client(
+            today - relativedelta(months=6), today
+        )
+        total_b2b = sum(rev for _, rev in b2b_rev)
+        if total_b2b > ZERO:
+            top_name, top_rev = max(b2b_rev, key=lambda t: t[1])
+            top_pct = top_rev / total_b2b * HUNDRED
+            if top_pct > 60:
+                alerts.append(self._alert(
+                    "b2b_client_concentration", "Concentración de cartera B2B",
+                    f"El cliente B2B '{top_name}' representa {top_pct:.1f}% del ingreso B2B "
+                    "de los últimos 6 meses.",
+                    "warning", f"{top_pct:.1f}%", "> 60%",
+                    "Diversifique la cartera B2B para reducir el riesgo de concentración."
+                ))
+
+        # 10. Saldos B2B vencidos (cartera de contratos a crédito)
+        overdue_count, overdue_amount = await self._b2b_overdue_balance(today)
+        if overdue_count > 0:
+            alerts.append(self._alert(
+                "b2b_overdue_balance", "Saldos B2B vencidos",
+                f"Hay {overdue_count} saldo(s) de contrato B2B vencido(s) "
+                f"por ${overdue_amount:,.0f}.",
+                "warning", f"{overdue_count} (${overdue_amount:,.0f})", "> 0",
+                "Gestione el cobro de los saldos vencidos para proteger el flujo de caja."
+            ))
+
         critical = sum(1 for a in alerts if a["severity"] == "critical")
         warning = sum(1 for a in alerts if a["severity"] == "warning")
         info = sum(1 for a in alerts if a["severity"] == "info")
@@ -236,6 +278,52 @@ class HealthAlertService:
         )
         r = await self.db.execute(stmt)
         return {row[0]: Decimal(str(row[1])) for row in r}
+
+    async def _b2b_expiring_quotations_count(self, today: date) -> int:
+        """Cotizaciones B2B aún abiertas que vencen en los próximos 7 días."""
+        stmt = select(func.count(Quotation.id)).where(
+            Quotation.status.in_([QuotationStatus.SENT, QuotationStatus.NEGOTIATION]),
+            Quotation.valid_until >= today,
+            Quotation.valid_until <= today + relativedelta(days=7),
+        )
+        r = await self.db.execute(stmt)
+        return r.scalar() or 0
+
+    async def _b2b_revenue_by_client(self, start: date, end: date) -> list[tuple[str, Decimal]]:
+        """Ingreso B2B por cliente (contratos entregados en la ventana).
+
+        Agrupa por b2b_client_id (no por legal_name, que NO es único) para que dos
+        clientes homónimos no se fusionen y sobreestimen la concentración. Devuelve
+        (nombre, ingreso) por cliente; el nombre es para el mensaje de la alerta.
+        """
+        from datetime import datetime
+        stmt = (
+            select(B2BClient.legal_name, func.coalesce(func.sum(Contract.total), 0))
+            .join(B2BClient, Contract.b2b_client_id == B2BClient.id)
+            .where(
+                Contract.status == ContractStatus.DELIVERED,
+                Contract.delivered_at >= datetime.combine(start, datetime.min.time()),
+                Contract.delivered_at <= datetime.combine(end, datetime.max.time()),
+            )
+            .group_by(B2BClient.id, B2BClient.legal_name)
+        )
+        r = await self.db.execute(stmt)
+        return [(row[0], Decimal(str(row[1]))) for row in r]
+
+    async def _b2b_overdue_balance(self, today: date) -> tuple[int, Decimal]:
+        """(conteo, monto) de CxC B2B vencidas (saldo a crédito de contratos)."""
+        stmt = select(
+            func.count(AccountsReceivable.id),
+            func.coalesce(func.sum(
+                AccountsReceivable.amount - AccountsReceivable.amount_paid
+            ), 0),
+        ).where(
+            AccountsReceivable.b2b_client_id.isnot(None),
+            AccountsReceivable.is_paid == False,  # noqa: E712
+            AccountsReceivable.due_date < today,
+        )
+        r = (await self.db.execute(stmt)).one()
+        return int(r[0] or 0), Decimal(str(r[1]))
 
     def _alert(
         self, alert_type: str, title: str, message: str,

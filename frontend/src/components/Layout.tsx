@@ -6,6 +6,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useAuthStore } from '../stores/authStore';
 import { useSchoolStore } from '../stores/schoolStore';
+import { useBranchStore } from '../stores/branchStore';
 import { useUserRole, getRoleDisplayName } from '../hooks/useUserRole';
 import { usePermissions } from '../hooks/usePermissions';
 import { usePermissionsRefresh } from '../hooks/usePermissionsRefresh';
@@ -51,6 +52,8 @@ import {
   UserCircle,
   Moon,
   Sun,
+  Briefcase,
+  FileSignature,
 } from 'lucide-react';
 import { useConfigStore } from '../stores/configStore';
 import { useBusinessInfoStore } from '../stores/businessInfoStore';
@@ -82,6 +85,8 @@ const navigation: NavItem[] = [
   { name: 'Encargos', path: '/orders', icon: FileText, permission: 'orders.view', category: 'operations' },
   { name: 'Pedidos Web', path: '/web-orders', icon: Globe, permission: 'orders.view', category: 'operations' },
   { name: 'Cambios/Devoluciones', path: '/sale-changes', icon: RefreshCw, permission: 'changes.view', category: 'operations' },
+  { name: 'Cotizaciones B2B', path: '/b2b/quotations', icon: Briefcase, permission: 'b2b.view', category: 'operations' },
+  { name: 'Contratos B2B', path: '/b2b/contracts', icon: FileSignature, permission: 'b2b.view', category: 'operations' },
   { name: 'Arreglos', path: '/alterations', icon: Scissors, anyPermission: ['alterations.view', 'accounting.view_cash'], category: 'operations' },
   // Finanzas
   { name: 'Panel CFO', path: '/cfo', icon: Gauge, permission: 'accounting.view_cash', category: 'finance' },
@@ -154,6 +159,13 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const { user, logout } = useAuthStore();
   const { currentSchool, availableSchools, loadSchools, selectSchool } = useSchoolStore();
+  const {
+    currentBranch,
+    availableBranches,
+    loadBranches,
+    selectBranch,
+    clearBranch,
+  } = useBranchStore();
   const { isOnline, sidebarCollapsed, toggleSidebar, isDarkMode, toggleDarkMode } = useConfigStore();
   const { info: businessInfo, fetchInfo: fetchBusinessInfo } = useBusinessInfoStore();
   const { role, customRoleName, isSuperuser } = useUserRole();
@@ -162,6 +174,7 @@ export default function Layout({ children }: LayoutProps) {
   usePermissionsRefresh();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [schoolDropdownOpen, setSchoolDropdownOpen] = useState(false);
+  const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
 
   // Warn user before leaving if there are unsaved drafts
@@ -186,8 +199,9 @@ export default function Layout({ children }: LayoutProps) {
   // Load schools and business info on mount
   useEffect(() => {
     loadSchools();
+    loadBranches();
     fetchBusinessInfo();
-  }, [loadSchools, fetchBusinessInfo]);
+  }, [loadSchools, loadBranches, fetchBusinessInfo]);
 
   // Close quick actions dropdown when clicking outside
   useEffect(() => {
@@ -622,6 +636,83 @@ export default function Layout({ children }: LayoutProps) {
 
             {/* Feedback / Reportar */}
             <FeedbackButton />
+
+            {/* Branch selector (v3.1). Filtro OPCIONAL de sucursal física.
+                Visible solo con permiso branches.view y cuando hay más de una
+                sucursal — con una sola (Central hoy) queda oculto: UI idéntica
+                a la actual. "Consolidado" = sin filtro (todas las sucursales). */}
+            {hasPermission('branches.view') && availableBranches.length > 1 && (
+            <div className="relative">
+              <button
+                onClick={() => setBranchDropdownOpen(!branchDropdownOpen)}
+                className="flex items-center gap-2 px-3 py-2 bg-surface-100 hover:bg-surface-200 rounded-lg transition-colors"
+                title="Sucursal para filtrar los datos"
+              >
+                <Building2 className="w-4 h-4 text-brand-600" />
+                <span className="text-xs font-medium text-stone-400 hidden md:inline">Sucursal:</span>
+                <span className="text-sm font-medium text-stone-700 max-w-[120px] md:max-w-[180px] truncate">
+                  {currentBranch?.name || 'Consolidado'}
+                </span>
+                <ChevronDown className={`w-4 h-4 text-stone-500 transition-transform ${branchDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {branchDropdownOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setBranchDropdownOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-lg border border-stone-200 py-1 z-20">
+                    <div className="px-4 py-2 border-b border-stone-100 bg-stone-50">
+                      <p className="text-xs font-medium text-stone-500 uppercase tracking-wide">
+                        Sucursal
+                      </p>
+                      <p className="text-xs text-stone-400 mt-0.5">
+                        Filtra ventas, encargos y reportes por sede
+                      </p>
+                    </div>
+                    {/* Consolidado = sin filtro (todas las sucursales) */}
+                    <button
+                      onClick={() => {
+                        clearBranch();
+                        setBranchDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-4 py-2.5 text-sm hover:bg-surface-100 transition-colors ${
+                        !currentBranch ? 'bg-brand-50 text-brand-700 font-medium' : 'text-stone-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="font-medium">Consolidado (todas)</div>
+                        {!currentBranch && <span className="text-brand-600 text-xs">✓ Activo</span>}
+                      </div>
+                    </button>
+                    {availableBranches.map((branch) => (
+                      <button
+                        key={branch.id}
+                        onClick={() => {
+                          selectBranch(branch);
+                          setBranchDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-4 py-2.5 text-sm hover:bg-surface-100 transition-colors ${
+                          currentBranch?.id === branch.id ? 'bg-brand-50 text-brand-700 font-medium' : 'text-stone-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-medium">{branch.name}</div>
+                            <div className="text-xs text-stone-500">{branch.code}</div>
+                          </div>
+                          {currentBranch?.id === branch.id && (
+                            <span className="text-brand-600 text-xs">✓ Activo</span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+            )}
 
             {/* School chip: the default school for NEW records. Shown only on
                 create-relevant pages and only when there's more than one school

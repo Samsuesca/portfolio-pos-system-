@@ -343,6 +343,7 @@ export default function PayrollPage() {
 
   const handleApprovePayroll = async () => {
     if (!selectedPayroll) return;
+    if (!window.confirm('Al aprobar esta liquidación se creará un gasto en contabilidad y ya no podrá editarse. ¿Confirmas?')) return;
     try {
       setSubmitting(true);
       setModalError(null);
@@ -359,6 +360,7 @@ export default function PayrollPage() {
 
   const handlePayPayroll = async () => {
     if (!selectedPayroll) return;
+    if (!window.confirm(`Vas a pagar ${formatCurrency(selectedPayroll.total_net)} en nómina. Esto descuenta el efectivo de Caja/Banco y no se puede deshacer. ¿Confirmas?`)) return;
     try {
       setSubmitting(true);
       setModalError(null);
@@ -390,6 +392,10 @@ export default function PayrollPage() {
 
   const handlePayItem = async (itemId: string) => {
     if (!selectedPayroll) return;
+    const item = selectedPayroll.items?.find((i) => i.id === itemId);
+    const who = item?.employee_name ? ` a ${item.employee_name}` : '';
+    const howMuch = item ? formatCurrency(item.net_amount) : 'este pago';
+    if (!window.confirm(`Vas a pagar ${howMuch}${who}. Esto descuenta el efectivo de Caja/Banco. ¿Confirmas?`)) return;
     try {
       await payrollService.payItem(selectedPayroll.id, itemId, { payment_method: 'cash' });
       const detail = await payrollService.getById(selectedPayroll.id);

@@ -62,6 +62,13 @@ class Sale(Base):
         nullable=False,
         index=True
     )
+    # Sucursal física (v3.1). NULL = consolidado (comportamiento previo al retrofit).
+    branch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("branches.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
 
     code: Mapped[str] = mapped_column(String(40), nullable=False)  # Auto-generated: {SCHOOL}-VNT-YYYY-NNNN
     client_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -109,6 +116,7 @@ class Sale(Base):
 
     # Relationships
     school: Mapped["School"] = relationship(back_populates="sales")
+    branch: Mapped["Branch | None"] = relationship()
     client: Mapped["Client | None"] = relationship(back_populates="sales")
     user: Mapped["User"] = relationship()
     items: Mapped[list["SaleItem"]] = relationship(

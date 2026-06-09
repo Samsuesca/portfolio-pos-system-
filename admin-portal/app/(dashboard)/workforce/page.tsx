@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { AlertCircle } from 'lucide-react';
 import { RequirePermission } from '@/components/RequirePermission';
 import workforceService, {
   DailyAttendanceSummary,
@@ -11,19 +12,28 @@ import workforceService, {
 export default function WorkforcePage() {
   const [summary, setSummary] = useState<DailyAttendanceSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const loadSummary = async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const data = await workforceService.getDailyAttendanceSummary();
+      setSummary(data);
+    } catch (err) {
+      setLoadError(
+        err instanceof Error
+          ? err.message
+          : 'No se pudo cargar el resumen de asistencia de hoy.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const data = await workforceService.getDailyAttendanceSummary();
-        setSummary(data);
-      } catch {
-        // Silently fail - module may not have data yet
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
+    loadSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const cards = [
@@ -75,10 +85,23 @@ export default function WorkforcePage() {
       </div>
 
       {/* Today's Attendance Summary */}
+      {loadError && !loading && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start gap-2">
+          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+          <div className="text-sm text-red-700 flex-1">{loadError}</div>
+          <button
+            onClick={() => loadSummary()}
+            className="text-sm text-red-700 underline hover:text-red-800"
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
+
       {summary && !loading && (
         <div className="bg-white rounded-lg border border-slate-200 p-6">
           <h2 className="text-lg font-semibold text-slate-900 mb-4">
-            Asistencia Hoy - {new Date(summary.date).toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}
+            Asistencia Hoy - {new Date(`${summary.date}T12:00:00`).toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Bogota' })}
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div className="text-center">

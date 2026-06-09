@@ -3,7 +3,7 @@
  *
  * Sub-navigation: KPIs | Rentabilidad | Tendencias | Presupuesto | Proyección | Alertas | Resumen
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import {
   BarChart3, TrendingUp, Target, LineChart, AlertTriangle, FileText, Building2,
   Loader2, AlertCircle, RefreshCw, Sparkles
@@ -16,13 +16,17 @@ import type {
 } from '../../../services/financialModelService';
 
 import KPIDashboard from './KPIDashboard';
-import ProfitabilityPanel from './ProfitabilityPanel';
-import TrendsPanel from './TrendsPanel';
-import BudgetPanel from './BudgetPanel';
-import CashForecastPanel from './CashForecastPanel';
 import AlertsPanel from './AlertsPanel';
 import ExecutiveSummaryPanel from './ExecutiveSummaryPanel';
-import ProjectionsPanel from './projections/ProjectionsPanel';
+
+// Paneles con Recharts (y el de escenarios): lazy para sacar la librería de
+// gráficas del bundle inicial del tab; el usuario aterriza en "Indicadores",
+// que no usa Recharts.
+const ProfitabilityPanel = lazy(() => import('./ProfitabilityPanel'));
+const TrendsPanel = lazy(() => import('./TrendsPanel'));
+const BudgetPanel = lazy(() => import('./BudgetPanel'));
+const CashForecastPanel = lazy(() => import('./CashForecastPanel'));
+const ProjectionsPanel = lazy(() => import('./projections/ProjectionsPanel'));
 
 type SubTab = 'kpis' | 'profitability' | 'trends' | 'budget' | 'forecast' | 'projections' | 'alerts' | 'summary';
 
@@ -99,8 +103,8 @@ export default function FinancialModelTab() {
           setSummaryData(await financialModelService.getExecutiveSummary());
           break;
       }
-    } catch (err: any) {
-      const detail = err.response?.data?.detail;
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: unknown } } }).response?.data?.detail;
       setError(typeof detail === 'string' ? detail : 'Error al cargar datos del modelo financiero');
     } finally {
       setLoading(false);
@@ -179,27 +183,36 @@ export default function FinancialModelTab() {
         </div>
       )}
 
-      {/* Tab content */}
-      {!loading && !error && (
-        <>
-          {activeSubTab === 'kpis' && <KPIDashboard data={kpiData} />}
-          {activeSubTab === 'profitability' && <ProfitabilityPanel data={profitabilityData} />}
-          {activeSubTab === 'trends' && <TrendsPanel data={trendsData} />}
-          {activeSubTab === 'budget' && (
-            <BudgetPanel
-              budgetVsActual={budgetVsActual}
-              budgets={budgets}
-              onRefresh={() => loadTabData('budget')}
-            />
-          )}
-          {activeSubTab === 'forecast' && <CashForecastPanel data={forecastData} />}
-          {activeSubTab === 'alerts' && <AlertsPanel data={alertsData} />}
-          {activeSubTab === 'summary' && <ExecutiveSummaryPanel data={summaryData} />}
-        </>
-      )}
+      {/* Tab content. Suspense cubre la carga del chunk de los paneles lazy. */}
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-brand-600 animate-spin" />
+            <span className="ml-3 text-stone-500">Cargando panel...</span>
+          </div>
+        }
+      >
+        {!loading && !error && (
+          <>
+            {activeSubTab === 'kpis' && <KPIDashboard data={kpiData} />}
+            {activeSubTab === 'profitability' && <ProfitabilityPanel data={profitabilityData} />}
+            {activeSubTab === 'trends' && <TrendsPanel data={trendsData} />}
+            {activeSubTab === 'budget' && (
+              <BudgetPanel
+                budgetVsActual={budgetVsActual}
+                budgets={budgets}
+                onRefresh={() => loadTabData('budget')}
+              />
+            )}
+            {activeSubTab === 'forecast' && <CashForecastPanel data={forecastData} />}
+            {activeSubTab === 'alerts' && <AlertsPanel data={alertsData} />}
+            {activeSubTab === 'summary' && <ExecutiveSummaryPanel data={summaryData} />}
+          </>
+        )}
 
-      {/* Projections panel manages its own loading/error state */}
-      {activeSubTab === 'projections' && <ProjectionsPanel />}
+        {/* Projections panel manages its own loading/error state */}
+        {activeSubTab === 'projections' && <ProjectionsPanel />}
+      </Suspense>
     </div>
   );
 }

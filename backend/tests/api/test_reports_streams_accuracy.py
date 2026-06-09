@@ -144,13 +144,13 @@ class TestStreamsSummaryInvariants:
         assert float(streams["sales"]["revenue"]) >= 100000.0
         assert float(streams["orders"]["revenue"]) >= 70000.0
 
-    async def test_b2b_stub_returns_zero_with_note(
+    async def test_b2b_stream_zero_when_no_contracts(
         self,
         api_client,
         superuser_headers,
     ):
-        # Explicitly request the b2b_contracts stream — should return zero
-        # with the not_yet_implemented note (no exception).
+        # El stream b2b_contracts ya está implementado (Fase B4): sin contratos
+        # entregados devuelve cero (sin nota de stub), no una excepción.
         response = await api_client.get(
             f"{BASE}/streams-summary?streams=b2b_contracts",
             headers=superuser_headers,
@@ -158,9 +158,11 @@ class TestStreamsSummaryInvariants:
         data = assert_success_response(response)
 
         b2b = data["streams"].get("b2b_contracts")
-        assert b2b is not None, "B2B stub missing from response"
+        assert b2b is not None, "B2B stream missing from response"
         assert float(b2b["revenue"]) == 0.0
-        assert b2b.get("note") == "not_yet_implemented"
+        assert b2b["count"] == 0
+        # Ya no es un stub: sin filtro de colegio no lleva la nota antigua.
+        assert b2b.get("note") != "not_yet_implemented"
 
 
 class TestStreamsBySchoolBreakdown:

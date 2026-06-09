@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.utils.timezone import get_colombia_now_naive
 from app.models.order import Order, OrderItem, OrderStatus, OrderItemStatus
+from app.db.session import defer_after_commit
 
 logger = logging.getLogger(__name__)
 
@@ -71,18 +72,20 @@ class OrderStatusMixin:
             notification_service = NotificationService(self.db)
             await notification_service.notify_order_status_changed(order, old_status, new_status.value)
 
-        # === CLIENT NOTIFICATION (Email + WhatsApp) ===
+        # === CLIENT NOTIFICATION (Email + WhatsApp) — WS2: after-commit ===
+        # Irreversible: se difiere para que SOLO salga si la transacción commitea.
         new_status_str = new_status.value if hasattr(new_status, 'value') else str(new_status)
         if order and old_status and old_status != new_status_str:
             if new_status == OrderStatus.READY:
-                # Use dedicated "order ready" email with pickup instructions
-                await self._send_order_ready_notification(order)
+                defer_after_commit(self.db, lambda o=order: self._send_order_ready_notification(o))
             else:
-                # Use generic status update notification for other transitions
-                await self._send_order_status_update_notification(
-                    order=order,
-                    old_status_label=STATUS_LABELS.get(old_status, old_status),
-                    new_status_label=STATUS_LABELS.get(new_status_str, new_status_str),
+                old_lbl = STATUS_LABELS.get(old_status, old_status)
+                new_lbl = STATUS_LABELS.get(new_status_str, new_status_str)
+                defer_after_commit(
+                    self.db,
+                    lambda o=order, ol=old_lbl, nl=new_lbl: self._send_order_status_update_notification(
+                        order=o, old_status_label=ol, new_status_label=nl,
+                    ),
                 )
 
         # === TELEGRAM ALERT ===
@@ -185,11 +188,15 @@ class OrderStatusMixin:
             # Get the order for notification
             order = await self.get(order_id, school_id)
             if order:
-                await self._send_order_status_update_notification(
-                    order=order,
-                    changed_item_name=changed_item_name,
-                    old_status_label=STATUS_LABELS.get(old_item_status, old_item_status),
-                    new_status_label=STATUS_LABELS.get(new_status_str, new_status_str),
+                old_lbl = STATUS_LABELS.get(old_item_status, old_item_status)
+                new_lbl = STATUS_LABELS.get(new_status_str, new_status_str)
+                defer_after_commit(  # WS2: after-commit
+                    self.db,
+                    lambda o=order, cn=changed_item_name, ol=old_lbl, nl=new_lbl:
+                    self._send_order_status_update_notification(
+                        order=o, changed_item_name=cn,
+                        old_status_label=ol, new_status_label=nl,
+                    ),
                 )
 
         await self.db.refresh(item)
@@ -257,7 +264,9 @@ class OrderStatusMixin:
 
             # Client notification: if order synced to READY, send dedicated ready email
             if order.status == OrderStatus.READY:
-                await self._send_order_ready_notification(order)
+                defer_after_commit(  # WS2: after-commit
+                    self.db, lambda o=order: self._send_order_ready_notification(o)
+                )
                 synced_to_ready = True
 
         return synced_to_ready
@@ -328,20 +337,26 @@ class OrderStatusMixin:
         product_school_id = product.school_id if product else item.school_id
 
         inv_service = InventoryService(self.db)
+        reserved_qty = item.quantity_reserved
         try:
             await inv_service.consume_reserved_stock(
                 product_id=item.product_id,
                 school_id=product_school_id,
-                quantity=item.quantity_reserved,
+                quantity=reserved_qty,
                 movement_type=InventoryMovementType.ORDER_DELIVER,
                 reference=f"DEL-{item.order_id}",
                 order_id=item.order_id,
                 created_by=user_id,
             )
-            item.quantity_reserved = 0
-            await self.db.flush()
         except Exception as e:
             logger.error(
                 f"Failed to consume reserved stock for item {item.id} "
-                f"(product {item.product_id}, qty {item.quantity_reserved}): {e}"
+                f"(product {item.product_id}, qty {reserved_qty}): {e}"
             )
+        finally:
+            # WS4 (invariante I3): un item terminal NUNCA conserva reserva,
+            # aunque el consumo de inventario falle. El campo del item es la
+            # verdad per-linea; la reconciliacion/checker re-deriva inventory.
+            item.quantity_reserved = 0
+            item.reserved_from_stock = False
+            await self.db.flush()

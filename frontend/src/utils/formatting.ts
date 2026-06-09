@@ -32,6 +32,20 @@ export function formatCurrency(amount: number | null | undefined, showDecimals: 
 }
 
 /**
+ * Format a number as compact Colombian Pesos for tight spaces (chart axes,
+ * stat cards): "$11.2M", "-$45.0M", "$250K". Falls back to full
+ * `formatCurrency` under 1.000. Guards null/undefined/NaN -> "$0".
+ */
+export function formatCompactCurrency(amount: number | null | undefined): string {
+  if (amount === null || amount === undefined || isNaN(amount)) return '$0';
+  const sign = amount < 0 ? '-' : '';
+  const abs = Math.abs(amount);
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(0)}K`;
+  return formatCurrency(amount);
+}
+
+/**
  * Format a date in Spanish format (Colombia timezone)
  * @param date - Date string or Date object
  * @returns Formatted date like "15 de enero de 2024"
@@ -72,10 +86,14 @@ export function getColombiaDateString(): string {
 }
 
 /**
- * Get current datetime in Colombia timezone
- * @returns Date object adjusted to Colombia time
+ * Get the current instant.
+ *
+ * El instante es independiente de la zona horaria: ``new Date()`` ya representa
+ * "ahora". El ajuste a Colombia se hace en el momento de FORMATEAR (los callers
+ * usan ``toLocaleDateString(..., { timeZone: 'America/Bogota' })``). El patrón
+ * anterior (re-parsear el string localizado) corrompía el epoch en entornos
+ * que no estuvieran en UTC-5 (p. ej. CI corre en UTC → quedaba 5h atrás).
  */
 export function getColombiaNow(): Date {
-  const now = new Date();
-  return new Date(now.toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+  return new Date();
 }

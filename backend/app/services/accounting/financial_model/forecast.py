@@ -8,9 +8,10 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.accounting import (
-    Transaction, TransactionType, Expense, BalanceAccount, AccountType,
+    Transaction, TransactionType, Expense,
     AccountsReceivable, AccountsPayable, DebtPaymentSchedule, DebtPaymentStatus
 )
+from app.services.accounting.financial_model._cash import current_cash_balance
 from app.utils.timezone import get_colombia_date
 
 ZERO = Decimal("0")
@@ -135,12 +136,7 @@ class CashForecastService:
         }
 
     async def _get_current_cash(self) -> Decimal:
-        stmt = select(func.coalesce(func.sum(BalanceAccount.balance), 0)).where(
-            BalanceAccount.account_type == AccountType.ASSET_CURRENT,
-            BalanceAccount.is_active == True,
-        )
-        r = await self.db.execute(stmt)
-        return Decimal(str(r.scalar()))
+        return await current_cash_balance(self.db)
 
     async def _avg_weekly_income(self, weeks: int) -> Decimal:
         today = get_colombia_date()

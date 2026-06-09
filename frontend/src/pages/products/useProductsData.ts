@@ -34,9 +34,9 @@ export function useProductsData() {
   const [activeTab, setActiveTab] = useState<TabType>('school');
 
   // View mode: dense table vs catalog grid (mirrors the web storefront).
-  // Grid loads the full catalog (limit 500) with images so groups are complete.
+  // Grid loads the FULL catalog (every page) with images so the garment-type
+  // groups are complete — a capped page would silently drop whole groups.
   const [viewMode, setViewMode] = useState<ViewMode>('table');
-  const GRID_LIMIT = 500;
 
   // School products state
   const [products, setProducts] = useState<Product[]>([]);
@@ -74,6 +74,11 @@ export function useProductsData() {
   // Per-school catalog order (garment-type card order, issue #8)
   const [catalogOrder, setCatalogOrder] = useState<CatalogOrderEntry[]>([]);
 
+  // The displayed school's visible (non-excluded) global types, loaded for the
+  // single-school grid so globals (Tennis/Jean/Medias) can be reordered alongside
+  // the school's own garments and positioned on the public web (issue #8).
+  const [schoolVisibleGlobals, setSchoolVisibleGlobals] = useState<Product[]>([]);
+
   // Derived values
   const schoolIdForCreate = schoolFilter || currentSchool?.id || availableSchools[0]?.id || '';
   const isSuperuser = user?.is_superuser || false;
@@ -82,6 +87,17 @@ export function useProductsData() {
   const canManageGlobalGarmentTypes = isSuperuser || hasPermission('garment_types.manage_global');
   const canManageGarmentTypes = isSuperuser || hasPermission('settings.manage_garment_types') || canManageProducts;
   const canReorderCatalog = isSuperuser || hasPermission('catalog.reorder');
+
+  // The school whose catalog is actually on screen — the one whose order we load
+  // and save. A concrete school filter wins; otherwise, only if every loaded
+  // product belongs to a single school. Null when several schools are shown, which
+  // disables reorder. This is what prevents saving the order to the wrong school
+  // (schoolIdForCreate's fallback chain could point at a different school).
+  const reorderSchoolId = useMemo<string | null>(() => {
+    if (schoolFilter) return schoolFilter;
+    const ids = new Set(products.map((p) => p.school_id).filter(Boolean) as string[]);
+    return ids.size === 1 ? [...ids][0] : null;
+  }, [schoolFilter, products]);
 
   // Debounce search term
   useEffect(() => {
@@ -145,15 +161,34 @@ export function useProductsData() {
         setLoading(true);
       }
       setError(null);
+
+      if (isGrid) {
+        // The catalog grid groups by garment type, so it needs the COMPLETE
+        // catalog — a capped/sorted page would silently drop whole groups
+        // (e.g. types whose variants sort past the cap). Product order is
+        // deliberately NOT applied here: the grid orders cards by garment type
+        // and the persisted catalog order, so per-product sorting is irrelevant.
+        const items = await productService.getAllProductsComplete({
+          school_id: schoolFilter || undefined,
+          search: debouncedSearch || undefined,
+          garment_type_id: garmentTypeFilter || undefined,
+          with_stock: true,
+          with_images: true,
+        });
+        setProducts(items);
+        setTotalProductsCount(items.length);
+        setHasMoreProducts(false);
+        return;
+      }
+
       const skip = effectiveAppend ? products.length : 0;
       const data = await productService.getAllProducts({
         school_id: schoolFilter || undefined,
         search: debouncedSearch || undefined,
         garment_type_id: garmentTypeFilter || undefined,
         with_stock: true,
-        with_images: isGrid || undefined,
         skip,
-        limit: isGrid ? GRID_LIMIT : PRODUCTS_LIMIT,
+        limit: PRODUCTS_LIMIT,
         // Server-side sort over the full catalog. `pending_orders` is derived
         // and not SQL-sortable, so it's left to the client fallback below.
         sort_by: sortConfig.field === 'pending_orders' ? undefined : sortConfig.field,
@@ -165,7 +200,7 @@ export function useProductsData() {
         setProducts(data.items);
         setTotalProductsCount(data.total);
       }
-      setHasMoreProducts(isGrid ? false : data.has_more);
+      setHasMoreProducts(data.has_more);
     } catch (err: unknown) {
       console.error('Error loading products:', err);
       setError(extractErrorMessage(err));
@@ -178,15 +213,16 @@ export function useProductsData() {
   const loadGlobalProducts = async (withImages = false) => {
     try {
       setLoadingGlobal(true);
-      const [result, statsResult] = await Promise.all([
-        // Grid mode needs garment-type images so the cards show photos.
-        productService.getGlobalProducts(true, GRID_LIMIT, withImages),
+      const [items, statsResult] = await Promise.all([
+        // The global tab (grid & table) needs the complete catalog so grouping
+        // and stock are correct regardless of size. Grid mode also needs images.
+        productService.getGlobalProductsComplete(withImages),
         productService.getGlobalProductsStats().catch(err => {
           console.error('Error loading global products stats:', err);
           return null;
         }),
       ]);
-      setGlobalProducts(result.items);
+      setGlobalProducts(items);
       if (statsResult) setServerStats(statsResult);
     } catch (err: unknown) {
       console.error('Error loading global products:', err);
@@ -213,14 +249,16 @@ export function useProductsData() {
 
   const loadGarmentTypes = useCallback(async () => {
     try {
-      const result = await productService.getAllGarmentTypes({
+      // Load EVERY type (all pages): the grid grouping drops any product whose
+      // garment type isn't present, and the tree/filter dropdown need them all.
+      const items = await productService.getAllGarmentTypesComplete({
         school_id: schoolFilter || undefined,
         // The catalog tree is a management surface — load inactive types too so
         // the status filter is meaningful, with stats for the tree rows.
         active_only: false,
         with_stats: true,
       });
-      setGarmentTypes(result.items);
+      setGarmentTypes(items);
     } catch (err: unknown) {
       console.error('Error loading garment types:', err);
     }
@@ -228,8 +266,8 @@ export function useProductsData() {
 
   const loadGlobalGarmentTypes = useCallback(async () => {
     try {
-      const result = await productService.getGlobalGarmentTypes(false);
-      setGlobalGarmentTypes(result.items);
+      const items = await productService.getGlobalGarmentTypesComplete(false);
+      setGlobalGarmentTypes(items);
     } catch (err: unknown) {
       console.error('Error loading global garment types:', err);
     }
@@ -237,7 +275,7 @@ export function useProductsData() {
 
   // Per-school catalog order (issue #8). Loaded for the school in context so the
   // grid can sort garment-type cards by it and the reorder UI starts from it.
-  const loadCatalogOrder = useCallback(async (schoolId: string) => {
+  const loadCatalogOrder = useCallback(async (schoolId: string | null) => {
     if (!schoolId) {
       setCatalogOrder([]);
       return;
@@ -250,25 +288,45 @@ export function useProductsData() {
     }
   }, []);
 
-  // Persist a new garment-type card order for the school in context (optimistic).
+  // Persist a new garment-type card order for the displayed school (optimistic).
+  // Re-throws on failure so the grid can reset its local order and show inline
+  // feedback instead of silently snapping back.
   const reorderCatalog = useCallback(async (garmentTypeIds: string[]) => {
-    if (!schoolIdForCreate) return;
+    if (!reorderSchoolId) return;
     const previous = catalogOrder;
     setCatalogOrder(garmentTypeIds.map((id, i) => ({ garment_type_id: id, display_order: i })));
     try {
-      const saved = await productService.reorderCatalog(schoolIdForCreate, garmentTypeIds);
+      const saved = await productService.reorderCatalog(reorderSchoolId, garmentTypeIds);
       setCatalogOrder(saved);
     } catch (err: unknown) {
       console.error('Error saving catalog order:', err);
       setCatalogOrder(previous);
-      setError(extractErrorMessage(err));
+      throw err; // the grid surfaces this inline; avoid a duplicate global banner
     }
-  }, [schoolIdForCreate, catalogOrder]);
+  }, [reorderSchoolId, catalogOrder]);
 
-  // Reload the catalog order whenever the school in context changes.
+  // Reload the catalog order whenever the displayed school changes.
   useEffect(() => {
-    loadCatalogOrder(schoolIdForCreate);
-  }, [schoolIdForCreate, loadCatalogOrder]);
+    loadCatalogOrder(reorderSchoolId);
+  }, [reorderSchoolId, loadCatalogOrder]);
+
+  // Load the displayed school's visible globals (with images) for the grid only —
+  // they become reorderable cards there. Cleared when not in a single-school grid.
+  useEffect(() => {
+    if (activeTab !== 'school' || viewMode !== 'grid' || !reorderSchoolId) {
+      setSchoolVisibleGlobals([]);
+      return;
+    }
+    let cancelled = false;
+    productService
+      .getGlobalProductsComplete(true, reorderSchoolId)
+      .then((items) => { if (!cancelled) setSchoolVisibleGlobals(items); })
+      .catch((err: unknown) => {
+        console.error('Error loading school-visible globals:', err);
+        if (!cancelled) setSchoolVisibleGlobals([]);
+      });
+    return () => { cancelled = true; };
+  }, [activeTab, viewMode, reorderSchoolId]);
 
   // Sorting handler
   const handleSort = useCallback((field: SortField) => {
@@ -454,6 +512,7 @@ export function useProductsData() {
     stats,
     hasActiveFilters,
     catalogOrder,
+    schoolVisibleGlobals,
 
     // Derived permissions / values
     schoolIdForCreate,
@@ -463,6 +522,7 @@ export function useProductsData() {
     canManageGlobalGarmentTypes,
     canManageGarmentTypes,
     canReorderCatalog,
+    reorderSchoolId,
     canViewCosts,
     canEditCosts,
     currentSchool,

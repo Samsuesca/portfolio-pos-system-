@@ -39,6 +39,46 @@ class AlterationService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    @staticmethod
+    def _fire_alert(alert_type: str, message: str) -> None:
+        """Fan out a best-effort Telegram alert.
+
+        Alterations are a global module (no school), so school_id is omitted —
+        routing reaches every subscriber of ``alert_type``. Non-blocking: a
+        Telegram failure never affects the alteration operation.
+        """
+        from app.services.telegram import fire_and_forget_routed_alert
+
+        fire_and_forget_routed_alert(alert_type, message)
+
+    def _notify_if_delivered(
+        self, alteration: Alteration | None, was_delivered: bool
+    ) -> None:
+        """Fire ``alteration_delivered`` only on the first transition into DELIVERED.
+
+        ``was_delivered`` is the status captured before the mutation; this guards
+        against re-firing when an already-delivered alteration is edited again.
+        """
+        if (
+            alteration is None
+            or was_delivered
+            or alteration.status != AlterationStatus.DELIVERED
+        ):
+            return
+        try:
+            from app.services.telegram_messages import TelegramMessageBuilder
+
+            self._fire_alert(
+                "alteration_delivered",
+                TelegramMessageBuilder.alteration_delivered(
+                    code=alteration.code,
+                    garment_name=alteration.garment_name,
+                    client_name=alteration.client_display_name or None,
+                ),
+            )
+        except Exception as e:
+            logger.error("Telegram alteration_delivered alert failed: %s", e)
+
     # ============================================
     # Code Generation
     # ============================================
@@ -130,7 +170,26 @@ class AlterationService:
             )
 
         # Re-fetch with client preloaded to avoid lazy-loading errors
-        return await self.get(alteration.id)  # type: ignore
+        created = await self.get(alteration.id)
+
+        if created:
+            try:
+                from app.services.telegram_messages import TelegramMessageBuilder
+
+                self._fire_alert(
+                    "alteration_received",
+                    TelegramMessageBuilder.alteration_received(
+                        code=created.code,
+                        garment_name=created.garment_name,
+                        cost=created.cost,
+                        client_name=created.client_display_name or None,
+                        alteration_type=created.alteration_type.value,
+                    ),
+                )
+            except Exception as e:
+                logger.error("Telegram alteration_received alert failed: %s", e)
+
+        return created  # type: ignore
 
     async def get(self, alteration_id: UUID) -> Alteration | None:
         """Get alteration by ID with client preloaded."""
@@ -181,6 +240,8 @@ class AlterationService:
         if not alteration:
             return None
 
+        was_delivered = alteration.status == AlterationStatus.DELIVERED
+
         # Get non-None fields from update data
         update_data = data.model_dump(exclude_unset=True)
 
@@ -200,7 +261,11 @@ class AlterationService:
         await self.db.flush()
 
         # Re-fetch with client preloaded
-        return await self.get(alteration_id)
+        updated = await self.get(alteration_id)
+
+        self._notify_if_delivered(updated, was_delivered)
+
+        return updated
 
     async def update_status(
         self,
@@ -216,6 +281,7 @@ class AlterationService:
         if not alteration:
             return None
 
+        was_delivered = alteration.status == AlterationStatus.DELIVERED
         alteration.status = new_status
 
         if new_status == AlterationStatus.DELIVERED:
@@ -230,7 +296,11 @@ class AlterationService:
         await self.db.flush()
 
         # Re-fetch with client preloaded
-        return await self.get(alteration_id)
+        updated = await self.get(alteration_id)
+
+        self._notify_if_delivered(updated, was_delivered)
+
+        return updated
 
     async def cancel(self, alteration_id: UUID) -> Alteration | None:
         """
@@ -345,6 +415,22 @@ class AlterationService:
         alteration.amount_paid += data.amount
         await self.db.flush()
         await self.db.refresh(payment)
+
+        try:
+            from app.services.telegram_messages import TelegramMessageBuilder
+
+            self._fire_alert(
+                "alteration_payment",
+                TelegramMessageBuilder.alteration_payment(
+                    code=alteration.code,
+                    amount=data.amount,
+                    balance=alteration.balance,
+                    payment_method=data.payment_method,
+                    client_name=alteration.client_display_name or None,
+                ),
+            )
+        except Exception as e:
+            logger.error("Telegram alteration_payment alert failed: %s", e)
 
         return payment
 

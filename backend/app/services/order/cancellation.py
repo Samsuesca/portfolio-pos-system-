@@ -52,6 +52,7 @@ class OrderCancellationMixin:
         for item in order.items:
             if item.reserved_from_stock and item.quantity_reserved > 0:
                 if item.item_status not in [OrderItemStatus.DELIVERED, OrderItemStatus.CANCELLED]:
+                    reserved_qty = item.quantity_reserved
                     try:
                         product_result = await self.db.execute(
                             select(Product).where(Product.id == item.product_id)
@@ -62,16 +63,19 @@ class OrderCancellationMixin:
                         await inventory_service.release_stock(
                             product_id=item.product_id,
                             school_id=product_school_id,
-                            quantity=item.quantity_reserved,
+                            quantity=reserved_qty,
                             movement_type=InventoryMovementType.ORDER_CANCEL,
                             reference=order.code,
                             order_id=order.id,
                             created_by=user_id,
                         )
-                        logger.info(f"Released {item.quantity_reserved} units of product {item.product_id} for cancelled order {order.code}")
-                        item.quantity_reserved = 0
+                        logger.info(f"Released {reserved_qty} units of product {item.product_id} for cancelled order {order.code}")
                     except Exception as e:
                         logger.warning(f"Could not release stock for item {item.id}: {e}")
+                    finally:
+                        # WS4 (invariante I3): item cancelado nunca conserva reserva.
+                        item.quantity_reserved = 0
+                        item.reserved_from_stock = False
 
             item.item_status = OrderItemStatus.CANCELLED
             item.status_updated_at = get_colombia_now_naive()

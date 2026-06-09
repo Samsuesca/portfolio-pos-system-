@@ -292,19 +292,23 @@ class AlegraService:
         return None
 
     async def create_item(self, *, name: str, reference: str, price: Decimal,
-                          unspsc: str = DEFAULT_UNSPSC_CODE) -> dict:
+                          unspsc: str = DEFAULT_UNSPSC_CODE,
+                          tax_ids: list[int] | None = None) -> dict:
         body = {
             "name": name[:200],
             "reference": reference,
             "price": float(price),
             "productKey": unspsc,
             "inventory": {"unit": "unit"},
-            "tax": [],
+            # Uniforme escolar: excluido (tax vacío). Dotación corporativa B2B:
+            # grava IVA 19% → tax_ids con el id del impuesto en Alegra.
+            "tax": [{"id": t} for t in tax_ids] if tax_ids else [],
         }
         return await self._request("POST", "/items", json_body=body)
 
     async def _resolve_item(self, *, reference: str, name: str, price: Decimal,
-                            unspsc: str = DEFAULT_UNSPSC_CODE) -> int:
+                            unspsc: str = DEFAULT_UNSPSC_CODE,
+                            tax_ids: list[int] | None = None) -> int:
         """Find-or-create item en Alegra por reference. Retorna su id (int)."""
         existing = await self.find_item_by_reference(reference)
         if existing:
@@ -312,7 +316,7 @@ class AlegraService:
             logger.debug("Alegra item reused: id=%s ref=%s", item_id, reference)
             return item_id
         created = await self.create_item(
-            name=name, reference=reference, price=price, unspsc=unspsc
+            name=name, reference=reference, price=price, unspsc=unspsc, tax_ids=tax_ids
         )
         item_id = int(created["id"])
         logger.debug("Alegra item created: id=%s ref=%s", item_id, reference)
@@ -500,6 +504,84 @@ class AlegraService:
     async def emit_invoice_for_alteration(self, alteration: Alteration) -> dict:
         payload = await self._build_alteration_payload(alteration)
         return await self._emit(payload, label=f"arreglo {alteration.code}")
+
+    # ─── B2B (contratos: dotación corporativa, grava IVA) ────────────
+
+    async def resolve_b2b_contact(self, b2b_client: Any) -> int:
+        """Find-or-create contact (empresa) en Alegra por NIT. Retorna id (int)."""
+        identification = (getattr(b2b_client, "tax_id", None) or "").strip() \
+            or FINAL_CONSUMER_IDENTIFICATION
+        name = (
+            getattr(b2b_client, "legal_name", None)
+            or getattr(b2b_client, "trade_name", None)
+            or FINAL_CONSUMER_NAME
+        )
+        existing = await self.find_contact_by_identification(identification)
+        if existing:
+            return int(existing["id"])
+        created = await self.create_contact(
+            name=name,
+            identification=identification,
+            id_type="NIT",
+            email=getattr(b2b_client, "contact_email", None),
+            phone=getattr(b2b_client, "contact_phone", None),
+            address=getattr(b2b_client, "billing_address", None),
+        )
+        return int(created["id"])
+
+    async def _build_contract_payload(self, contract: Any) -> dict:
+        contact_id = await self.resolve_b2b_contact(contract.b2b_client)
+
+        quotation = contract.quotation
+        applies_iva = bool(
+            settings.ALEGRA_IVA_19_TAX_ID
+            and quotation is not None
+            and getattr(quotation, "tax_amount", None)
+            and quotation.tax_amount > 0
+        )
+        tax_ids = [int(settings.ALEGRA_IVA_19_TAX_ID)] if applies_iva else None
+
+        items_block: list[dict] = []
+        if quotation is not None and quotation.items:
+            for qi in quotation.items:
+                unit_price = qi.unit_price if qi.unit_price >= 0 else Decimal("0")
+                item_id = await self._resolve_item(
+                    reference=f"B2B-{qi.id}",
+                    name=(qi.description or "Ítem contrato B2B")[:200],
+                    price=unit_price,
+                    tax_ids=tax_ids,
+                )
+                items_block.append({
+                    "id": item_id,
+                    "price": float(unit_price),
+                    "quantity": qi.quantity,
+                })
+        else:
+            # Contrato sin cotización origen: una sola línea por el total.
+            item_id = await self._resolve_item(
+                reference=f"CTR-{contract.id}",
+                name=f"Contrato B2B {contract.contract_number}",
+                price=contract.total,
+                tax_ids=tax_ids,
+            )
+            items_block.append({
+                "id": item_id,
+                "price": float(contract.total),
+                "quantity": 1,
+            })
+
+        annotation = f"Contrato B2B UCR {contract.contract_number}"
+        return self._assemble_payload(
+            contact_id=contact_id,
+            items_block=items_block,
+            payment_form="CASH",
+            payment_method="CASH",
+            annotation=annotation,
+        )
+
+    async def emit_invoice_for_contract(self, contract: Any) -> dict:
+        payload = await self._build_contract_payload(contract)
+        return await self._emit(payload, label=f"contrato {contract.contract_number}")
 
     # Compat con el script de prototipo.
     async def emit_invoice(self, sale: Sale) -> dict:

@@ -84,10 +84,15 @@ import type {
 
 // Stores
 import { useSchoolStore } from '../stores/schoolStore';
+import { useCurrentBranchId } from '../stores/branchStore';
 
 export default function Reports() {
   const { availableSchools, loadSchools } = useSchoolStore();
   const { hasPermission } = usePermissions();
+  // Sucursal seleccionada (v3.1). null = consolidado ⇒ no se filtra (igual que
+  // hoy). Solo afecta a los reportes cuyos endpoints ya aceptan branch_id:
+  // Resumen 360 (streams) y Encargos.
+  const currentBranchId = useCurrentBranchId();
 
   // Core state
   const [loading, setLoading] = useState(true);
@@ -411,8 +416,13 @@ export default function Reports() {
       setOverviewLoading(true);
       setOverviewError(null);
 
+      // streams-by-school agrupa por colegio y el backend no acepta branch_id
+      // ahí — solo el summary se filtra por sucursal.
       const [summary, bySchool] = await Promise.all([
-        reportsService.getStreamsSummary(activeFilters, overviewBasis),
+        reportsService.getStreamsSummary(
+          { ...activeFilters, branchId: currentBranchId || undefined },
+          overviewBasis,
+        ),
         reportsService.getStreamsBreakdownBySchool(activeFilters, overviewBasis),
       ]);
       setOverviewSummary(summary);
@@ -424,7 +434,7 @@ export default function Reports() {
     } finally {
       setOverviewLoading(false);
     }
-  }, [activeFilters, overviewBasis]);
+  }, [activeFilters, overviewBasis, currentBranchId]);
 
   const loadOrdersReport = useCallback(async () => {
     try {
@@ -434,6 +444,7 @@ export default function Reports() {
       const filters = {
         ...activeFilters,
         schoolId: ordersSchoolFilter || undefined,
+        branchId: currentBranchId || undefined,
       };
 
       const [summary, funnel, onTime, topProducts, topClients] = await Promise.all([
@@ -456,7 +467,7 @@ export default function Reports() {
     } finally {
       setOrdersLoading(false);
     }
-  }, [activeFilters, ordersSchoolFilter]);
+  }, [activeFilters, ordersSchoolFilter, currentBranchId]);
 
   // ============= EFFECTS =============
 

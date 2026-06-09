@@ -137,95 +137,11 @@ async def test_approve_payroll_only_draft_allowed(mock_db_session, payroll_servi
         )
 
 
-@pytest.mark.asyncio
-async def test_pay_payroll_item_marks_as_paid(mock_db_session, payroll_service_instance):
-    """Test that paying a payroll item marks it as paid."""
-    mock_item = MagicMock(spec=PayrollItem)
-    mock_item.id = uuid4()
-    mock_item.is_paid = False
-    mock_item.paid_at = None
-    mock_item.payment_method = None
-    mock_item.payroll_run_id = uuid4()
-
-    mock_run = MagicMock(spec=PayrollRun)
-    mock_run.status = PayrollStatus.APPROVED
-    mock_run.items = [mock_item]
-
-    # First call returns item, second returns payroll run
-    item_result = MagicMock()
-    item_result.scalar_one_or_none.return_value = mock_item
-
-    run_result = MagicMock()
-    run_result.scalar_one_or_none.return_value = mock_run
-
-    mock_db_session.execute.side_effect = [item_result, run_result]
-
-    result = await payroll_service_instance.pay_payroll_item(
-        mock_db_session,
-        mock_item.id,
-        "transfer"
-    )
-
-    assert mock_item.is_paid is True
-    assert mock_item.payment_method == "transfer"
-
-
-@pytest.mark.asyncio
-async def test_pay_item_requires_approved_payroll(mock_db_session, payroll_service_instance):
-    """Test that item can only be paid if payroll is approved."""
-    mock_item = MagicMock(spec=PayrollItem)
-    mock_item.id = uuid4()
-    mock_item.is_paid = False
-    mock_item.payroll_run_id = uuid4()
-
-    mock_run = MagicMock(spec=PayrollRun)
-    mock_run.status = PayrollStatus.DRAFT  # Not approved yet
-    mock_run.items = [mock_item]
-
-    item_result = MagicMock()
-    item_result.scalar_one_or_none.return_value = mock_item
-
-    run_result = MagicMock()
-    run_result.scalar_one_or_none.return_value = mock_run
-
-    mock_db_session.execute.side_effect = [item_result, run_result]
-
-    with pytest.raises(ValueError, match="aprobadas"):
-        await payroll_service_instance.pay_payroll_item(
-            mock_db_session,
-            mock_item.id,
-            "cash"
-        )
-
-
-@pytest.mark.asyncio
-async def test_mark_payroll_paid_marks_all_items(mock_db_session, payroll_service_instance):
-    """Test that mark_payroll_paid marks all items as paid."""
-    mock_item1 = MagicMock(spec=PayrollItem)
-    mock_item1.is_paid = False
-    mock_item1.paid_at = None
-
-    mock_item2 = MagicMock(spec=PayrollItem)
-    mock_item2.is_paid = False
-    mock_item2.paid_at = None
-
-    mock_run = MagicMock(spec=PayrollRun)
-    mock_run.id = uuid4()
-    mock_run.status = PayrollStatus.APPROVED
-    mock_run.items = [mock_item1, mock_item2]
-
-    mock_result = MagicMock()
-    mock_result.scalar_one_or_none.return_value = mock_run
-    mock_db_session.execute.return_value = mock_result
-
-    result = await payroll_service_instance.mark_payroll_paid(
-        mock_db_session,
-        mock_run.id
-    )
-
-    assert mock_item1.is_paid is True
-    assert mock_item2.is_paid is True
-    assert mock_run.status == PayrollStatus.PAID
+# The happy-path pay tests (pay_payroll_item / mark_payroll_paid) moved to
+# tests/integration/test_payroll_payment.py: they now record a real cash
+# Transaction (balance integration) and lock rows FOR UPDATE, so mocking the
+# exact db.execute sequence no longer reflects the behaviour. The error-path
+# guards below stay as fast unit checks.
 
 
 @pytest.mark.asyncio

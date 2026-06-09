@@ -4,6 +4,7 @@
 import { TrendingUp, AlertCircle } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import type { TrendAnalysisResponse } from '../../../services/financialModelService';
+import { formatCurrency as formatMoney, formatCompactCurrency } from '../../../utils/formatting';
 
 interface Props {
   data: TrendAnalysisResponse | null;
@@ -23,13 +24,6 @@ const METRIC_LABELS: Record<string, string> = {
   cash_position: 'Posición de Caja',
 };
 
-function formatMoney(value: number): string {
-  const rounded = Math.round(Number(value));
-  if (Math.abs(rounded) >= 1000000) return `$${(rounded / 1000000).toFixed(1)}M`;
-  if (Math.abs(rounded) >= 1000) return `$${(rounded / 1000).toFixed(0)}K`;
-  return `$${rounded.toLocaleString('es-CO')}`;
-}
-
 export default function TrendsPanel({ data }: Props) {
   if (!data || data.series.length === 0) {
     return (
@@ -43,7 +37,7 @@ export default function TrendsPanel({ data }: Props) {
   // Build combined chart data
   const periods = data.series[0]?.data.map(d => d.period_label) || [];
   const chartData = periods.map((label, i) => {
-    const point: Record<string, any> = { name: label };
+    const point: Record<string, number | string> = { name: label };
     for (const series of data.series) {
       point[series.metric] = Number(series.data[i]?.value || 0);
     }
@@ -65,8 +59,8 @@ export default function TrendsPanel({ data }: Props) {
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-            <YAxis tickFormatter={(v: any) => formatMoney(Number(v))} tick={{ fontSize: 11 }} />
-            <Tooltip formatter={(value: any) => `$${Math.round(Number(value)).toLocaleString('es-CO')}`} />
+            <YAxis tickFormatter={(value: unknown) => formatCompactCurrency(Number(value))} tick={{ fontSize: 11 }} />
+            <Tooltip formatter={(value: unknown) => formatMoney(Number(value))} />
             <Legend />
             {data.series.map((series) => (
               <Line
@@ -91,7 +85,7 @@ export default function TrendsPanel({ data }: Props) {
             <p className="text-xs text-stone-500 uppercase tracking-wide">{METRIC_LABELS[series.metric] || series.label}</p>
             <p className="text-lg font-bold text-stone-800 mt-1">
               {series.data.length > 0
-                ? `$${Math.round(Number(series.data[series.data.length - 1].value)).toLocaleString('es-CO')}`
+                ? formatCompactCurrency(Number(series.data[series.data.length - 1].value))
                 : '-'}
             </p>
             {series.growth_rate !== null && (

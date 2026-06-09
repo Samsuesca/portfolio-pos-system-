@@ -44,14 +44,18 @@ _ran_today: dict[str, str] = {}
 
 
 async def _already_ran(task_key: str, date_str: str) -> bool:
-    """Check if a scheduled task already ran today. Redis-first, memory fallback."""
+    """Check if a scheduled task already ran today. Redis-first, memory fallback.
+
+    Uses ``SET NX`` (atomic test-and-set) instead of a separate exists/setex:
+    two near-simultaneous loop iterations can't both pass the gate and
+    double-send a digest. ``set(..., nx=True)`` returns truthy only for the
+    iteration that actually claimed the key; ``None`` means it already existed.
+    """
     try:
         r = await get_redis()
         key = f"tg_digest:{task_key}:{date_str}"
-        if await r.exists(key):
-            return True
-        await r.setex(key, 86400, "1")
-        return False
+        claimed = await r.set(key, "1", ex=86400, nx=True)
+        return claimed is None
     except Exception:
         if _ran_today.get(task_key) == date_str:
             return True

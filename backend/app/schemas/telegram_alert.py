@@ -15,6 +15,7 @@ from app.schemas.base import BaseSchema
 
 ALERT_TYPE_DESCRIPTIONS: dict[str, str] = {
     TelegramAlertType.sale_created: "Nueva venta registrada",
+    TelegramAlertType.order_created: "Nuevo encargo registrado en mostrador",
     TelegramAlertType.web_order_created: "Nuevo pedido desde el portal web",
     TelegramAlertType.order_status_changed: "Cambio de estado en un pedido",
     TelegramAlertType.low_stock: "Alerta de inventario bajo",
@@ -24,6 +25,9 @@ ALERT_TYPE_DESCRIPTIONS: dict[str, str] = {
     TelegramAlertType.pqrs_received: "Nuevo mensaje de contacto/PQRS",
     TelegramAlertType.attendance_alert: "Empleado tarde o ausente",
     TelegramAlertType.cash_drawer_access: "Solicitud de acceso a caja",
+    TelegramAlertType.alteration_received: "Nuevo arreglo recibido",
+    TelegramAlertType.alteration_delivered: "Arreglo entregado al cliente",
+    TelegramAlertType.alteration_payment: "Pago de arreglo registrado",
     TelegramAlertType.reminder_close_cash: "Recordatorio: cerrar caja (6pm)",
     TelegramAlertType.reminder_pending_expenses: "Recordatorio: gastos pendientes por pagar (9am)",
     TelegramAlertType.reminder_overdue_receivables: "Recordatorio: cuentas por cobrar vencidas (9am)",

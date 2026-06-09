@@ -26,10 +26,10 @@ from app.models.accounting import (
 )
 from app.models.product import Product, Inventory
 from app.services.balance_integration import BalanceIntegrationService
-
-
-# Margen de costo por defecto (80% del precio de venta)
-DEFAULT_COST_MARGIN = Decimal("0.80")
+# Fuente canónica del margen de costo por defecto (80% del precio de venta).
+# Se reusa en vez de re-declarar para que valoración de inventario (aquí) y
+# estimación de COGS (_cogs_resolver) nunca diverjan silenciosamente.
+from app.services._cogs_resolver import DEFAULT_COST_MARGIN
 
 
 class PatrimonyService:

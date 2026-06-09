@@ -61,6 +61,14 @@ class PaymentTransaction(Base):
         nullable=True,
         index=True
     )
+    # B2B: anticipo de un contrato (es pasivo, no CxC; por eso enlaza al contrato
+    # directamente y no a receivable_id).
+    contract_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("contracts.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
 
     # Context
     school_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -119,6 +127,7 @@ class PaymentTransaction(Base):
     # Relationships
     order: Mapped["Order | None"] = relationship()
     receivable: Mapped["AccountsReceivable | None"] = relationship()
+    contract: Mapped["Contract | None"] = relationship()
     school: Mapped["School | None"] = relationship()
     client: Mapped["Client | None"] = relationship()
 

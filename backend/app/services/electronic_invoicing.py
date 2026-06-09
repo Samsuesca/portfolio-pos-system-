@@ -114,7 +114,25 @@ class ElectronicInvoicingService:
             return ElectronicInvoice.sale_id == document_id
         if document_type == InvoiceDocumentType.ORDER:
             return ElectronicInvoice.order_id == document_id
+        if document_type == InvoiceDocumentType.CONTRACT:
+            return ElectronicInvoice.contract_id == document_id
         return ElectronicInvoice.alteration_id == document_id
+
+    async def _load_contract(self, contract_id: UUID):
+        from app.models.b2b import Contract, Quotation
+
+        stmt = (
+            select(Contract)
+            .where(Contract.id == contract_id)
+            .options(
+                selectinload(Contract.b2b_client),
+                selectinload(Contract.quotation).selectinload(Quotation.items),
+            )
+        )
+        contract = (await self.db.execute(stmt)).scalar_one_or_none()
+        if contract is None:
+            raise ElectronicInvoicingError("Contrato no encontrado", status_code=404)
+        return contract
 
     async def get_for_document(
         self, document_type: InvoiceDocumentType, document_id: UUID
@@ -169,6 +187,10 @@ class ElectronicInvoicingService:
             doc = await self._load_order(document_id)
             client = doc.client
             total = doc.total
+        elif document_type == InvoiceDocumentType.CONTRACT:
+            doc = await self._load_contract(document_id)
+            client = doc.b2b_client
+            total = doc.total
         else:
             doc = await self._load_alteration(document_id)
             client = doc.client
@@ -187,9 +209,18 @@ class ElectronicInvoicingService:
             self.db.add(invoice)
 
         invoice.total = total
-        invoice.client_name = client.name if client else "Consumidor Final"
+        # B2C client expone .name/.identification_number; el B2BClient expone
+        # .legal_name/.tax_id — resolver ambos.
+        invoice.client_name = (
+            (getattr(client, "name", None)
+             or getattr(client, "legal_name", None)
+             or "Consumidor Final")
+            if client else "Consumidor Final"
+        )
         invoice.client_identification = (
-            getattr(client, "identification_number", None) if client else None
+            (getattr(client, "identification_number", None)
+             or getattr(client, "tax_id", None))
+            if client else None
         )
         invoice.created_by = user_id
         await self.db.flush()
@@ -200,6 +231,8 @@ class ElectronicInvoicingService:
                     resp = await alegra.emit_invoice_for_sale(doc)
                 elif document_type == InvoiceDocumentType.ORDER:
                     resp = await alegra.emit_invoice_for_order(doc)
+                elif document_type == InvoiceDocumentType.CONTRACT:
+                    resp = await alegra.emit_invoice_for_contract(doc)
                 else:
                     resp = await alegra.emit_invoice_for_alteration(doc)
 

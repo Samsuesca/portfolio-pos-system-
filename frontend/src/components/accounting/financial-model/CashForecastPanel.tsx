@@ -4,15 +4,10 @@
 import { LineChart as LineChartIcon, AlertTriangle } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
 import type { CashForecastResponse } from '../../../services/financialModelService';
+import { formatCurrency as formatMoney, formatCompactCurrency } from '../../../utils/formatting';
 
 interface Props {
   data: CashForecastResponse | null;
-}
-
-function formatMoney(value: number): string {
-  const rounded = Math.round(value);
-  if (Math.abs(rounded) >= 1000000) return `$${(rounded / 1000000).toFixed(1)}M`;
-  return `$${rounded.toLocaleString('es-CO')}`;
 }
 
 const SCENARIO_COLORS = {
@@ -72,7 +67,7 @@ export default function CashForecastPanel({ data }: Props) {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-4">
           <p className="text-xs text-stone-500 uppercase tracking-wide">Saldo Actual</p>
-          <p className="text-xl font-bold text-stone-800 mt-1">{formatMoney(data.current_balance)}</p>
+          <p className="text-xl font-bold text-stone-800 mt-1">{formatCompactCurrency(data.current_balance)}</p>
         </div>
         <div className={`rounded-xl border p-4 ${runwayColors[runwayStatus]}`}>
           <p className="text-xs uppercase tracking-wide opacity-75">Runway</p>
@@ -91,8 +86,8 @@ export default function CashForecastPanel({ data }: Props) {
           <AreaChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-            <YAxis tickFormatter={formatMoney} tick={{ fontSize: 11 }} />
-            <Tooltip formatter={(v: any) => formatMoney(Number(v))} />
+            <YAxis tickFormatter={(value: unknown) => formatCompactCurrency(Number(value))} tick={{ fontSize: 11 }} />
+            <Tooltip formatter={(value: unknown) => formatMoney(Number(value))} />
             <Legend />
             <ReferenceLine
               y={Number(data.min_threshold)}

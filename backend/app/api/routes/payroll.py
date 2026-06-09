@@ -1,6 +1,7 @@
 """
 Payroll Routes - Payroll management endpoints
 """
+import logging
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select, func
@@ -23,6 +24,8 @@ from app.schemas.payroll import (
 )
 
 router = APIRouter(prefix="/global/payroll", tags=["Payroll"])
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================
@@ -147,8 +150,6 @@ async def create_payroll_run(
     **Auth:** Bearer JWT (staff)
     **Permission:** `payroll.manage` (global)
     """
-    import logging
-    logger = logging.getLogger(__name__)
     try:
         payroll = await payroll_service.create_payroll_run(
             db, data, created_by=current_user.id
@@ -159,11 +160,11 @@ async def create_payroll_run(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
-    except Exception as e:
-        logger.exception(f"Error creating payroll run: {e}")
+    except Exception:
+        logger.exception("Error creating payroll run")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error interno al crear liquidación: {str(e)}"
+            detail="Error interno al crear la liquidación de nómina"
         )
 
 
@@ -231,7 +232,9 @@ async def pay_payroll_run(
     **Permission:** `payroll.manage` (global)
     """
     try:
-        payroll = await payroll_service.mark_payroll_paid(db, payroll_id)
+        payroll = await payroll_service.mark_payroll_paid(
+            db, payroll_id, paid_by=current_user.id
+        )
         return payroll
     except ValueError as e:
         raise HTTPException(
@@ -253,7 +256,9 @@ async def cancel_payroll_run(
     **Permission:** `payroll.manage` (global)
     """
     try:
-        payroll = await payroll_service.cancel_payroll_run(db, payroll_id)
+        payroll = await payroll_service.cancel_payroll_run(
+            db, payroll_id, cancelled_by=current_user.id
+        )
         return payroll
     except ValueError as e:
         raise HTTPException(
@@ -306,7 +311,8 @@ async def pay_payroll_item(
     """
     try:
         item = await payroll_service.pay_payroll_item(
-            db, item_id, data.payment_method, data.payment_reference
+            db, item_id, data.payment_method, data.payment_reference,
+            paid_by=current_user.id,
         )
         return item
     except ValueError as e:

@@ -6,6 +6,7 @@ import { Target, Plus, Trash2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { financialModelService } from '../../../services/financialModelService';
 import type { BudgetVsActualResponse, BudgetItem, BudgetCreate } from '../../../services/financialModelService';
+import { formatCurrency as formatMoney } from '../../../utils/formatting';
 
 interface Props {
   budgetVsActual: BudgetVsActualResponse | null;
@@ -13,9 +14,12 @@ interface Props {
   onRefresh: () => void;
 }
 
-function formatMoney(value: number): string {
-  const rounded = Math.round(value);
-  return `$${rounded.toLocaleString('es-CO')}`;
+function errorMessage(e: unknown, fallback: string): string {
+  if (typeof e === 'object' && e !== null) {
+    const detail = (e as { response?: { data?: { detail?: unknown } } }).response?.data?.detail;
+    if (typeof detail === 'string') return detail;
+  }
+  return fallback;
 }
 
 const STATUS_STYLES = {
@@ -33,6 +37,7 @@ const STATUS_LABELS = {
 export default function BudgetPanel({ budgetVsActual, budgets, onRefresh }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<BudgetCreate>({
     period_type: 'monthly',
     period_start: '',
@@ -42,15 +47,21 @@ export default function BudgetPanel({ budgetVsActual, budgets, onRefresh }: Prop
   });
 
   const handleCreate = async () => {
-    if (!form.category || !form.period_start || form.budgeted_amount <= 0) return;
+    // NaN <= 0 es false, así que un monto no finito (input pegado, "1e")
+    // pasaría el guard y persistiría un presupuesto corrupto. Exigir finito.
+    if (!form.category || !form.period_start || !Number.isFinite(form.budgeted_amount) || form.budgeted_amount <= 0) {
+      setError('Completa categoría, fecha de inicio y un monto válido mayor a 0.');
+      return;
+    }
     setSubmitting(true);
+    setError(null);
     try {
       await financialModelService.createBudget(form);
       setShowForm(false);
       setForm({ period_type: 'monthly', period_start: '', period_end: '', category: '', budgeted_amount: 0 });
       onRefresh();
-    } catch {
-      // ignore
+    } catch (e) {
+      setError(errorMessage(e, 'No se pudo crear el presupuesto. Intenta de nuevo.'));
     } finally {
       setSubmitting(false);
     }
@@ -58,11 +69,12 @@ export default function BudgetPanel({ budgetVsActual, budgets, onRefresh }: Prop
 
   const handleDelete = async (id: string) => {
     if (!confirm('¿Eliminar este presupuesto?')) return;
+    setError(null);
     try {
       await financialModelService.deleteBudget(id);
       onRefresh();
-    } catch {
-      // ignore
+    } catch (e) {
+      setError(errorMessage(e, 'No se pudo eliminar el presupuesto.'));
     }
   };
 
@@ -85,6 +97,14 @@ export default function BudgetPanel({ budgetVsActual, budgets, onRefresh }: Prop
           Nuevo Presupuesto
         </button>
       </div>
+
+      {/* Error feedback — antes los fallos de POST/DELETE se tragaban en
+          silencio (catch vacío), dejando al usuario sin saber si guardó. */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm" role="alert">
+          {error}
+        </div>
+      )}
 
       {/* Create form */}
       {showForm && (
@@ -136,7 +156,10 @@ export default function BudgetPanel({ budgetVsActual, budgets, onRefresh }: Prop
               <input
                 type="number"
                 value={form.budgeted_amount || ''}
-                onChange={(e) => setForm({ ...form, budgeted_amount: Number(e.target.value) })}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  setForm({ ...form, budgeted_amount: Number.isFinite(n) ? n : 0 });
+                }}
                 className="w-full border border-stone-200 rounded-lg px-3 py-2 text-sm"
               />
             </div>
@@ -181,8 +204,8 @@ export default function BudgetPanel({ budgetVsActual, budgets, onRefresh }: Prop
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis tickFormatter={(v) => formatMoney(v)} tick={{ fontSize: 11 }} />
-              <Tooltip formatter={(v: any) => formatMoney(Number(v))} />
+              <YAxis tickFormatter={(value: unknown) => formatMoney(Number(value))} tick={{ fontSize: 11 }} />
+              <Tooltip formatter={(value: unknown) => formatMoney(Number(value))} />
               <Legend />
               <Bar dataKey="Presupuesto" fill="#93c5fd" radius={[4, 4, 0, 0]} />
               <Bar dataKey="Real" fill="#3b82f6" radius={[4, 4, 0, 0]} />

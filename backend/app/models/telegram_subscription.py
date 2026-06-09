@@ -21,6 +21,7 @@ class TelegramAlertType(str, enum.Enum):
 
     # Reactive events (triggered by business actions)
     sale_created = "sale_created"
+    order_created = "order_created"  # Encargo creado en mostrador (no portal web)
     web_order_created = "web_order_created"
     order_status_changed = "order_status_changed"
     low_stock = "low_stock"
@@ -30,6 +31,11 @@ class TelegramAlertType(str, enum.Enum):
     pqrs_received = "pqrs_received"
     attendance_alert = "attendance_alert"
     cash_drawer_access = "cash_drawer_access"
+
+    # Arreglos / alterations (modulo global, sin colegio)
+    alteration_received = "alteration_received"
+    alteration_delivered = "alteration_delivered"
+    alteration_payment = "alteration_payment"
 
     # Proactive reminders (triggered by scheduler)
     reminder_close_cash = "reminder_close_cash"
@@ -66,6 +72,7 @@ DEFAULT_SUBSCRIPTIONS_BY_ROLE = {
     "superuser": list(TelegramAlertType),  # All types
     "admin": [
         TelegramAlertType.sale_created,
+        TelegramAlertType.order_created,
         TelegramAlertType.web_order_created,
         TelegramAlertType.order_status_changed,
         TelegramAlertType.low_stock,
@@ -75,6 +82,9 @@ DEFAULT_SUBSCRIPTIONS_BY_ROLE = {
         TelegramAlertType.pqrs_received,
         TelegramAlertType.attendance_alert,
         TelegramAlertType.cash_drawer_access,
+        TelegramAlertType.alteration_received,
+        TelegramAlertType.alteration_delivered,
+        TelegramAlertType.alteration_payment,
         TelegramAlertType.reminder_close_cash,
         TelegramAlertType.reminder_pending_expenses,
         TelegramAlertType.reminder_overdue_receivables,
@@ -83,6 +93,7 @@ DEFAULT_SUBSCRIPTIONS_BY_ROLE = {
     ],
     "seller": [
         TelegramAlertType.sale_created,
+        TelegramAlertType.order_created,
         TelegramAlertType.web_order_created,
         TelegramAlertType.order_status_changed,
         TelegramAlertType.low_stock,

@@ -33,8 +33,13 @@ class OrderCreationMixin:
     async def create_order(
         self,
         order_data: OrderCreate,
-        user_id: UUID
+        user_id: UUID,
+        record_advance_transaction: bool = True,
     ) -> Order:
+        # record_advance_transaction=False: fija paid_amount sin registrar la
+        # Transaction de anticipo. Lo usa el encargo-desde-cambio, donde la caja
+        # real ya se registró en el flujo de cambios y registrarla otra vez
+        # duplicaría el ingreso.
         code = await self._generate_order_code(order_data.school_id)
 
         items_data = []
@@ -93,8 +98,12 @@ class OrderCreationMixin:
 
                     inventory = await inventory_service.get_by_product(product_id, product.school_id)
 
-                    if inventory and inventory.quantity > 0:
-                        quantity_to_reserve = min(item_data.quantity, inventory.quantity)
+                    # WS3: reservar contra AVAILABLE (quantity - reserved), no
+                    # contra quantity crudo, para no comprometer stock ya
+                    # reservado a otro encargo (anti-sobreventa).
+                    available = (inventory.quantity - inventory.reserved_quantity) if inventory else 0
+                    if available > 0:
+                        quantity_to_reserve = min(item_data.quantity, available)
                         if quantity_to_reserve > 0:
                             reserved_from_stock = True
                             quantity_reserved = quantity_to_reserve
@@ -241,7 +250,7 @@ class OrderCreationMixin:
 
         await self._sync_order_status_from_items(order.id, order_data.school_id)
 
-        if paid_amount > Decimal("0"):
+        if paid_amount > Decimal("0") and record_advance_transaction:
             from app.services.accounting.transactions import TransactionService
             txn_service = TransactionService(self.db)
             await txn_service.record(
@@ -294,15 +303,29 @@ class OrderCreationMixin:
             school = school_result.scalar_one_or_none()
             school_name = school.name if school else "N/A"
 
-            msg = TelegramMessageBuilder.web_order_created(
-                code=order.code,
-                total=order.total,
-                school_name=school_name,
-                delivery_type=order.delivery_type.value if order.delivery_type else None,
-            )
-            fire_and_forget_routed_alert(
-                "web_order_created", msg, school_id=order.school_id
-            )
+            from app.models.sale import SaleSource
+
+            delivery = order.delivery_type.value if order.delivery_type else None
+            if order.source == SaleSource.WEB_PORTAL:
+                msg = TelegramMessageBuilder.web_order_created(
+                    code=order.code,
+                    total=order.total,
+                    school_name=school_name,
+                    delivery_type=delivery,
+                )
+                fire_and_forget_routed_alert(
+                    "web_order_created", msg, school_id=order.school_id
+                )
+            else:
+                msg = TelegramMessageBuilder.order_created(
+                    code=order.code,
+                    total=order.total,
+                    school_name=school_name,
+                    delivery_type=delivery,
+                )
+                fire_and_forget_routed_alert(
+                    "order_created", msg, school_id=order.school_id
+                )
         except Exception as e:
             logger.error(f"Telegram alert failed for order {order.code}: {e}")
 
@@ -415,8 +438,15 @@ class OrderCreationMixin:
                     from app.services.inventory import InventoryService
                     inv_service = InventoryService(self.db)
                     inventory = await inv_service.get_by_product(product_id, product.school_id)
-                    if inventory and inventory.quantity > 0:
-                        quantity_to_reserve = min(item_data.quantity, inventory.quantity)
+                    # WS3 (fix mínimo): decrementar contra AVAILABLE, no quantity
+                    # crudo, para no comer stock ya reservado a otro encargo.
+                    # TODO(WS3-resto): unificar al modelo de reserva
+                    # (reserved_from_stock + quantity_reserved + reserve_stock,
+                    # como create_order) en vez de descontar quantity directo —
+                    # requiere entorno de test con python-slugify instalado.
+                    available = (inventory.quantity - inventory.reserved_quantity) if inventory else 0
+                    if available > 0:
+                        quantity_to_reserve = min(item_data.quantity, available)
                         if quantity_to_reserve > 0:
                             inventory.quantity -= quantity_to_reserve
 

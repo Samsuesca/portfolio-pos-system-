@@ -48,6 +48,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.sale import Sale, SaleItem, SaleStatus
 from app.models.order import Order, OrderItem, OrderStatus
 from app.models.alteration import Alteration, AlterationPayment, AlterationStatus
+from app.models.b2b import Contract, ContractStatus
 from app.models.product import Product
 from app.models.school import School
 from app.models.accounting import Transaction, TransactionType
@@ -190,7 +191,9 @@ class SalesStreamCalculator:
         filters = self._date_filters(start_date, end_date)
         if school_id is not None:
             filters.append(Sale.school_id == school_id)
-        # branch_id is no-op until v3.1
+        # branch_id es filtro OPCIONAL (v3.1): None ⇒ sin filtrar (= consolidado).
+        if branch_id is not None:
+            filters.append(Sale.branch_id == branch_id)
 
         # Single aggregation: revenue + cogs + count
         if include_cost:
@@ -242,6 +245,9 @@ class SalesStreamCalculator:
         filters = self._date_filters(start_date, end_date)
         if school_id is not None:
             filters.append(Sale.school_id == school_id)
+        # branch_id es filtro OPCIONAL (v3.1): None ⇒ sin filtrar (= consolidado).
+        if branch_id is not None:
+            filters.append(Sale.branch_id == branch_id)
 
         month_trunc = func.date_trunc('month', Sale.sale_date)
         if include_cost:
@@ -308,7 +314,7 @@ class OrdersStreamCalculator:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    def _accrual_filters(self, start_date, end_date, school_id):
+    def _accrual_filters(self, start_date, end_date, school_id, branch_id=None):
         filters: list = [
             Order.status == OrderStatus.DELIVERED,
             Order.delivered_at.isnot(None),
@@ -322,9 +328,12 @@ class OrdersStreamCalculator:
             filters.append(Order.delivered_at <= datetime.combine(end_date, datetime.max.time()))
         if school_id is not None:
             filters.append(Order.school_id == school_id)
+        # branch_id es filtro OPCIONAL (v3.1): None ⇒ sin filtrar (= consolidado).
+        if branch_id is not None:
+            filters.append(Order.branch_id == branch_id)
         return filters
 
-    def _cash_filters(self, start_date, end_date, school_id):
+    def _cash_filters(self, start_date, end_date, school_id, branch_id=None):
         filters: list = [
             Transaction.type == TransactionType.INCOME,
             Transaction.order_id.isnot(None),
@@ -335,6 +344,9 @@ class OrdersStreamCalculator:
             filters.append(Transaction.transaction_date <= end_date)
         if school_id is not None:
             filters.append(Transaction.school_id == school_id)
+        # branch_id es filtro OPCIONAL (v3.1): None ⇒ sin filtrar (= consolidado).
+        if branch_id is not None:
+            filters.append(Transaction.branch_id == branch_id)
         return filters
 
     async def breakdown(
@@ -342,7 +354,7 @@ class OrdersStreamCalculator:
     ) -> StreamBreakdown:
         # Revenue depends on basis
         if basis == RevenueBasis.CASH:
-            cash_filters = self._cash_filters(start_date, end_date, school_id)
+            cash_filters = self._cash_filters(start_date, end_date, school_id, branch_id)
             rev_row = (await self.db.execute(
                 select(
                     func.coalesce(func.sum(Transaction.amount), 0).label('revenue'),
@@ -352,7 +364,7 @@ class OrdersStreamCalculator:
             revenue = Decimal(str(rev_row.revenue))
             count = int(rev_row.count or 0)
         else:
-            accrual_filters = self._accrual_filters(start_date, end_date, school_id)
+            accrual_filters = self._accrual_filters(start_date, end_date, school_id, branch_id)
             rev_row = (await self.db.execute(
                 select(
                     func.coalesce(func.sum(Order.total), 0).label('revenue'),
@@ -377,6 +389,9 @@ class OrdersStreamCalculator:
             cogs_filters.append(Order.order_date <= datetime.combine(end_date, datetime.max.time()))
         if school_id is not None:
             cogs_filters.append(Order.school_id == school_id)
+        # branch_id es filtro OPCIONAL (v3.1): None ⇒ sin filtrar (= consolidado).
+        if branch_id is not None:
+            cogs_filters.append(Order.branch_id == branch_id)
 
         item_cost = resolved_cost(
             item_unit_cost_col=OrderItem.unit_cost,
@@ -409,7 +424,7 @@ class OrdersStreamCalculator:
         # For Orders, revenue grouping by month differs between accrual
         # (group by delivered_at) and cash (group by Transaction.transaction_date).
         if basis == RevenueBasis.CASH:
-            filters = self._cash_filters(start_date, end_date, school_id)
+            filters = self._cash_filters(start_date, end_date, school_id, branch_id)
             month_trunc = func.date_trunc('month', Transaction.transaction_date)
             rows = (await self.db.execute(
                 select(
@@ -421,7 +436,7 @@ class OrdersStreamCalculator:
                 .group_by(month_trunc)
             )).all()
         else:
-            filters = self._accrual_filters(start_date, end_date, school_id)
+            filters = self._accrual_filters(start_date, end_date, school_id, branch_id)
             month_trunc = func.date_trunc('month', Order.delivered_at)
             rows = (await self.db.execute(
                 select(
@@ -464,10 +479,10 @@ class AlterationsStreamCalculator:
     async def breakdown(
         self, start_date, end_date, school_id, branch_id, basis, include_cost,
     ) -> StreamBreakdown:
-        # Alterations don't have school_id (workshop is global today).
-        # Filter is ignored — same total returned regardless of school_id.
-        # In a future v3.1 where alterations are scoped by branch, this is
-        # where branch_id will be applied.
+        # Alterations don't have school_id NOR branch_id (workshop is global
+        # today). Both filters are ignored — same total returned regardless of
+        # school_id/branch_id. branch_id stays no-op here until a future phase
+        # adds the column to `alterations` (documented in the Phase 0b ADR).
         if basis == RevenueBasis.CASH:
             filters: list = []
             if start_date is not None:
@@ -577,24 +592,139 @@ class AlterationsStreamCalculator:
 
 
 # ---------------------------------------------------------------------------
-# B2B placeholder (Fase 4 — returns zeros until the model lands)
+# B2B contracts calculator
 # ---------------------------------------------------------------------------
 
 
 class B2BContractsStreamCalculator:
+    """Stream de contratos B2B (dotación corporativa / eventos).
+
+    Date semantics (espeja Orders):
+      - accrual = sum(Contract.total) con Contract.delivered_at en ventana
+                  (Contract.status = DELIVERED). Las entregas por hito
+                  (partial_delivery) se contabilizan al cerrar el contrato.
+      - cash    = sum(Transaction.amount) con type=INCOME y category='b2b'
+                  en ventana (el ingreso B2B se reconoce vía record() en la
+                  entrega; el anticipo NO es ingreso → no aparece aquí).
+      - COGS    = sum(Transaction.amount) con type=EXPENSE y category='b2b_cogs'.
+
+    B2B es GLOBAL (sin school_id): si se filtra por school_id devuelve cero,
+    para no atribuir un contrato corporativo a un colegio puntual. `branch_id`
+    es no-op aquí: `contracts` no tiene la columna (B2B es corporativo, sin
+    sucursal) hasta una fase futura — documentado en el ADR de la Fase 0b.
+    """
     stream_id = RevenueStreamId.B2B_CONTRACTS
 
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def breakdown(self, *args, **kwargs) -> StreamBreakdown:
-        return _zero_breakdown(
-            include_cost=kwargs.get('include_cost', True),
-            note='not_yet_implemented',
+    def _accrual_filters(self, start_date, end_date) -> list:
+        filters: list = [
+            Contract.status == ContractStatus.DELIVERED,
+            Contract.delivered_at.isnot(None),
+        ]
+        if start_date is not None:
+            filters.append(Contract.delivered_at >= datetime.combine(start_date, datetime.min.time()))
+        if end_date is not None:
+            filters.append(Contract.delivered_at <= datetime.combine(end_date, datetime.max.time()))
+        return filters
+
+    def _cash_filters(self, start_date, end_date) -> list:
+        filters: list = [
+            Transaction.type == TransactionType.INCOME,
+            Transaction.category == 'b2b',
+        ]
+        if start_date is not None:
+            filters.append(Transaction.transaction_date >= start_date)
+        if end_date is not None:
+            filters.append(Transaction.transaction_date <= end_date)
+        return filters
+
+    async def breakdown(
+        self, start_date, end_date, school_id, branch_id, basis, include_cost,
+    ) -> StreamBreakdown:
+        # B2B no se atribuye a un colegio puntual.
+        if school_id is not None:
+            return _zero_breakdown(include_cost, note='b2b_global_only')
+
+        if basis == RevenueBasis.CASH:
+            row = (await self.db.execute(
+                select(
+                    func.coalesce(func.sum(Transaction.amount), 0).label('revenue'),
+                    func.count(Transaction.id).label('count'),
+                ).where(and_(*self._cash_filters(start_date, end_date)))
+            )).one()
+        else:
+            row = (await self.db.execute(
+                select(
+                    func.coalesce(func.sum(Contract.total), 0).label('revenue'),
+                    func.count(Contract.id).label('count'),
+                ).where(and_(*self._accrual_filters(start_date, end_date)))
+            )).one()
+        revenue = Decimal(str(row.revenue))
+        count = int(row.count or 0)
+
+        if not include_cost:
+            return StreamBreakdown(
+                revenue=revenue, cogs=None, gross_profit=None,
+                gross_margin_pct=None, count=count,
+            )
+
+        cogs_filters: list = [
+            Transaction.type == TransactionType.EXPENSE,
+            Transaction.category == 'b2b_cogs',
+        ]
+        if start_date is not None:
+            cogs_filters.append(Transaction.transaction_date >= start_date)
+        if end_date is not None:
+            cogs_filters.append(Transaction.transaction_date <= end_date)
+        cogs_row = (await self.db.execute(
+            select(func.coalesce(func.sum(Transaction.amount), 0).label('cogs'))
+            .where(and_(*cogs_filters))
+        )).one()
+        cogs = Decimal(str(cogs_row.cogs))
+        gp = revenue - cogs
+        margin = float((gp / revenue * 100) if revenue > 0 else 0)
+        return StreamBreakdown(
+            revenue=revenue, cogs=cogs, gross_profit=gp,
+            gross_margin_pct=round(margin, 1), count=count,
         )
 
-    async def monthly_series(self, *args, **kwargs) -> dict[str, StreamBreakdown]:
-        return {}
+    async def monthly_series(
+        self, start_date, end_date, school_id, branch_id, basis, include_cost,
+    ) -> dict[str, StreamBreakdown]:
+        if school_id is not None:
+            return {}
+        if basis == RevenueBasis.CASH:
+            month_trunc = func.date_trunc('month', Transaction.transaction_date)
+            rows = (await self.db.execute(
+                select(
+                    month_trunc.label('month'),
+                    func.coalesce(func.sum(Transaction.amount), 0).label('revenue'),
+                    func.count(Transaction.id).label('count'),
+                ).where(and_(*self._cash_filters(start_date, end_date))).group_by(month_trunc)
+            )).all()
+        else:
+            month_trunc = func.date_trunc('month', Contract.delivered_at)
+            rows = (await self.db.execute(
+                select(
+                    month_trunc.label('month'),
+                    func.coalesce(func.sum(Contract.total), 0).label('revenue'),
+                    func.count(Contract.id).label('count'),
+                ).where(and_(*self._accrual_filters(start_date, end_date))).group_by(month_trunc)
+            )).all()
+
+        out: dict[str, StreamBreakdown] = {}
+        for row in rows:
+            key = row.month.strftime('%Y-%m')
+            out[key] = StreamBreakdown(
+                revenue=Decimal(str(row.revenue)),
+                cogs=None if not include_cost else Decimal("0"),
+                gross_profit=None if not include_cost else Decimal("0"),
+                gross_margin_pct=None if not include_cost else 0.0,
+                count=int(row.count or 0),
+            )
+        return out
 
 
 # ---------------------------------------------------------------------------

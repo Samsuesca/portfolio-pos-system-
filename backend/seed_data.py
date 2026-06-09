@@ -3,6 +3,7 @@ Seed Data Script - Populate database with sample data
 Run: python seed_data.py
 """
 import asyncio
+import os
 from uuid import UUID
 from decimal import Decimal
 
@@ -26,13 +27,15 @@ async def seed_database():
         print("\n1️⃣ Creating superuser...")
         user_service = UserService(db)
 
+        admin_password = os.environ.get("SEED_ADMIN_PASSWORD", "Admin123")
+
         try:
             superuser = await user_service.create_user(
                 UserCreate(
                     username="admin",
                     email="admin@uniformes.com",
                     full_name="Administrador del Sistema",
-                    password="Admin123",
+                    password=admin_password,
                     is_superuser=True
                 )
             )
@@ -249,7 +252,7 @@ async def seed_database():
         print("\n✅ Database seeded successfully!")
         print("\n📝 Login credentials:")
         print("   Username: admin")
-        print("   Password: Admin123")
+        print(f"   Password: {admin_password}")
         print(f"\n📊 Sample data created:")
         print(f"   - {len(garment_types_data)} garment types")
         print(f"   - {len(products_data)} products")

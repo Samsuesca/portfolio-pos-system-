@@ -299,6 +299,39 @@ class TestSendAlert:
         assert result is False
 
     @pytest.mark.unit
+    async def test_send_alert_http_error_does_not_leak_token(self):
+        """A 4xx/5xx from Telegram must not write the bot token to logs.
+
+        httpx builds HTTPStatusError.__str__() with the full request URL, which
+        carries the token. The handler must log the status code, never str(e).
+        """
+        import app.services.telegram as tg_mod
+
+        _reset_telegram_module()
+        token = "123456:ABC-FAKE-TOKEN"
+        leaky_message = (
+            "Client error '401 Unauthorized' for url "
+            f"'https://api.telegram.org/bot{token}/sendMessage'"
+        )
+        mock_post = AsyncMock(
+            side_effect=httpx.HTTPStatusError(
+                leaky_message,
+                request=MagicMock(),
+                response=MagicMock(status_code=401),
+            )
+        )
+        svc = _make_enabled_service(mock_post=mock_post)
+
+        with patch.object(tg_mod.logger, "error") as mock_log:
+            result = await svc.send_alert("fail", alert_type="leak_test")
+
+        assert result is False
+        for call in mock_log.call_args_list:
+            args = call.args
+            rendered = (args[0] % args[1:]) if len(args) > 1 else args[0]
+            assert token not in rendered
+
+    @pytest.mark.unit
     async def test_send_alert_passes_correct_payload(self):
         """send_alert sends the correct JSON payload to Telegram."""
         _reset_telegram_module()
@@ -350,6 +383,35 @@ class TestSendToChat:
         svc = _make_enabled_service(mock_post=mock_post)
         result = await svc.send_to_chat("99999", "msg")
         assert result is False
+
+    @pytest.mark.unit
+    async def test_send_to_chat_http_error_does_not_leak_token(self):
+        """send_to_chat must not write the bot token to logs on HTTP failure."""
+        import app.services.telegram as tg_mod
+
+        _reset_telegram_module()
+        token = "123456:ABC-FAKE-TOKEN"
+        leaky_message = (
+            "Client error '403 Forbidden' for url "
+            f"'https://api.telegram.org/bot{token}/sendMessage'"
+        )
+        mock_post = AsyncMock(
+            side_effect=httpx.HTTPStatusError(
+                leaky_message,
+                request=MagicMock(),
+                response=MagicMock(status_code=403),
+            )
+        )
+        svc = _make_enabled_service(mock_post=mock_post)
+
+        with patch.object(tg_mod.logger, "error") as mock_log:
+            result = await svc.send_to_chat("99999", "msg")
+
+        assert result is False
+        for call in mock_log.call_args_list:
+            args = call.args
+            rendered = (args[0] % args[1:]) if len(args) > 1 else args[0]
+            assert token not in rendered
 
     @pytest.mark.unit
     async def test_send_to_chat_sends_to_correct_chat_id(self):

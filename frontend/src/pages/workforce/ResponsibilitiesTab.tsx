@@ -29,6 +29,7 @@ export default function ResponsibilitiesTab() {
 
   const loadResponsibilities = useCallback(async () => {
     setRespLoading(true);
+    setRespError('');
     try {
       const params: { position?: string; is_active?: boolean } = { is_active: true };
       if (respPositionFilter) params.position = respPositionFilter;
@@ -36,6 +37,7 @@ export default function ResponsibilitiesTab() {
       setResponsibilities(data);
     } catch (err) {
       console.error('Error loading responsibilities:', err);
+      setRespError(extractErrorMessage(err));
     } finally {
       setRespLoading(false);
     }
@@ -157,6 +159,15 @@ export default function ResponsibilitiesTab() {
           </button>
         </RequirePermission>
       </div>
+
+      {/* Load error banner */}
+      {!showRespModal && respError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start gap-2">
+          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+          <div className="text-sm text-red-700 flex-1">{respError}</div>
+          <button onClick={() => loadResponsibilities()} className="text-sm text-red-700 underline hover:text-red-800">Reintentar</button>
+        </div>
+      )}
 
       {/* Loading */}
       {respLoading && (

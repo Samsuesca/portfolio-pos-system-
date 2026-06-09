@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Pencil, Check, X } from 'lucide-react';
+import { Pencil, Check, X, AlertCircle } from 'lucide-react';
 import { RequirePermission } from '../../components/RequirePermission';
 import workforceService, {
   PerformanceSummaryItem,
@@ -17,10 +17,12 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
   const [summary, setSummary] = useState<PerformanceSummaryItem[]>([]);
   const [stats, setStats] = useState<PerformanceStats | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [employeeMetrics, setEmployeeMetrics] = useState<EmployeePerformanceMetrics | null>(null);
   const [employeeReviews, setEmployeeReviews] = useState<PerformanceReview[]>([]);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
 
   // Inline note editing
   const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
@@ -31,6 +33,7 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
 
   const loadSummary = useCallback(async () => {
     setLoadingSummary(true);
+    setSummaryError(null);
     try {
       const [summaryResult, statsResult] = await Promise.all([
         workforceService.getPerformanceSummary({
@@ -46,6 +49,7 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
       setStats(statsResult);
     } catch (err) {
       console.error('Error loading performance summary:', err);
+      setSummaryError(extractErrorMessage(err) || 'No se pudo cargar el rendimiento.');
     } finally {
       setLoadingSummary(false);
     }
@@ -58,6 +62,7 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
   const loadEmployeeDetail = useCallback(
     async (empId: string) => {
       setLoadingDetail(true);
+      setDetailError(null);
       try {
         const [metrics, reviewsResult] = await Promise.all([
           workforceService.getEmployeeMetrics(empId, periodStart, periodEnd),
@@ -67,6 +72,7 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
         setEmployeeReviews(reviewsResult.items);
       } catch (err) {
         console.error('Error loading employee detail:', err);
+        setDetailError(extractErrorMessage(err) || 'No se pudo cargar el detalle del empleado.');
       } finally {
         setLoadingDetail(false);
       }
@@ -205,6 +211,20 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
         </div>
       </div>
 
+      {/* Summary load error */}
+      {summaryError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start gap-2">
+          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+          <div className="text-sm text-red-700 flex-1">{summaryError}</div>
+          <button
+            onClick={() => loadSummary()}
+            className="text-sm text-red-700 underline hover:text-red-800"
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
+
       {/* Ranking table */}
       {loadingSummary ? (
         <div className="text-center py-8 text-stone-500">Cargando rendimiento...</div>
@@ -280,6 +300,17 @@ export default function PerformanceTab({ employees: _employees }: { employees: E
                           {loadingDetail ? (
                             <div className="text-center py-4 text-stone-500">
                               Cargando detalle...
+                            </div>
+                          ) : detailError ? (
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
+                              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                              <div className="text-sm text-red-700 flex-1">{detailError}</div>
+                              <button
+                                onClick={() => loadEmployeeDetail(item.employee_id)}
+                                className="text-sm text-red-700 underline hover:text-red-800"
+                              >
+                                Reintentar
+                              </button>
                             </div>
                           ) : (
                             <div className="space-y-4">

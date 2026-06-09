@@ -11,6 +11,8 @@ import calendar
 from datetime import date
 from decimal import Decimal
 
+from app.utils.timezone import get_colombia_date
+
 EPSILON = Decimal("0.000001")
 
 
@@ -32,7 +34,7 @@ def safe_ratio(
 
 def is_partial_month(end_date: date, today: date | None = None) -> bool:
     """True si `end_date` cae en el mes en curso y aún no ha terminado."""
-    today = today or date.today()
+    today = today or get_colombia_date()
     if end_date.year != today.year or end_date.month != today.month:
         return False
     last_day = calendar.monthrange(today.year, today.month)[1]
@@ -41,6 +43,6 @@ def is_partial_month(end_date: date, today: date | None = None) -> bool:
 
 def days_elapsed_in_month(today: date | None = None) -> tuple[int, int]:
     """Devuelve (días transcurridos, días totales) del mes en curso."""
-    today = today or date.today()
+    today = today or get_colombia_date()
     last_day = calendar.monthrange(today.year, today.month)[1]
     return today.day, last_day

@@ -86,10 +86,19 @@ class SaleCreationMixin:
                 raise ValueError(f"Producto {product.code} no pertenece a este colegio")
 
             if not is_historical:
+                # WS3: la venta directa se valida contra AVAILABLE (quantity -
+                # reserved), no contra quantity crudo, para no comer stock ya
+                # comprometido a encargos (anti-sobreventa).
                 inv = inventory_map.get(product.id)
-                if not inv or inv.quantity < item_data.quantity:
+                available = (inv.quantity - inv.reserved_quantity) if inv else 0
+                if available < item_data.quantity:
+                    reservado = (
+                        f" ({inv.reserved_quantity} reservada(s) a encargos)"
+                        if inv and inv.reserved_quantity > 0 else ""
+                    )
                     raise ValueError(
-                        f"Stock insuficiente para el producto {product.code}"
+                        f"Stock insuficiente para {product.code}: disponible {available}"
+                        f"{reservado}, solicitado {item_data.quantity}"
                     )
 
             unit_price = product.price

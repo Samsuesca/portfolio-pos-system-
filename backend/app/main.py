@@ -26,7 +26,7 @@ from app.services.telegram import fire_and_forget_alert
 from app.services.monitoring import metrics
 
 logger = logging.getLogger(__name__)
-from app.api.routes import health, auth, schools, products, clients, sales, orders, inventory, users, reports, accounting, global_products, global_accounting, global_reports, contacts, delivery_zones, dashboard, documents, fixed_expenses, employees, payroll, alterations, notifications, school_users, custom_roles, inventory_logs, global_roles, cash_drawer, business_settings, email_logs, print_queue, cfo_dashboard, workforce_shifts, workforce_attendance, workforce_checklists, workforce_performance, workforce_responsibilities, payments, telegram_alerts, financial_model, permission_registry, cost_components, cost_change_log, cost_insights, catalog, vendors, electronic_invoicing
+from app.api.routes import health, auth, schools, products, clients, sales, orders, inventory, users, reports, accounting, global_products, global_accounting, global_reports, contacts, delivery_zones, dashboard, documents, fixed_expenses, employees, payroll, alterations, notifications, school_users, custom_roles, inventory_logs, global_roles, cash_drawer, business_settings, email_logs, print_queue, cfo_dashboard, workforce_shifts, workforce_attendance, workforce_checklists, workforce_performance, workforce_responsibilities, payments, telegram_alerts, financial_model, permission_registry, cost_components, cost_change_log, cost_insights, catalog, vendors, electronic_invoicing, b2b_quotations, b2b_contracts, b2b_clients, branches
 
 
 async def _email_log_flush_loop():
@@ -197,6 +197,8 @@ OPENAPI_TAGS = [
     {"name": "Global Inventory Logs", "description": "Cross-school inventory movement history"},
     {"name": "Global Alterations", "description": "Garment alterations tracking (hemming, adjustments)"},
     {"name": "Cost Components", "description": "Product cost breakdown templates and calculations"},
+    {"name": "B2B Quotations", "description": "Cotizaciones empresariales con numeración formal COT-YYYY-NNNN y workflow de aprobación"},
+    {"name": "B2B Contracts", "description": "Contratos empresariales made-to-order: anticipo (pasivo), entrega (reconocimiento de ingreso), hitos, cobro de saldo y cancelación"},
     # Accounting
     {"name": "Accounting", "description": "School-scoped transactions, expenses, receivables, payables"},
     {"name": "Global Accounting", "description": "Cross-school accounting: balance accounts, cash flow, expenses, debt, snapshots"},
@@ -233,7 +235,7 @@ OPENAPI_TAGS = [
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    version="2.0.0",
+    version="3.2.0",
     description=(
         "Sistema de Gestión de Uniformes — API REST multi-tenant.\n\n"
         "## Autenticación\n"
@@ -534,6 +536,10 @@ app.include_router(cost_change_log.router, prefix=f"{settings.API_V1_STR}")  # C
 app.include_router(cost_insights.router, prefix=f"{settings.API_V1_STR}")  # Cost insights dashboard endpoints
 app.include_router(catalog.router, prefix=f"{settings.API_V1_STR}")  # Catalog: positions, sizes, colors
 app.include_router(electronic_invoicing.router, prefix=f"{settings.API_V1_STR}")  # Facturacion electronica DIAN (Alegra)
+app.include_router(b2b_quotations.router, prefix=f"{settings.API_V1_STR}")  # B2B Quotations (global, sin school_id)
+app.include_router(b2b_contracts.router, prefix=f"{settings.API_V1_STR}")  # B2B Contracts (global, ciclo de vida contable)
+app.include_router(b2b_clients.router, prefix=f"{settings.API_V1_STR}")  # B2B Clients (global, gestión de clientes empresariales)
+app.include_router(branches.router, prefix=f"{settings.API_V1_STR}")  # Branches (global, sucursales físicas v3.1)
 
 # Mount static files for uploads (payment proofs, etc.)
 # Use environment-based path: production uses /var/www/..., development uses relative path

@@ -212,10 +212,10 @@ class SaleChangeMixin:
             created_by=user_id,
         )
 
-        if price_adjustment != 0:
-            payment_method = change_data.payment_method or PaymentMethod.CASH
-            payment_method_str = payment_method.value if hasattr(payment_method, 'value') else str(payment_method)
+        payment_method = change_data.payment_method or PaymentMethod.CASH
+        payment_method_str = payment_method.value if hasattr(payment_method, 'value') else str(payment_method)
 
+        if price_adjustment != 0:
             if payment_method_str != 'credit':
                 acc_payment_method = AccPaymentMethod(payment_method_str)
                 txn_type = TransactionType.INCOME if price_adjustment > 0 else TransactionType.EXPENSE
@@ -240,10 +240,25 @@ class SaleChangeMixin:
 
         garment_type_id = getattr(new_product, 'garment_type_id', None)
 
+        # Fix CxC fantasma: el encargo nace reflejando SOLO lo que el cliente
+        # debe por el cambio. La prenda original ya se pagó/debe en la venta;
+        # la diferencia no-crédito ya se cobró arriba como Transaction. El
+        # encargo solo carga saldo cuando es crédito con diferencia positiva
+        # (ahí sí el cliente debe el ajuste). Sin esto, el encargo abría una
+        # CxC por el precio COMPLETO de la prenda nueva (fantasma).
+        encargo_total = new_unit_price * change_data.new_quantity
+        debe_por_cambio = (
+            price_adjustment
+            if (payment_method_str == 'credit' and price_adjustment > 0)
+            else Decimal("0")
+        )
+        advance = encargo_total - debe_por_cambio
+
         order_data = OrderCreate(
             school_id=school_id,
             client_id=sale.client_id,
             notes=f"Encargo automatico por cambio de venta {sale.code} [sale_id:{sale.id}]. Motivo: {change_data.reason}",
+            advance_payment=advance,
             items=[
                 OrderItemCreate(
                     garment_type_id=garment_type_id,
@@ -258,7 +273,12 @@ class SaleChangeMixin:
             ]
         )
 
-        order = await order_service.create_order(order_data, user_id)
+        # record_advance_transaction=False: la caja real del cambio ya se
+        # registró arriba; el encargo es solo el vehículo de fulfillment de una
+        # venta ya pagada. Registrar el anticipo de nuevo duplicaría el ingreso.
+        order = await order_service.create_order(
+            order_data, user_id, record_advance_transaction=False
+        )
 
         change = SaleChange(
             sale_id=sale.id,

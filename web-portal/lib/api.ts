@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { getPublicToken, clearPublicToken } from './auth';
 import { unwrapPaginated, PaginatedResponse } from './pagination';
 
 // API Base URL - se configura desde variables de entorno (exported for image URLs)
@@ -13,56 +12,6 @@ const publicClient = axios.create({
     'Content-Type': 'application/json',
   },
 });
-
-// Authenticated client - requires public-viewer token
-const apiClient = axios.create({
-  baseURL: `${API_BASE_URL}/api/v1`,
-  timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Request interceptor to add auth token (only for apiClient)
-apiClient.interceptors.request.use(
-  async (config) => {
-    // Get public token for catalog access
-    try {
-      const token = await getPublicToken();
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-    } catch (error) {
-      console.error('Failed to add auth token:', error);
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// Response interceptor to handle token expiration
-apiClient.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    if (error.response?.status === 401) {
-      // Token expired, clear cache and retry once
-      clearPublicToken();
-      const originalRequest = error.config;
-
-      if (!originalRequest._retry) {
-        originalRequest._retry = true;
-        try {
-          const token = await getPublicToken();
-          originalRequest.headers.Authorization = `Bearer ${token}`;
-          return apiClient(originalRequest);
-        } catch (retryError) {
-          return Promise.reject(retryError);
-        }
-      }
-    }
-    return Promise.reject(error);
-  }
-);
 
 // Types
 export interface School {
@@ -200,148 +149,6 @@ export const schoolsApi = {
   getBySlug: (slug: string) => publicClient.get<School>(`/schools/slug/${slug}`),
 };
 
-// Products
-export const productsApi = {
-  list: async (schoolId: string, params?: { is_active?: boolean; with_stock?: boolean; with_images?: boolean }) => {
-    const response = await apiClient.get<Product[] | PaginatedResponse<Product>>('/products', { params: { school_id: schoolId, with_stock: true, with_images: true, ...params } });
-    return { ...response, data: unwrapPaginated(response.data).items };
-  },
-  get: (schoolId: string, productId: string) =>
-    apiClient.get<Product>(`/schools/${schoolId}/products/${productId}`),
-  listGlobal: async (params?: { with_inventory?: boolean; limit?: number }) => {
-    const response = await apiClient.get<Product[] | PaginatedResponse<Product>>('/global/products', { params });
-    return { ...response, data: unwrapPaginated(response.data).items };
-  },
-
-  // Search products with filters
-  search: async (schoolId: string, params: {
-    query?: string;
-    category?: string;
-    size?: string;
-    min_price?: number;
-    max_price?: number;
-    in_stock?: boolean;
-    global_search?: boolean;
-  }): Promise<Product[]> => {
-    const { global_search, query, category, size, min_price, max_price, in_stock } = params;
-
-    // If no search query, just use the regular list endpoint with filters
-    if (!query || query.trim().length === 0) {
-      const response = await apiClient.get<Product[] | PaginatedResponse<Product>>('/products', {
-        params: {
-          school_id: schoolId,
-          with_stock: true,
-          with_images: true,
-          is_active: true
-        }
-      });
-      let results = unwrapPaginated(response.data).items;
-
-      // Apply client-side filters since backend doesn't support all filters in search
-      if (category && category !== 'all') {
-        const categoryLower = category.toLowerCase();
-        results = results.filter(p => {
-          const name = p.name.toLowerCase();
-          if (categoryLower === 'camisas') return name.includes('camisa') || name.includes('blusa') || name.includes('camiseta');
-          if (categoryLower === 'chompas') return name.includes('chompa');
-          if (categoryLower === 'pantalones') return name.includes('pantalon') || name.includes('falda');
-          if (categoryLower === 'sudaderas') return name.includes('sudadera') || name.includes('buzo') || name.includes('chaqueta');
-          if (categoryLower === 'yomber' || categoryLower === 'jumper') return name.includes('yomber') || name.includes('jumper');
-          if (categoryLower === 'calzado') return name.includes('zapato') || name.includes('tennis') || name.includes('media') || name.includes('jean');
-          return false;
-        });
-      }
-
-      if (size && size !== 'all') {
-        results = results.filter(p => p.size === size);
-      }
-
-      if (min_price !== undefined || max_price !== undefined) {
-        results = results.filter(p => {
-          const price = p.price;
-          if (min_price !== undefined && price < min_price) return false;
-          if (max_price !== undefined && price > max_price) return false;
-          return true;
-        });
-      }
-
-      if (in_stock) {
-        // "in_stock" en el portal de padres significa "comprable ahora sin encargo".
-        // Usa available (= total - reservado) en vez de stock bruto.
-        results = results.filter(p => {
-          const total = p.stock ?? p.stock_quantity ?? p.inventory_quantity ?? 0;
-          const reserved = p.reserved ?? p.inventory_reserved ?? 0;
-          const available = p.available ?? p.inventory_available ?? Math.max(0, total - reserved);
-          return available > 0;
-        });
-      }
-
-      return results;
-    }
-
-    // Use backend search endpoint if query exists
-    const url = global_search
-      ? '/global/products/search'
-      : `/schools/${schoolId}/products/search/by-term`;
-
-    const response = await apiClient.get<Product[] | PaginatedResponse<Product>>(url, {
-      params: { q: query, limit: 100 }
-    });
-    let results = unwrapPaginated(response.data).items;
-
-    // Apply client-side filters to search results
-    if (category && category !== 'all') {
-      const categoryLower = category.toLowerCase();
-      results = results.filter(p => {
-        const name = p.name.toLowerCase();
-        if (categoryLower === 'camisas') return name.includes('camisa') || name.includes('blusa') || name.includes('camiseta');
-        if (categoryLower === 'chompas') return name.includes('chompa');
-        if (categoryLower === 'pantalones') return name.includes('pantalon') || name.includes('falda');
-        if (categoryLower === 'sudaderas') return name.includes('sudadera') || name.includes('buzo') || name.includes('chaqueta');
-        if (categoryLower === 'yomber' || categoryLower === 'jumper') return name.includes('yomber') || name.includes('jumper');
-        if (categoryLower === 'calzado') return name.includes('zapato') || name.includes('tennis') || name.includes('media') || name.includes('jean');
-        return false;
-      });
-    }
-
-    if (size && size !== 'all') {
-      results = results.filter(p => p.size === size);
-    }
-
-    if (min_price !== undefined || max_price !== undefined) {
-      results = results.filter(p => {
-        const price = p.price;
-        if (min_price !== undefined && price < min_price) return false;
-        if (max_price !== undefined && price > max_price) return false;
-        return true;
-      });
-    }
-
-    if (in_stock) {
-      results = results.filter(p => (p.stock ?? p.stock_quantity ?? p.inventory_quantity ?? 0) > 0);
-    }
-
-    return results;
-  },
-
-  // Get price statistics for a school's products
-  getStats: async (schoolId: string): Promise<{ min_price: number; max_price: number }> => {
-    const response = await apiClient.get<Product[] | PaginatedResponse<Product>>('/products', {
-      params: { school_id: schoolId, with_stock: true }
-    });
-    const products = unwrapPaginated(response.data).items;
-
-    if (products.length === 0) {
-      return { min_price: 0, max_price: 100000 };
-    }
-
-    return {
-      min_price: Math.min(...products.map(p => p.price)),
-      max_price: Math.max(...products.map(p => p.price))
-    };
-  },
-};
-
 // Clients (Web Portal Registration)
 export interface ClientWebRegister {
   name: string;
@@ -408,11 +215,6 @@ export const ordersApi = {
     const result = await response.json();
     return { data: result };
   },
-  create: (schoolId: string, data: { school_id: string; client_id: string; items: OrderItem[]; notes?: string }) =>
-    apiClient.post<Order>(`/schools/${schoolId}/orders`, data),
-  get: (schoolId: string, orderId: string) =>
-    apiClient.get<Order>(`/schools/${schoolId}/orders/${orderId}`),
-
 };
 
 // Payments (Wompi)

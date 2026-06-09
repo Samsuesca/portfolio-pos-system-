@@ -6,18 +6,13 @@
 import { Building2, Info } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import type { ProfitabilityResponse } from '../../../services/financialModelService';
+import { formatCurrency as formatMoney } from '../../../utils/formatting';
 
 interface Props {
   data: ProfitabilityResponse | null;
 }
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
-
-function formatMoney(value: number): string {
-  const rounded = Math.round(value);
-  if (rounded < 0) return `-$${Math.abs(rounded).toLocaleString('es-CO')}`;
-  return `$${rounded.toLocaleString('es-CO')}`;
-}
 
 function formatPct(value: number | string): string {
   return `${Number(value).toFixed(1)}%`;
@@ -66,7 +61,7 @@ export default function ProfitabilityPanel({ data }: Props) {
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={chartData} layout="vertical" margin={{ left: 20, right: 20 }}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis type="number" tickFormatter={(v: any) => formatMoney(Number(v))} />
+            <XAxis type="number" tickFormatter={(value: unknown) => formatMoney(Number(value))} />
             <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 12 }} />
             <Tooltip
               formatter={(value: unknown) => formatMoney(Number(value))}

@@ -104,7 +104,7 @@ class TestAtomicAdjustQuantity:
         await svc.reserve_stock(fresh_inventory.product_id, fresh_inventory.school_id, 7, reference="TEST")
         await db_session.commit()
 
-        with pytest.raises(ValueError, match="Insufficient inventory"):
+        with pytest.raises(ValueError, match="Stock insuficiente"):
             await svc.remove_stock(fresh_inventory.product_id, fresh_inventory.school_id, 5)
 
 

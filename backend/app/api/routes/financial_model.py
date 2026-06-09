@@ -13,9 +13,11 @@ from fastapi import APIRouter, HTTPException, status, Query, Depends
 # Validation literals reused across endpoints. Antes los query params
 # aceptaban strings arbitrarios (period=invalid, period=2026-13) y el
 # servicio silenciosamente caía a default. Ahora 422 con mensaje claro.
-KPIPeriod = Literal["daily", "weekly", "monthly"]
 TrendPeriod = Literal["daily", "weekly", "monthly"]
 BudgetPeriod = Literal["weekly", "monthly", "quarterly", "yearly"]
+# Coincide con el pattern de BudgetCreate.period_type. Antes era `str` libre,
+# así que `period_type=bogus` devolvía 200 con resultados vacíos en silencio.
+BudgetVsActualPeriod = Literal["monthly", "quarterly", "annual"]
 
 from app.api.dependencies import DatabaseSession, CurrentUser, require_global_permission
 from app.api.error_responses import responses, AUTHENTICATED
@@ -50,7 +52,6 @@ router = APIRouter(
 @router.get("/kpis", response_model=KPIDashboardResponse, responses=AUTHENTICATED, operation_id="getFinancialKpis")
 async def get_kpis(
     db: DatabaseSession,
-    period: KPIPeriod = Query("monthly", description="Período de agregación"),
     months: int = Query(6, ge=1, le=24, description="Number of months to analyze"),
     school_id: UUID | None = Query(None, description="Optional school filter"),
 ):
@@ -189,7 +190,7 @@ async def delete_budget(
     if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Budget not found"
+            detail="Presupuesto no encontrado"
         )
     await db.commit()
 
@@ -197,7 +198,7 @@ async def delete_budget(
 @router.get("/budget-vs-actual", response_model=BudgetVsActualResponse, responses=AUTHENTICATED, operation_id="getBudgetVsActual")
 async def get_budget_vs_actual(
     db: DatabaseSession,
-    period_type: str = Query(..., description="monthly, quarterly, or annual"),
+    period_type: BudgetVsActualPeriod = Query(..., description="monthly, quarterly, or annual"),
     period_start: date = Query(..., description="Start date of the period"),
 ):
     """

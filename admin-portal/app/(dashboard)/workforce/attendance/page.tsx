@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Pencil, Check } from 'lucide-react';
 import { RequirePermission } from '@/components/RequirePermission';
+import CurrencyInput from '@/components/ui/CurrencyInput';
 import employeeService, { EmployeeListItem } from '@/lib/services/employeeService';
 import workforceService, {
   AttendanceRecord,
@@ -505,13 +506,10 @@ export default function AttendancePage() {
             {absenceForm.is_deductible && (
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Monto de deduccion</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={absenceForm.deduction_amount || ''}
-                  onChange={(e) => setAbsenceForm({ ...absenceForm, deduction_amount: e.target.value ? Number(e.target.value) : undefined })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                  placeholder="0"
+                <CurrencyInput
+                  value={absenceForm.deduction_amount || 0}
+                  onChange={(value) => setAbsenceForm({ ...absenceForm, deduction_amount: value || undefined })}
+                  className="w-full"
                 />
               </div>
             )}

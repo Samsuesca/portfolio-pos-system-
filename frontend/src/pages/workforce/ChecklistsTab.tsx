@@ -19,6 +19,7 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
   // --- Daily checklists state ---
   const [dailyChecklists, setDailyChecklists] = useState<DailyChecklist[]>([]);
   const [loadingDaily, setLoadingDaily] = useState(false);
+  const [dailyError, setDailyError] = useState<string | null>(null);
 
   // --- Templates state ---
   const [checklistTemplates, setChecklistTemplates] = useState<ChecklistTemplate[]>([]);
@@ -43,11 +44,13 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
 
   const loadDailyChecklists = useCallback(async () => {
     setLoadingDaily(true);
+    setDailyError(null);
     try {
       const result = await workforceService.getDailyChecklists({ checklist_date: selectedDate });
       setDailyChecklists(result.items);
     } catch (err) {
       console.error('Error loading daily checklists:', err);
+      setDailyError(extractErrorMessage(err) || 'No se pudieron cargar los checklists del dia.');
     } finally {
       setLoadingDaily(false);
     }
@@ -55,11 +58,13 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
 
   const loadChecklistTemplates = useCallback(async () => {
     setLoadingTemplates(true);
+    setTemplateError('');
     try {
       const data = await workforceService.getChecklistTemplates();
       setChecklistTemplates(data);
     } catch (err) {
       console.error('Error loading checklist templates:', err);
+      setTemplateError(extractErrorMessage(err) || 'No se pudieron cargar las plantillas de checklist.');
     } finally {
       setLoadingTemplates(false);
     }
@@ -247,6 +252,19 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
               </button>
             </RequirePermission>
           </div>
+
+          {dailyError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start gap-2">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+              <div className="text-sm text-red-700 flex-1">{dailyError}</div>
+              <button
+                onClick={() => loadDailyChecklists()}
+                className="text-sm text-red-700 underline hover:text-red-800"
+              >
+                Reintentar
+              </button>
+            </div>
+          )}
 
           {loadingDaily ? (
             <div className="text-center py-8 text-stone-500">Cargando checklists...</div>
@@ -527,6 +545,20 @@ export default function ChecklistsTab({ employees: _employees }: { employees: Em
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Load error banner (create form has its own inline error) */}
+          {templateError && !showTemplateForm && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start gap-2">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+              <div className="text-sm text-red-700 flex-1">{templateError}</div>
+              <button
+                onClick={() => loadChecklistTemplates()}
+                className="text-sm text-red-700 underline hover:text-red-800"
+              >
+                Reintentar
+              </button>
             </div>
           )}
 

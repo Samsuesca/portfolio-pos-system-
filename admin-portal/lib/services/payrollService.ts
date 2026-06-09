@@ -1,7 +1,8 @@
 /**
  * Payroll Service - API calls for payroll management
  */
-import apiClient from '../api';
+import apiClient, { PaginatedResponse } from '../api';
+import { unwrapPaginated } from '../utils/pagination';
 
 const BASE_URL = '/global/payroll';
 
@@ -108,9 +109,10 @@ export const PAYROLL_STATUS_COLORS: Record<PayrollStatus, string> = {
 // ============================================
 
 export const formatPeriodRange = (start: string, end: string): string => {
-  const startDate = new Date(start);
-  const endDate = new Date(end);
-  const options: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short' };
+  // Anchor at noon so the UTC->Colombia (UTC-5) shift never rolls back a day
+  const startDate = new Date(`${start}T12:00:00`);
+  const endDate = new Date(`${end}T12:00:00`);
+  const options: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short', timeZone: 'America/Bogota' };
   return `${startDate.toLocaleDateString('es-CO', options)} - ${endDate.toLocaleDateString('es-CO', options)}`;
 };
 
@@ -131,8 +133,8 @@ const payrollService = {
     limit?: number;
     status?: PayrollStatus;
   }): Promise<PayrollRunListItem[]> => {
-    const response = await apiClient.get<PayrollRunListItem[]>(BASE_URL, { params });
-    return response.data;
+    const response = await apiClient.get<PayrollRunListItem[] | PaginatedResponse<PayrollRunListItem>>(BASE_URL, { params });
+    return unwrapPaginated(response.data).items;
   },
 
   // Get a single payroll run with items

@@ -10,6 +10,18 @@ from app.db.base import Base
 from app.models.user import User, UserSchoolRole, UserRole, EmailVerificationToken
 from app.models.cash_drawer import DrawerAccessCode
 from app.models.school import School
+from app.models.branch import Branch, SchoolIdentity
+from app.models.b2b import (
+    B2BClient,
+    Quotation,
+    QuotationItem,
+    Contract,
+    ContractMilestone,
+    B2BSegment,
+    QuotationStatus,
+    ContractStatus,
+    MilestoneStatus,
+)
 from app.models.permission import Permission, CustomRole, RolePermission
 from app.models.product import (
     GarmentType, GarmentTypeImage, Product, Inventory,
@@ -91,6 +103,19 @@ __all__ = [
     "DrawerAccessCode",
     # School models
     "School",
+    # Branch models (v3.1)
+    "Branch",
+    "SchoolIdentity",
+    # B2B models (cotizaciones / contratos)
+    "B2BClient",
+    "Quotation",
+    "QuotationItem",
+    "Contract",
+    "ContractMilestone",
+    "B2BSegment",
+    "QuotationStatus",
+    "ContractStatus",
+    "MilestoneStatus",
     # Permission models
     "Permission",
     "CustomRole",

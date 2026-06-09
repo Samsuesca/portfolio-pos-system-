@@ -47,11 +47,13 @@ export default function ShiftsTab({ employees }: { employees: EmployeeListItem[]
 
   const loadTemplates = useCallback(async () => {
     setLoadingTemplates(true);
+    setTemplateError('');
     try {
       const data = await workforceService.getShiftTemplates();
       setTemplates(data);
     } catch (err) {
       console.error('Error loading templates:', err);
+      setTemplateError(extractErrorMessage(err));
     } finally {
       setLoadingTemplates(false);
     }
@@ -59,11 +61,13 @@ export default function ShiftsTab({ employees }: { employees: EmployeeListItem[]
 
   const loadSchedules = useCallback(async () => {
     setLoadingSchedules(true);
+    setScheduleError('');
     try {
       const result = await workforceService.getSchedules({ date_from: dateFrom, date_to: dateTo });
       setSchedules(result.items);
     } catch (err) {
       console.error('Error loading schedules:', err);
+      setScheduleError(extractErrorMessage(err));
     } finally {
       setLoadingSchedules(false);
     }
@@ -361,9 +365,22 @@ export default function ShiftsTab({ employees }: { employees: EmployeeListItem[]
             </div>
           )}
 
+          {templateError && !showTemplateForm && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start gap-2">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+              <div className="text-sm text-red-700 flex-1">{templateError}</div>
+              <button
+                onClick={() => loadTemplates()}
+                className="text-sm text-red-700 underline hover:text-red-800"
+              >
+                Reintentar
+              </button>
+            </div>
+          )}
+
           {loadingTemplates ? (
             <div className="text-center py-8 text-stone-500">Cargando plantillas...</div>
-          ) : templates.length === 0 ? (
+          ) : templateError ? null : templates.length === 0 ? (
             <div className="text-center py-8 text-stone-500">No hay plantillas de turno creadas.</div>
           ) : (
             <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
@@ -573,9 +590,22 @@ export default function ShiftsTab({ employees }: { employees: EmployeeListItem[]
             </div>
           )}
 
+          {scheduleError && !showScheduleForm && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start gap-2">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+              <div className="text-sm text-red-700 flex-1">{scheduleError}</div>
+              <button
+                onClick={() => loadSchedules()}
+                className="text-sm text-red-700 underline hover:text-red-800"
+              >
+                Reintentar
+              </button>
+            </div>
+          )}
+
           {loadingSchedules ? (
             <div className="text-center py-8 text-stone-500">Cargando horarios...</div>
-          ) : schedules.length === 0 ? (
+          ) : scheduleError ? null : schedules.length === 0 ? (
             <div className="text-center py-8 text-stone-500">
               No hay horarios para el rango seleccionado.
             </div>

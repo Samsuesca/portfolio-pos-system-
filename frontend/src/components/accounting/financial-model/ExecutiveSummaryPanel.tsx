@@ -3,15 +3,10 @@
  */
 import { FileText, Printer, TrendingUp, TrendingDown, Minus, AlertCircle, AlertTriangle, Info } from 'lucide-react';
 import type { ExecutiveSummaryResponse } from '../../../services/financialModelService';
+import { formatCurrency as formatMoney } from '../../../utils/formatting';
 
 interface Props {
   data: ExecutiveSummaryResponse | null;
-}
-
-function formatMoney(value: number): string {
-  const rounded = Math.round(value);
-  if (rounded < 0) return `-$${Math.abs(rounded).toLocaleString('es-CO')}`;
-  return `$${rounded.toLocaleString('es-CO')}`;
 }
 
 function ChangeIndicator({ value }: { value: number | null }) {

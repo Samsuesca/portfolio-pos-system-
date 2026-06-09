@@ -18,6 +18,13 @@ export interface UsePermissionsResult {
   hasPermission: (permissionCode: string) => boolean;
   hasAnyPermission: (...permissionCodes: string[]) => boolean;
   hasAllPermissions: (...permissionCodes: string[]) => boolean;
+  /**
+   * Checks a permission across ALL of the user's school roles, independent of
+   * the currently selected school. Use this for GLOBAL resources (e.g. B2B,
+   * which has no school_id): a user with the permission in any role should be
+   * allowed even when no school is selected.
+   */
+  hasGlobalPermission: (permissionCode: string) => boolean;
   permissions: Set<string>;
   maxDiscountPercent: number;
   getConstraints: (permissionCode: string) => PermissionConstraints | undefined;
@@ -54,6 +61,7 @@ export function usePermissions(): UsePermissionsResult {
       hasPermission: () => false,
       hasAnyPermission: () => false,
       hasAllPermissions: () => false,
+      hasGlobalPermission: () => false,
       permissions: new Set(),
       maxDiscountPercent: 0,
       getConstraints: noConstraints,
@@ -76,8 +84,34 @@ export function usePermissions(): UsePermissionsResult {
       canManageWorkforce: false,
     };
 
-    if (!user || !currentSchool) {
+    if (!user) {
       return defaultResult;
+    }
+
+    // Global permission resolution: union across ALL of the user's roles,
+    // independent of the selected school. Needed for global resources (B2B).
+    const isAllGlobal =
+      user.is_superuser === true ||
+      (user.school_roles || []).some((r) => r.role === 'owner');
+    const globalPermissions = new Set<string>();
+    for (const r of user.school_roles || []) {
+      if (r.permissions && r.permissions.length > 0) {
+        r.permissions.forEach((p) => globalPermissions.add(p));
+      } else if (r.role) {
+        getSystemRolePermissions(r.role).forEach((p) => globalPermissions.add(p));
+      }
+    }
+    const hasGlobalPermission = (code: string) =>
+      isAllGlobal || globalPermissions.has(code);
+
+    // No school selected yet: scoped permissions are unavailable, but global
+    // ones (B2B) still resolve from the union above.
+    if (!currentSchool) {
+      return {
+        ...defaultResult,
+        hasGlobalPermission,
+        permissions: globalPermissions,
+      };
     }
 
     const schoolRole = user.school_roles?.find(
@@ -93,6 +127,7 @@ export function usePermissions(): UsePermissionsResult {
         hasPermission: () => true,
         hasAnyPermission: () => true,
         hasAllPermissions: () => true,
+        hasGlobalPermission: () => true,
         permissions: new Set(['*']),
         maxDiscountPercent: 100,
         getConstraints: () => undefined,
@@ -122,6 +157,7 @@ export function usePermissions(): UsePermissionsResult {
         hasPermission: () => true,
         hasAnyPermission: () => true,
         hasAllPermissions: () => true,
+        hasGlobalPermission: () => true,
         permissions: new Set(['*']),
         maxDiscountPercent: 100,
         getConstraints,
@@ -168,6 +204,7 @@ export function usePermissions(): UsePermissionsResult {
       hasPermission,
       hasAnyPermission,
       hasAllPermissions,
+      hasGlobalPermission,
       permissions,
       maxDiscountPercent,
       getConstraints,

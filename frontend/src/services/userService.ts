@@ -20,6 +20,8 @@ export interface UserSchoolRole {
   id: string;
   user_id: string;
   school_id: string;
+  // Sucursal del rol (v3.1). null/ausente = acceso central a todas las sucursales.
+  branch_id?: string | null;
   role: UserRole | null;  // Can be null if using custom_role_id
   custom_role_id?: string | null;
   is_primary: boolean;

@@ -4,7 +4,7 @@
  * Admin modal to view payment proofs uploaded by customers
  * and approve or reject payments for orders.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X, XCircle, Image as ImageIcon, FileText, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import { formatCurrency } from '../utils/formatting';
 
@@ -35,8 +35,22 @@ export default function PaymentVerificationModal({
   const [error, setError] = useState<string | null>(null);
   const [rejectionNotes, setRejectionNotes] = useState('');
   const [showRejectForm, setShowRejectForm] = useState(false);
+  const [proofImageError, setProofImageError] = useState(false);
+
+  // El modal se reutiliza con distintos `order`; sin esto, el fallback de error
+  // de una imagen previa persistiria al abrir otro pedido con imagen valida.
+  useEffect(() => {
+    setProofImageError(false);
+  }, [order.id]);
 
   if (!isOpen) return null;
+
+  // Defensa en profundidad: solo permitimos http(s) en el enlace para que una
+  // URL maliciosa (p.ej. `javascript:`) no se vuelva clickeable.
+  const safeProofUrl =
+    order.payment_proof_url && /^https?:\/\//i.test(order.payment_proof_url)
+      ? order.payment_proof_url
+      : undefined;
 
   const handleApprove = async () => {
     if (!confirm('¿Aprobar el pago de este pedido?')) {
@@ -122,28 +136,29 @@ export default function PaymentVerificationModal({
                 Comprobante de Pago
               </h3>
               <div className="border-2 border-stone-200 rounded-lg overflow-hidden">
-                <img
-                  src={order.payment_proof_url}
-                  alt="Comprobante de pago"
-                  className="w-full max-h-96 object-contain bg-stone-100"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                    const container = e.currentTarget.parentElement;
-                    if (container) {
-                      container.innerHTML = `
-                        <div class="flex flex-col items-center justify-center p-12 bg-stone-50">
-                          <p class="text-stone-500">No se pudo cargar la imagen</p>
-                          <a href="${order.payment_proof_url}" target="_blank" class="text-brand-600 hover:underline mt-2">
-                            Abrir en nueva pestaña
-                          </a>
-                        </div>
-                      `;
-                    }
-                  }}
-                />
+                {proofImageError ? (
+                  <div className="flex flex-col items-center justify-center p-12 bg-stone-50">
+                    <p className="text-stone-500">No se pudo cargar la imagen</p>
+                    <a
+                      href={safeProofUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-brand-600 hover:underline mt-2"
+                    >
+                      Abrir en nueva pestaña
+                    </a>
+                  </div>
+                ) : (
+                  <img
+                    src={order.payment_proof_url}
+                    alt="Comprobante de pago"
+                    className="w-full max-h-96 object-contain bg-stone-100"
+                    onError={() => setProofImageError(true)}
+                  />
+                )}
               </div>
               <a
-                href={order.payment_proof_url}
+                href={safeProofUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm text-brand-600 hover:text-brand-700 mt-2 inline-block"

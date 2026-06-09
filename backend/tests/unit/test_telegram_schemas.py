@@ -33,9 +33,9 @@ class TestTelegramAlertTypeEnum:
     """Verify the TelegramAlertType enum structure."""
 
     @pytest.mark.unit
-    def test_enum_has_18_members(self):
-        """TelegramAlertType has exactly 18 members (incl. daily_digest_seller)."""
-        assert len(TelegramAlertType) == 18
+    def test_enum_has_22_members(self):
+        """TelegramAlertType has exactly 22 members (incl. order + alteration types)."""
+        assert len(TelegramAlertType) == 22
 
     @pytest.mark.unit
     def test_all_values_are_strings(self):
@@ -49,6 +49,7 @@ class TestTelegramAlertTypeEnum:
         """All 10 reactive event types exist."""
         expected = [
             "sale_created",
+            "order_created",
             "web_order_created",
             "order_status_changed",
             "low_stock",
@@ -62,6 +63,13 @@ class TestTelegramAlertTypeEnum:
         values = [m.value for m in TelegramAlertType]
         for ev in expected:
             assert ev in values, f"Missing reactive event type: {ev}"
+
+    @pytest.mark.unit
+    def test_alteration_types_present(self):
+        """The three alteration alert types exist."""
+        values = [m.value for m in TelegramAlertType]
+        for t in ("alteration_received", "alteration_delivered", "alteration_payment"):
+            assert t in values, f"Missing alteration type: {t}"
 
     @pytest.mark.unit
     def test_reminder_types_present(self):

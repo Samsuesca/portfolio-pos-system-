@@ -1662,6 +1662,7 @@ export interface PlanningDashboard {
 
 export type TelegramAlertType =
   | 'sale_created'
+  | 'order_created'
   | 'web_order_created'
   | 'order_status_changed'
   | 'low_stock'
@@ -1671,6 +1672,9 @@ export type TelegramAlertType =
   | 'pqrs_received'
   | 'attendance_alert'
   | 'cash_drawer_access'
+  | 'alteration_received'
+  | 'alteration_delivered'
+  | 'alteration_payment'
   | 'reminder_close_cash'
   | 'reminder_pending_expenses'
   | 'reminder_overdue_receivables'
@@ -1721,7 +1725,7 @@ export interface TelegramUpdateSubscriptionsRequest {
 // Electronic Invoicing (Facturacion Electronica DIAN / Alegra)
 // ============================================
 
-export type InvoiceDocumentType = 'sale' | 'order' | 'alteration';
+export type InvoiceDocumentType = 'sale' | 'order' | 'alteration' | 'contract';
 export type ElectronicInvoiceStatus = 'pending' | 'emitted' | 'failed' | 'voided';
 
 export interface ElectronicInvoice {
@@ -1758,4 +1762,216 @@ export interface EmitInvoiceRequest {
 
 export interface VoidInvoiceRequest {
   reason: string;
+}
+
+// ============================================================================
+// B2B — Cotizaciones y Contratos empresariales (recurso GLOBAL, sin school_id)
+// Tipos espejo de backend/app/schemas/b2b.py — usar nombres reales del backend.
+// ============================================================================
+
+export type B2BSegment = 'restaurant' | 'corporate' | 'sports' | 'event' | 'institutional';
+export type QuotationStatus = 'draft' | 'sent' | 'negotiation' | 'accepted' | 'rejected' | 'expired';
+export type ContractStatus =
+  | 'pending_deposit'
+  | 'in_production'
+  | 'partial_delivery'
+  | 'delivered'
+  | 'closed'
+  | 'cancelled';
+
+export interface B2BClientResponse {
+  id: string;
+  legal_name: string;
+  trade_name: string | null;
+  tax_id: string;
+  segment: B2BSegment;
+  contact_name: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  billing_address: string | null;
+  credit_limit: number;
+  payment_terms_days: number;
+  notes: string | null;
+  branch_id: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface B2BClientCreate {
+  legal_name: string;
+  trade_name?: string | null;
+  tax_id: string;
+  segment: B2BSegment;
+  contact_name?: string | null;
+  contact_phone?: string | null;
+  contact_email?: string | null;
+  billing_address?: string | null;
+  credit_limit?: number;
+  payment_terms_days?: number;
+  notes?: string | null;
+  branch_id?: string | null;
+}
+
+export type B2BClientUpdate = Partial<B2BClientCreate> & { is_active?: boolean };
+
+export interface QuotationItemResponse {
+  id: string;
+  product_id: string | null;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  unit_cost_estimate: number | null;
+  customization: string | null;
+  line_total: number;
+}
+
+export interface QuotationItemCreate {
+  product_id?: string | null;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  unit_cost_estimate?: number | null;
+  customization?: string | null;
+}
+
+export interface QuotationResponse {
+  id: string;
+  branch_id: string | null;
+  b2b_client_id: string;
+  client_name: string | null;
+  quotation_number: string;
+  status: QuotationStatus;
+  issue_date: string;
+  valid_until: string;
+  subtotal: number;
+  tax_amount: number;
+  total: number;
+  deposit_pct: number;
+  estimated_delivery_days: number | null;
+  terms: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  items: QuotationItemResponse[];
+}
+
+export interface QuotationListResponse {
+  id: string;
+  quotation_number: string;
+  status: QuotationStatus;
+  b2b_client_id: string;
+  client_name: string | null;
+  issue_date: string;
+  valid_until: string;
+  total: number;
+  created_at: string;
+}
+
+export interface QuotationCreate {
+  b2b_client_id: string;
+  branch_id?: string | null;
+  issue_date: string;
+  valid_until: string;
+  deposit_pct?: number;
+  estimated_delivery_days?: number | null;
+  terms?: string | null;
+  notes?: string | null;
+  tax_amount?: number;
+  items: QuotationItemCreate[];
+}
+
+export interface QuotationUpdate {
+  valid_until?: string;
+  deposit_pct?: number;
+  estimated_delivery_days?: number | null;
+  terms?: string | null;
+  notes?: string | null;
+  tax_amount?: number;
+}
+
+export type MilestoneStatus = 'pending' | 'delivered' | 'invoiced' | 'paid';
+
+export interface ContractMilestoneResponse {
+  id: string;
+  sequence: number;
+  description: string;
+  amount: number;
+  due_date: string | null;
+  delivered_at: string | null;
+  invoiced_at: string | null;
+  status: MilestoneStatus;
+}
+
+export interface ContractResponse {
+  id: string;
+  branch_id: string | null;
+  b2b_client_id: string;
+  client_name: string | null;
+  quotation_id: string | null;
+  contract_number: string;
+  status: ContractStatus;
+  total: number;
+  deposit_amount: number;
+  deposit_received_at: string | null;
+  balance_amount: number;
+  outstanding_balance: number;
+  delivery_date: string | null;
+  delivered_at: string | null;
+  has_milestones: boolean;
+  signed_document_url: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  milestones: ContractMilestoneResponse[];
+}
+
+export interface ContractListResponse {
+  id: string;
+  contract_number: string;
+  status: ContractStatus;
+  b2b_client_id: string;
+  client_name: string | null;
+  total: number;
+  balance_amount: number;
+  outstanding_balance: number;
+  delivery_date: string | null;
+  created_at: string;
+}
+
+// Contract lifecycle action payloads (mirror backend/app/schemas/b2b.py).
+// Amounts are sent as numbers; the backend coerces to Decimal.
+export interface DepositRegisterPayload {
+  payment_method: AccPaymentMethod;
+  /** Defaults to contract.deposit_amount on the backend if omitted. */
+  amount?: number;
+  payment_date?: string;
+}
+
+export interface DeliveryRegisterPayload {
+  delivery_date?: string;
+  cogs_amount?: number;
+  /** Payment method for the cash settlement of the balance (default cash). */
+  settlement_method?: AccPaymentMethod;
+}
+
+export interface MilestoneDeliveryRegisterPayload {
+  delivery_date?: string;
+  cogs_amount?: number;
+  settlement_method?: AccPaymentMethod;
+}
+
+export interface BalancePaymentRegisterPayload {
+  /** If omitted, the backend resolves the open receivable of the contract. */
+  receivable_id?: string;
+  amount: number;
+  payment_method: AccPaymentMethod;
+  payment_date?: string;
+}
+
+export interface ContractCancelPayload {
+  retain_deposit?: boolean;
+  reason?: string;
 }

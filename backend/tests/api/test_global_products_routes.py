@@ -88,14 +88,16 @@ class TestGlobalGarmentTypeRoutes:
             assert response.json()["id"] == garment_type_id
 
     async def test_get_global_garment_type_not_found(
-        self, api_client, auth_headers
+        self, api_client, superuser_headers
     ):
         """Test 404 for nonexistent garment type."""
         from tests.fixtures.assertions import assert_not_found
 
+        # Global catalog GETs now require `products.view`; use an authorized
+        # caller so the request reaches the not-found path instead of 403.
         response = await api_client.get(
             f"/api/v1/global/garment-types/{uuid4()}",
-            headers=auth_headers
+            headers=superuser_headers
         )
 
         assert_not_found(response)
@@ -249,25 +251,28 @@ class TestGlobalProductRoutes:
                 assert response.json()["id"] == product_id
 
     async def test_get_global_product_not_found(
-        self, api_client, auth_headers
+        self, api_client, superuser_headers
     ):
         """Test 404 for nonexistent product."""
         from tests.fixtures.assertions import assert_not_found
 
+        # Global catalog GETs now require `products.view`; use an authorized
+        # caller so the request reaches the not-found path instead of 403.
         response = await api_client.get(
             f"/api/v1/global/products/{uuid4()}",
-            headers=auth_headers
+            headers=superuser_headers
         )
 
         assert_not_found(response)
 
     async def test_search_global_products(
-        self, api_client, auth_headers
+        self, api_client, superuser_headers
     ):
         """Test searching global products."""
+        # Global catalog GETs now require `products.view`; authorize the caller.
         response = await api_client.get(
             "/api/v1/global/products/search?q=test",
-            headers=auth_headers
+            headers=superuser_headers
         )
 
         assert response.status_code == 200
@@ -552,14 +557,16 @@ class TestGlobalGarmentTypeImages:
             assert isinstance(data, list)
 
     async def test_list_images_not_found_garment_type(
-        self, api_client, auth_headers
+        self, api_client, superuser_headers
     ):
         """Test 404 for images of nonexistent garment type."""
         from tests.fixtures.assertions import assert_not_found
 
+        # Global catalog GETs now require `products.view`; use an authorized
+        # caller so the request reaches the not-found path instead of 403.
         response = await api_client.get(
             f"/api/v1/global/garment-types/{uuid4()}/images",
-            headers=auth_headers
+            headers=superuser_headers
         )
 
         assert_not_found(response)

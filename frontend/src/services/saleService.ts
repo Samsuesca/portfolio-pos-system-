@@ -41,6 +41,9 @@ export interface SaleCreate {
 
 export interface SaleFilters {
   school_id?: string;
+  // Sucursal física (v3.1). Filtro OPCIONAL: si se omite, no se envía y el
+  // backend devuelve el consolidado (comportamiento actual intacto).
+  branch_id?: string;
   status?: string;
   source?: 'desktop_app' | 'web_portal' | 'api';
   search?: string;
@@ -80,6 +83,7 @@ export const saleService = {
   async getAllSales(filters?: SaleFilters): Promise<PaginatedResponse<SaleListItem>> {
     const params = new URLSearchParams();
     if (filters?.school_id) params.append('school_id', filters.school_id);
+    if (filters?.branch_id) params.append('branch_id', filters.branch_id);
     if (filters?.status) params.append('status', filters.status);
     if (filters?.source) params.append('source', filters.source);
     if (filters?.search) params.append('search', filters.search);

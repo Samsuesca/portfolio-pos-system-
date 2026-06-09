@@ -95,7 +95,7 @@ class TestGetHealthMetrics:
     """Tests for GET /api/v1/cfo-dashboard/health-metrics"""
 
     @patch(
-        "app.api.routes.cfo_dashboard.payroll_service.get_payroll_summary",
+        "app.services.accounting.financial_model.cfo_dashboard.payroll_service.get_payroll_summary",
         new_callable=AsyncMock,
         return_value={"total_monthly_payroll": 1500000, "active_employees": 3},
     )
@@ -118,7 +118,7 @@ class TestGetHealthMetrics:
         assert "health_status" in data
 
     @patch(
-        "app.api.routes.cfo_dashboard.payroll_service.get_payroll_summary",
+        "app.services.accounting.financial_model.cfo_dashboard.payroll_service.get_payroll_summary",
         new_callable=AsyncMock,
         return_value={"total_monthly_payroll": 0, "active_employees": 0},
     )
@@ -134,7 +134,7 @@ class TestGetHealthMetrics:
         assert data["liquidity"]["currency"] == "COP"
 
     @patch(
-        "app.api.routes.cfo_dashboard.payroll_service.get_payroll_summary",
+        "app.services.accounting.financial_model.cfo_dashboard.payroll_service.get_payroll_summary",
         new_callable=AsyncMock,
         return_value={"total_monthly_payroll": 0, "active_employees": 0},
     )
@@ -153,7 +153,7 @@ class TestGetHealthMetrics:
         assert "debt_service_coverage_ratio" in debt
 
     @patch(
-        "app.api.routes.cfo_dashboard.payroll_service.get_payroll_summary",
+        "app.services.accounting.financial_model.cfo_dashboard.payroll_service.get_payroll_summary",
         new_callable=AsyncMock,
         return_value={
             "total_monthly_payroll": 1500000,
@@ -176,7 +176,7 @@ class TestGetHealthMetrics:
         assert payroll["coverage_ratio"] > 1
 
     @patch(
-        "app.api.routes.cfo_dashboard.payroll_service.get_payroll_summary",
+        "app.services.accounting.financial_model.cfo_dashboard.payroll_service.get_payroll_summary",
         new_callable=AsyncMock,
         return_value={"total_monthly_payroll": 0, "active_employees": 0},
     )
@@ -199,7 +199,7 @@ class TestGetHealthMetrics:
         assert 0 <= dq["score"] <= 100
 
     @patch(
-        "app.api.routes.cfo_dashboard.payroll_service.get_payroll_summary",
+        "app.services.accounting.financial_model.cfo_dashboard.payroll_service.get_payroll_summary",
         new_callable=AsyncMock,
         return_value={"total_monthly_payroll": 0, "active_employees": 0},
     )
@@ -218,7 +218,7 @@ class TestGetHealthMetrics:
         assert "pending_expenses" in ops
 
     @patch(
-        "app.api.routes.cfo_dashboard.payroll_service.get_payroll_summary",
+        "app.services.accounting.financial_model.cfo_dashboard.payroll_service.get_payroll_summary",
         new_callable=AsyncMock,
         return_value={"total_monthly_payroll": 0, "active_employees": 0},
     )
@@ -242,7 +242,7 @@ class TestGetHealthMetrics:
         assert "data_quality" in breakdown
 
     @patch(
-        "app.api.routes.cfo_dashboard.payroll_service.get_payroll_summary",
+        "app.services.accounting.financial_model.cfo_dashboard.payroll_service.get_payroll_summary",
         new_callable=AsyncMock,
         return_value={"total_monthly_payroll": 0, "active_employees": 0},
     )
@@ -260,7 +260,7 @@ class TestGetHealthMetrics:
         assert isinstance(alerts["items"], list)
 
     @patch(
-        "app.api.routes.cfo_dashboard.payroll_service.get_payroll_summary",
+        "app.services.accounting.financial_model.cfo_dashboard.payroll_service.get_payroll_summary",
         new_callable=AsyncMock,
         return_value={"total_monthly_payroll": 999_999_999, "active_employees": 1},
     )
@@ -280,7 +280,7 @@ class TestGetHealthMetrics:
         assert payroll_alerts[0]["type"] == "critical"
 
     @patch(
-        "app.api.routes.cfo_dashboard.payroll_service.get_payroll_summary",
+        "app.services.accounting.financial_model.cfo_dashboard.payroll_service.get_payroll_summary",
         new_callable=AsyncMock,
         return_value={"total_monthly_payroll": 0, "active_employees": 0},
     )
@@ -318,7 +318,7 @@ class TestGetHealthMetrics:
         assert response.status_code in (401, 403)
 
     @patch(
-        "app.api.routes.cfo_dashboard.payroll_service.get_payroll_summary",
+        "app.services.accounting.financial_model.cfo_dashboard.payroll_service.get_payroll_summary",
         new_callable=AsyncMock,
         return_value={"total_monthly_payroll": 0, "active_employees": 0},
     )
@@ -335,7 +335,7 @@ class TestGetHealthMetrics:
         d.fromisoformat(data["as_of"])
 
     @patch(
-        "app.api.routes.cfo_dashboard.payroll_service.get_payroll_summary",
+        "app.services.accounting.financial_model.cfo_dashboard.payroll_service.get_payroll_summary",
         new_callable=AsyncMock,
         return_value={"total_monthly_payroll": 0, "active_employees": 0},
     )

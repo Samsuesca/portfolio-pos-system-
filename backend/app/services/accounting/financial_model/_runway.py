@@ -20,12 +20,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.accounting import (
-    AccountType,
-    BalanceAccount,
     Expense,
     Transaction,
     TransactionType,
 )
+from app.services.accounting.financial_model._cash import current_cash_balance
 from app.services.accounting.financial_model._math import safe_ratio
 from app.utils.timezone import get_colombia_date
 
@@ -52,13 +51,12 @@ def calculate_cash_runway(
 
 
 async def get_current_cash_balance(db: AsyncSession) -> Decimal:
-    """Saldo actual de activos corrientes (caja + banco + Nequi)."""
-    stmt = select(func.coalesce(func.sum(BalanceAccount.balance), ZERO)).where(
-        BalanceAccount.account_type == AccountType.ASSET_CURRENT,
-        BalanceAccount.is_active == True,  # noqa: E712 (SQLAlchemy idiom)
-    )
-    result = await db.execute(stmt)
-    return Decimal(str(result.scalar()))
+    """Saldo actual de activos corrientes (caja + banco + Nequi).
+
+    Delega en la fuente canónica ``_cash.current_cash_balance``; se conserva
+    este wrapper por los consumidores que ya lo importan.
+    """
+    return await current_cash_balance(db)
 
 
 async def get_avg_monthly_burn(
